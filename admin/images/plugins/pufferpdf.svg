@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">PufferPDF logo</title>
+  <desc id="desc">A pufferfish formed from a document page with a folded corner and text lines.</desc>
+  <g fill="#177448">
+    <path d="M197 425 82 361c-18-10-39 6-34 26l31 125-31 125c-5 20 16 36 34 26l115-64Z"/>
+    <path d="m828 457 127 55-127 55Z"/>
+    <path d="m315 238-58-92 108 29Z"/>
+    <path d="m458 190 14-112 67 91Z"/>
+    <path d="m618 185 72-86 5 113Z"/>
+    <path d="m284 779-82 78 15-112Z"/>
+    <path d="m430 835-26 110-57-98Z"/>
+    <path d="m587 848 45 103 38-107Z"/>
+    <path d="m734 796 92 66-32-109Z"/>
+    <circle cx="512" cy="512" r="326"/>
+  </g>
+  <circle cx="512" cy="512" r="260" fill="#fbfcfb"/>
+  <path d="M641 252v105c0 38 31 69 69 69h62Z" fill="#16211c"/>
+  <path d="M641 252 772 426H710c-38 0-69-31-69-69Z" fill="#e9f5ee"/>
+  <circle cx="690" cy="514" r="48" fill="#16211c"/>
+  <circle cx="706" cy="498" r="15" fill="#fbfcfb"/>
+  <g fill="#177448">
+    <rect x="338" y="421" width="224" height="30" rx="15"/>
+    <rect x="338" y="499" width="250" height="30" rx="15"/>
+    <rect x="338" y="577" width="205" height="30" rx="15"/>
+  </g>
+  <rect x="338" y="655" width="150" height="24" rx="12" fill="#b9dcc8"/>
+</svg>

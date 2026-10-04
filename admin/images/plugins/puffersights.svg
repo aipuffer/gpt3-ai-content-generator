@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+	<title id="title">PufferSights</title>
+	<desc id="desc">PufferSights AI crawler analytics icon.</desc>
+	<defs>
+		<linearGradient id="bg" x1="28" y1="18" x2="226" y2="238" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#0f172a"/>
+			<stop offset="0.52" stop-color="#123d52"/>
+			<stop offset="1" stop-color="#065f46"/>
+		</linearGradient>
+		<linearGradient id="ring" x1="45" y1="48" x2="207" y2="208" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#38bdf8"/>
+			<stop offset="0.48" stop-color="#2dd4bf"/>
+			<stop offset="1" stop-color="#a3e635"/>
+		</linearGradient>
+		<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+			<feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity="0.32"/>
+		</filter>
+	</defs>
+	<rect width="256" height="256" fill="url(#bg)"/>
+	<g opacity="0.22" fill="none" stroke="#e0f2fe" stroke-width="2">
+		<path d="M26 76h42c18 0 23 25 41 25h36c22 0 29-31 51-31h34"/>
+		<path d="M24 182h50c20 0 25-24 45-24h29c24 0 29 33 53 33h32"/>
+		<path d="M43 129h42c15 0 17-18 33-18h31c17 0 22 18 39 18h28"/>
+	</g>
+	<g filter="url(#softShadow)">
+		<circle cx="128" cy="128" r="82" fill="#0b1220" opacity="0.54"/>
+		<circle cx="128" cy="128" r="78" fill="none" stroke="url(#ring)" stroke-width="12"/>
+		<path d="M77 129c13-31 32-47 58-47 23 0 39 11 48 32" fill="none" stroke="#e0f2fe" stroke-linecap="round" stroke-width="8" opacity="0.86"/>
+		<path d="M73 153c16 14 34 21 55 21 24 0 43-9 58-26" fill="none" stroke="#a7f3d0" stroke-linecap="round" stroke-width="8" opacity="0.86"/>
+	</g>
+	<g fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="800" text-anchor="middle">
+		<text x="128" y="149" font-size="65" letter-spacing="0">PS</text>
+	</g>
+	<g fill="#a3e635">
+		<circle cx="69" cy="76" r="8"/>
+		<circle cx="197" cy="71" r="7"/>
+		<circle cx="218" cy="190" r="6"/>
+	</g>
+</svg>

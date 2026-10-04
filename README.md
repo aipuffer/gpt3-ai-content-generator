@@ -2,7 +2,7 @@
 
 Public source and build tools for the free WordPress plugin, version **2.4.94**.
 
-The asset sources for this release are prepared and verified. The complete free PHP snapshot and version tag will be added after Freemius generates the matching free package. This prepared snapshot is for source inspection and asset builds, not plugin installation.
+This snapshot includes the Freemius-generated free PHP edition and the original sources for its bundled assets.
 
 ## Build and verify
 
