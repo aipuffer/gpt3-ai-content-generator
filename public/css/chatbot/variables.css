@@ -1,0 +1,100 @@
+/* Shared Chatbot tokens. Theme defaults are owned by themes.css. */
+.aipkit_chat_container,
+.aipkit_popup_wrapper {
+  --aipkit_brand-primary: #111111;
+  --aipkit_brand-primary-dark: #0a0a0a;
+  --aipkit_brand-accent: #1f1f1f;
+
+  --aipkit_bg-primary: #f7f7f7;
+  --aipkit_bg-secondary: #ffffff;
+
+  --aipkit_container-bg: #ffffff;
+  --aipkit_container-border: #e5e5e5;
+  --aipkit_container-shadow: rgba(0, 0, 0, 0.08);
+
+  --aipkit_menu-bg: #ffffff;
+  --aipkit_menu-active: #f3f3f3;
+  --aipkit_menu-hover: #ededed;
+
+  --aipkit_text-primary: #111111;
+  --aipkit_text-secondary: #6b6b6b;
+  --aipkit_text-heading: #111111;
+  --aipkit_text-link: #111111;
+
+  --aipkit_btn-primary: #111111;
+  --aipkit_btn-primary-hover: #0a0a0a;
+  --aipkit_btn-secondary: #f3f3f3;
+  --aipkit_btn-secondary-hover: #e8e8e8;
+  --aipkit_btn-danger: #e53e3e;
+  --aipkit_btn-danger-hover: #c53030;
+
+  --aipkit_status-success: #38a169;
+  --aipkit_status-warning: #dd6b20;
+  --aipkit_status-info: #6b6b6b;
+
+  --aipkit_font-size-base: 13px;
+  --aipkit_font-size-label: 12px;
+  --aipkit_font-size-help: 11px;
+  --aipkit_font-size-small: 10px;
+  --aipkit_font-size-h-title: 16px;
+  --aipkit_font-size-h-sub: 15px;
+
+  --aipkit_spacing-xs: 4px;
+  --aipkit_spacing-sm: 8px;
+  --aipkit_spacing-md: 12px;
+  --aipkit_spacing-lg: 15px;
+  --aipkit_spacing-xl: 20px;
+
+  --aipkit-chat-shell-padding-x: 16px;
+  --aipkit-chat-shell-padding-compact-x: 12px;
+  --aipkit-chat-shell-padding-compact-y: 8px;
+  --aipkit-chat-stack-gap-md: 12px;
+  --aipkit-chat-starters-divider-gap: 16px;
+  --aipkit-chat-radius-md: 8px;
+
+  --aipkit_input-height: 30px;
+  --aipkit_button-height: 30px;
+
+  --aipkit-transition-fast: 150ms;
+  --aipkit-transition-base: 200ms;
+  --aipkit-transition-slow: 300ms;
+  --aipkit-ease-out: ease-out;
+  --aipkit-ease-in-out: ease-in-out;
+
+  --aipkit-chat-scroll-button-bg-color: var(
+    --aipkit-chat-container-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  --aipkit-chat-scroll-button-border-color: var(
+    --aipkit-chat-starter-border-color,
+    var(--aipkit-chat-container-border-color, var(--aipkit_container-border, #e5e5e5))
+  );
+  --aipkit-chat-scroll-button-hover-bg-color: var(
+    --aipkit-chat-starter-hover-bg-color,
+    var(--aipkit_menu-hover, #ededed)
+  );
+  --aipkit-chat-scroll-button-color: var(
+    --aipkit-chat-starter-text-color,
+    var(--aipkit-chat-container-text-color, #111111)
+  );
+  --aipkit-chat-scroll-button-shadow-color: rgba(0, 0, 0, 0.25);
+  --aipkit-chat-scroll-button-focus-ring-color: var(
+    --aipkit-chat-container-text-color,
+    #111111
+  );
+  --aipkit-chat-scroll-button-bottom-offset: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_popup_hint,
+  .aipkit_popup_content,
+  .aipkit_tab-content,
+  .aipkit_chat_bubble .aipkit_stream_indicator,
+  .aipkit_typing-dot {
+    transition: none !important;
+    animation: none !important;
+  }
+  .aipkit_spinner {
+    animation-duration: 1.2s !important;
+  }
+}

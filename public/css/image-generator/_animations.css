@@ -1,0 +1,35 @@
+@keyframes aipkit_spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_spinner {
+  display: none;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border-width: 2px;
+  border-style: solid;
+  border-color: currentColor;
+  border-right-color: transparent;
+  width: 1em;
+  height: 1em;
+  animation: aipkit_spin 0.75s linear infinite;
+  vertical-align: -0.125em;
+  opacity: 0.78;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_spinner--visible {
+  display: inline-block;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_spinner[hidden] {
+  display: none !important;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn .aipkit_spinner {
+  width: 14px;
+  height: 14px;
+  border-color: currentColor;
+  border-right-color: transparent;
+}

@@ -1,0 +1,827 @@
+/*
+ * AIPKit Public Chat - Popup Trigger Button Styles
+ * Styles for the popup trigger button, including default SVG and custom image icons.
+ */
+
+/* --- Trigger Button --- */
+.aipkit_popup_trigger {
+  --aipkit-popup-trigger-size: 56px;
+  --aipkit-popup-trigger-icon-size: 32px;
+
+  position: fixed; /* Default: fixed for frontend */
+  z-index: 999999;
+  width: var(--aipkit-popup-trigger-size);
+  height: var(--aipkit-popup-trigger-size);
+  padding: 0;
+  border-radius: 50%; /* Circular button */
+  background-color: var(
+    --aipkit-chat-popup-trigger-bg-color,
+    var(--aipkit_brand-primary, #111111)
+  ); /* Trigger background */
+  color: var(
+    --aipkit-chat-popup-trigger-icon-color,
+    white
+  ); /* Default icon color (for SVGs) */
+  border: none;
+  box-shadow: 0 6px 16px
+    var(--aipkit-chat-popup-trigger-shadow-color, rgba(0, 0, 0, 0.18));
+  cursor: pointer;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out,
+    background-color 150ms ease-out,
+    opacity var(--aipkit-popup-close-duration, 180ms)
+      var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s linear 0s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box; /* Include padding in width/height calculations */
+  overflow: hidden; /* CRITICAL: Clip overflowing custom image */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  will-change: transform, box-shadow;
+}
+
+/* Shield popup trigger from theme button styles (e.g., Elementor). */
+.aipkit_popup_wrapper .aipkit_popup_trigger {
+  background-color: var(
+    --aipkit-chat-popup-trigger-bg-color,
+    var(--aipkit_brand-primary, #111111)
+  );
+  color: var(
+    --aipkit-chat-popup-trigger-icon-color,
+    #ffffff
+  );
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: none;
+}
+
+/* Icon swap for open/close state */
+.aipkit_popup_icon {
+  width: var(--aipkit-popup-trigger-icon-size);
+  height: var(--aipkit-popup-trigger-icon-size);
+  flex: 0 0 var(--aipkit-popup-trigger-icon-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open
+  .aipkit_popup_trigger {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.92);
+  transition: transform var(--aipkit-popup-open-duration, 240ms)
+      var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    opacity var(--aipkit-popup-open-duration, 240ms)
+      var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s linear var(--aipkit-popup-open-duration, 240ms);
+}
+
+.aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-closing
+  .aipkit_popup_trigger {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition: transform var(--aipkit-popup-close-duration, 180ms)
+      var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+    opacity var(--aipkit-popup-close-duration, 180ms)
+      var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+    visibility 0s linear 0s;
+}
+
+/* --- Size Variants --- */
+.aipkit_popup_trigger--size-small {
+  --aipkit-popup-trigger-size: 48px;
+  --aipkit-popup-trigger-icon-size: 24px;
+}
+.aipkit_popup_trigger--size-medium {
+  --aipkit-popup-trigger-size: 56px;
+  --aipkit-popup-trigger-icon-size: 32px;
+}
+.aipkit_popup_trigger--size-large {
+  --aipkit-popup-trigger-size: 80px;
+  --aipkit-popup-trigger-icon-size: 48px;
+}
+.aipkit_popup_trigger--size-xlarge {
+  --aipkit-popup-trigger-size: 96px;
+  --aipkit-popup-trigger-icon-size: 64px;
+}
+
+.aipkit_popup_trigger:active {
+  transform: scale(0.94);
+  box-shadow: 0 4px 12px
+    var(--aipkit-chat-popup-trigger-shadow-color, rgba(0, 0, 0, 0.18));
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out;
+}
+
+/* Style for Square Icon */
+.aipkit_popup_trigger[data-icon-style="square"] {
+  border-radius: 12px; /* A nice rounded square */
+  z-index: 999999;
+}
+
+/* Style for None (Original Image) */
+.aipkit_popup_trigger[data-icon-style="none"] {
+  border-radius: 0;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0;
+  overflow: hidden;
+  z-index: 999999;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.aipkit_popup_trigger[data-icon-style="none"]:active {
+  transform: scale(0.94);
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* --- Styles for Default SVG Icons --- */
+.aipkit_popup_trigger svg {
+  width: 100%; /* SVG fills the configured glyph box */
+  height: 100%;
+  fill: currentColor; /* Use the button's text color (white by default) */
+  display: block;
+}
+.aipkit_popup_trigger svg.icon-tabler {
+  fill: none;
+  stroke: currentColor;
+}
+
+/* --- Styles for Custom Image Icon --- */
+.aipkit_popup_trigger img.aipkit_popup_custom_icon {
+  display: block; /* Remove potential extra space below image */
+  width: 100%; /* Make image fill its launcher icon box */
+  height: 100%; /* Make image fill its launcher icon box */
+  object-fit: cover; /* Scale image to cover, maintain aspect ratio, clip excess */
+  border-radius: 0; /* Ensure image itself has no border-radius interfering */
+}
+
+/* Uploaded launcher images should look like the icon, not a photo inside a button. */
+.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]) {
+  background: transparent !important;
+  box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.24),
+    0 3px 8px -3px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(15, 23, 42, 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Uploaded artwork continues to fill the selected launcher size. */
+.aipkit_popup_trigger[data-icon-type="custom"] .aipkit_popup_icon {
+  width: 100%;
+  height: 100%;
+  flex-basis: 100%;
+}
+
+.aipkit_popup_trigger[data-icon-type="custom"] img.aipkit_popup_custom_icon {
+  border-radius: inherit;
+}
+
+.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"] img.aipkit_popup_custom_icon {
+  object-fit: contain;
+  border-radius: 0;
+}
+
+.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"]:hover,
+.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"]:active {
+  box-shadow: none !important;
+}
+
+/* Hover motion only belongs on devices with a real hover-capable pointer. */
+@media (hover: hover) and (pointer: fine) {
+  .aipkit_popup_trigger:hover {
+    transform: scale(1.08);
+    box-shadow: 0 9px 22px
+      var(--aipkit-chat-popup-trigger-shadow-color, rgba(0, 0, 0, 0.22));
+    background-color: var(
+      --aipkit-chat-popup-trigger-hover-bg-color,
+      var(--aipkit_brand-primary-dark, #0a0a0a)
+    );
+  }
+
+  .aipkit_popup_trigger[data-icon-style="none"]:hover {
+    background-color: transparent !important;
+    transform: scale(1.08);
+  }
+
+  .aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):hover {
+    background: transparent !important;
+    box-shadow: 0 14px 28px -8px rgba(15, 23, 42, 0.28),
+      0 5px 12px -5px rgba(15, 23, 42, 0.2),
+      0 0 0 1px rgba(15, 23, 42, 0.1);
+    transform: scale(1.08);
+  }
+}
+
+/* --- FIX: Override conflicting theme styles for :active and :focus states --- */
+div.aipkit_popup_wrapper button.aipkit_popup_trigger:active,
+div.aipkit_popup_wrapper button.aipkit_popup_trigger:focus {
+  position: fixed;
+}
+
+/* Ensure stable colors across focus/active states (avoid unexpected tints) */
+div.aipkit_popup_wrapper .aipkit_popup_trigger:focus,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:active {
+  background-color: var(
+    --aipkit-chat-popup-trigger-bg-color,
+    var(--aipkit_brand-primary, #111111)
+  );
+  color: var(
+    --aipkit-chat-popup-trigger-icon-color,
+    #ffffff
+  );
+  filter: none;
+}
+
+/* Keep icon color consistent in all states */
+div.aipkit_popup_wrapper .aipkit_popup_trigger,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:hover,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:focus,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:active {
+  color: var(
+    --aipkit-chat-popup-trigger-icon-color,
+    #ffffff
+  );
+}
+
+/* Keep trigger shape consistent on hover/active (avoid theme overrides) */
+div.aipkit_popup_wrapper .aipkit_popup_trigger,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:hover,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:focus,
+div.aipkit_popup_wrapper .aipkit_popup_trigger:active {
+  border-radius: 50%;
+}
+@media (hover: hover) and (pointer: fine) {
+  div.aipkit_popup_wrapper .aipkit_popup_trigger:hover {
+    background-color: var(
+      --aipkit-chat-popup-trigger-hover-bg-color,
+      var(--aipkit_brand-primary-dark, #0a0a0a)
+    );
+  }
+}
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="square"],
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="square"]:hover,
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="square"]:focus,
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="square"]:active {
+  border-radius: 12px;
+}
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="none"],
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="none"]:hover,
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="none"]:focus,
+div.aipkit_popup_wrapper .aipkit_popup_trigger[data-icon-style="none"]:active {
+  border-radius: 0;
+}
+
+/* Keep the launcher-to-panel handoff authoritative if click follows hover. */
+div.aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open
+  button.aipkit_popup_trigger {
+  transform: scale(0.92);
+}
+
+.aipkit_popup_wrapper {
+  --aipkit-popup-edge-x: 24px;
+  --aipkit-popup-trigger-bottom: 24px;
+  --aipkit-popup-trigger-top: 72px;
+  --aipkit-popup-panel-bottom: 95px;
+  --aipkit-popup-panel-top: 147px;
+  --aipkit-popup-panel-bottom-clearance: 105px;
+  --aipkit-popup-panel-top-clearance: 157px;
+}
+
+.aipkit_popup_wrapper[data-icon-size="small"] {
+  --aipkit-popup-panel-bottom: 80px;
+  --aipkit-popup-panel-top: 132px;
+  --aipkit-popup-panel-bottom-clearance: 90px;
+  --aipkit-popup-panel-top-clearance: 142px;
+}
+
+.aipkit_popup_wrapper[data-icon-size="large"] {
+  --aipkit-popup-panel-bottom: 111px;
+  --aipkit-popup-panel-top: 168px;
+  --aipkit-popup-panel-bottom-clearance: 121px;
+  --aipkit-popup-panel-top-clearance: 178px;
+}
+
+.aipkit_popup_wrapper[data-icon-size="xlarge"] {
+  --aipkit-popup-panel-bottom: 127px;
+  --aipkit-popup-panel-top: 184px;
+  --aipkit-popup-panel-bottom-clearance: 137px;
+  --aipkit-popup-panel-top-clearance: 194px;
+}
+
+.aipkit_popup_position-bottom-right {
+  bottom: var(--aipkit-popup-trigger-bottom);
+  right: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_position-bottom-left {
+  bottom: var(--aipkit-popup-trigger-bottom);
+  left: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_position-top-right {
+  top: var(--aipkit-popup-trigger-top);
+  right: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_position-top-left {
+  top: var(--aipkit-popup-trigger-top);
+  left: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_content:is(
+  .aipkit_popup_position-bottom-right,
+  .aipkit_popup_position-bottom-left
+) {
+  --aipkit-popup-origin-y: bottom;
+  --aipkit-popup-closed-translate-y: 8px;
+  bottom: var(--aipkit-popup-panel-bottom);
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-bottom-clearance))
+  );
+}
+
+.aipkit_popup_content:is(
+  .aipkit_popup_position-top-right,
+  .aipkit_popup_position-top-left
+) {
+  --aipkit-popup-origin-y: top;
+  --aipkit-popup-closed-translate-y: -8px;
+  top: var(--aipkit-popup-panel-top);
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-top-clearance))
+  );
+}
+
+.aipkit_popup_content:is(
+  .aipkit_popup_position-bottom-right,
+  .aipkit_popup_position-top-right
+) {
+  --aipkit-popup-origin-x: right;
+  right: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_content:is(
+  .aipkit_popup_position-bottom-left,
+  .aipkit_popup_position-top-left
+) {
+  --aipkit-popup-origin-x: left;
+  left: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_content:is(
+  .aipkit_popup_position-bottom-right,
+  .aipkit_popup_position-bottom-left,
+  .aipkit_popup_position-top-right,
+  .aipkit_popup_position-top-left
+) {
+  transform-origin: var(--aipkit-popup-origin-x)
+    var(--aipkit-popup-origin-y);
+}
+
+.aipkit_popup_wrapper.aipkit-popup-standard:is(
+    .aipkit-popup-open,
+    .aipkit-popup-closing
+  )
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-bottom-right,
+    .aipkit_popup_position-bottom-left
+  ) {
+  bottom: 24px;
+  top: auto;
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - 30px)
+  );
+}
+
+.aipkit_popup_wrapper.aipkit-popup-standard:is(
+    .aipkit-popup-open,
+    .aipkit-popup-closing
+  )
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-top-right,
+    .aipkit_popup_position-top-left
+  ) {
+  top: 72px;
+  bottom: auto;
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - 82px)
+  );
+}
+
+.aipkit_popup_hint:is(
+  .aipkit_popup_position-bottom-right,
+  .aipkit_popup_position-bottom-left
+) {
+  bottom: var(--aipkit-popup-panel-bottom);
+}
+
+.aipkit_popup_hint:is(
+  .aipkit_popup_position-top-right,
+  .aipkit_popup_position-top-left
+) {
+  top: var(--aipkit-popup-panel-top);
+}
+
+.aipkit_popup_hint:is(
+  .aipkit_popup_position-bottom-right,
+  .aipkit_popup_position-top-right
+) {
+  right: var(--aipkit-popup-edge-x);
+}
+
+.aipkit_popup_hint:is(
+  .aipkit_popup_position-bottom-left,
+  .aipkit_popup_position-top-left
+) {
+  left: var(--aipkit-popup-edge-x);
+}
+
+body.admin-bar
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-bottom-right,
+    .aipkit_popup_position-bottom-left
+  ) {
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-bottom-clearance) - 32px)
+  );
+}
+
+body.admin-bar
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-top-right,
+    .aipkit_popup_position-top-left
+  ) {
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-top-clearance) - 32px)
+  );
+}
+
+body.admin-bar
+  .aipkit_popup_wrapper:is(
+    [data-icon-size="small"],
+    [data-icon-size="large"],
+    [data-icon-size="xlarge"]
+  )
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-bottom-right,
+    .aipkit_popup_position-bottom-left
+  ) {
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-bottom-clearance) - 32px)
+  );
+}
+
+body.admin-bar
+  .aipkit_popup_wrapper:is(
+    [data-icon-size="small"],
+    [data-icon-size="large"],
+    [data-icon-size="xlarge"]
+  )
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-top-right,
+    .aipkit_popup_position-top-left
+  ) {
+  max-height: min(
+    var(--aipkit-chat-popup-max-height, 90vh),
+    calc(100vh - var(--aipkit-popup-panel-top-clearance) - 32px)
+  );
+}
+
+@media (max-width: 767px) {
+  .aipkit_popup_wrapper {
+    --aipkit-popup-edge-x: 15px;
+    --aipkit-popup-trigger-bottom: 25px;
+    --aipkit-popup-panel-bottom: 100px;
+    --aipkit-popup-panel-top: 152px;
+    --aipkit-popup-panel-bottom-clearance: 110px;
+    --aipkit-popup-panel-top-clearance: 162px;
+  }
+
+  .aipkit_popup_wrapper[data-icon-size="small"] {
+    --aipkit-popup-panel-bottom: 85px;
+    --aipkit-popup-panel-top: 132px;
+    --aipkit-popup-panel-bottom-clearance: 95px;
+    --aipkit-popup-panel-top-clearance: 142px;
+  }
+
+  .aipkit_popup_wrapper[data-icon-size="large"] {
+    --aipkit-popup-panel-bottom: 116px;
+    --aipkit-popup-panel-top: 168px;
+    --aipkit-popup-panel-bottom-clearance: 126px;
+    --aipkit-popup-panel-top-clearance: 178px;
+  }
+
+  .aipkit_popup_wrapper[data-icon-size="xlarge"] {
+    --aipkit-popup-panel-bottom: 132px;
+    --aipkit-popup-panel-top: 184px;
+    --aipkit-popup-panel-bottom-clearance: 142px;
+    --aipkit-popup-panel-top-clearance: 194px;
+  }
+
+  .aipkit_popup_content {
+    width: calc(100% - 30px);
+    max-width: 380px;
+    height: 60vh;
+    max-height: 520px;
+  }
+
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-bottom-right,
+    .aipkit_popup_position-bottom-left
+  ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-bottom-clearance))
+    );
+  }
+
+  .aipkit_popup_content:is(
+    .aipkit_popup_position-top-right,
+    .aipkit_popup_position-top-left
+  ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-top-clearance))
+    );
+  }
+}
+
+@media (max-width: 782px) {
+  body.admin-bar
+    .aipkit_popup_content:is(
+      .aipkit_popup_position-bottom-right,
+      .aipkit_popup_position-bottom-left
+    ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-bottom-clearance) - 46px)
+    );
+  }
+
+  body.admin-bar
+    .aipkit_popup_content:is(
+      .aipkit_popup_position-top-right,
+      .aipkit_popup_position-top-left
+    ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-top-clearance) - 46px)
+    );
+  }
+
+  body.admin-bar
+    .aipkit_popup_wrapper:is(
+      [data-icon-size="small"],
+      [data-icon-size="large"],
+      [data-icon-size="xlarge"]
+    )
+    .aipkit_popup_content:is(
+      .aipkit_popup_position-bottom-right,
+      .aipkit_popup_position-bottom-left
+    ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-bottom-clearance) - 46px)
+    );
+  }
+
+  body.admin-bar
+    .aipkit_popup_wrapper:is(
+      [data-icon-size="small"],
+      [data-icon-size="large"],
+      [data-icon-size="xlarge"]
+    )
+    .aipkit_popup_content:is(
+      .aipkit_popup_position-top-right,
+      .aipkit_popup_position-top-left
+    ) {
+    max-height: min(
+      520px,
+      calc(100vh - var(--aipkit-popup-panel-top-clearance) - 46px)
+    );
+  }
+}
+
+/*
+ * AIPKit Public Chat - Popup Window Styles
+ * Styles for the main popup chat container, including initial and open states.
+ */
+
+/* --- Popup Chat Window (Initial State) --- */
+.aipkit_popup_wrapper {
+  --aipkit-popup-open-duration: 240ms;
+  --aipkit-popup-close-duration: 180ms;
+  --aipkit-popup-open-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --aipkit-popup-close-easing: cubic-bezier(0.4, 0, 1, 1);
+}
+
+.aipkit_popup_content {
+  position: fixed; /* Default: fixed for frontend */
+  z-index: 9999;
+  width: 90%;
+  max-width: var(--aipkit-chat-popup-width, 380px);
+  height: var(--aipkit-chat-popup-height, 620px);
+  min-height: var(--aipkit-chat-popup-min-height, 320px);
+  max-height: var(--aipkit-chat-popup-max-height, 90vh);
+  margin: 0;
+  border-radius: var(
+    --aipkit-chat-container-border-radius,
+    16px
+  );
+  box-shadow: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(var(--aipkit-popup-closed-translate-y, 8px))
+    scale(0.9);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform var(--aipkit-popup-close-duration, 180ms)
+      var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+    opacity var(--aipkit-popup-close-duration, 180ms)
+      var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+    visibility 0s linear var(--aipkit-popup-close-duration, 180ms);
+  will-change: transform, opacity;
+  /* Use CSS variables for background and border */
+  background-color: var(
+    --aipkit-chat-container-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+}
+
+@media screen and (max-width: 767px) {
+  .aipkit_popup_content::after {
+    display: none;
+  }
+}
+
+/* Open State */
+.aipkit_popup_content.aipkit-popup-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform var(--aipkit-popup-open-duration, 240ms)
+      var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    opacity var(--aipkit-popup-open-duration, 240ms)
+      var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+    visibility 0s linear 0s;
+}
+
+/*
+ * AIPKit Public Chat - Popup Hint Styles
+ * Theme-adaptive hint pill shown above the popup trigger button.
+ */
+
+.aipkit_popup_hint {
+  position: fixed;
+  z-index: 999999;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--aipkit-chat-border-color, #e7e8ec);
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.12);
+  max-width: 220px;
+  background: var(
+    --aipkit-chat-popup-hint-bg,
+    var(--aipkit_brand-primary, #111111)
+  );
+  color: var(
+    --aipkit-chat-popup-hint-color,
+    #ffffff
+  );
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: none;
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease;
+  will-change: box-shadow;
+}
+
+/* --- Size variants --- */
+.aipkit_popup_hint.aipkit_popup_hint--size-small {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.aipkit_popup_hint.aipkit_popup_hint--size-medium {
+  font-size: 13px; /* default */
+  padding: 8px 12px;
+}
+.aipkit_popup_hint.aipkit_popup_hint--size-large {
+  font-size: 15px;
+  padding: 10px 14px;
+}
+.aipkit_popup_hint.aipkit_popup_hint--size-xlarge {
+  font-size: 17px;
+  padding: 12px 16px;
+}
+
+/* For hints placed below the trigger (top-* positions), slide up instead */
+.aipkit_popup_hint.aipkit_popup_position-top-right,
+.aipkit_popup_hint.aipkit_popup_position-top-left {
+  transform: none;
+}
+
+.aipkit_popup_hint.aipkit-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: none;
+}
+
+.aipkit_popup_hint:hover {
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.14);
+}
+
+.aipkit_popup_hint_close {
+  margin-left: 6px;
+  background: transparent;
+  border: none;
+  color: var(
+    --aipkit-chat-popup-hint-close-color,
+    var(--aipkit-chat-popup-hint-text-color, var(--aipkit-chat-bot-bubble-text-color, var(--aipkit-chat-header-text-color, #333333)))
+  );
+  cursor: pointer;
+  font-size: 1em; /* Scale with hint size; hit area stays fixed */
+  line-height: 1;
+  width: 24px; /* Increased touch target */
+  height: 24px; /* Increased touch target */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0.8;
+  padding: 0;
+}
+.aipkit_popup_hint--size-large .aipkit_popup_hint_close { font-size: 1.15em; margin-left: 8px; }
+.aipkit_popup_hint--size-xlarge .aipkit_popup_hint_close { font-size: 1.3em; margin-left: 10px; }
+.aipkit_popup_hint--size-small .aipkit_popup_hint_close { font-size: 0.9em; }
+.aipkit_popup_hint_close:hover,
+.aipkit_popup_hint_close:focus,
+.aipkit_popup_hint_close:active {
+  opacity: 1;
+  outline: none;
+  box-shadow: none;
+  background: transparent !important;
+  color: var(
+    --aipkit-chat-popup-hint-close-color,
+    var(--aipkit-chat-popup-hint-text-color, var(--aipkit-chat-bot-bubble-text-color, var(--aipkit-chat-header-text-color, #333333)))
+  ) !important;
+  text-decoration: none;
+  filter: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Guard hint close button from theme overrides */
+.aipkit_popup_wrapper .aipkit_popup_hint_close,
+.aipkit_popup_wrapper .aipkit_popup_hint_close:hover,
+.aipkit_popup_wrapper .aipkit_popup_hint_close:focus,
+.aipkit_popup_wrapper .aipkit_popup_hint_close:active {
+  background: transparent;
+  color: var(
+    --aipkit-chat-popup-hint-close-color,
+    var(--aipkit-chat-popup-hint-text-color, var(--aipkit-chat-bot-bubble-text-color, var(--aipkit-chat-header-text-color, #333333)))
+  );
+  border-radius: 50%;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Ensure the hint text inherits theme-driven typography and color */
+.aipkit_popup_hint_text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--aipkit-chat-popup-hint-text-color, var(--aipkit-chat-bot-bubble-text-color, var(--aipkit-chat-header-text-color, #333333)));
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.3;
+  text-align: center;
+}

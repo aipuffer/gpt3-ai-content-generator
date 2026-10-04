@@ -1,0 +1,50 @@
+{
+  "edition": "free",
+  "js": {
+    "shared-model-selector": "admin/js/shared/model-selector.js",
+    "cloud-credit-notice": "admin/js/utils/ui/ui-cloud-credit-notice.js",
+    "admin-main": "admin/js/admin-main.js",
+    "admin-sources": "admin/js/sources/sources-main.js",
+    "admin-onboarding": "admin/js/onboarding/onboarding.js",
+    "admin-pricing": "admin/js/pricing/pricing.js",
+    "public-main": "public/js/public-main.js",
+    "public-chat-sidebar": "public/js/chatbot/sidebar.js",
+    "public-chat-stt": "public/js/chatbot/speech-to-text.js",
+    "public-chat-uploads": "public/js/chatbot/image-upload.js",
+    "public-chat-tts": "public/js/chatbot/text-to-speech.js",
+    "public-chat-starters": "public/js/chatbot/starters.js",
+    "public-chat-image-command": "public/js/chatbot/image-generation.js",
+    "public-ai-forms": "public/js/ai-forms/bootstrap.js",
+    "public-image-generator": "public/js/image-generator/image-generator-public.js",
+    "public-token-usage": "public/js/token-usage/token-usage-public.js",
+    "public-semantic-search": "public/js/semantic-search/semantic-search.js",
+    "admin-enhancer-tinymce": "admin/js/post-enhancer/tinymce-enhancer-plugin.js",
+    "admin-enhancer-block-editor": "admin/js/post-enhancer/block-editor-enhancer-plugin.js",
+    "admin-embed-blocks": "admin/js/blocks/embed-blocks.js",
+    "admin-header-action-buttons": "admin/js/shared/header-action-buttons.js"
+  },
+  "css": {
+    "shared-model-selector": "admin/css/shared/unified-model-selector.css",
+    "cloud-credit-notice": "admin/css/shared/notification-bar.css",
+    "admin-onboarding": "admin/css/onboarding/onboarding.css",
+    "admin-pricing": "admin/css/pricing/pricing.css",
+    "admin-main": "admin/css/index.css",
+    "admin-chat": "admin/css/chatbot/base.css",
+    "admin-autogpt": "admin/css/automations/base.css",
+    "admin-post-enhancer": "admin/css/post-enhancer/aipkit-post-enhancer.css",
+    "admin-vector-post-processor": "admin/css/vector-post-processor/vector-post-processor.css",
+    "admin-header-action-buttons": "admin/css/shared/header-action-buttons.css",
+    "public-main": "public/css/chatbot/base.css",
+    "public-chat-sidebar": "public/css/chatbot/sidebar.css",
+    "public-ai-forms": "public/css/ai-forms/ai-forms-public.css",
+    "public-image-generator": "public/css/image-generator/image-generator.css",
+    "public-token-usage": "public/css/shortcodes/token-usage.css",
+    "public-semantic-search": "public/css/shortcodes/semantic-search.css"
+  },
+  "vendor": [
+    {
+      "from": "public/js/markdown-it.min.js",
+      "to": "dist/vendor/js/markdown-it.min.js"
+    }
+  ]
+}

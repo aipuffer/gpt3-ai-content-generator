@@ -1,0 +1,154 @@
+.aipkit_spinner {
+  display: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(74, 111, 165, 0.2);
+  border-left-color: var(--aipkit_brand-primary);
+  border-radius: 50%;
+  animation: aipkit_spin 0.8s linear infinite;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+@keyframes aipkit_spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * AIPKit Public Chat - Shared UI State Blocks
+ *
+ * Unified empty/loading/error blocks for sidebar and message areas.
+ */
+
+.aipkit_ui_state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.aipkit_ui_state--sidebar {
+  min-height: 100%;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(
+    --aipkit-chat-sidebar-muted-text-color,
+    var(--aipkit-chat-muted-text-color, #9a9ca5)
+  );
+}
+
+.aipkit_ui_state--messages {
+  margin: 16px auto;
+  max-width: 420px;
+}
+
+.aipkit_ui_state--messages.aipkit_ui_state--loading,
+.aipkit_ui_state--sidebar.aipkit_ui_state--loading {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.aipkit_ui_state--sidebar.aipkit_ui_state--loading {
+  min-height: 44px;
+}
+
+.aipkit_ui_state--messages.aipkit_ui_state--loading.aipkit_ui_state--spinner-only {
+  background: transparent;
+  border-color: transparent;
+  padding: 4px 0;
+  margin: 8px auto;
+  max-width: none;
+  min-height: 0;
+}
+
+.aipkit_ui_state_text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.aipkit_ui_state_spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit_ui_state_spinner .aipkit_spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+
+.aipkit_ui_state--muted {
+  background-color: var(
+    --aipkit-chat-container-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  border-color: var(
+    --aipkit-chat-container-border-color,
+    var(--aipkit_container-border, #e5e5e5)
+  );
+  color: var(
+    --aipkit-chat-sidebar-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+}
+
+.aipkit_ui_state--info {
+  background-color: var(--aipkit_status-info-bg, #e6f7ff);
+  border-color: var(--aipkit_status-info-border, #91d5ff);
+  color: var(--aipkit_status-info-text, #1890ff);
+}
+
+.aipkit_ui_state--loading {
+  background-color: var(
+    --aipkit-chat-bg-color-hover,
+    var(
+      --aipkit-chat-container-bg-color,
+      var(--aipkit_bg-secondary, #ffffff)
+    )
+  );
+  border-color: var(
+    --aipkit-chat-container-border-color,
+    var(--aipkit_container-border, #e5e5e5)
+  );
+  color: var(
+    --aipkit-chat-sidebar-text-color,
+    var(
+      --aipkit-chat-container-text-color,
+      var(--aipkit_text-secondary, #6b6b6b)
+    )
+  );
+}
+
+.aipkit_ui_state--error {
+  background-color: var(--aipkit_status-error-bg, #fff1f0);
+  border-color: var(--aipkit_status-error-border, #ffa39e);
+  color: var(--aipkit_status-error-text, #f5222d);
+}
+
+/* Sidebar states live directly on the structural body surface. */
+.aipkit_ui_state--sidebar.aipkit_ui_state--muted,
+.aipkit_ui_state--sidebar.aipkit_ui_state--loading {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(
+    --aipkit-chat-sidebar-muted-text-color,
+    var(--aipkit-chat-muted-text-color, #9a9ca5)
+  );
+}

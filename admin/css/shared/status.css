@@ -1,0 +1,85 @@
+/*
+ * AIPKit Dashboard - Status Tags
+ *
+ * Status indicators and tags
+ */
+
+/* ---- Status Tags ---- */
+.aipkit_status-tag {
+    display: inline-block;
+    padding: 1px var(--aipkit_spacing-sm, 8px); /* Reduced padding, using variables */
+    border-radius: 10px; /* Pill-like */
+    font-size: var(--aipkit_font-size-help, 11px); /* Reduced from 12px, using variable */
+    font-weight: 500;
+    box-shadow: none; 
+    line-height: 1.5; /* Ensure text is centered well */
+    text-transform: capitalize;
+}
+
+.aipkit_status-success {
+    background-color: rgba(56, 161, 105, 0.1);
+    color: var(--aipkit_status-success);
+}
+
+.aipkit_status-warning {
+    background-color: rgba(221, 107, 32, 0.1);
+    color: var(--aipkit_status-warning);
+}
+
+.aipkit_status-info {
+    background-color: rgba(49, 130, 206, 0.1);
+    color: var(--aipkit_status-info);
+}
+
+/* Save/status helper text */
+.aipkit_save_status_container {
+    font-size: var(--aipkit_font-size-help, 11px);
+    font-style: italic;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 0 var(--aipkit_spacing-sm, 8px);
+    min-height: 1.3em;
+    text-align: right;
+}
+.aipkit_save_status_container.success {
+    color: var(--aipkit_status-success);
+}
+.aipkit_save_status_container.error {
+    color: var(--aipkit_status-warning);
+}
+
+/* Autosave overlay used by Settings, Knowledge Base Settings, AI Forms Settings, Image Generator Settings, and Role Manager. */
+:where(#aipkit_settings_container, #aipkit_sources_module_container, #aipkit_ai_forms_container, #aipkit_image_generator_container, #aipkit_role_manager_container) .aipkit_settings_autosave_busy_scope {
+    position: relative;
+}
+
+:where(#aipkit_settings_container, #aipkit_sources_module_container, #aipkit_ai_forms_container, #aipkit_image_generator_container, #aipkit_role_manager_container) .aipkit_settings_autosave_overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(1px);
+    border-radius: 8px;
+    z-index: 200;
+    pointer-events: auto;
+}
+
+:where(#aipkit_settings_container, #aipkit_sources_module_container, #aipkit_ai_forms_container, #aipkit_image_generator_container, #aipkit_role_manager_container) .aipkit_settings_autosave_overlay[hidden] {
+    display: none !important;
+}
+
+:where(#aipkit_settings_container, #aipkit_sources_module_container, #aipkit_ai_forms_container, #aipkit_image_generator_container, #aipkit_role_manager_container) .aipkit_settings_autosave_overlay_spinner {
+    width: 26px;
+    height: 26px;
+    border: 2px solid #9fb0c6;
+    border-top-color: var(--aipkit_brand-primary, #2271b1);
+    border-radius: 50%;
+    animation: aipkit_spin 0.75s linear infinite;
+    box-sizing: border-box;
+}
+
+#aipkit_settings_container .aipkit_settings_page_section > .aipkit_settings_autosave_overlay {
+    border-radius: inherit;
+}

@@ -1,0 +1,23 @@
+/* Keep host-theme selection colors from leaking into the chatbot. */
+.aipkit_chat_container ::selection,
+.aipkit_popup_wrapper ::selection {
+  color: currentColor;
+  background-color: var(--aipkit-chat-selection-bg-color);
+}
+
+.aipkit_chat_container ::-moz-selection,
+.aipkit_popup_wrapper ::-moz-selection {
+  color: currentColor;
+  background-color: var(--aipkit-chat-selection-bg-color);
+}
+
+/* Accent surfaces need the inverse tint so selection remains visible. */
+.aipkit_chat_container .aipkit_chat_header ::selection,
+.aipkit_chat_container .aipkit_chat_message-user ::selection {
+  background-color: var(--aipkit-chat-selection-on-accent-bg-color);
+}
+
+.aipkit_chat_container .aipkit_chat_header ::-moz-selection,
+.aipkit_chat_container .aipkit_chat_message-user ::-moz-selection {
+  background-color: var(--aipkit-chat-selection-on-accent-bg-color);
+}

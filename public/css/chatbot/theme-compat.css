@@ -1,0 +1,348 @@
+/*
+ * AIPKit Public Chat - Host Theme Compatibility
+ *
+ * Some WordPress themes style bare button elements with high-specificity
+ * selectors such as button:not(:hover):not(:active):not(.has-background).
+ * Keep these overrides scoped to the chat UI so host styles cannot replace
+ * chat theme colors, sizing, or button shapes.
+ */
+
+.aipkit_popup_wrapper button.aipkit_popup_trigger,
+.aipkit_popup_wrapper button.aipkit_popup_trigger:not(:hover):not(:active):not(.has-background),
+.aipkit_popup_wrapper button.aipkit_popup_trigger:hover,
+.aipkit_popup_wrapper button.aipkit_popup_trigger:focus,
+.aipkit_popup_wrapper button.aipkit_popup_trigger:active {
+  width: var(--aipkit-popup-trigger-size, 56px);
+  height: var(--aipkit-popup-trigger-size, 56px);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(
+    --aipkit-chat-popup-trigger-bg-color,
+    var(--aipkit_brand-primary, #111111)
+  ) !important;
+  color: var(--aipkit-chat-popup-trigger-icon-color, #ffffff) !important;
+  line-height: 1;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .aipkit_popup_wrapper button.aipkit_popup_trigger:hover {
+    background: var(
+      --aipkit-chat-popup-trigger-hover-bg-color,
+      var(--aipkit_brand-primary-dark, #0a0a0a)
+    ) !important;
+  }
+}
+
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="square"],
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="square"]:not(:hover):not(:active):not(.has-background),
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="square"]:hover,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="square"]:focus,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="square"]:active {
+  border-radius: 12px;
+}
+
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="none"],
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="none"]:not(:hover):not(:active):not(.has-background),
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="none"]:hover,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="none"]:focus,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-style="none"]:active {
+  border-radius: 0;
+  background: transparent !important;
+  border: none !important;
+}
+
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]),
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):not(:hover):not(:active):not(.has-background),
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):hover,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):focus,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):active {
+  background: transparent !important;
+  box-shadow: 0 10px 24px -6px rgba(15, 23, 42, 0.24),
+    0 3px 8px -3px rgba(15, 23, 42, 0.18),
+    0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"]:not([data-icon-style="none"]):hover {
+    box-shadow: 0 14px 28px -8px rgba(15, 23, 42, 0.28),
+      0 5px 12px -5px rgba(15, 23, 42, 0.2),
+      0 0 0 1px rgba(15, 23, 42, 0.1);
+  }
+}
+
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"]:hover,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"]:focus,
+.aipkit_popup_wrapper button.aipkit_popup_trigger[data-icon-type="custom"][data-icon-style="none"]:active {
+  box-shadow: none !important;
+}
+
+.aipkit_chat_container button.aipkit_header_btn,
+.aipkit_chat_container button.aipkit_header_btn:not(:hover):not(:active):not(.has-background) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent !important;
+  color: inherit !important;
+  line-height: 1;
+}
+
+.aipkit_chat_container button.aipkit_header_btn:hover {
+  background: transparent !important;
+  color: inherit !important;
+  border-radius: 50%;
+}
+
+.aipkit_chat_container button.aipkit_input_action_btn,
+.aipkit_chat_container button.aipkit_input_action_btn:not(:hover):not(:active):not(.has-background) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(
+    --aipkit-chat-action-button-bg-color,
+    transparent
+  ) !important;
+  color: var(
+    --aipkit-chat-action-button-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  ) !important;
+  line-height: 1;
+}
+
+.aipkit_chat_container button.aipkit_input_action_btn:hover:not(:disabled),
+.aipkit_chat_container button.aipkit_input_action_btn:focus,
+.aipkit_chat_container button.aipkit_input_action_btn:active {
+  background: transparent !important;
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  border-color: transparent;
+}
+
+.aipkit_chat_container button.aipkit_input_action_btn:disabled,
+.aipkit_chat_container button.aipkit_input_action_btn:disabled:not(:hover):not(:active):not(.has-background) {
+  background: var(
+    --aipkit-chat-action-button-disabled-bg-color,
+    var(--aipkit-chat-action-button-bg-color, transparent)
+  ) !important;
+  border-color: var(
+    --aipkit-chat-action-button-disabled-border-color,
+    var(--aipkit-chat-action-button-border-color, transparent)
+  ) !important;
+  color: var(
+    --aipkit-chat-action-button-disabled-color,
+    var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary, #6b6b6b))
+  ) !important;
+}
+
+.aipkit_chat_container button.aipkit_input_action_menu_item,
+.aipkit_chat_container button.aipkit_input_action_menu_item:not(:hover):not(:active):not(.has-background) {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(
+    --aipkit-chat-action-menu-item-text-color,
+    var(--aipkit-chat-primary-text-color, #1a1d23)
+  ) !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  transform: none;
+}
+
+.aipkit_chat_container button.aipkit_input_action_menu_item:hover:not(:disabled),
+.aipkit_chat_container button.aipkit_input_action_menu_item:focus,
+.aipkit_chat_container button.aipkit_input_action_menu_item:active {
+  background: var(
+    --aipkit-chat-action-menu-item-hover-bg-color,
+    var(--aipkit-chat-assistant-bubble-color, #f1f2f4)
+  ) !important;
+  border-color: transparent !important;
+  color: var(
+    --aipkit-chat-action-menu-item-hover-text-color,
+    var(--aipkit-chat-primary-text-color, #1a1d23)
+  ) !important;
+  box-shadow: none !important;
+}
+
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn,
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn:not(:hover):not(:active):not(.has-background) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 !important;
+  flex: 0 0 32px;
+  background: var(
+    --aipkit-chat-send-button-bg-color,
+    var(--aipkit_brand-primary, #111111)
+  ) !important;
+  border-color: var(
+    --aipkit-chat-send-button-border-color,
+    var(--aipkit_brand-primary, #111111)
+  ) !important;
+  border-radius: 50%;
+  color: var(--aipkit-chat-send-button-text-color, #ffffff) !important;
+}
+
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn:hover:not(:disabled),
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn:active {
+  background: var(
+    --aipkit-chat-send-button-hover-bg-color,
+    var(--aipkit_brand-primary-dark, #0a0a0a)
+  ) !important;
+  border-color: var(
+    --aipkit-chat-send-button-hover-border-color,
+    var(--aipkit_brand-primary-dark, #0a0a0a)
+  ) !important;
+  border-radius: 50% !important;
+}
+
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn:disabled,
+.aipkit_chat_container button.aipkit_chat_action_btn.aipkit_send_btn:disabled:not(:hover):not(:active):not(.has-background) {
+  background: var(
+    --aipkit-chat-send-button-disabled-bg-color,
+    var(--aipkit_brand-primary-dark, #0a0a0a)
+  ) !important;
+  border-color: var(
+    --aipkit-chat-send-button-disabled-border-color,
+    var(--aipkit_brand-primary-dark, #0a0a0a)
+  ) !important;
+  color: var(--aipkit-chat-send-button-text-color, #ffffff) !important;
+}
+
+.aipkit_chat_container button.aipkit_starter_btn,
+.aipkit_chat_container button.aipkit_starter_btn:not(:hover):not(:active):not(.has-background) {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 13px;
+  border: 1px solid
+    var(
+      --aipkit-chat-starter-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  border-radius: 999px;
+  background: var(
+    --aipkit-chat-starter-bg-color,
+    var(--aipkit-chat-container-bg-color, var(--aipkit_bg-secondary, #ffffff))
+  ) !important;
+  color: var(
+    --aipkit-chat-starter-text-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  line-height: 1.4;
+}
+
+.aipkit_chat_container button.aipkit_starter_btn:hover,
+.aipkit_chat_container button.aipkit_starter_btn:focus,
+.aipkit_chat_container button.aipkit_starter_btn:active {
+  background: var(
+    --aipkit-chat-starter-hover-bg-color,
+    var(--aipkit_menu-hover, #f5f5f5)
+  ) !important;
+  color: var(
+    --aipkit-chat-starter-hover-text-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  border-radius: 999px;
+}
+
+.aipkit_chat_container button.aipkit_download_menu_item,
+.aipkit_chat_container button.aipkit_download_menu_item:not(:hover):not(:active):not(.has-background) {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 3px;
+  background: transparent !important;
+  color: var(
+    --aipkit-chat-action-menu-item-text-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  line-height: 1.2;
+}
+
+.aipkit_chat_container button.aipkit_download_menu_item:hover,
+.aipkit_chat_container button.aipkit_download_menu_item:focus,
+.aipkit_chat_container button.aipkit_download_menu_item:active {
+  background: var(
+    --aipkit-chat-action-menu-item-hover-bg-color,
+    var(--aipkit_menu-hover, #ededed)
+  ) !important;
+  color: var(
+    --aipkit-chat-action-menu-item-hover-text-color,
+    var(--aipkit_brand-primary, #111111)
+  ) !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.aipkit_chat_container button.aipkit_action_btn,
+.aipkit_chat_container button.aipkit_code_copy_btn,
+.aipkit_chat_container button.aipkit_code_copy_btn:not(:hover):not(:active):not(.has-background) {
+  background-color: var(--aipkit-chat-action-button-bg-color, transparent) !important;
+  background-image: none !important;
+  color: var(
+    --aipkit-chat-action-button-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  ) !important;
+}
+
+.aipkit_chat_container button.aipkit_action_btn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+.aipkit_chat_container button.aipkit_action_btn:hover:not(:disabled),
+.aipkit_chat_container button.aipkit_action_btn:focus-visible:not(:disabled),
+.aipkit_chat_container button.aipkit_action_btn:active:not(:disabled) {
+  background-color: var(
+    --aipkit-chat-action-button-hover-bg-color,
+    var(--aipkit-chat-assistant-bubble-color, #f1f2f4)
+  ) !important;
+  background-image: none !important;
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit-chat-primary-text-color, #1a1d23)
+  ) !important;
+}
+
+.aipkit_chat_container button.aipkit_action_btn:is(
+  .aipkit_feedback_selected,
+  .aipkit_copy_success,
+  .aipkit_playing
+) {
+  background-color: var(
+    --aipkit-chat-action-button-selected-bg-color,
+    var(--aipkit-chat-assistant-bubble-color, #f1f2f4)
+  ) !important;
+  background-image: none !important;
+  color: var(
+    --aipkit-chat-action-button-selected-color,
+    var(--aipkit-chat-primary-text-color, #1a1d23)
+  ) !important;
+}
+
+.aipkit_chat_container button,
+.aipkit_popup_wrapper button {
+  box-sizing: border-box;
+  text-transform: none;
+  letter-spacing: normal;
+}

@@ -1,0 +1,20 @@
+{
+  "name": "gpt3-ai-content-generator",
+  "version": "2.4.94",
+  "private": true,
+  "description": "Source build for the free AI Puffer WordPress plugin.",
+  "license": "GPL-2.0-or-later",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node esbuild.config.js --minify",
+    "verify": "node scripts/verify-free-source.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "fs-extra": "^11.2.0",
+    "markdown-it": "14.3.2",
+    "terser": "^5.48.0"
+  }
+}

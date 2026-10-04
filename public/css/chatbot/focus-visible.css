@@ -1,0 +1,33 @@
+/*
+ * AIPKit Public Chat - Accessibility - Focus Visible
+ * Keeps keyboard focus clearly visible across chat/popup controls.
+ */
+
+.aipkit_chat_container {
+  --aipkit-chat-focus-ring-color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_brand-primary, #111111)
+  );
+  --aipkit-chat-focus-ring-shadow-color: rgba(0, 0, 0, 0.2);
+}
+
+.aipkit_chat_container button:not(:disabled):focus-visible,
+.aipkit_chat_container [role="button"]:not([aria-disabled="true"]):focus-visible,
+.aipkit_chat_container [role="menuitem"]:not([aria-disabled="true"]):focus-visible,
+.aipkit_chat_container [tabindex]:not([tabindex="-1"]):focus-visible,
+.aipkit_chat_container textarea:not(.aipkit_chat_input_field):focus-visible,
+.aipkit_chat_container
+  input:not([type="hidden"]):not(.aipkit_sidebar_search_input):focus-visible,
+.aipkit_popup_wrapper .aipkit_popup_trigger:focus-visible,
+.aipkit_popup_wrapper .aipkit_popup_hint_close:focus-visible {
+  outline: 2px solid var(--aipkit-chat-focus-ring-color, #111111) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px
+    var(--aipkit-chat-focus-ring-shadow-color, rgba(0, 0, 0, 0.2)) !important;
+}
+
+/* Keep a single clean focus treatment for pill inputs: wrapper focus-within only. */
+.aipkit_chat_container .aipkit_chat_input_field:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}

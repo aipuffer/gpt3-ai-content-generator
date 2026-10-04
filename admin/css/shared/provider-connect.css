@@ -1,0 +1,171 @@
+.aipkit_connect_dialog {
+  --aipkit-connect-accent: #3f5fe8;
+  --aipkit-connect-accent-soft: #eef1ff;
+  --aipkit-connect-text: #18202e;
+  --aipkit-connect-muted: #5b6679;
+  --aipkit-connect-line: #e3e7ee;
+  --aipkit-connect-green: #1d7a45;
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(580px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--aipkit-connect-text);
+  box-shadow: 0 0 0 1px #18202e14, 0 24px 64px -12px #18202e40;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.aipkit_connect_dialog[open] { animation: aipkit-connect-in .18s ease-out; }
+.aipkit_connect_dialog:focus { outline: none; }
+.aipkit_connect_dialog::backdrop { background: #0f172a73; backdrop-filter: blur(2px); }
+.aipkit_connect_dialog *, .aipkit_connect_dialog *::before, .aipkit_connect_dialog *::after { box-sizing: border-box; }
+.aipkit_connect_dialog [hidden] { display: none !important; }
+@keyframes aipkit-connect-in { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+
+/* Header */
+.aipkit_connect_header { position: sticky; top: 0; z-index: 1; display: flex; align-items: flex-start; gap: 8px; padding: 24px 24px 18px 28px; background: #fff; }
+.aipkit_connect_heading { flex: 1; min-width: 0; padding-top: 2px; }
+.aipkit_connect_header h2 { margin: 0; padding: 0; color: inherit; font-size: 20px; line-height: 1.3; font-weight: 700; letter-spacing: -.3px; }
+.aipkit_connect_subtitle { margin: 4px 0 0; color: var(--aipkit-connect-muted); font-size: 14px; line-height: 1.45; }
+.aipkit_connect_icon_button { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; margin: -2px 0 0; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--aipkit-connect-muted); cursor: pointer; transition: background-color .15s, color .15s; }
+.aipkit_connect_icon_button:hover:not(:disabled) { background: #f1f4f9; color: var(--aipkit-connect-text); }
+.aipkit_connect_icon_button:disabled { opacity: .4; cursor: default; }
+.aipkit_connect_header [data-connect-back] { margin-left: -8px; }
+.aipkit_connect_body { padding: 0 28px 28px; }
+.aipkit_connect_feedback { margin: -12px 28px 28px; }
+
+/* Provider chooser */
+.aipkit_connect_choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.aipkit_connect_choice { position: relative; display: flex; align-items: center; gap: 12px; min-height: 64px; margin: 0; padding: 12px 14px; border: 1px solid var(--aipkit-connect-line); border-radius: 12px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+.aipkit_connect_choice:hover { border-color: #b9c4f5; background: #fafbff; box-shadow: 0 2px 8px -2px #3f5fe826; }
+.aipkit_connect_choice:active { background: #f4f6ff; }
+.aipkit_connect_choice_icon { position: relative; display: flex; flex: none; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid #edf0f5; border-radius: 10px; background: #f7f8fb; }
+.aipkit_connect_choice_icon img { display: block; width: 24px; height: 24px; object-fit: contain; }
+.aipkit_connect_choice_text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+.aipkit_connect_choice_name { display: flex; align-items: center; gap: 8px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.aipkit_connect_choice small { display: block; color: var(--aipkit-connect-muted); font-size: 13px; line-height: 1.4; }
+.aipkit_connect_chevron { flex: none; color: #a3adbd; opacity: 0; transform: translateX(-4px); transition: opacity .15s, transform .15s, color .15s; }
+.aipkit_connect_choice:hover .aipkit_connect_chevron, .aipkit_connect_choice:focus-visible .aipkit_connect_chevron { opacity: 1; transform: none; color: var(--aipkit-connect-accent); }
+.aipkit_connect_connected { display: inline-flex; align-items: center; gap: 4px; color: var(--aipkit-connect-green); font-size: 12.5px; font-weight: 500; line-height: 1.35; }
+.aipkit_connect_connected svg { flex: none; }
+.aipkit_connect_choice:has(.aipkit_connect_connected:not([hidden])) .aipkit_connect_choice_icon { border-color: #cfe9da; background: #f1faf4; }
+
+/* Featured Cloud option */
+.aipkit_connect_choice--featured { grid-column: 1 / -1; min-height: 76px; padding: 16px; border-color: #d4dbfb; background: linear-gradient(135deg, #f5f7ff 0%, #fff 70%); }
+.aipkit_connect_choice--featured:hover { border-color: var(--aipkit-connect-accent); background: linear-gradient(135deg, #eef1ff 0%, #fff 70%); }
+.aipkit_connect_choice--featured .aipkit_connect_choice_icon { width: 48px; height: 48px; border-color: #fde6cc; background: #fff7ed; }
+.aipkit_connect_choice--featured .aipkit_connect_choice_icon img { width: 30px; height: 30px; }
+.aipkit_connect_choice--featured .aipkit_connect_choice_name { font-size: 16px; }
+.aipkit_connect_choice--featured .aipkit_connect_chevron { opacity: 1; transform: none; }
+.aipkit_connect_badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; background: var(--aipkit-connect-accent-soft); color: var(--aipkit-connect-accent); font-size: 11.5px; font-weight: 600; letter-spacing: .2px; line-height: 1.6; }
+.aipkit_connect_divider { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin: 8px 0 2px; color: #8a94a6; font-size: 12px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; }
+.aipkit_connect_divider::before, .aipkit_connect_divider::after { content: ""; flex: 1; height: 1px; background: var(--aipkit-connect-line); }
+.aipkit_connect_choice[hidden] + .aipkit_connect_divider { display: none; }
+
+/* Loading placeholders */
+.aipkit_connect_skeleton { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.aipkit_connect_skeleton span { height: 64px; border-radius: 12px; background: linear-gradient(90deg, #f1f4f8 25%, #f8fafc 50%, #f1f4f8 75%) 0 0 / 200% 100%; animation: aipkit-connect-shimmer 1.2s linear infinite; }
+.aipkit_connect_skeleton span:first-child { grid-column: 1 / -1; height: 76px; }
+@keyframes aipkit-connect-shimmer { to { background-position: -200% 0; } }
+
+/* Connection forms */
+.aipkit_connect_dialog label { display: block; margin: 18px 0 6px; color: var(--aipkit-connect-text); font-size: 14px; font-weight: 600; }
+.aipkit_connect_dialog form > label:first-child { margin-top: 0; }
+.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { width: 100%; max-width: none; min-height: 44px; margin: 0; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #fff; color: var(--aipkit-connect-text); font: inherit; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
+.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus { border-color: var(--aipkit-connect-accent); box-shadow: 0 0 0 3px #3f5fe826; outline: none; }
+.aipkit_connect_dialog input::placeholder { color: #9aa4b5; }
+.aipkit_connect_input_wrap { position: relative; }
+.aipkit_connect_dialog .aipkit_connect_input_wrap:has(.aipkit_connect_reveal) input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { padding-right: 68px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+.aipkit_connect_reveal { position: absolute; top: 50%; right: 6px; min-width: 52px; height: 32px; padding: 0 10px; transform: translateY(-50%); border: 0; border-radius: 8px; background: transparent; color: var(--aipkit-connect-muted); font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
+.aipkit_connect_reveal:hover:not(:disabled) { background: #f1f4f9; color: var(--aipkit-connect-text); }
+.aipkit_connect_key_link { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; color: var(--aipkit-connect-accent); font-size: 13px; font-weight: 500; text-decoration: none; }
+.aipkit_connect_key_link:hover { color: #3450d1; text-decoration: underline; }
+.aipkit_connect_dialog details { margin-top: 18px; padding: 10px 14px; border: 1px solid var(--aipkit-connect-line); border-radius: 10px; background: #fafbfc; }
+.aipkit_connect_dialog summary { color: var(--aipkit-connect-muted); font-size: 14px; font-weight: 600; cursor: pointer; }
+.aipkit_connect_dialog details[open] summary { margin-bottom: 4px; }
+.aipkit_connect_dialog details label { margin-top: 12px; }
+.aipkit_connect_actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
+.aipkit_connect_feedback { padding: 10px 14px; border: 1px solid #f6cfcb; border-radius: 10px; background: #fef3f2; color: #b42318; font-size: 14px; overflow-wrap: anywhere; }
+.aipkit_connect_feedback:empty { display: none; }
+.aipkit_connect_dialog form[aria-busy="true"] { opacity: .7; }
+.aipkit_connect_dialog :focus-visible { outline: 2px solid var(--aipkit-connect-accent); outline-offset: 2px; }
+.aipkit_connect_dialog [data-action="edit-email"]:focus { outline: none; box-shadow: none; }
+.aipkit_connect_dialog [data-action="edit-email"]:focus-visible { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.aipkit_connect_dialog .aipkit_cloud_check { display: flex; font-weight: 400; }
+@media (max-width: 520px) {
+  .aipkit_connect_header { padding: 18px 16px 14px 20px; }
+  .aipkit_connect_body { padding: 0 20px 20px; }
+  .aipkit_connect_feedback { margin: -8px 20px 20px; }
+  .aipkit_connect_actions > .aipkit_btn { flex: 1; }
+  .aipkit_connect_choices, .aipkit_connect_skeleton { grid-template-columns: 1fr; }
+  .aipkit_connect_chevron { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_connect_dialog[open], .aipkit_connect_skeleton span { animation: none; }
+  .aipkit_connect_dialog * { transition: none !important; }
+}
+
+/* Match the onboarding Continue and Back controls in this connection flow. */
+.aipkit_connect_dialog .aipkit_btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  height: auto;
+  padding: 0 22px;
+  border: 1px solid #d5dbe6;
+  border-radius: 10px;
+  background: #fff;
+  color: #33415c;
+  font: 600 15px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: none;
+  transform: none;
+  transition: none;
+}
+.aipkit_connect_dialog .aipkit_btn:hover:not(:disabled),
+.aipkit_connect_dialog .aipkit_btn:focus {
+  background: #f5f7fb;
+  border-color: #c3cbd8;
+  color: #33415c;
+  box-shadow: none;
+  transform: none;
+}
+.aipkit_connect_dialog .aipkit_btn-primary,
+.aipkit_connect_dialog .aipkit_cloud_btn--primary {
+  background: #3f5fe8;
+  border-color: #3f5fe8;
+  color: #fff;
+}
+.aipkit_connect_dialog .aipkit_btn-primary:hover:not(:disabled),
+.aipkit_connect_dialog .aipkit_btn-primary:focus,
+.aipkit_connect_dialog .aipkit_cloud_btn--primary:hover:not(:disabled),
+.aipkit_connect_dialog .aipkit_cloud_btn--primary:focus {
+  background: #3450d1;
+  border-color: #3450d1;
+  color: #fff;
+}
+.aipkit_connect_dialog .aipkit_btn:focus-visible {
+  outline: 2px solid #3f5fe8;
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.aipkit_connect_dialog .aipkit_btn:disabled {
+  background: #c9d1e6;
+  border-color: #c9d1e6;
+  cursor: not-allowed;
+  opacity: 1;
+}
+.aipkit_connect_dialog .aipkit_btn[aria-busy="true"] { cursor: progress; opacity: .8; }
+
+.aipkit_connect_dialog .aipkit_cloud_btn--block { width: 100%; }
+.aipkit_connect_dialog .aipkit_btn-danger { background: #fff; border-color: #f3d0d0; color: #c53030; }
+.aipkit_connect_dialog .aipkit_btn-danger:hover:not(:disabled) { background: #fff5f5; border-color: #e8b4b4; color: #c53030; }

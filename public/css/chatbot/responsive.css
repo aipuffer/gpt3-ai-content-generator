@@ -1,0 +1,266 @@
+/*
+ * AIPKit Public Chat - Responsive Styles - Below 768px
+ * General adjustments for tablets and large phones.
+ */
+
+@media (max-width: 767px) {
+  .aipkit_chat_container .aipkit_chat_bubble {
+    font-size: 14px;
+    padding: 10px 13px;
+    max-width: 85%;
+  }
+}
+
+/*
+ * AIPKit Public Chat - Responsive Styles - Popup Mode Tweaks
+ * Mobile behavior:
+ * - Inline mode stays embedded on small viewports
+ * - Popup mode becomes fullscreen when opened
+ */
+
+@media (max-width: 767px) {
+  /*
+   * Keep the closed panel at its final fullscreen geometry so opening is one
+   * continuous slide instead of a corner-popup resize followed by movement.
+   */
+  body:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content {
+    position: fixed !important;
+    top: var(--aipkit-popup-mobile-top-offset, 0px) !important;
+    right: 0 !important;
+    bottom: var(--aipkit-popup-mobile-bottom-offset, 0px) !important;
+    left: 0 !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    min-height: var(--aipkit-popup-mobile-height, 100dvh) !important;
+    height: var(--aipkit-popup-mobile-height, 100dvh) !important;
+    max-height: var(--aipkit-popup-mobile-height, 100dvh) !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateY(100%) !important;
+    transform-origin: center bottom !important;
+    transition: transform var(--aipkit-popup-close-duration, 180ms)
+        var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+      opacity var(--aipkit-popup-close-duration, 180ms)
+        var(--aipkit-popup-close-easing, cubic-bezier(0.4, 0, 1, 1)),
+      visibility 0s linear var(--aipkit-popup-close-duration, 180ms) !important;
+    z-index: 99998 !important;
+    overflow: hidden !important;
+    background-color: var(
+      --aipkit-chat-container-bg-color,
+      var(--aipkit_bg-secondary, #ffffff)
+    ) !important;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content.aipkit-popup-open {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+    transition: transform var(--aipkit-popup-open-duration, 240ms)
+        var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+      opacity var(--aipkit-popup-open-duration, 240ms)
+        var(--aipkit-popup-open-easing, cubic-bezier(0.16, 1, 0.3, 1)),
+      visibility 0s linear 0s !important;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-open
+    .aipkit_popup_hint {
+    display: none !important;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_content:is(.aipkit-popup-open, .aipkit-popup-closing)
+    .aipkit_chat_main {
+    height: 100%;
+    padding-right: env(safe-area-inset-right, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+  }
+
+  /* Mobile auto-fullscreen should not expose manual fullscreen toggle. */
+  body:not(.wp-admin)
+    .aipkit_popup_content:is(.aipkit-popup-open, .aipkit-popup-closing)
+    .aipkit_fullscreen_btn {
+    display: none !important;
+  }
+
+  /* Show close affordance in popup header while open on mobile. */
+  body:not(.wp-admin)
+    .aipkit_popup_content:is(.aipkit-popup-open, .aipkit-popup-closing)
+    .aipkit_popup_close_btn {
+    display: inline-flex;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_content:is(.aipkit-popup-open, .aipkit-popup-closing)
+    .aipkit_chat_header {
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+    height: calc(64px + env(safe-area-inset-top, 0px));
+    min-height: calc(64px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Account for WordPress admin bar on frontend when logged in. */
+  body.admin-bar:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content {
+    top: 46px !important;
+    min-height: calc(100vh - 46px) !important;
+    min-height: calc(100dvh - 46px) !important;
+    height: calc(100vh - 46px) !important;
+    height: calc(100dvh - 46px) !important;
+    max-height: calc(100vh - 46px) !important;
+    max-height: calc(100dvh - 46px) !important;
+  }
+}
+
+/* Respect the operating system request to avoid spatial motion. */
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_popup_wrapper.aipkit-popup-standard .aipkit_popup_trigger,
+  .aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open
+    .aipkit_popup_trigger {
+    transform: none !important;
+    transition: opacity 100ms linear, visibility 0s linear 0s,
+      background-color 100ms linear !important;
+  }
+
+  .aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open
+    .aipkit_popup_trigger {
+    transition: opacity 100ms linear, visibility 0s linear 100ms !important;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content,
+  .aipkit_popup_wrapper.aipkit-popup-standard .aipkit_popup_content {
+    transform: none !important;
+    transition: opacity 100ms linear, visibility 0s linear 100ms !important;
+  }
+
+  body:not(.wp-admin)
+    .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content.aipkit-popup-open,
+  .aipkit_popup_wrapper.aipkit-popup-standard
+    .aipkit_popup_content.aipkit-popup-open {
+    transform: none !important;
+    transition: opacity 100ms linear, visibility 0s linear 0s !important;
+  }
+}
+
+/* Mobile input keeps the desktop visual language while avoiding iOS zoom. */
+@media (max-width: 767px) {
+  .aipkit_chat_input {
+    padding: 12px;
+  }
+
+  .aipkit_chat_input_wrapper {
+    min-height: 72px;
+    overflow: visible;
+    border-radius: 16px;
+  }
+
+  .aipkit_chat_container .aipkit_chat_input_field {
+    min-height: 28px;
+    padding: 3px 4px;
+    font-size: 16px !important;
+    line-height: 1.35;
+    transform: translateZ(0);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .aipkit_chat_input_actions_bar {
+    position: static;
+    min-height: 32px;
+    margin-top: 2px;
+    padding: 0;
+    background: transparent;
+  }
+
+  .aipkit_chat_input_actions_left,
+  .aipkit_chat_input_actions_right {
+    gap: 2px;
+  }
+
+  .aipkit_chat_container .aipkit_chat_input_actions_bar .aipkit_input_action_btn,
+  .aipkit_chat_container .aipkit_chat_input_actions_bar .aipkit_chat_action_btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+}
+
+/* Compact support header/footer adjustments below the popup fullscreen boundary. */
+@media (max-width: 767px) {
+  .aipkit_chat_header {
+    height: 64px;
+    min-height: 64px;
+    padding-right: var(--aipkit-chat-shell-padding-compact-x, 12px);
+    padding-left: var(--aipkit-chat-shell-padding-compact-x, 12px);
+  }
+
+  .aipkit_header_avatar,
+  .aipkit_header_icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .aipkit_header_name {
+    font-size: 13.5px;
+  }
+
+  .aipkit_header_status_text {
+    font-size: 11px;
+  }
+
+  .aipkit_header_btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .aipkit_chat_footer {
+    padding: 6px 12px;
+    font-size: 10px;
+  }
+}
+
+/*
+ * AIPKit Public Chat - Responsive Styles - Below 600px
+ * Tight layout for phones (e.g. sidebar trigger, font tweaks)
+ */
+
+@media (max-width: 600px) {
+  .aipkit_chat_container:not(.aipkit_popup_content) .aipkit_chat_bubble {
+    font-size: 14px;
+    padding: 10px 13px;
+  }
+  /* Note: Input Area styles for 600px are in _input-area.css */
+}
+
+/*
+ * AIPKit Public Chat - Responsive Styles - Below 480px
+ * Compact layout for small phones.
+ */
+
+@media (max-width: 480px) {
+  .aipkit_chat_container .aipkit_chat_messages {
+    padding: 12px 10px;
+  }
+  /* Note: Input Area styles for 480px are handled within the general input area file as it cascades.
+     Consent overlay rules will go into _misc-adjustments.css as per initial plan.
+   */
+}

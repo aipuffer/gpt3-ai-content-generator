@@ -1,0 +1,106 @@
+/*
+ * AIPKit Dashboard - Module Header Action Buttons
+ *
+ * Matches selected module header buttons to the polished Settings action style
+ * while preserving the existing primary/secondary variants.
+ */
+
+:is(
+    #aipkit_create_new_ai_form_btn,
+    #aipkit_add_new_task_btn,
+    #aipkit_cancel_edit_task_btn,
+    #aipkit_save_task_btn,
+    #aipkit_sources_training_toggle
+  ) {
+  border: 1px solid #d7e2f0;
+  background-color: #f4f7fb;
+  color: var(--aipkit-builder-title, var(--aipkit_text-heading, #1f2a3a));
+  border-radius: 8px;
+  min-height: var(--aipkit_button-height, 30px);
+  height: auto;
+  font-size: 12px;
+  font-weight: 400;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  text-decoration: none;
+  gap: 6px;
+}
+
+:is(
+    #aipkit_cancel_edit_task_btn
+  ):hover:not(:disabled),
+:is(
+    #aipkit_cancel_edit_task_btn
+  ):focus-visible {
+  background-color: #edf3fb;
+  border-color: #c9d6e8;
+  color: var(--aipkit-builder-title, var(--aipkit_text-heading, #1f2a3a));
+}
+
+:is(
+    #aipkit_create_new_ai_form_btn,
+    #aipkit_add_new_task_btn,
+    #aipkit_save_task_btn,
+    #aipkit_sources_training_toggle
+  ) {
+  background-color: #2271b1;
+  border-color: #2271b1;
+  color: #ffffff;
+}
+
+:is(
+    #aipkit_create_new_ai_form_btn,
+    #aipkit_add_new_task_btn,
+    #aipkit_save_task_btn,
+    #aipkit_sources_training_toggle
+  ):hover:not(:disabled),
+:is(
+    #aipkit_create_new_ai_form_btn,
+    #aipkit_add_new_task_btn,
+    #aipkit_save_task_btn,
+    #aipkit_sources_training_toggle
+  ):focus-visible {
+  background-color: #135e96;
+  border-color: #135e96;
+  color: #ffffff;
+}
+
+:is(
+    #aipkit_create_new_ai_form_btn,
+    #aipkit_add_new_task_btn,
+    #aipkit_cancel_edit_task_btn,
+    #aipkit_save_task_btn,
+    #aipkit_sources_training_toggle
+  ):disabled,
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn:disabled,
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn.aipkit_loading {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--aipkit-builder-card, #ffffff);
+  color: var(--aipkit-builder-muted, var(--aipkit_text-secondary, #8a94a6));
+  border-color: var(--aipkit-builder-border, #dbe2eb);
+  box-shadow: none;
+}
+
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn {
+  border-radius: 8px;
+  min-height: var(--aipkit_button-height, 30px);
+  height: auto;
+  font-size: 12px;
+  font-weight: 400;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  text-decoration: none;
+  gap: 6px;
+}
+
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn {
+  background-color: #f4f7fb;
+  border-color: #d7e2f0;
+  color: var(--aipkit-builder-title, var(--aipkit_text-heading, #1f2a3a));
+}
+
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn:hover:not(:disabled),
+#aipkit_content_writer_container #aipkit_content_writer_copy_btn:focus-visible:not(:disabled) {
+  background-color: #edf3fb;
+  border-color: #c9d6e8;
+  color: var(--aipkit-builder-title, var(--aipkit_text-heading, #1f2a3a));
+}

@@ -1,0 +1,73 @@
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(
+    in srgb,
+    var(--aipkit-image-text) 10%,
+    transparent
+  );
+  color: var(--aipkit-image-faint);
+  box-shadow: none;
+  font: inherit;
+  line-height: 1;
+  cursor: not-allowed;
+  transition: background-color 140ms ease, color 140ms ease,
+    transform 140ms ease, box-shadow 140ms ease;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn.is-ready {
+  background: var(--aipkit-image-accent);
+  color: var(--aipkit-image-accent-text);
+  cursor: pointer;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn.is-ready:hover,
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn.is-ready:focus-visible {
+  background: var(--aipkit-image-accent-hover);
+  color: var(--aipkit-image-accent-text);
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_image_generate_btn:focus-visible {
+  outline: 2px solid var(--aipkit-image-accent);
+  outline-offset: 2px;
+}
+
+.aipkit_image_generate_btn_icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit_image_generate_btn_icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit_image_generate_btn[aria-busy="true"]
+  .aipkit_image_generate_btn_icon {
+  display: none;
+}
+
+.aipkit_image_generate_btn .aipkit_spinner {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}

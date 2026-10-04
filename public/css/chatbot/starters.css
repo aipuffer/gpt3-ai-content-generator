@@ -1,0 +1,150 @@
+/* Chatbot conversation starters: container, buttons and responsive states. */
+
+/* Container for the starter prompts - unified flexbox approach */
+
+.aipkit_conversation_starters {
+  width: 100%;
+  margin: 0;
+  padding: 8px 16px var(--aipkit-chat-starters-divider-gap, 16px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+  justify-content: center;
+  background-color: var(
+    --aipkit-chat-messages-bg-color,
+    var(--aipkit-chat-body-color, #fafafb)
+  );
+  opacity: 1;
+  position: relative;
+  z-index: 2; /* Ensure starters stay above input area */
+  box-sizing: border-box;
+}
+
+/* Inline mode (non-popup): clip overflow during animation to prevent scrollbar flash */
+
+.aipkit_chat_container:not(.aipkit_popup_content) .aipkit_conversation_starters {
+  overflow: hidden;
+}
+
+/* Hidden state */
+
+.aipkit_conversation_starters.aipkit_hidden {
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Shared sizing and colors retain both generic and chat-scoped specificity. */
+
+.aipkit_starter_btn,
+.aipkit_chat_container .aipkit_starter_btn {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid
+    var(
+      --aipkit-chat-starter-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  background-color: var(
+    --aipkit-chat-starter-bg-color,
+    var(--aipkit-chat-container-bg-color, var(--aipkit_bg-secondary, #ffffff))
+  );
+  color: var(
+    --aipkit-chat-starter-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.aipkit_starter_btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s ease, color 0.2s ease,
+    border-color 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(20px);
+  flex-shrink: 1;
+  flex-grow: 0;
+}
+
+/* Shield starter buttons from theme button styles (e.g., Elementor). */
+
+.aipkit_chat_container .aipkit_starter_btn {
+  font-family: inherit;
+  text-transform: none;
+}
+
+/* Animation when ready */
+
+.aipkit_conversation_starters.aipkit_starters_ready .aipkit_starter_btn {
+  animation: aipkit_starterFadeInUp 0.35s ease-out both;
+  animation-delay: calc(var(--aipkit-starter-index, 0) * 0.05s);
+}
+
+.aipkit_conversation_starters.aipkit_hidden .aipkit_starter_btn {
+  transition-delay: 0s;
+}
+
+/* Hover state */
+
+.aipkit_chat_container .aipkit_starter_btn:hover {
+  background-color: var(
+    --aipkit-chat-starter-hover-bg-color,
+    var(--aipkit_menu-hover, #f5f5f5)
+  );
+  color: var(
+    --aipkit-chat-starter-hover-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  border-radius: 999px;
+}
+
+/* Focus/Active state */
+
+.aipkit_chat_container .aipkit_starter_btn:focus,
+.aipkit_chat_container .aipkit_starter_btn:active {
+  outline: none;
+  border-color: var(--aipkit-chat-starter-border-color, #e5e5e5);
+  box-shadow: 0 0 0 2px
+    var(--aipkit-chat-input-focus-shadow-color, rgba(0, 0, 0, 0.12));
+  color: var(
+    --aipkit-chat-starter-hover-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  border-radius: 999px;
+}
+
+/* Mobile: smaller buttons, allow wrapping */
+
+@media (max-width: 480px) {
+  .aipkit_chat_container .aipkit_starter_btn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+@keyframes aipkit_starterFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

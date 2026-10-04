@@ -1,0 +1,105 @@
+/*
+ * AIPKit Public Chat - Scroll-to-Bottom Button
+ */
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn {
+  position: absolute;
+  left: 50%;
+  bottom: var(--aipkit-chat-scroll-button-bottom-offset, 96px);
+  transform: translate(-50%, 6px);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  max-width: 44px !important;
+  max-height: 44px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  font-size: 0;
+  line-height: 0;
+  text-decoration: none;
+  text-transform: none;
+  background-image: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid
+    var(
+      --aipkit-chat-scroll-button-border-color,
+      var(
+        --aipkit-chat-starter-border-color,
+        var(--aipkit-chat-container-border-color, #e5e5e5)
+      )
+    );
+  background-color: var(
+    --aipkit-chat-scroll-button-bg-color,
+    var(--aipkit-chat-container-bg-color, #ffffff)
+  );
+  color: var(
+    --aipkit-chat-scroll-button-color,
+    var(--aipkit-chat-container-text-color, #111111)
+  );
+  box-shadow: 0 12px 24px -10px
+    var(--aipkit-chat-scroll-button-shadow-color, rgba(0, 0, 0, 0.25));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease,
+    background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn::before,
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn::after {
+  content: none !important;
+  display: none !important;
+}
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn > svg {
+  display: block;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  flex: 0 0 18px;
+  pointer-events: none;
+}
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn:hover {
+  background-color: var(
+    --aipkit-chat-scroll-button-hover-bg-color,
+    var(--aipkit-chat-starter-hover-bg-color, #f3f3f3)
+  );
+}
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn:focus-visible {
+  outline: 2px solid
+    var(
+      --aipkit-chat-scroll-button-focus-ring-color,
+      var(--aipkit-chat-container-text-color, #111111)
+    );
+  outline-offset: 2px;
+}
+
+.aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn.aipkit-scroll-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_chat_container .aipkit_chat_main .aipkit_scroll_to_bottom_btn {
+    transition: none;
+  }
+}

@@ -1,0 +1,229 @@
+/*
+ * AIPKit Public Chat - Customer Support Theme Base
+ *
+ * Every selectable widget color shares this light structural palette. Themes
+ * only replace the accent tokens declared below.
+ */
+
+.aipkit_chat_container,
+.aipkit_popup_wrapper {
+  --aipkit-chat-panel-color: #ffffff;
+  --aipkit-chat-body-color: #fafafb;
+  --aipkit-chat-assistant-bubble-color: #f1f2f4;
+  --aipkit-chat-primary-text-color: #1a1d23;
+  --aipkit-chat-border-color: #e7e8ec;
+  --aipkit-chat-muted-text-color: #9a9ca5;
+  --aipkit-chat-online-color: #22c55e;
+
+  --aipkit-chat-accent-color: #111111;
+  --aipkit-chat-accent-rgb: 17, 17, 17;
+  --aipkit-chat-selection-rgb: 17, 17, 17;
+  --aipkit-chat-on-accent-color: #ffffff;
+  --aipkit-chat-on-accent-rgb: 255, 255, 255;
+  --aipkit-chat-accent-hover-color: #2b2b2b;
+  --aipkit-chat-accent-shadow-color: rgba(17, 17, 17, 0.3);
+  --aipkit-chat-header-avatar-bg-color: rgba(255, 255, 255, 0.18);
+  --aipkit-chat-header-status-text-color: rgba(255, 255, 255, 0.85);
+  --aipkit-chat-selection-bg-color: rgba(var(--aipkit-chat-selection-rgb), 0.28);
+  --aipkit-chat-selection-on-accent-bg-color: rgba(var(--aipkit-chat-on-accent-rgb), 0.28);
+
+  --aipkit-chat-container-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-container-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-container-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-container-border-radius: 16px;
+  --aipkit-chat-font-family: inherit;
+
+  --aipkit-chat-header-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-header-text-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-header-title-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-header-border-color: transparent;
+  --aipkit-chat-header-status-dot-color: var(--aipkit-chat-online-color);
+  --aipkit-chat-bot-avatar-bg-color: var(--aipkit-chat-header-avatar-bg-color);
+  --aipkit-chat-bot-avatar-icon-color: var(--aipkit-chat-on-accent-color);
+
+  --aipkit-chat-messages-bg-color: var(--aipkit-chat-body-color);
+  --aipkit-chat-messages-scrollbar-thumb-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-messages-scrollbar-track-color: transparent;
+
+  --aipkit-chat-bubble-border-radius: 16px;
+  --aipkit-chat-bot-bubble-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-bot-bubble-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-user-bubble-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-user-bubble-text-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-subgreeting-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-meta-text-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-meta-link-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-meta-link-hover-color: #000000;
+  --aipkit-chat-meta-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-meta-focus-ring-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-table-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-table-header-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-table-row-alt-bg-color: var(--aipkit-chat-body-color);
+  --aipkit-chat-table-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-table-header-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-table-cell-text-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-input-area-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-input-area-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-input-wrapper-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-input-wrapper-border-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-input-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-input-placeholder-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-input-hover-border-color: #d9dae0;
+  --aipkit-chat-input-focus-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-input-focus-border-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-input-focus-shadow-color: rgba(
+    var(--aipkit-chat-accent-rgb),
+    0.15
+  );
+
+  --aipkit-chat-send-button-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-send-button-text-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-send-button-border-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-send-button-hover-bg-color: var(--aipkit-chat-accent-hover-color);
+  --aipkit-chat-send-button-hover-border-color: var(--aipkit-chat-accent-hover-color);
+  --aipkit-chat-send-button-disabled-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-send-button-disabled-border-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-send-button-spinner-base-color: rgba(255, 255, 255, 0.35);
+  --aipkit-chat-send-button-spinner-accent-color: var(--aipkit-chat-on-accent-color);
+
+  --aipkit-chat-action-button-bg-color: transparent;
+  --aipkit-chat-action-button-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-action-button-border-color: transparent;
+  --aipkit-chat-action-button-hover-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-action-button-hover-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-action-button-selected-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-action-button-selected-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-action-divider-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-action-button-disabled-bg-color: transparent;
+  --aipkit-chat-action-button-disabled-border-color: transparent;
+  --aipkit-chat-action-button-disabled-color: #b8bac1;
+  --aipkit-chat-action-button-disabled-opacity: 0.55;
+  --aipkit-chat-mic-hover-bg-color: transparent;
+  --aipkit-chat-voice-wave-active-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-voice-wave-idle-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-voice-cancel-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-voice-cancel-hover-bg-color: var(--aipkit-chat-body-color);
+  --aipkit-chat-voice-confirm-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-voice-confirm-border-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-voice-confirm-text-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-voice-confirm-hover-bg-color: var(--aipkit-chat-accent-hover-color);
+  --aipkit-chat-web-search-toggle-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-web-search-toggle-active-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-web-search-toggle-hover-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-google-grounding-toggle-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-google-grounding-toggle-active-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-google-grounding-toggle-hover-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-footer-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-footer-text-color: var(--aipkit-chat-muted-text-color);
+  --aipkit-chat-footer-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-sidebar-text-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-action-menu-bg-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-action-menu-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-action-menu-item-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-action-menu-item-hover-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-action-menu-item-hover-text-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-starter-bg-color: var(--aipkit-chat-body-color);
+  --aipkit-chat-starter-border-color: var(--aipkit-chat-border-color);
+  --aipkit-chat-starter-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-starter-hover-bg-color: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-starter-hover-text-color: var(--aipkit-chat-primary-text-color);
+
+  --aipkit-chat-popup-trigger-bg-color: var(--aipkit-chat-accent-color);
+  --aipkit-chat-popup-trigger-hover-bg-color: var(--aipkit-chat-accent-hover-color);
+  --aipkit-chat-popup-trigger-icon-color: var(--aipkit-chat-on-accent-color);
+  --aipkit-chat-popup-trigger-shadow-color: var(--aipkit-chat-accent-shadow-color);
+  --aipkit-chat-popup-hint-bg: var(--aipkit-chat-panel-color);
+  --aipkit-chat-popup-hint-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-popup-hint-text-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-popup-hint-close-color: var(--aipkit-chat-muted-text-color);
+
+  --aipkit-chat-quota-primary-button-bg-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-quota-primary-button-text-color: var(--aipkit-chat-panel-color);
+  --aipkit-chat-quota-primary-button-hover-bg-color: #000000;
+  --aipkit-chat-quota-primary-button-hover-text-color: var(--aipkit-chat-panel-color);
+
+  --aipkit-chat-bg-color-secondary: var(--aipkit-chat-panel-color);
+  --aipkit-chat-bg-color-hover: var(--aipkit-chat-assistant-bubble-color);
+  --aipkit-chat-text-color-link: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-primary-color-dark: #000000;
+  --aipkit-chat-focus-ring-color: var(--aipkit-chat-primary-text-color);
+  --aipkit-chat-focus-ring-shadow-color: rgba(26, 29, 35, 0.2);
+}
+
+/* Custom and named-palette accents. JS replaces these fallback accent tokens. */
+.aipkit_chat_container.aipkit-theme-custom,
+.aipkit_popup_wrapper.aipkit-popup-theme-custom {
+  --aipkit-chat-accent-color: #0f766e;
+  --aipkit-chat-accent-rgb: 15, 118, 110;
+  --aipkit-chat-selection-rgb: 15, 118, 110;
+  --aipkit-chat-on-accent-color: #ffffff;
+  --aipkit-chat-on-accent-rgb: 255, 255, 255;
+  --aipkit-chat-accent-hover-color: #2f8b84;
+  --aipkit-chat-accent-shadow-color: rgba(15, 118, 110, 0.3);
+  --aipkit-chat-header-avatar-bg-color: rgba(255, 255, 255, 0.18);
+  --aipkit-chat-header-status-text-color: rgba(255, 255, 255, 0.85);
+}
+
+.aipkit_chat_container.aipkit-theme-custom:not(.aipkit_popup_content) {
+  width: 100%;
+  max-width: var(--aipkit-chat-container-max-width, 896px);
+  height: var(--aipkit-chat-container-height, 620px);
+  min-height: var(--aipkit-chat-container-min-height, 320px);
+  max-height: var(--aipkit-chat-container-max-height, 90vh);
+}
+
+.aipkit_chat_container.aipkit-theme-custom.aipkit_popup_content {
+  width: var(--aipkit-chat-popup-width, 380px);
+  max-width: min(90vw, 700px);
+  height: var(--aipkit-chat-popup-height, 620px);
+  min-height: var(--aipkit-chat-popup-min-height, 320px);
+  max-height: var(--aipkit-chat-popup-max-height, 90vh);
+}
+
+/* White accent theme. Structural surfaces come from theme-support-base.css. */
+.aipkit_chat_container.aipkit-theme-light,
+.aipkit_popup_wrapper.aipkit-popup-theme-light {
+  --aipkit-chat-accent-color: #ffffff;
+  --aipkit-chat-accent-rgb: 255, 255, 255;
+  --aipkit-chat-selection-rgb: 26, 29, 35;
+  --aipkit-chat-on-accent-color: #1a1d23;
+  --aipkit-chat-on-accent-rgb: 26, 29, 35;
+  --aipkit-chat-accent-hover-color: #f1f2f4;
+  --aipkit-chat-accent-shadow-color: rgba(17, 24, 39, 0.16);
+  --aipkit-chat-header-avatar-bg-color: rgba(26, 29, 35, 0.1);
+  --aipkit-chat-header-status-text-color: rgba(26, 29, 35, 0.78);
+  --aipkit-chat-header-border-color: #e7e8ec;
+}
+
+/* Black accent theme. Structural surfaces remain light and neutral. */
+.aipkit_chat_container.aipkit-theme-dark,
+.aipkit_popup_wrapper.aipkit-popup-theme-dark {
+  --aipkit-chat-accent-color: #111111;
+  --aipkit-chat-accent-rgb: 17, 17, 17;
+  --aipkit-chat-selection-rgb: 17, 17, 17;
+  --aipkit-chat-on-accent-color: #ffffff;
+  --aipkit-chat-on-accent-rgb: 255, 255, 255;
+  --aipkit-chat-accent-hover-color: #2b2b2b;
+  --aipkit-chat-accent-shadow-color: rgba(17, 17, 17, 0.3);
+  --aipkit-chat-header-avatar-bg-color: rgba(255, 255, 255, 0.18);
+  --aipkit-chat-header-status-text-color: rgba(255, 255, 255, 0.85);
+}
+
+/* ChatGPT/green accent theme. Structural surfaces remain light and neutral. */
+.aipkit_chat_container.aipkit-theme-chatgpt,
+.aipkit_popup_wrapper.aipkit-popup-theme-chatgpt {
+  --aipkit-chat-accent-color: #10a37f;
+  --aipkit-chat-accent-rgb: 16, 163, 127;
+  --aipkit-chat-selection-rgb: 16, 163, 127;
+  --aipkit-chat-on-accent-color: #ffffff;
+  --aipkit-chat-on-accent-rgb: 255, 255, 255;
+  --aipkit-chat-accent-hover-color: #0e8c6f;
+  --aipkit-chat-accent-shadow-color: rgba(16, 163, 127, 0.3);
+  --aipkit-chat-header-avatar-bg-color: rgba(255, 255, 255, 0.18);
+  --aipkit-chat-header-status-text-color: rgba(255, 255, 255, 0.85);
+}

@@ -1,0 +1,102 @@
+/* Compact image attachment chip */
+.chat-image-thumbnail-wrapper {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  margin: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: visible;
+  line-height: 0;
+}
+
+.chat-image-thumbnail {
+  display: block;
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+/* Neutral remove control for an unsent, easily replaceable attachment. */
+.chat-image-remove-button {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  min-height: 17px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit-chat-primary-text-color, #4a4d56)
+  );
+  color: var(--aipkit-chat-panel-color, #ffffff);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24);
+  transition: transform 0.15s ease-in-out;
+}
+
+.chat-image-remove-button::before {
+  position: absolute;
+  inset: -5px;
+  content: "";
+}
+
+.aipkit_chat_container button.chat-image-remove-button,
+.aipkit_chat_container button.chat-image-remove-button:hover,
+.aipkit_chat_container button.chat-image-remove-button:active {
+  width: 17px !important;
+  height: 17px !important;
+  min-width: 17px !important;
+  min-height: 17px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50%;
+  background-color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit-chat-primary-text-color, #4a4d56)
+  ) !important;
+  background-image: none !important;
+  color: var(--aipkit-chat-panel-color, #ffffff) !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.24) !important;
+}
+
+.aipkit_chat_container button.chat-image-remove-button:hover {
+  transform: scale(1.06);
+}
+
+/* Inline Error Messages (No changes needed based on requirements) */
+.chat-image-upload-error {
+    color: #dc3545;
+    font-size: 0.875em;
+    margin-top: 5px;
+    padding: 5px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    display: block;
+}
+
+.aipkit_chat_image_preview_container.aipkit-image-preview-fade-out .chat-image-thumbnail-wrapper {
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}

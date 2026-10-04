@@ -1,0 +1,177 @@
+{
+  "description": "Reviewed paid implementation markers used to verify free bundles. Shared probes, saved-state normalization and upgrade UI are allowed; premium implementations are not.",
+  "modules": {
+    "chatbot": [
+      "realtime/direct voice",
+      "document uploads",
+      "PDF transcript",
+      "consent",
+      "triggers and conversation forms",
+      "external embed",
+      "automatic log pruning",
+      "connected-app recipe panels"
+    ],
+    "content-writer": [
+      "Smart SEO audit and improvement",
+      "RSS/URL/Google Sheets sources",
+      "product optimization and bulk updates (mixed shared orchestration; audit pending)"
+    ],
+    "automations": [
+      "Rewrite automation",
+      "paid source ingestion",
+      "Smart SEO"
+    ],
+    "ai-forms": [
+      "conversation mode",
+      "workflows",
+      "file/image inputs",
+      "PDF result",
+      "connected-app recipe panels"
+    ],
+    "knowledge-base": [
+      "document extraction/uploads",
+      "reindex freshness/queue",
+      "advanced ingestion settings"
+    ],
+    "ai": [
+      "Ollama provider integration and classification"
+    ],
+    "integrations": [
+      "connected apps",
+      "recipes",
+      "delivery management",
+      "Google authorization"
+    ],
+    "usage": [
+      "automatic log pruning"
+    ],
+    "images-speech-search-security": []
+  },
+  "forbiddenFreeImplementations": [
+    {
+      "module": "chatbot",
+      "kind": "css",
+      "pattern": "\\baipkit_pulse\\b|aipkit_direct_voice_pulse|\\[data-aipkit-direct-voice|\\.aipkit_realtime_voice_agent_btn\\.is-|\\.aipkit_popup_trigger\\.is-(?:listening|speaking|error)"
+    },
+    {
+      "module": "chatbot",
+      "kind": "js",
+      "pattern": "window\\.(?:aipkit_initRealtimeVoiceAgent|aipkit_realtimeConnector|aipkit_realtimeAudioHandler|aipkit_realtimeUIHandler|aipkitChatFileUpload|aipkit_initConsentUI|aipkit_chatUI_handleDisplayFormEvent|aipkit_chatUI_handleChatFormSubmission|aipkit_chatUI_downloadTranscriptActionPdf)\\s*=(?!=)"
+    },
+    {
+      "module": "content-writer",
+      "kind": "js",
+      "pattern": "aipkit_cw_smart_seo_run_btn|window\\.(?:aipkit_contentWriterSeoAudit|aipkit_createContentWriterBatchSeo|aipkit_runContentWriterBatchSeoAudit|aipkit_refreshContentWriterSmartSeoRunCard|aipkit_initUrlScrapeHandler)\\s*=(?!=)|aipkit_cw_batch_seo_|aipkit-cw-batch-seo-score"
+    },
+    {
+      "module": "ai-forms",
+      "kind": "js",
+      "pattern": "window\\.aipkitAIFormsWorkflow(?:Runtime|Editor)Loaded\\s*=(?!=)"
+    },
+    {
+      "module": "content-writer",
+      "kind": "css",
+      "pattern": "\\.aipkit_cw_(?:seo_(?:audit|score|approach|inline_switch)|batch_seo_|smart_seo_run_card)|\\.aipkit_autogpt_seo_approach|\\.aipkit_smart_seo_(?!feature)|aipkit-smart-seo-modal-open"
+    },
+    {
+      "module": "settings",
+      "kind": "js",
+      "pattern": "window\\.(?:aipkit_initAppConnectionsUI|aipkit_initRecipesUI|aipkit_initAppDeliveryIssuesUI)\\s*=(?!=)|aipkit_(?:test_app_connection|clear_recipe_delivery_log|replay_recipe_delivery_log)"
+    },
+    {
+      "module": "settings",
+      "kind": "css",
+      "pattern": "#aipkit_settings_container[^{}]*aipkit_settings_(?:(?:app_connection|app_delivery|recipe)|simple_row--(?:app-connections|recipes|app-delivery-issues))"
+    },
+    {
+      "module": "connected-apps",
+      "kind": "css",
+      "pattern": "\\.aipkit_chatbot_connected_apps_(?:panel|intro(?!_text)|empty|actions|list|recipe)(?![a-z])|\\.aipkit_settings_recipe_(?:status|enabled_flag)|\\.aipkit_ai_form_connected_apps_(?:summary|details)"
+    },
+    {
+      "module": "connected-apps",
+      "kind": "js",
+      "pattern": "window\\.(?:aipkitForms_renderConnectedApps|aipkit_renderChatbotConnectedApps)\\s*=(?!=)|aipkit_chatbot_connected_apps_recipe"
+    },
+    {
+      "module": "automations",
+      "kind": "css",
+      "pattern": "\\.aipkit_ce_(?:filter_row|queue_switch|queue_card--inline|source_grid--primary|multi_select)"
+    },
+    {
+      "module": "chatbot",
+      "kind": "css",
+      "pattern": "\\.aipkit_audio_settings_grid--realtime"
+    },
+    {
+      "module": "Content Writer paid source panels",
+      "kind": "css",
+      "pattern": "\\.aipkit_(?:rss|url|gsheets)_[a-zA-Z_-]+|@keyframes\\s+aipkit_(?:rss|url|gsheets)_"
+    },
+    {
+      "module": "AI Forms paid editor",
+      "kind": "css",
+      "pattern": "\\.aipkit_ai_form_(?:conversation_ui_settings|labels_group--multistep)"
+    },
+    {
+      "module": "AI Forms paid step editor",
+      "kind": "js",
+      "pattern": "window\\.aipkitForms_afterRenderLayoutRow\\s*=(?!=)"
+    },
+    {
+      "module": "chatbot knowledge file upload",
+      "kind": "js",
+      "pattern": "aipkit_createChatbotFileUploader\\s*=(?!=)"
+    },
+    {
+      "module": "chatbot knowledge file request payload",
+      "kind": "js",
+      "pattern": "[\"']chatbot_settings_file_upload[\"']"
+    },
+    {
+      "module": "chatbot knowledge file queue",
+      "kind": "js",
+      "pattern": "aipkit_createChatbotFileQueue\\s*=(?!=)"
+    },
+    {
+      "module": "knowledge base file upload",
+      "kind": "js",
+      "pattern": "aipkit_createKnowledgeBaseFileUploader\\s*=(?!=)"
+    },
+    {
+      "module": "knowledge base file request payload",
+      "kind": "js",
+      "pattern": "[\\\"\\x27]source_context[\\\"\\x27]\\s*,\\s*[\\\"\\x27]sources_module_file_upload[\\\"\\x27]"
+    },
+    {
+      "module": "knowledge base file queue",
+      "kind": "js",
+      "pattern": "aipkit_createKnowledgeBaseFileQueue\\s*=(?!=)"
+    },
+    {
+      "module": "paid file upload transport",
+      "kind": "js",
+      "pattern": "aipkit_api_(?:upsertFile|continueVectorFileJob)\\s*=(?!=)"
+    },
+    {
+      "module": "knowledge-base paid settings",
+      "kind": "css",
+      "pattern": "#aipkit_indexing_settings_form_container|\\.aipkit_indexing_settings_|\\.aipkit_settings_kb_(?:indexing_|content_type_|rule_status|batch_fields|card--content-rules)"
+    },
+    {
+      "module": "knowledge-base advanced settings",
+      "kind": "js",
+      "pattern": "aipkit_createKnowledgeBaseSettings\\s*=(?!=)|aipkit_get_cpt_indexing_options|aipkit_indexing_settings_accordion_title|aipkit_settings_kb_indexing_table"
+    },
+    {
+      "module": "chatbot rule autosave",
+      "kind": "js",
+      "pattern": "[\"']aipkit_update_chatbot_triggers[\"']|window\\.(?:aipkit_bindTriggerAutosave|aipkit_syncTriggerBuilderScope|aipkit_bindChatbotRuleSummary)\\s*=(?!=)"
+    },
+    {
+      "kind": "js",
+      "module": "Chatbot connected apps summary",
+      "pattern": "window\\.aipkit_bindChatbotConnectedAppsSummary\\s*=(?!=)"
+    }
+  ]
+}

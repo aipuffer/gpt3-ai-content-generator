@@ -1,0 +1,872 @@
+/*
+ * AIPKit Public Chat - Input Area Styles - Input Container (Image Preview)
+ * Styles for .aipkit_chat_image_preview_container
+ */
+
+.aipkit_chat_image_preview_container {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 8px 8px 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.aipkit_chat_image_preview_container:empty {
+  display: none;
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Input Wrapper
+ * Styles for .aipkit_chat_input_wrapper and its focus state.
+ */
+
+/* Wrapper for input and the actions bar */
+.aipkit_chat_input_wrapper {
+  position: relative; /* Parent for absolutely positioned actions bar */
+  width: 100%;
+  display: flex;
+  flex-direction: column; /* Stack textarea above actions bar */
+  box-sizing: border-box;
+  background-color: var(
+    --aipkit-chat-input-wrapper-bg-color,
+    var(--aipkit_bg-primary, #f7f7f7)
+  ); /* Background for the whole input area */
+  border: 1px solid
+    var(
+      --aipkit-chat-input-wrapper-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  border-radius: 16px;
+  padding: 8px 8px 8px 10px;
+  box-shadow: none;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  overflow: visible; /* Ensure overflowing content (like action menus) remains visible */
+  container-type: inline-size;
+}
+
+.aipkit_chat_input_wrapper:hover {
+  border-color: var(
+    --aipkit-chat-input-hover-border-color,
+    var(
+      --aipkit-chat-input-wrapper-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    )
+  );
+}
+
+.aipkit_chat_input_wrapper:focus-within {
+  background-color: var(
+    --aipkit-chat-input-focus-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  border-color: var(
+    --aipkit-chat-input-focus-border-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  box-shadow: 0 0 0 3px
+    var(--aipkit-chat-input-focus-shadow-color, rgba(17, 17, 17, 0.15));
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Input Field
+ * Styles for .aipkit_chat_input_field (textarea) and its placeholder.
+ */
+
+/* Main Textarea Field */
+.aipkit_chat_container .aipkit_chat_input_field {
+  width: 100%;
+  border: none; /* Border is now on the wrapper */
+  background-color: transparent; /* Transparent background, wrapper has color */
+  color: var(
+    --aipkit-chat-input-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  padding: 3px 4px;
+  box-sizing: border-box;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: none;
+  overflow-y: hidden;
+  min-height: 28px;
+  max-height: 200px;
+  line-height: 1.5;
+  outline: none; /* Remove default outline */
+  display: block; /* Ensure it takes full width */
+  border-radius: 0; /* Wrapper handles rounding */
+  /* iOS zoom prevention */
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  /* Ensure proper touch behavior */
+  touch-action: manipulation;
+  /* Improve accessibility and touch response */
+  cursor: text;
+}
+
+/* Guard the field chrome and text from host-theme textarea overrides. */
+.aipkit_chat_container textarea.aipkit_chat_input_field,
+.aipkit_chat_container textarea.aipkit_chat_input_field:focus,
+.aipkit_chat_container textarea.aipkit_chat_input_field:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: var(
+    --aipkit-chat-input-text-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  caret-color: var(
+    --aipkit-chat-input-text-color,
+    var(--aipkit_text-primary, #111111)
+  ) !important;
+  background-color: transparent !important;
+}
+
+/* iOS-specific fixes to prevent zoom and adjust border radius for mobile */
+@media screen and (max-width: 767px) {
+  .aipkit_chat_container .aipkit_chat_input_field {
+    font-size: 16px !important; /* Critical for preventing iOS zoom - must be at least 16px */
+    transform: translateZ(0); /* Hardware acceleration */
+    padding: 3px 4px;
+  }
+}
+
+.aipkit_chat_container .aipkit_chat_input_field.aipkit-textarea-scrollable {
+  overflow-y: auto;
+}
+.aipkit_chat_container textarea.aipkit_chat_input_field::placeholder {
+  color: var(--aipkit-chat-input-placeholder-color, #9ca3af) !important;
+  opacity: 1 !important;
+  /* Ensure placeholder doesn't trigger zoom either */
+  font-size: inherit;
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Input Actions Bar
+ * Styles for .aipkit_chat_input_actions_bar, left/right groups, general button styling,
+ * and specific PDF/Image icon colors.
+ */
+
+/* Bar for action buttons inside the input wrapper */
+.aipkit_chat_input_actions_bar {
+  position: static; /* Stack below the textarea to avoid overlay conflicts */
+  display: flex;
+  /* Avoid space-between so stray pseudo-elements don't affect alignment */
+  justify-content: flex-start;
+  align-items: center;
+  padding: 0;
+  margin-top: 2px;
+  box-sizing: border-box;
+  pointer-events: none; /* Allow touches to pass through to the textarea */
+}
+
+/* Prevent theme/framework clearfix pseudo-elements from becoming flex items */
+.aipkit_chat_input_actions_bar::before,
+.aipkit_chat_input_actions_bar::after {
+  content: none !important;
+  display: none !important;
+}
+
+.aipkit_chat_input_actions_left,
+.aipkit_chat_input_actions_right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none; /* Allow touches to pass through */
+}
+
+/* Push right-side group to the far edge regardless of left content */
+.aipkit_chat_input_actions_right {
+  margin-left: auto;
+  margin-inline-start: auto; /* RTL-aware */
+}
+
+/* General style for icon-only buttons within the input bar */
+.aipkit_chat_container .aipkit_chat_input_actions_bar .aipkit_input_action_btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  pointer-events: auto; /* Re-enable pointer events for buttons */
+}
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_input_action_btn:hover:not(:disabled) {
+  background-color: transparent;
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+  border-color: transparent;
+  border-radius: 50%;
+}
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_input_action_btn:disabled {
+  opacity: var(--aipkit-chat-action-button-disabled-opacity, 1);
+  cursor: not-allowed;
+  background-color: var(
+    --aipkit-chat-action-button-disabled-bg-color,
+    var(--aipkit-chat-action-button-bg-color, transparent)
+  );
+  border-color: var(
+    --aipkit-chat-action-button-disabled-border-color,
+    var(--aipkit-chat-action-button-border-color, transparent)
+  );
+  color: var(
+    --aipkit-chat-action-button-disabled-color,
+    var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary, #6b6b6b))
+  );
+}
+.aipkit_chat_input_actions_bar .aipkit_input_action_btn svg {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+  line-height: 1;
+}
+
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_input_action_btn:focus,
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_input_action_btn:active {
+  background-color: transparent;
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+  border-radius: 50%;
+}
+
+/* The combined-upload trigger is the only persistent selected state. */
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_input_action_btn.aipkit_input_action_toggle.aipkit_active {
+  background-color: var(--aipkit-chat-assistant-bubble-color, #f1f2f4) !important;
+  color: var(--aipkit-chat-primary-text-color, #1a1d23) !important;
+  border-color: transparent !important;
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Action Menu
+ * Styles for the dropdown menu associated with the paperclip/action button.
+ */
+
+/* Labeled upload menu layered above the input without shifting chat content. */
+.aipkit_input_action_menu {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 20px;
+  width: min(184px, calc(100% - 40px));
+  box-sizing: border-box;
+  background-color: var(
+    --aipkit-chat-action-menu-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  border: 1px solid
+    var(
+      --aipkit-chat-action-menu-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.08);
+  padding: 5px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(5px);
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out,
+    visibility 0s linear 0.2s;
+}
+
+.aipkit_input_action_menu[hidden] {
+  display: none !important;
+}
+
+.aipkit_input_action_menu.aipkit-action-menu-open {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.aipkit_chat_container .aipkit_input_action_menu_item {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 7px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  color: var(
+    --aipkit-chat-action-menu-item-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  text-transform: none;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  padding: 7px 9px;
+  line-height: 1.25;
+}
+.aipkit_chat_container .aipkit_input_action_menu_item:hover,
+.aipkit_chat_container .aipkit_input_action_menu_item:focus,
+.aipkit_chat_container .aipkit_input_action_menu_item:active {
+  background-color: var(
+    --aipkit-chat-action-menu-item-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  border-color: var(
+    --aipkit-chat-action-menu-item-hover-border-color,
+    var(--aipkit_container-border, #e5e5e5)
+  );
+  color: var(
+    --aipkit-chat-action-menu-item-hover-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  border-radius: 7px;
+}
+.aipkit_chat_container .aipkit_input_action_menu_item:focus,
+.aipkit_chat_container .aipkit_input_action_menu_item:active {
+  outline: none;
+  box-shadow: none;
+}
+
+.aipkit_input_action_menu_icon {
+  display: inline-flex;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.aipkit_input_action_menu_icon svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  color: currentColor;
+}
+
+.aipkit_input_action_menu_label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Send/Clear Button
+ * Styles for .aipkit_chat_action_btn.aipkit_send_btn and its spinner.
+ */
+
+.aipkit_chat_input_actions_bar .aipkit_send_btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--aipkit-chat-send-button-text-color, #ffffff);
+}
+
+.aipkit_chat_input_actions_right > .aipkit_chat_action_timer {
+  min-width: 4ch;
+  margin-inline-end: 4px;
+  flex: 0 0 auto;
+  color: var(
+    --aipkit-chat-muted-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  line-height: 1;
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* Send/Clear Button - Also uses .aipkit_input_action_btn base style */
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_chat_action_btn.aipkit_send_btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  background-color: var(
+    --aipkit-chat-send-button-bg-color,
+    var(--aipkit_brand-primary)
+  );
+  border-color: var(
+    --aipkit-chat-send-button-border-color,
+    var(--aipkit_brand-primary)
+  );
+  border-radius: 50%;
+  opacity: 1;
+}
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_chat_action_btn.aipkit_send_btn:hover:not(:disabled) {
+  background-color: var(
+    --aipkit-chat-send-button-hover-bg-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-color: var(
+    --aipkit-chat-send-button-hover-border-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-radius: 50%;
+  opacity: 1;
+}
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_chat_action_btn.aipkit_send_btn:disabled {
+  background-color: var(
+    --aipkit-chat-send-button-disabled-bg-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-color: var(
+    --aipkit-chat-send-button-disabled-border-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-radius: 50%;
+  opacity: 0.48;
+}
+.aipkit_chat_container
+  .aipkit_chat_input_actions_bar
+  .aipkit_chat_action_btn.aipkit_send_btn:active {
+  background-color: var(
+    --aipkit-chat-send-button-hover-bg-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-color: var(
+    --aipkit-chat-send-button-hover-border-color,
+    var(--aipkit_brand-primary-dark)
+  );
+  border-radius: 50%;
+}
+
+/* Spinner for send/clear button */
+.aipkit_chat_action_btn .aipkit_spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-color: var(
+    --aipkit-chat-send-button-spinner-base-color,
+    rgba(255, 255, 255, 0.3)
+  );
+  border-left-color: var(--aipkit-chat-send-button-spinner-accent-color, #fff);
+  animation: aipkit_spin 1s linear infinite;
+  border-radius: 50%;
+  vertical-align: middle;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Toggle Buttons
+ * Styles for Web Search and Google Grounding toggle buttons.
+ */
+
+/* Shared toggle button structure */
+.aipkit_chat_input_actions_left
+  .aipkit_web_search_toggle,
+.aipkit_chat_input_actions_left
+  .aipkit_google_search_grounding_toggle {
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  transition: color 0.15s, opacity 0.15s, filter 0.15s;
+}
+
+/* Web Search Toggle Button */
+.aipkit_chat_input_actions_left
+  .aipkit_web_search_toggle svg {
+  color: var(
+    --aipkit-chat-web-search-toggle-color,
+    var(--aipkit_text-secondary)
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_web_search_toggle.aipkit_active svg {
+  color: var(
+    --aipkit-chat-web-search-toggle-active-color,
+    var(--aipkit-chat-send-button-bg-color, var(--aipkit_brand-primary, #111111))
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_web_search_toggle:hover:not(:disabled) svg {
+  color: var(
+    --aipkit-chat-web-search-toggle-hover-color,
+    var(--aipkit-chat-action-button-hover-color, var(--aipkit_text-primary))
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_web_search_toggle:disabled svg {
+  color: var(
+    --aipkit-chat-action-button-disabled-color,
+    var(--aipkit_text-secondary)
+  );
+}
+
+/* Google Search Grounding Toggle Button */
+.aipkit_chat_input_actions_left
+  .aipkit_google_search_grounding_toggle svg {
+  color: var(
+    --aipkit-chat-google-grounding-toggle-color,
+    var(--aipkit_text-secondary)
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_google_search_grounding_toggle.aipkit_active svg {
+  color: var(
+    --aipkit-chat-google-grounding-toggle-active-color,
+    var(--aipkit-chat-send-button-bg-color, #4285f4)
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_google_search_grounding_toggle:hover:not(:disabled) svg {
+  color: var(
+    --aipkit-chat-google-grounding-toggle-hover-color,
+    var(--aipkit-chat-action-button-hover-color, var(--aipkit_text-primary))
+  );
+}
+.aipkit_chat_input_actions_left
+  .aipkit_google_search_grounding_toggle:disabled svg {
+  color: var(
+    --aipkit-chat-action-button-disabled-color,
+    var(--aipkit_text-secondary)
+  );
+}
+
+/*
+ * AIPKit Public Chat - Input Area Styles - Voice Input Button
+ * Styles for the microphone button and responsive recording panel.
+ */
+
+.aipkit_chat_container.aipkit-voice-input-enabled .aipkit_voice_input_btn {
+  display: inline-flex;
+}
+.aipkit_chat_input_actions_bar .aipkit_voice_input_btn,
+.aipkit_chat_input_actions_bar .aipkit_realtime_voice_agent_btn {
+  background-color: transparent;
+  border-color: transparent;
+}
+.aipkit_chat_input_actions_bar .aipkit_voice_input_btn {
+  position: relative;
+}
+.aipkit_chat_input_actions_bar .aipkit_voice_input_btn:hover:not(:disabled),
+.aipkit_chat_input_actions_bar .aipkit_realtime_voice_agent_btn:hover:not(:disabled) {
+  background-color: var(--aipkit-chat-mic-hover-bg-color, #f5f5f5);
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  border-color: transparent;
+}
+.aipkit_voice_input_btn.aipkit_starting svg,
+.aipkit_voice_input_btn.aipkit_loading svg {
+  display: none;
+}
+.aipkit_voice_input_btn.aipkit_starting::after,
+.aipkit_voice_input_btn.aipkit_loading::after {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid
+    var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary));
+  border-top-color: var(
+    --aipkit-chat-send-button-bg-color,
+    var(--aipkit_brand-primary)
+  );
+  border-radius: 50%;
+  animation: aipkit_spin 1s linear infinite;
+}
+
+.aipkit_voice_recording_panel[hidden],
+.aipkit_voice_transcribing_indicator[hidden] {
+  display: none !important;
+}
+
+.aipkit_chat_input_wrapper.aipkit_voice_recording_mode
+  > .aipkit_chat_input_field,
+.aipkit_chat_input_wrapper.aipkit_voice_recording_mode
+  > .aipkit_chat_image_preview_container,
+.aipkit_chat_input_wrapper.aipkit_voice_recording_mode
+  > .aipkit_chat_input_actions_bar {
+  display: none !important;
+}
+
+.aipkit_voice_recording_panel {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) 34px 34px;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  color: var(
+    --aipkit-chat-voice-wave-active-color,
+    var(--aipkit-chat-primary-text-color, var(--aipkit_text-primary, #111111))
+  );
+}
+
+.aipkit_voice_waveform_stage {
+  position: relative;
+  min-width: 0;
+  height: 40px;
+}
+
+.aipkit_voice_waveform_canvas {
+  display: block;
+  width: 100%;
+  height: 40px;
+  color: var(
+    --aipkit-chat-voice-wave-active-color,
+    var(--aipkit-chat-primary-text-color, var(--aipkit_text-primary, #111111))
+  );
+  --aipkit-chat-voice-wave-idle-color: var(
+    --aipkit-chat-muted-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+}
+
+.aipkit_voice_recording_status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.aipkit_voice_transcribing_indicator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(
+    --aipkit-chat-muted-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.aipkit_voice_transcribing_indicator .aipkit_spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-color: var(
+    --aipkit-chat-voice-wave-idle-color,
+    var(--aipkit-chat-border-color, #e5e5e5)
+  );
+  border-left-color: var(
+    --aipkit-chat-voice-wave-active-color,
+    var(--aipkit-chat-accent-color, var(--aipkit_brand-primary, #111111))
+  );
+}
+
+.aipkit_chat_container button.aipkit_voice_recording_control {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s,
+    opacity 0.15s;
+}
+
+.aipkit_chat_container button.aipkit_voice_recording_control svg {
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit_chat_container button.aipkit_voice_cancel_btn {
+  color: var(
+    --aipkit-chat-voice-cancel-color,
+    var(--aipkit-chat-primary-text-color, var(--aipkit_text-primary, #111111))
+  );
+  background: transparent;
+  border-color: transparent;
+}
+
+.aipkit_chat_container button.aipkit_voice_cancel_btn:hover:not(:disabled) {
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit-chat-primary-text-color, var(--aipkit_text-primary, #111111))
+  );
+  background: var(
+    --aipkit-chat-voice-cancel-hover-bg-color,
+    var(--aipkit-chat-assistant-bubble-color, rgba(127, 127, 127, 0.12))
+  );
+  border-color: transparent;
+}
+
+.aipkit_chat_container button.aipkit_voice_confirm_btn {
+  color: var(
+    --aipkit-chat-voice-confirm-text-color,
+    var(--aipkit-chat-on-accent-color, #ffffff)
+  );
+  background: var(
+    --aipkit-chat-voice-confirm-bg-color,
+    var(--aipkit-chat-accent-color, var(--aipkit_brand-primary, #111111))
+  );
+  border-color: var(
+    --aipkit-chat-voice-confirm-border-color,
+    var(--aipkit-chat-accent-color, var(--aipkit_brand-primary, #111111))
+  );
+}
+
+.aipkit_chat_container button.aipkit_voice_confirm_btn:hover:not(:disabled) {
+  color: var(
+    --aipkit-chat-voice-confirm-text-color,
+    var(--aipkit-chat-on-accent-color, #ffffff)
+  );
+  background: var(
+    --aipkit-chat-voice-confirm-hover-bg-color,
+    var(--aipkit-chat-accent-hover-color, #2b2b2b)
+  );
+  border-color: var(
+    --aipkit-chat-voice-confirm-hover-bg-color,
+    var(--aipkit-chat-accent-hover-color, #2b2b2b)
+  );
+}
+
+.aipkit_chat_container
+  button.aipkit_voice_recording_control:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px
+    var(--aipkit-chat-input-focus-shadow-color, rgba(17, 17, 17, 0.15));
+}
+
+.aipkit_chat_container button.aipkit_voice_recording_control:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.aipkit_voice_transcribing_mode .aipkit_voice_recording_panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aipkit_voice_transcribing_mode .aipkit_voice_waveform_canvas {
+  display: none;
+}
+
+@container (max-width: 300px) {
+  .aipkit_voice_recording_panel {
+    grid-template-columns: minmax(36px, 1fr) 32px 32px;
+    gap: 4px;
+  }
+
+  .aipkit_chat_container button.aipkit_voice_recording_control {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+}
+
+/* Shared inline notices for chatbot input and feature errors. */
+.aipkit_chat_ui_notice {
+  display: none;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.85em;
+  line-height: 1.35;
+  text-align: center;
+  word-break: break-word;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.aipkit_chat_ui_notice.aipkit_chat_ui_notice--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.aipkit_chat_ui_notice.aipkit_status-info {
+  border-color: var(--aipkit_status-info-border, #91d5ff);
+  background-color: var(--aipkit_status-info-bg, #e6f7ff);
+  color: var(--aipkit_status-info-text, #1890ff);
+}
+
+.aipkit_chat_ui_notice.aipkit_status-success {
+  border-color: var(--aipkit_status-success-border, #b7eb8f);
+  background-color: var(--aipkit_status-success-bg, #f6ffed);
+  color: var(--aipkit_status-success-text, #52c41a);
+}
+
+.aipkit_chat_ui_notice.aipkit_status-error,
+.aipkit_chat_ui_notice.aipkit_status-warning {
+  border-color: var(--aipkit_status-error-border, #ffa39e);
+  background-color: var(--aipkit_status-error-bg, #fff1f0);
+  color: var(--aipkit_status-error-text, #f5222d);
+}
+
+.aipkit_chat_ui_notice.aipkit_status-processing {
+  border-color: var(--aipkit_status-processing-border, #91d5ff);
+  background-color: var(--aipkit_status-processing-bg, #e6f7ff);
+  color: var(--aipkit_status-processing-text, #1890ff);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_chat_ui_notice {
+    animation: none;
+    transition: none;
+  }
+}
+
+.aipkit_chat_ui_notice .aipkit_chat_notice_action {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 2px 6px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.aipkit_chat_ui_notice .aipkit_chat_notice_action:disabled { opacity: .6; cursor: wait; }

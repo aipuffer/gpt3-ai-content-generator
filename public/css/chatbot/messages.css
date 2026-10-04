@@ -1,0 +1,784 @@
+/**
+ * AIPKit Public Chat - Message Styles - Layout
+ * Message row alignment and spacing.
+ */
+
+/* Each message row */
+.aipkit_chat_container .aipkit_chat_message {
+  display: flex;
+  margin-bottom: 12px;
+  opacity: 0; /* Start hidden for animation */
+  transform: translateY(10px); /* Start slightly lower */
+  animation: aipkit_fadeInMessage 0.4s ease-out forwards;
+  box-sizing: border-box;
+}
+
+/* Bot messages align to the left */
+.aipkit_chat_container .aipkit_chat_message-bot {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+/* User messages align to the right */
+.aipkit_chat_container .aipkit_chat_message-user {
+  justify-content: flex-end;
+}
+
+/**
+ * AIPKit Public Chat - Message Styles - Bubbles
+ * Bot/user bubble design, including radius/colors.
+ */
+
+/* Bubble styling for chat text */
+.aipkit_chat_container .aipkit_chat_bubble {
+  max-width: 78%;
+  padding: 10px 13px;
+  border-radius: var(--aipkit-chat-bubble-border-radius, 16px);
+  line-height: 1.45;
+  font-size: 14px;
+  box-shadow: none;
+  word-wrap: break-word;
+  position: relative;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+.aipkit_chat_container
+  .aipkit_chat_message-bot:not(.aipkit_chat_message-error):not(
+    .aipkit_typing-indicator
+  ):not(.aipkit_image_loading_indicator):not(.aipkit_chat_form_message)
+  .aipkit_chat_bubble {
+  width: fit-content;
+  max-width: 78%;
+  padding: 10px 13px;
+  border-radius: var(--aipkit-chat-bubble-border-radius, 16px);
+  background-color: var(
+    --aipkit-chat-bot-bubble-bg-color,
+    var(--aipkit-chat-bubble-bot-bg, #f1f2f4)
+  );
+  color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit-chat-text-bot, var(--aipkit_text_primary, #111111))
+  );
+  box-shadow: none;
+}
+
+.aipkit_chat_container
+  .aipkit_chat_message-bot:not(.aipkit_chat_message-error):not(
+    .aipkit_typing-indicator
+  ):not(.aipkit_image_loading_indicator):not(.aipkit_chat_form_message)
+  .aipkit_chat_bubble.aipkit_chat_bubble--quota {
+  max-width: min(78%, 420px);
+  padding: 16px;
+  border-radius: var(--aipkit-chat-bubble-border-radius, 18px);
+  background-color: var(
+    --aipkit-chat-bot-bubble-bg-color,
+    var(--aipkit-chat-bubble-bot-bg, #f3f3f3)
+  );
+  color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit-chat-text-bot, var(--aipkit_text_primary, #111111))
+  );
+  border: 1px solid
+    var(--aipkit-chat-container-border-color, var(--aipkit_border-color, #e5e5e5));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+.aipkit_chat_container .aipkit_chat_quota_notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aipkit_chat_container .aipkit_chat_quota_title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.aipkit_chat_container .aipkit_chat_quota_message {
+  font-size: 14px;
+  line-height: 1.5;
+  color: inherit;
+}
+
+.aipkit_chat_container .aipkit_chat_quota_actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aipkit_chat_container .aipkit_chat_quota_action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.aipkit_chat_container .aipkit_chat_quota_action--primary {
+  background-color: var(
+    --aipkit-chat-quota-primary-button-bg-color,
+    var(
+      --aipkit-chat-send-button-bg-color,
+      var(--aipkit-chat-send-button-bg, #111111)
+    )
+  );
+  color: var(
+    --aipkit-chat-quota-primary-button-text-color,
+    var(
+      --aipkit-chat-send-button-text-color,
+      var(--aipkit-chat-send-button-color, #ffffff)
+    )
+  );
+}
+
+.aipkit_chat_container .aipkit_chat_quota_action--primary:hover {
+  background-color: var(
+    --aipkit-chat-quota-primary-button-hover-bg-color,
+    var(
+      --aipkit-chat-quota-primary-button-bg-color,
+      var(
+        --aipkit-chat-send-button-bg-color,
+        var(--aipkit-chat-send-button-bg, #111111)
+      )
+    )
+  );
+  color: var(
+    --aipkit-chat-quota-primary-button-hover-text-color,
+    var(
+      --aipkit-chat-quota-primary-button-text-color,
+      var(
+        --aipkit-chat-send-button-text-color,
+        var(--aipkit-chat-send-button-color, #ffffff)
+      )
+    )
+  );
+}
+
+.aipkit_chat_container .aipkit_chat_quota_action--secondary {
+  background-color: var(
+    --aipkit-chat-action-button-bg-color,
+    var(--aipkit-chat-action-btn-bg, #ffffff)
+  );
+  color: var(
+    --aipkit-chat-action-button-color,
+    var(--aipkit-chat-action-btn-color, #6b6b6b)
+  );
+  border: 1px solid
+    var(
+      --aipkit-chat-action-button-border-color,
+      var(--aipkit-chat-action-btn-border, #e5e5e5)
+    );
+}
+
+.aipkit_chat_container .aipkit_chat_quota_action--secondary:hover {
+  background-color: var(
+    --aipkit-chat-action-button-hover-bg-color,
+    var(--aipkit-chat-action-btn-hover-bg, #ededed)
+  );
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit-chat-action-btn-hover-color, #111111)
+  );
+}
+
+.aipkit_chat_container .aipkit_chat_message-user .aipkit_chat_bubble {
+  background-color: var(
+    --aipkit-chat-user-bubble-bg-color,
+    var(--aipkit-chat-bubble-user-bg, var(--aipkit_brand-primary, #111111))
+  );
+  color: var(
+    --aipkit-chat-user-bubble-text-color,
+    var(--aipkit-chat-text-user, #fff)
+  );
+}
+
+/* Link color specific to user bubbles */
+.aipkit_chat_message-user .aipkit_chat_bubble a {
+  color: var(--aipkit-chat-user-bubble-text-color, #ffffff);
+  text-decoration: underline;
+}
+.aipkit_chat_message-user .aipkit_chat_bubble a:hover {
+  color: var(--aipkit-chat-user-bubble-text-color, #ffffff);
+}
+
+/* User sent image text content style */
+.aipkit_chat_message-user
+  .aipkit_chat_bubble
+  .aipkit_user_message_text_content {
+  display: block; /* Ensure text content respects image */
+}
+
+/**
+ * AIPKit Public Chat - Message Styles - Indicators
+ * Typing and streaming cursor indicators.
+ */
+
+/* Typing indicator */
+.aipkit_chat_container .aipkit_typing-indicator {
+  justify-content: flex-start; /* Ensure it aligns left like bot messages */
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_chat_bubble {
+  width: fit-content;
+  max-width: 78%;
+  background-color: var(--aipkit-chat-bot-bubble-bg-color, #f1f2f4);
+  color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 13px;
+  border-radius: var(--aipkit-chat-bubble-border-radius, 16px);
+  box-shadow: none;
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-text {
+  display: inline-block;
+  white-space: normal;
+  max-width: 100%;
+}
+
+/* Robust animated ellipsis: fixed-width slot, inline-flex dots (no layout shift) */
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-ellipsis-text {
+  display: inline-flex;
+  align-items: baseline; /* Align with surrounding text baseline */
+  gap: 0.08em; /* Small visual spacing between dots */
+  line-height: 1; /* Keep line box tight */
+  margin-inline-start: 0.06em; /* Tighter spacing next to the text */
+  vertical-align: baseline;
+  pointer-events: none;
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-ellipsis-text > span {
+  display: inline-block;
+  opacity: 0.25; /* Base faint dots */
+  will-change: transform, opacity;
+  animation: aipkit_typing_dot_bounce var(--aipkit-typing-ellipsis-speed, 1.1s) infinite ease-in-out;
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-ellipsis-text > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-ellipsis-text > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes aipkit_typing_dot_bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.25; }
+  40% { transform: translateY(var(--aipkit-typing-ellipsis-bounce, -0.30em)); opacity: 1; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-ellipsis-text > span {
+    animation: none;
+    opacity: 0.6; /* Slightly stronger static dots */
+    transform: none;
+  }
+}
+.aipkit_chat_container .aipkit_typing-indicator .aipkit_typing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: currentColor;
+  border-radius: 50%;
+  animation: aipkit_pulsing_dots 1.4s infinite ease-in-out both;
+}
+.aipkit_typing-dot:nth-child(1) {
+  animation-delay: 0s;
+}
+.aipkit_typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.aipkit_typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Streaming indicator */
+.aipkit_chat_bubble .aipkit_stream_indicator {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  background-color: currentColor;
+  margin-left: 4px;
+  opacity: 1;
+  animation: aipkit_stream_cursor_pulse 1.2s infinite ease-in-out;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+}
+
+/**
+ * AIPKit Public Chat - Message Styles - Errors
+ * Error and banned word message styling.
+ */
+
+.aipkit_chat_container .aipkit_chat_message-error .aipkit_chat_bubble {
+  background-color: #f8d7da !important; /* Light red */
+  color: #721c24 !important; /* Dark red text */
+  border: 1px solid #f5c6cb; /* Reddish border */
+}
+/* Ensure banned word messages (which are bot-styled but have error class) are left-aligned */
+.aipkit_chat_container .aipkit_chat_message-bot.aipkit_chat_message-error {
+  justify-content: flex-start;
+}
+
+/* Hide streaming indicator on error messages */
+.aipkit_chat_message-error .aipkit_chat_bubble .aipkit_stream_indicator {
+  display: none;
+}
+
+/**
+ * AIPKit Public Chat - Message Styles - Markdown
+ * Unified markdown formatting inside chat bubbles.
+ */
+
+.aipkit_chat_bubble p {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+.aipkit_chat_bubble p:last-child {
+  margin-bottom: 0;
+}
+.aipkit_chat_bubble ul,
+.aipkit_chat_bubble ol {
+  padding-left: 20px;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  color: inherit;
+  font-size: inherit;
+  list-style: revert;
+}
+.aipkit_chat_bubble ul {
+  list-style-type: disc;
+}
+.aipkit_chat_bubble ol {
+  list-style-type: decimal;
+}
+.aipkit_chat_bubble li {
+  margin-bottom: 0.3em;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  list-style: inherit;
+}
+.aipkit_chat_bubble table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0.75em 0;
+  border: 1px solid
+    var(
+      --aipkit-chat-table-border-color,
+      var(--aipkit-chat-container-border-color, var(--aipkit_container-border, #e5e5e5))
+    );
+  border-radius: 10px;
+  background-color: var(
+    --aipkit-chat-table-bg-color,
+    var(--aipkit-chat-container-bg-color, var(--aipkit_bg-secondary, #ffffff))
+  );
+  color: var(
+    --aipkit-chat-table-cell-text-color,
+    var(--aipkit-chat-container-text-color, var(--aipkit_text-primary, #111111))
+  );
+  font-size: 0.95em;
+}
+.aipkit_chat_bubble thead {
+  background-color: var(
+    --aipkit-chat-table-header-bg-color,
+    var(--aipkit-chat-bg-color-secondary, var(--aipkit_menu-active, #f3f3f3))
+  );
+}
+.aipkit_chat_bubble tbody tr:nth-child(even) {
+  background-color: var(
+    --aipkit-chat-table-row-alt-bg-color,
+    var(--aipkit-chat-bg-color-hover, var(--aipkit_menu-hover, #f8f8f8))
+  );
+}
+.aipkit_chat_bubble th,
+.aipkit_chat_bubble td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-right: 1px solid
+    var(
+      --aipkit-chat-table-border-color,
+      var(--aipkit-chat-container-border-color, var(--aipkit_container-border, #e5e5e5))
+    );
+  border-bottom: 1px solid
+    var(
+      --aipkit-chat-table-border-color,
+      var(--aipkit-chat-container-border-color, var(--aipkit_container-border, #e5e5e5))
+    );
+  color: inherit;
+  white-space: normal;
+}
+.aipkit_chat_bubble th {
+  font-weight: 600;
+  color: var(
+    --aipkit-chat-table-header-text-color,
+    var(--aipkit-chat-container-text-color, var(--aipkit_text-primary, #111111))
+  );
+}
+.aipkit_chat_bubble th:last-child,
+.aipkit_chat_bubble td:last-child {
+  border-right: none;
+}
+.aipkit_chat_bubble tbody tr:last-child td {
+  border-bottom: none;
+}
+.aipkit_chat_bubble caption {
+  caption-side: top;
+  text-align: left;
+  margin-bottom: 0.5em;
+  color: var(
+    --aipkit-chat-meta-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+  font-size: 0.92em;
+}
+.aipkit_chat_bubble h1,
+.aipkit_chat_bubble h2,
+.aipkit_chat_bubble h3,
+.aipkit_chat_bubble h4,
+.aipkit_chat_bubble h5,
+.aipkit_chat_bubble h6 {
+  color: inherit;
+  margin-top: 0.8em;
+  margin-bottom: 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.aipkit_chat_bubble h1 {
+  font-size: 1.4em;
+}
+.aipkit_chat_bubble h2 {
+  font-size: 1.3em;
+}
+.aipkit_chat_bubble h3 {
+  font-size: 1.2em;
+}
+.aipkit_chat_bubble h4 {
+  font-size: 1.1em;
+}
+.aipkit_chat_bubble h5 {
+  font-size: 1em;
+}
+.aipkit_chat_bubble h6 {
+  font-size: 0.9em;
+}
+
+.aipkit_chat_bubble pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin: 0.5em 0;
+  font-size: 0.9em;
+  overflow-x: auto;
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  color: var(
+    --aipkit_text-primary
+  ); /* Use global text color for pre, adjusted by theme */
+  line-height: 1.4;
+}
+.aipkit_chat_bubble pre.aipkit_code_block {
+  position: relative;
+  padding-top: 28px;
+}
+.aipkit_chat_bubble pre.aipkit_code_block .aipkit_code_copy_btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease,
+    transform 0.15s ease, opacity 0.15s ease;
+  opacity: 0.8;
+  appearance: none;
+  box-shadow: none;
+}
+.aipkit_chat_bubble pre.aipkit_code_block:hover .aipkit_code_copy_btn,
+.aipkit_chat_bubble pre.aipkit_code_block .aipkit_code_copy_btn:focus-visible {
+  opacity: 1;
+  background-color: var(
+    --aipkit-chat-action-button-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+}
+.aipkit_chat_bubble pre.aipkit_code_block .aipkit_code_copy_btn:hover {
+  background-color: var(
+    --aipkit-chat-action-button-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+}
+.aipkit_chat_bubble pre.aipkit_code_block .aipkit_code_copy_btn:active {
+  transform: scale(0.96);
+}
+.aipkit_chat_bubble pre.aipkit_code_block .aipkit_code_copy_btn svg {
+  width: 16px;
+  height: 16px;
+}
+.aipkit_chat_bubble code {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  font-size: 0.9em;
+  border-radius: 3px;
+  font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+  color: var(
+    --aipkit_text-primary
+  ); /* Use global text color for code, adjusted by theme */
+}
+.aipkit_chat_bubble pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.aipkit_chat_bubble blockquote {
+  border-left: 3px solid var(--aipkit_container-border, #e5e5e5);
+  padding-left: 10px;
+  margin: 0.5em 0;
+  color: var(--aipkit_text-secondary); /* Use global secondary text color */
+  font-style: italic;
+  font-size: inherit;
+}
+.aipkit_chat_bubble blockquote p {
+  margin-bottom: 0.3em;
+  color: inherit;
+}
+.aipkit_chat_bubble a {
+  color: var(
+    --aipkit-chat-text-color-link,
+    var(
+      --aipkit-chat-meta-link-color,
+      var(--aipkit_brand-primary, #111111)
+    )
+  );
+  text-decoration: underline;
+}
+.aipkit_chat_bubble a:hover {
+  color: var(
+    --aipkit-chat-primary-color-dark,
+    var(
+      --aipkit-chat-meta-link-hover-color,
+      var(--aipkit_brand-primary-dark, #0a0a0a)
+    )
+  );
+}
+.aipkit_chat_bubble .aipkit_inline_citation {
+  font-size: 0.78em;
+  line-height: 0;
+  vertical-align: super;
+  margin-left: 0.08em;
+}
+.aipkit_chat_bubble .aipkit_inline_citation_ref {
+  text-decoration: none;
+  font-weight: 600;
+}
+.aipkit_chat_bubble .aipkit_inline_citation_ref:hover {
+  text-decoration: underline;
+}
+.aipkit_chat_bubble strong {
+  font-weight: bold;
+}
+.aipkit_chat_bubble em {
+  font-style: italic;
+}
+.aipkit_chat_bubble hr {
+  border: none;
+  border-top: 1px solid var(--aipkit_container-border, #e5e5e5);
+  margin: 1em 0;
+}
+
+/**
+ * AIPKit Public Chat - Message Styles - Images
+ * Image bubbles + loading thumbnail indicators.
+ */
+
+/* Image display within bubbles */
+.aipkit_chat_bubble img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.aipkit_chat_container
+  .aipkit_chat_message-bot
+  .aipkit_chat_bubble.aipkit_chat_bubble--image {
+  max-width: 60%;
+  padding: 5px;
+  border-radius: var(--aipkit-chat-radius-md, 8px);
+  background-color: var(
+    --aipkit-chat-bot-bubble-bg-color,
+    var(--aipkit-chat-bubble-bot-bg, #e9ecef)
+  );
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.aipkit_chat_container .aipkit_chat_bubble .aipkit_image_unavailable_text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-style: italic;
+  text-align: center;
+}
+
+.aipkit_chat_container .aipkit_chat_bubble .aipkit_image_revised_prompt {
+  margin: 5px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  font-style: italic;
+  text-align: center;
+  color: inherit;
+}
+
+/* User sent image thumbnail */
+.aipkit_chat_message-user
+  .aipkit_chat_bubble
+  .aipkit_user_sent_image_thumbnail {
+  display: block;
+  max-width: 80px;
+  max-height: 80px;
+  height: auto;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  border: 1px solid
+    var(--aipkit-chat-user-bubble-image-border-color, rgba(255, 255, 255, 0.3));
+}
+
+/* Image Loading Indicator Styles */
+.aipkit_chat_container .aipkit_image_loading_indicator {
+  justify-content: flex-start; /* Aligns like a bot message */
+}
+.aipkit_chat_container
+  .aipkit_image_loading_indicator
+  .aipkit_chat_bubble.aipkit_image_loader_bubble_thumbnail {
+  width: 120px;
+  height: 120px;
+  padding: 0;
+  border-radius: 8px;
+  background-color: var(--aipkit-chat-bot-bubble-bg-color, rgba(0, 0, 0, 0.05));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: blur(1px);
+  position: relative;
+  overflow: hidden;
+}
+.aipkit_chat_container
+  .aipkit_image_loading_indicator
+  .aipkit_chat_bubble.aipkit_image_loader_bubble_thumbnail::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -10%;
+  width: 100%;
+  height: 3px;
+  background-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+  animation: aipkit_scan_effect 1.8s linear infinite;
+}
+.aipkit_chat_container
+  .aipkit_image_loading_indicator
+  .aipkit_chat_bubble.aipkit_image_loader_bubble_thumbnail
+  svg {
+  font-size: 48px;
+  color: var(
+    --aipkit-chat-bot-bubble-text-color,
+    var(--aipkit_text-secondary, #6b6b6b)
+  );
+  opacity: 0.3;
+  animation: aipkit_image_loader_icon_pulse 2s infinite ease-in-out;
+}
+
+@keyframes aipkit_fadeInMessage {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes aipkit_stream_cursor_pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes aipkit_pulsing_dots {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes aipkit_scan_effect {
+  0% {
+    top: -10%; /* Start above the thumbnail */
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    top: 110%; /* End below the thumbnail */
+    opacity: 0.3;
+  }
+}
+
+@keyframes aipkit_image_loader_icon_pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.4;
+  }
+}

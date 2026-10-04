@@ -1,0 +1,20 @@
+/* Shared Chatbot styles. Preserve this order for theme and responsive overrides. */
+@import "variables.css";
+@import "layout.css";
+@import "header-footer.css";
+@import "messages.css";
+@import "../shared/message-meta.css";
+@import "input.css";
+@import "popup.css";
+@import "fullscreen.css";
+@import "message-actions.css";
+@import "starters.css";
+@import "image-upload.css";
+@import "buttons.css";
+@import "scroll.css";
+@import "ui-state.css";
+@import "themes.css";
+@import "text-selection.css";
+@import "responsive.css";
+@import "focus-visible.css";
+@import "theme-compat.css";

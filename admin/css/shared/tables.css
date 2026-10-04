@@ -1,0 +1,213 @@
+/*
+ * AIPKit Dashboard - Tables
+ *
+ * Data tables styling
+ */
+
+:root {
+  --aipkit-table-surface: #ffffff;
+  --aipkit-table-frame-border: #d8e0ea;
+  --aipkit-table-frame-radius: 8px;
+  --aipkit-table-header-height: 34px;
+  --aipkit-table-header-background: #fafbfc;
+  --aipkit-table-header-color: #667085;
+  --aipkit-table-header-divider: #e2e8f0;
+  --aipkit-table-header-font-size: 11px;
+  --aipkit-table-header-font-weight: 600;
+  --aipkit-table-header-line-height: 16px;
+  --aipkit-table-cell-padding-x: 12px;
+  --aipkit-table-footer-height: 47px;
+  --aipkit-table-footer-color: #64748b;
+  --aipkit-table-footer-font-size: 11.5px;
+  --aipkit-table-footer-font-weight: 500;
+  --aipkit-table-footer-line-height: 17.25px;
+  --aipkit-table-footer-padding-y: 8px;
+  --aipkit-table-footer-padding-x: 12px;
+  --aipkit-table-footer-gap: 12px;
+  --aipkit-table-pagination-gap: 8px;
+}
+
+/* ---- Data Table ---- */
+.aipkit_data-table {
+  width: 100%;
+  overflow-x: auto; /* Allow horizontal scroll on small screens */
+  border-collapse: collapse; /* Ensure borders collapse correctly */
+  border: 1px solid var(--aipkit_container-border); /* Add border around table */
+  border-radius: 4px; /* Match container radius */
+  background-color: var(--aipkit_bg-secondary);
+}
+
+/* ---- Integrated Table Frame ---- */
+.aipkit_data-table-frame {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--aipkit-table-frame-border);
+  border-radius: var(--aipkit-table-frame-radius);
+  background-color: var(--aipkit-table-surface);
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.aipkit_data-table-frame > .aipkit_data-table {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.aipkit_data-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--aipkit-table-footer-height);
+  margin: 0;
+  padding: var(--aipkit-table-footer-padding-y)
+    var(--aipkit-table-footer-padding-x);
+  border-top: 1px solid var(--aipkit-table-header-divider);
+  background-color: var(--aipkit-table-surface);
+  box-sizing: border-box;
+  gap: var(--aipkit-table-footer-gap);
+  flex-wrap: wrap;
+  color: var(--aipkit-table-footer-color);
+  font-family: inherit;
+  font-size: var(--aipkit-table-footer-font-size);
+  font-weight: var(--aipkit-table-footer-font-weight);
+  line-height: var(--aipkit-table-footer-line-height);
+}
+
+.aipkit_data-table-frame > .aipkit_data-table-footer:empty {
+  display: none;
+}
+
+.aipkit_data-table-footer .aipkit_pagination-count,
+.aipkit_data-table-footer .aipkit_pagination-current,
+.aipkit_data-table-footer label {
+  color: var(--aipkit-table-footer-color);
+  font-family: inherit;
+  font-size: var(--aipkit-table-footer-font-size);
+  font-weight: var(--aipkit-table-footer-font-weight);
+  line-height: var(--aipkit-table-footer-line-height);
+}
+
+.aipkit_data-table-footer .aipkit_pagination-links {
+  gap: var(--aipkit-table-pagination-gap);
+}
+
+.aipkit_data-table-footer .aipkit_pagination-current {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 30px;
+  padding: 0 3px;
+  text-align: center;
+}
+
+.aipkit_data-table-footer label {
+  gap: 7px;
+}
+
+.aipkit_data-table-footer select {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.aipkit_data-table table {
+  width: 100%;
+  border-collapse: collapse; /* Important for child table */
+}
+
+.aipkit_data-table th {
+  text-align: left;
+  padding: var(--aipkit_spacing-sm, 8px) var(--aipkit_spacing-md, 12px); /* Reduced padding, using variables */
+  border-bottom: 1px solid var(--aipkit_container-border); /* Thinner border */
+  color: var(--aipkit_text-secondary);
+  font-weight: 600;
+  font-size: var(
+    --aipkit_font-size-label,
+    12px
+  ); /* Reduced from 14px, using variable */
+  text-transform: none; /* Keep normal case for readability */
+  letter-spacing: 0; /* Remove letter spacing */
+  background-color: #f9fafb; /* Slightly off-white for header */
+}
+.aipkit_data-table th:first-child {
+  border-top-left-radius: 3px; /* Match table radius */
+}
+.aipkit_data-table th:last-child {
+  border-top-right-radius: 3px; /* Match table radius */
+}
+
+/* NEW: Sortable Header Styles */
+.aipkit_data-table th.aipkit-sortable-col {
+  position: relative; /* Needed to scope the ::after */
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap; /* Prevent unintended wrapping */
+}
+
+.aipkit_data-table th.aipkit-sortable-col:hover {
+  background-color: #f1f5f9;
+  color: var(--aipkit_brand-primary);
+}
+
+.aipkit_data-table th.aipkit-sortable-col span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px; /* Space between text and arrow */
+}
+
+.aipkit_data-table th.aipkit-sortable-col::after {
+  content: "";
+  display: inline-block;
+  border: 4px solid transparent;
+  margin-left: 2px;
+}
+
+.aipkit_data-table th.aipkit-sortable-col[data-sort-direction="asc"]::after {
+  border-bottom-color: var(--aipkit_text-secondary);
+}
+
+.aipkit_data-table th.aipkit-sortable-col[data-sort-direction="desc"]::after {
+  border-top-color: var(--aipkit_text-secondary);
+}
+
+/* END NEW */
+
+.aipkit_data-table td {
+  padding: var(--aipkit_spacing-sm, 8px) var(--aipkit_spacing-md, 12px); /* Reduced padding, using variables */
+  border-bottom: 1px solid var(--aipkit_container-border);
+  color: var(--aipkit_text-primary);
+  transition: background-color 0.15s ease-in-out; /* Faster transition */
+  vertical-align: middle; /* Changed from top to middle for better general alignment */
+  font-size: var(
+    --aipkit_font-size-base,
+    13px
+  ); /* Added for data cells, using variable */
+  line-height: 1.4;
+}
+
+.aipkit_data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.aipkit_data-table tr:hover td {
+  background-color: var(--aipkit_menu-hover);
+}
+
+/* Ensure Actions cell aligns buttons nicely */
+.aipkit_data-table td:last-child {
+  vertical-align: middle;
+  white-space: nowrap;
+  text-align: right; /* Align actions to the right */
+}
+/* Buttons within tables will use .aipkit_btn and .aipkit_btn-small */
+.aipkit_data-table td .aipkit_btn {
+  margin-left: var(
+    --aipkit_spacing-xs,
+    4px
+  ); /* Space between buttons in a cell */
+}
+.aipkit_data-table td .aipkit_btn:first-child {
+  margin-left: 0;
+}

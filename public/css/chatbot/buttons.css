@@ -1,0 +1,100 @@
+/*
+ * AIPKit Public Chat - Base Button Styles
+ *
+ * These styles are scoped to .aipkit_chat_container to avoid conflicts
+ * and to provide consistent button appearance within the chat interface.
+ * Inspired by the admin dashboard button styles for consistency.
+ */
+
+.aipkit_chat_container .aipkit_btn {
+  padding: var(--aipkit-chat-spacing-xs, 4px)
+    var(--aipkit-chat-spacing-md, 12px);
+  border-radius: var(--aipkit-chat-border-radius, 6px);
+  font-weight: 500;
+  font-size: var(--aipkit-chat-font-size-base, 14px);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out, color 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  height: var(
+    --aipkit-chat-button-height,
+    30px
+  ); /* New variable, defaults to 30px */
+  line-height: 1; /* Ensures text is vertically centered in fixed height */
+  text-decoration: none !important;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.aipkit_chat_container .aipkit_btn:focus {
+  outline: 1px dotted #111111;
+  outline-offset: -2px;
+}
+.aipkit_chat_container .aipkit_btn:hover,
+.aipkit_chat_container .aipkit_btn:active,
+.aipkit_chat_container .aipkit_btn:focus {
+  border-radius: var(--aipkit-chat-border-radius, 6px);
+}
+
+/* Secondary Button Style (Matches admin's .aipkit_btn-secondary) */
+.aipkit_chat_container .aipkit_btn-secondary {
+  background-color: var(--aipkit-chat-bg-color-secondary, #f5f5f5);
+  color: var(
+    --aipkit-chat-text-color-link,
+    var(--aipkit-chat-primary-color, #111111)
+  );
+  border-color: var(--aipkit-chat-border-color, #e5e5e5);
+}
+
+.aipkit_chat_container .aipkit_btn-secondary:hover {
+  background-color: var(--aipkit-chat-bg-color-hover, #ededed);
+  border-color: #d1d1d1; /* Slightly darker for hover */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: var(--aipkit-chat-primary-color-dark, #111111);
+}
+
+.aipkit_chat_container .aipkit_btn-secondary:active {
+  background-color: #e0e0e0; /* Slightly darker for active */
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+.aipkit_chat_container .aipkit_btn-secondary:disabled,
+.aipkit_chat_container .aipkit_btn-secondary.aipkit_loading {
+  background-color: #f0f0f0;
+  color: #9a9a9a;
+  border-color: #e5e5e5;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Small Button Variant */
+.aipkit_chat_container .aipkit_btn-small {
+  height: var(
+    --aipkit-chat-button-small-height,
+    26px
+  ); /* New variable, defaults to 26px */
+  padding: 0 var(--aipkit-chat-spacing-sm, 8px);
+  font-size: var(--aipkit-chat-font-size-small, 12px);
+}
+
+/* Icon inside button */
+.aipkit_chat_container .aipkit_btn svg {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.aipkit_chat_container .aipkit_btn-small svg {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.aipkit_chat_container .aipkit_btn .aipkit_btn-text + svg,
+.aipkit_chat_container .aipkit_btn svg + .aipkit_btn-text {
+  margin-left: var(--aipkit-chat-spacing-xs, 4px);
+}

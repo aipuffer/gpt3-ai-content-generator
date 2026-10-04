@@ -1,0 +1,16 @@
+/* Admin bundle composition. Import order preserves shared/module overrides. */
+@import 'shared/base.css';
+@import 'shared/ui-kit.css';
+@import 'content-writer/base.css';
+@import 'shared/tables.css';
+@import 'shared/status.css';
+@import 'settings/base.css';
+@import 'usage/base.css';
+@import 'shared/module-action-buttons.css';
+@import 'shared/modals.css';
+@import 'role-manager/base.css';
+@import 'shared/responsive.css';
+@import 'ai-forms/base.css';
+@import 'image-generator-admin.css';
+
+@import 'shared/provider-connect.css';

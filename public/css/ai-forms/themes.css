@@ -1,0 +1,502 @@
+/* AI Forms themes. Keep light, dark and custom rules in this cascade order. */
+
+/*
+* AI Forms - Light Theme
+* Contains presentational styles for the light theme.
+*/
+
+.aipkit-ai-form-wrapper.aipkit-theme-light {
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light h5.aipkit-ai-form-title {
+  color: #1a365d;
+  border-bottom: 1px solid #eee;
+}
+
+/* Form Fields */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_form-label {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_form-input {
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #fff;
+  color: #333;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_form-input:focus {
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+  box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.2);
+}
+
+/* Buttons */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn {
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  text-decoration: none !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-primary {
+  background: var(--aipkit_brand-primary, #4a6fa5);
+  color: #fff;
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-primary:hover {
+  background: var(--aipkit_brand_primary-dark, #3d5d8a);
+  border-color: var(--aipkit_brand_primary-dark, #3d5d8a);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-secondary {
+  background: #eef2f7;
+  color: #4a5568;
+  border-color: #d1d5db;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light
+  .aipkit-copy-results-footer-btn--copied,
+.aipkit-ai-form-wrapper.aipkit-theme-light
+  .aipkit-copy-results-footer-btn--copied:hover,
+.aipkit-ai-form-wrapper.aipkit-theme-light
+  .aipkit-copy-results-footer-btn--copied:disabled {
+  background: #e8f5ee;
+  border-color: #9bd3af;
+  color: #2f855a;
+  opacity: 1;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn .aipkit_spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: #fff;
+  border-radius: 50%;
+  animation: aipkit_spin 1s linear infinite;
+}
+
+/* NEW: Danger/Stop button styles for Light Theme */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-danger {
+  background-color: #e53e3e;
+  color: #fff;
+  border-color: #e53e3e;
+}
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit_btn-danger:hover {
+  background-color: #c53030;
+  border-color: #c53030;
+}
+
+/* Results Area */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results {
+  border: 1px dashed #d1d5db;
+  background-color: #fff;
+  border-radius: 4px;
+  color: #333;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results.aipkit-ai-form-results--quota {
+  border: 0;
+  background: transparent;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-quota-notice {
+  background-color: #f8fafc;
+  border: 1px solid #dbe6f4;
+  color: #334155;
+}
+
+/* NEW: Generated content styles for light theme */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results :is(h1, h2, h3, h4, h5, h6) {
+  color: inherit;
+  margin-top: 0 !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results a:not(.aipkit_btn) {
+  color: var(--aipkit_brand-primary, #4a6fa5);
+}
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results a:not(.aipkit_btn):hover {
+  color: var(--aipkit_brand_primary-dark, #3d5d8a);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results :is(table, th, td) {
+  border-color: #d1d5db;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results th {
+  background-color: #f7f9fc;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results :is(code, pre) {
+  background-color: #eef2f7;
+  color: #4a5568;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-ai-form-results pre {
+  border: 1px solid #d1d5db;
+}
+
+/* --- NEW: Copy button styles for light theme --- */
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-copy-results-btn {
+  color: #a0aec0; /* gray-400 */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-light .aipkit-copy-results-btn:hover {
+  background-color: #eef2f7; /* gray-100 */
+  color: #4a5568; /* gray-700 */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-light
+  .aipkit-copy-results-btn
+  .aipkit-copy-success-icon {
+  color: #48bb78; /* green-500 */
+}
+
+/*
+* AI Forms - Dark Theme
+* Styles adapted from Image Generator dark theme.
+*/
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark {
+  background-color: #1f2937;
+  border: 1px solid #4b5563;
+  color: #e5e7eb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark h5.aipkit-ai-form-title {
+  color: #fff;
+  border-bottom: 1px solid #4b5563;
+}
+
+/* Form Fields */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_form-label {
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_form-input {
+  background-color: #374151;
+  border: 1px solid #4b5563;
+  color: #e5e7eb;
+  border-radius: 4px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_form-input:focus {
+  border-color: var(--aipkit_brand-accent, #61a0ff);
+  box-shadow: 0 0 0 2px rgba(97, 160, 255, 0.2);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_form-input::placeholder {
+  color: #9ca3af;
+}
+
+/* Buttons */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn {
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  text-decoration: none !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-primary {
+  background: var(--aipkit_brand-primary, #4a6fa5);
+  color: #fff;
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-primary:hover {
+  background: var(--aipkit_brand_primary-dark, #3d5d8a);
+  border-color: var(--aipkit_brand_primary-dark, #3d5d8a);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-secondary {
+  background-color: #4b5563;
+  color: #e5e7eb;
+  border-color: #6b7280;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-secondary:hover {
+  background-color: #6b7280;
+  border-color: #9ca3af;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark
+  .aipkit-copy-results-footer-btn--copied,
+.aipkit-ai-form-wrapper.aipkit-theme-dark
+  .aipkit-copy-results-footer-btn--copied:hover,
+.aipkit-ai-form-wrapper.aipkit-theme-dark
+  .aipkit-copy-results-footer-btn--copied:disabled {
+  background-color: #14532d;
+  border-color: #22c55e;
+  color: #dcfce7;
+  opacity: 1;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn .aipkit_spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: #fff;
+  border-radius: 50%;
+  animation: aipkit_spin 1s linear infinite;
+}
+
+/* NEW: Danger/Stop button styles for Dark Theme */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-danger {
+  background-color: #e53e3e;
+  color: #fff;
+  border-color: #e53e3e;
+}
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit_btn-danger:hover {
+  background-color: #c53030;
+  border-color: #c53030;
+}
+
+/* Results Area */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results {
+  border: 1px dashed #4b5563;
+  background-color: #111827;
+  border-radius: 4px;
+  color: #e5e7eb;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results.aipkit-ai-form-results--quota {
+  border: 0;
+  background: transparent;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-quota-notice {
+  background-color: #1f2937;
+  border: 1px solid #4b5563;
+  color: #e5e7eb;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results em {
+  color: #9ca3af;
+}
+
+/* NEW: Generated content styles for dark theme */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results :is(h1, h2, h3, h4, h5, h6) {
+  color: inherit; /* Inherit color from parent */
+  margin-top: 0 !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results a:not(.aipkit_btn) {
+  color: #90cdf4; /* Light blue for links */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results a:not(.aipkit_btn):hover {
+  color: #bee3f8;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results :is(table, th, td) {
+  border-color: #4b5563;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results th {
+  background-color: #374151;
+  color: #e5e7eb;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results code {
+  background-color: #374151;
+  color: #d1d5db;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-results pre {
+  background-color: #111827;
+  color: #d1d5db;
+  border: 1px solid #4b5563;
+}
+
+/* --- NEW: Copy button styles for dark theme --- */
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-copy-results-btn {
+  color: #718096; /* gray-500 */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-copy-results-btn:hover {
+  background-color: #4a5563; /* gray-600 */
+  color: #e5e7eb; /* gray-200 */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-dark
+  .aipkit-copy-results-btn
+  .aipkit-copy-success-icon {
+  color: #68d391; /* green-400 */
+}
+
+/*
+* AI Forms - Custom Theme Base
+* Default styles for the custom theme. These can be overridden by user CSS.
+*/
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom {
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom h5.aipkit-ai-form-title {
+  color: #1a365d;
+  border-bottom: 1px solid #eee;
+}
+
+/* Form Fields */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_form-label {
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_form-input {
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background-color: #fff;
+  color: #333;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_form-input:focus {
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+  box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.2);
+}
+
+/* Buttons */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn {
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  text-decoration: none !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-primary {
+  background: var(--aipkit_brand-primary, #4a6fa5);
+  color: #fff;
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-primary:hover {
+  background: var(--aipkit_brand_primary-dark, #3d5d8a);
+  border-color: var(--aipkit_brand_primary-dark, #3d5d8a);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-secondary {
+  background: #eef2f7;
+  color: #4a5568;
+  border-color: #d1d5db;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom
+  .aipkit-copy-results-footer-btn--copied,
+.aipkit-ai-form-wrapper.aipkit-theme-custom
+  .aipkit-copy-results-footer-btn--copied:hover,
+.aipkit-ai-form-wrapper.aipkit-theme-custom
+  .aipkit-copy-results-footer-btn--copied:disabled {
+  background: #e8f5ee;
+  border-color: #9bd3af;
+  color: #2f855a;
+  opacity: 1;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn .aipkit_spinner {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-left-color: #fff;
+  border-radius: 50%;
+  animation: aipkit_spin 1s linear infinite;
+}
+
+/* NEW: Danger/Stop button styles for Custom Theme */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-danger {
+  background-color: var(--aipkit_btn-danger-bg, #e53e3e);
+  color: #fff;
+  border-color: var(--aipkit_btn-danger-bg, #e53e3e);
+}
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit_btn-danger:hover {
+  background-color: var(--aipkit_btn-danger-bg-hover, #c53030);
+  border-color: var(--aipkit_btn-danger-bg-hover, #c53030);
+}
+
+/* Results Area */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results {
+  border: 1px dashed #d1d5db;
+  background-color: #fff;
+  border-radius: 4px;
+  color: #333;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results.aipkit-ai-form-results--quota {
+  border: 0;
+  background: transparent;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-quota-notice {
+  background-color: var(--aipkit_ai_form_quota_bg, #f8fafc);
+  border: 1px solid var(--aipkit_ai_form_quota_border, #dbe6f4);
+  color: var(--aipkit_ai_form_quota_text, inherit);
+}
+
+/* NEW: Generated content styles for custom theme base */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results :is(h1, h2, h3, h4, h5, h6) {
+  color: inherit;
+  margin-top: 0 !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results a:not(.aipkit_btn) {
+  color: var(--aipkit_brand-primary, #4a6fa5);
+}
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results a:not(.aipkit_btn):hover {
+  color: var(--aipkit_brand_primary-dark, #3d5d8a);
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results :is(table, th, td) {
+  border-color: #d1d5db;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results th {
+  background-color: #f7f9fc;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results :is(code, pre) {
+  background-color: #eef2f7;
+  color: #4a5568;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-ai-form-results pre {
+  border: 1px solid #d1d5db;
+}
+
+/* --- NEW: Copy button styles for custom theme --- */
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-copy-results-btn {
+  color: #a0aec0; /* Default neutral color */
+}
+.aipkit-ai-form-wrapper.aipkit-theme-custom .aipkit-copy-results-btn:hover {
+  background-color: #eef2f7;
+  color: #4a5568;
+}
+.aipkit-ai-form-wrapper.aipkit-theme-custom
+  .aipkit-copy-results-btn
+  .aipkit-copy-success-icon {
+  color: #48bb78;
+}

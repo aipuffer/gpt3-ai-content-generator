@@ -1,0 +1,14 @@
+/**
+* AIPKit AI Forms - Public Facing Styles
+*
+* Imports all component styles for the frontend rendering of AI Forms.
+*/
+
+@import "base.css";
+@import "../shared/message-meta.css";
+@import "themes.css";
+
+/* Preserve native hidden behavior inside AI Forms even when button styles set display. */
+.aipkit-ai-form-wrapper [hidden] {
+  display: none !important;
+}

@@ -1,0 +1,2088 @@
+@import 'notification-bar.css';
+
+/* Shared admin foundations: tokens, shell, navigation and basic controls. */
+
+:root {
+    /* Brand Colors */
+    --aipkit_brand-primary: #4A6FA5; /* Primary action color, e.g., buttons, active states */
+    --aipkit_brand-primary-dark: #3D5D8A; /* Darker shade for hover/active */
+    --aipkit_brand-accent: #61A0FF; /* Accent color for highlights, secondary actions */
+
+    /* Backgrounds */
+    --aipkit_bg-primary: #F7F9FC; /* Main background for the dashboard page */
+    --aipkit_bg-secondary: #FFFFFF; /* Background for containers, cards, modals */
+
+    /* Container */
+    --aipkit_container-bg: #FFFFFF; /* Same as bg-secondary for consistency */
+    --aipkit_container-border: #E1E7EF; /* Light border for containers, inputs */
+    --aipkit_container-shadow: rgba(74, 111, 165, 0.08); /* Subtle shadow for depth */
+
+    /* Menu / Navigation */
+    --aipkit_menu-bg: #FFFFFF; /* Background for dropdowns */
+    --aipkit_menu-active: #EDF2F7; /* Active state for menu items */
+    --aipkit_menu-hover: #F0F7FF; /* Hover state for menu items */
+
+    /* Text */
+    --aipkit_text-primary: #2D3748; /* Main text color */
+    --aipkit_text-secondary: #718096; /* Muted text for help, secondary info */
+    --aipkit_text-heading: #1A365D; /* Color for titles and headings */
+    --aipkit_text-link: #4A6FA5; /* Link color, matches brand primary */
+
+    /* Buttons */
+    --aipkit_btn-primary: #4A6FA5; /* Primary button background */
+    --aipkit_btn-primary-hover: #3D5D8A; /* Primary button hover */
+    --aipkit_btn-secondary: #EDF2F7; /* Secondary button background */
+    --aipkit_btn-secondary-hover: #E2EBF7; /* Secondary button hover */
+    --aipkit_btn-danger: #E53E3E; /* Danger button background */
+    --aipkit_btn-danger-hover: #C53030; /* Danger button hover */
+
+    /* Status Colors */
+    --aipkit_status-success: #38A169; /* Green for success messages, tags */
+    --aipkit_status-warning: #DD6B20; /* Orange/Red for warnings, errors */
+    --aipkit_status-info: #3182CE;   /* Blue for informational tags/messages */
+
+    /* Pro / gated features (purple is reserved for premium UI) */
+    --aipkit_pro: #6D5CE7;
+    --aipkit_pro-hover: #5949CF;
+    --aipkit_pro-soft: #F1EFFF;
+    --aipkit_pro-surface: #FAF9FF;
+    --aipkit_pro-border: #DDD8FB;
+    --aipkit_pro-text: #5745CA;
+
+    /* Font Sizes (approximate targets, can be adjusted) */
+    --aipkit_font-size-base: 13px;    /* Default text size */
+    --aipkit_font-size-label: 12px;   /* Form labels */
+    --aipkit_font-size-help: 11px;    /* Help text */
+    --aipkit_font-size-small: 10px;   /* Very small text, e.g., in stats cards */
+    --aipkit_font-size-h-title: 16px; /* Main container titles */
+    --aipkit_font-size-h-sub: 15px;   /* Sub-container/section titles */
+
+    /* Spacing Units (approximate targets, can be adjusted) */
+    --aipkit_spacing-xs: 4px;
+    --aipkit_spacing-sm: 8px;
+    --aipkit_spacing-md: 12px;
+    --aipkit_spacing-lg: 15px;
+    --aipkit_spacing-xl: 20px;
+
+    /* Input/Button Heights (target) */
+    --aipkit_input-height: 30px;
+    --aipkit_button-height: 30px;
+
+    /* Transition/Easing Tokens */
+    --aipkit-transition-fast: 150ms;
+    --aipkit-transition-base: 200ms;
+    --aipkit-transition-slow: 300ms;
+    --aipkit-ease-out: ease-out;
+    --aipkit-ease-in-out: ease-in-out;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable non-essential motion across admin UI */
+  .aipkit_tab-content,
+  .aipkit-modal-content,
+  .aipkit_accordion-header .dashicons {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+/* ---- Body ---- */
+body.toplevel_page_wpaicg,
+body[class*="_page_wpaicg"],
+body[class*="aipkit-role-manager"] {
+    background-color: var(--aipkit_bg-primary) !important;
+    color: var(--aipkit_text-primary);
+    line-height: 1.5; /* Standard line height */
+}
+
+/*
+ * Remove the extra top margin so the custom nav appears flush with the WP admin bar.
+ * This specifically targets the .wrap container on our plugin's page.
+ */
+body.wp-admin .wrap.aipkit_wrap {
+    margin: 0 !important; /* Keep important to override WP admin styles */
+    padding: 0 !important; /* Keep important */
+}
+
+/* Prevent horizontal scroll on the WordPress admin content area when on our plugin page */
+body.toplevel_page_wpaicg #wpbody-content,
+body.toplevel_page_wpaicg #wpcontent {
+    overflow-x: hidden;
+}
+
+body.toplevel_page_wpaicg #wpcontent,
+body[class*="_page_wpaicg"] #wpcontent {
+    padding-left: 0 !important;
+}
+
+body.toplevel_page_wpaicg #wpcontent,
+body.toplevel_page_wpaicg #wpbody,
+body.toplevel_page_wpaicg #wpbody-content,
+body[class*="_page_wpaicg"] #wpcontent,
+body[class*="_page_wpaicg"] #wpbody,
+body[class*="_page_wpaicg"] #wpbody-content,
+body[class*="aipkit-role-manager"] #wpcontent,
+body[class*="aipkit-role-manager"] #wpbody,
+body[class*="aipkit-role-manager"] #wpbody-content {
+    background-color: var(--aipkit_bg-primary) !important;
+}
+
+/*
+ * Keep viewport width stable while switching modules with different heights.
+ * Apply on html (the actual page scroller in wp-admin) and relevant containers.
+ */
+html {
+    scrollbar-gutter: stable;
+}
+
+/* Fallback for browsers that do not support scrollbar-gutter */
+@supports not (scrollbar-gutter: stable) {
+    html {
+        overflow-y: scroll;
+    }
+}
+
+.aipkit_wrap {
+    --aipkit-module-page-max-width: 1560px;
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    overflow: visible;
+    background: var(--aipkit_bg-primary);
+    min-height: calc(100vh - 32px);
+}
+
+/*
+ * Let wide displays give productive space to flexible centre columns while
+ * keeping the header and module workspace on one shared centred container.
+ */
+@media (min-width: 1900px) {
+    .aipkit_wrap {
+        --aipkit-module-page-max-width: 1800px;
+    }
+}
+
+/*
+ * Main content area under the module tabs
+ */
+.aipkit_main-content,
+.aipkit_module-workspace {
+  position: relative;
+  width: 100%;
+  max-width: var(--aipkit-module-page-max-width, 1560px);
+  margin: 0 auto;
+  padding: 18px 24px 0;
+  box-sizing: border-box;
+  transition: opacity 70ms ease;
+}
+
+@container aipkit-dashboard-shell (max-width: 819px) {
+  .aipkit_main-content,
+  .aipkit_module-workspace {
+    padding-inline: 16px;
+  }
+}
+
+.aipkit_main-content.aipkit_main-content--with-notices {
+  max-width: none;
+  padding: 0;
+}
+
+.aipkit_wrap > .aipkit_notification_bar,
+.aipkit_main-content--with-notices > .aipkit_notification_bar {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.aipkit_main-content.aipkit_module-container--loading,
+.aipkit_main-content.aipkit_module-container--refreshing {
+  pointer-events: none;
+}
+
+.aipkit_main-content.aipkit_module-container--refreshing {
+  animation: aipkit_module_refresh_pulse 1.2s ease-in-out infinite;
+}
+
+.aipkit_module-skeleton {
+  --aipkit-skeleton-panel: #f8fafc;
+  --aipkit-skeleton-shape: #e6ebf2;
+  --aipkit-skeleton-border: var(--aipkit_container-border, #d8e0ea);
+  width: 100%;
+  max-width: 1032px;
+  margin: 0 auto;
+}
+
+.aipkit_module-skeleton--content-writer {
+  max-width: none;
+}
+
+.aipkit_module-skeleton--ai-forms {
+  max-width: none;
+}
+
+.aipkit_module-skeleton--autogpt {
+  max-width: 1180px;
+}
+
+.aipkit_module-skeleton-grid,
+.aipkit_module-skeleton-flow,
+.aipkit_module-skeleton-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.aipkit_module-skeleton-grid--content-writer {
+  grid-template-columns: 240px minmax(420px, 1fr) 320px;
+  align-items: start;
+}
+
+@container aipkit-dashboard-shell (min-width: 1600px) {
+  .aipkit_module-skeleton--content-writer {
+    max-width: 1280px;
+  }
+}
+
+.aipkit_module-skeleton-grid--chatbot {
+  grid-template-columns: repeat(2, minmax(0, 500px));
+  align-items: start;
+  justify-content: center;
+  gap: 32px;
+}
+
+.aipkit_module-skeleton-grid--image-generator {
+  grid-template-columns: minmax(380px, 0.82fr) minmax(480px, 1.18fr);
+  align-items: start;
+}
+
+.aipkit_module-skeleton-flow {
+  gap: 16px;
+}
+
+.aipkit_module-skeleton-panel,
+.aipkit_module-skeleton-table {
+  min-width: 0;
+  border: 1px solid var(--aipkit-skeleton-border);
+  border-radius: 12px;
+  background: var(--aipkit-skeleton-panel);
+  box-sizing: border-box;
+}
+
+.aipkit_module-skeleton-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 20px;
+}
+
+.aipkit_module-skeleton-panel--rail {
+  padding: 18px;
+}
+
+.aipkit_module-skeleton-panel--builder {
+  min-height: 560px;
+}
+
+.aipkit_module-skeleton-panel--main {
+  min-height: 450px;
+}
+
+.aipkit_module-skeleton-panel--preview {
+  min-height: 520px;
+}
+
+.aipkit_module-skeleton-panel--compact {
+  min-height: 68px;
+}
+
+.aipkit_module-skeleton-panel--template {
+  min-height: 132px;
+  gap: 12px;
+}
+
+.aipkit_module-skeleton-panel--metric {
+  min-height: 112px;
+}
+
+.aipkit_module-skeleton-panel--chart {
+  min-height: 330px;
+}
+
+.aipkit_module-skeleton-panel--settings {
+  width: min(100%, 760px);
+}
+
+.aipkit_module-skeleton-panel--nested {
+  padding: 16px;
+  border-radius: 10px;
+}
+
+.aipkit_module-skeleton-line,
+.aipkit_module-skeleton-block {
+  display: block;
+  width: var(--aipkit-skeleton-line-width, 100%);
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--aipkit-skeleton-shape);
+  animation: aipkit_module_skeleton_pulse 1.35s ease-in-out infinite;
+}
+
+.aipkit_module-skeleton-line {
+  height: 10px;
+}
+
+.aipkit_module-skeleton-line--heading {
+  height: 14px;
+}
+
+.aipkit_module-skeleton-line--tile {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.aipkit_module-skeleton-line--metric {
+  height: 22px;
+}
+
+.aipkit_module-skeleton-rows {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.aipkit_module-skeleton-pills,
+.aipkit_module-skeleton-toolbar,
+.aipkit_module-skeleton-heading-row,
+.aipkit_module-skeleton-tabs,
+.aipkit_module-skeleton-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.aipkit_module-skeleton-pills .aipkit_module-skeleton-line {
+  height: 30px;
+}
+
+.aipkit_module-skeleton-toolbar {
+  min-height: 44px;
+}
+
+.aipkit_module-skeleton-toolbar .aipkit_module-skeleton-line:first-child,
+.aipkit_module-skeleton-heading-row > :first-child {
+  margin-right: auto;
+}
+
+.aipkit_module-skeleton-heading-row {
+  min-height: 56px;
+}
+
+.aipkit_module-skeleton-tabs {
+  min-height: 42px;
+  border-bottom: 1px solid var(--aipkit-skeleton-border);
+}
+
+.aipkit_module-skeleton-action {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.aipkit_module-skeleton-action .aipkit_module-skeleton-line {
+  height: 36px;
+  border-radius: 8px;
+}
+
+.aipkit_module-skeleton-block {
+  width: 100%;
+  border-radius: 9px;
+}
+
+.aipkit_module-skeleton-block--topic {
+  height: 118px;
+}
+
+.aipkit_module-skeleton-block--input {
+  height: 46px;
+}
+
+.aipkit_module-skeleton-block--preview {
+  height: 420px;
+}
+
+.aipkit_module-skeleton-block--chart {
+  height: 245px;
+}
+
+.aipkit_module-skeleton-block--image {
+  aspect-ratio: 4 / 3;
+  max-height: 460px;
+}
+
+.aipkit_module-skeleton-card-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.aipkit_module-skeleton-card-row--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.aipkit_module-skeleton-card-row--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.aipkit_module-skeleton-table {
+  overflow: hidden;
+}
+
+.aipkit_module-skeleton-table-head,
+.aipkit_module-skeleton-table-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(110px, 0.8fr) minmax(90px, 0.55fr) minmax(70px, 0.35fr);
+  align-items: center;
+  gap: 22px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--aipkit-skeleton-border);
+  box-sizing: border-box;
+}
+
+.aipkit_module-skeleton-table-head {
+  min-height: 40px;
+}
+
+.aipkit_module-skeleton-table-row:last-child {
+  border-bottom: 0;
+}
+
+@container aipkit-dashboard-shell (min-width: 1100px) and (max-width: 1399px) {
+  .aipkit_module-skeleton-grid--content-writer {
+    grid-template-columns: 200px minmax(360px, 1fr) 280px;
+    gap: 12px;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 1099px) {
+  .aipkit_module-skeleton-grid--content-writer {
+    grid-template-columns: 56px minmax(340px, 1fr) 280px;
+    gap: 12px;
+  }
+
+  .aipkit_module-skeleton-card-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 900px) {
+  .aipkit_module-skeleton-grid--content-writer,
+  .aipkit_module-skeleton-grid--image-generator {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aipkit_module-skeleton-panel--builder,
+  .aipkit_module-skeleton-panel--main,
+  .aipkit_module-skeleton-panel--preview {
+    min-height: 320px;
+  }
+
+  .aipkit_module-skeleton-card-row,
+  .aipkit_module-skeleton-card-row--four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .aipkit_module-skeleton-grid--chatbot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 620px) {
+  .aipkit_module-skeleton-card-row,
+  .aipkit_module-skeleton-card-row--three,
+  .aipkit_module-skeleton-card-row--four {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aipkit_module-skeleton-table-head,
+  .aipkit_module-skeleton-table-row {
+    grid-template-columns: minmax(0, 1.5fr) minmax(70px, 0.6fr);
+  }
+
+  .aipkit_module-skeleton-table-head > :nth-child(n + 3),
+  .aipkit_module-skeleton-table-row > :nth-child(n + 3) {
+    display: none;
+  }
+}
+
+@keyframes aipkit_module_skeleton_pulse {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes aipkit_module_refresh_pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_module-skeleton-line,
+  .aipkit_module-skeleton-block,
+  .aipkit_main-content.aipkit_module-container--refreshing {
+    animation: none;
+  }
+}
+
+.aipkit_wrap {
+  container-name: aipkit-dashboard-shell;
+  container-type: inline-size;
+}
+
+.aipkit_module-tabs_shell {
+  width: 100%;
+  border-bottom: 1px solid rgba(8, 32, 72, 0.24);
+  background: linear-gradient(135deg, #1f5fc7 0%, #1b57b8 58%, #164ca5 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.aipkit_module-tabs {
+  position: relative;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  max-width: var(--aipkit-module-page-max-width, 1560px);
+  min-height: 110px;
+  margin-inline: auto;
+  padding: 22px 24px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.aipkit_module-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 198px;
+  color: #fff;
+}
+
+.aipkit_module-brand_home,
+.aipkit_module-brand_home:visited,
+.aipkit_module-brand_title,
+.aipkit_module-brand_title:visited,
+.aipkit_module-brand_meta,
+.aipkit_module-brand_meta:visited {
+  color: #fff;
+  text-decoration: none;
+}
+
+.aipkit_module-brand_home:hover,
+.aipkit_module-brand_home:focus,
+.aipkit_module-brand_title:hover,
+.aipkit_module-brand_title:focus,
+.aipkit_module-brand_meta:hover,
+.aipkit_module-brand_meta:focus {
+  color: #fff;
+  text-decoration: none;
+}
+
+.aipkit_module-brand_home:focus,
+.aipkit_module-brand_title:focus,
+.aipkit_module-brand_meta:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.aipkit_module-brand_home:focus-visible,
+.aipkit_module-brand_title:focus-visible,
+.aipkit_module-brand_meta:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 4px;
+}
+
+.aipkit_module-brand_home {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.aipkit_module-brand_logo {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  align-items: center;
+  justify-content: center;
+}
+
+.aipkit_module-brand_logo img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  filter: drop-shadow(0 2px 4px rgba(6, 24, 58, 0.16));
+}
+
+.aipkit_module-brand_copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aipkit_module-brand_title {
+  color: #fff;
+  font-size: 19px;
+  font-weight: 720;
+  line-height: 1.08;
+}
+
+.aipkit_module-brand_meta {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 620;
+  line-height: 1.2;
+}
+
+.aipkit_module-brand_meta:hover,
+.aipkit_module-brand_meta:focus-visible {
+  color: #fff;
+}
+
+/* The primary rail deliberately hugs its links instead of filling the middle column. */
+.aipkit_module-tabs_list {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 44px;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 28px rgba(5, 24, 62, 0.08);
+  opacity: 1;
+  scrollbar-width: none;
+  transform: scaleX(1);
+  transform-origin: left center;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    max-height 150ms ease,
+    min-height 150ms ease,
+    padding 150ms ease;
+}
+
+.aipkit_module-tabs_list::-webkit-scrollbar {
+  display: none;
+}
+
+.aipkit_module-tabs--modules-empty .aipkit_module-tabs_list {
+  min-height: 0;
+  max-height: 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.98);
+}
+
+.aipkit_module-tabs_actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.aipkit_module-tabs_list .aipkit_module-tab,
+.aipkit_module-tabs_actions .aipkit_module-tab {
+  flex: 0 0 auto;
+}
+
+.aipkit_module-tab {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  appearance: none;
+  background: transparent;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 620;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.aipkit_module-tabs .aipkit_module-tab,
+.aipkit_module-tabs .aipkit_module-tab:visited {
+  color: #fff;
+  text-decoration: none;
+}
+
+.aipkit_module-tabs .aipkit_module-tab:hover,
+.aipkit_module-tabs .aipkit_module-tab:focus,
+.aipkit_module-tabs .aipkit_module-tab:focus-visible,
+.aipkit_module-tabs .aipkit_module-tab:active {
+  color: #fff;
+  text-decoration: none;
+}
+
+/* Direct pricing link for free-plan users. */
+.aipkit_upgrade_btn {
+  margin-right: 0;
+}
+
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings,
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings:visited {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--aipkit_pro-border, #ddd8fb);
+  border-radius: 10px;
+  background: var(--aipkit_pro-soft, #f1efff);
+  box-shadow: 0 4px 10px rgba(78, 62, 173, 0.12);
+  color: var(--aipkit_pro-text, #5745ca) !important;
+  font-weight: 720;
+  transform: none;
+}
+
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings:hover,
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings:focus,
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings:focus-visible {
+  border-color: #cfc7fb;
+  background: #e8e4ff;
+  box-shadow: 0 5px 12px rgba(78, 62, 173, 0.16);
+  color: var(--aipkit_pro-hover, #5949cf) !important;
+  transform: none;
+}
+
+.aipkit_module-tabs .aipkit_upgrade_btn.aipkit_module-tab--settings:active {
+  border-color: #c3b9f5;
+  background: #ded8ff;
+  box-shadow: 0 3px 8px rgba(78, 62, 173, 0.14);
+  color: #4f3fbd !important;
+}
+
+.aipkit_upgrade_btn_icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.aipkit_upgrade_btn_icon svg {
+  display: block;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.aipkit_upgrade_btn_label {
+  display: inline-flex;
+  min-height: 13px;
+  align-items: center;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.aipkit_module-tabs .aipkit_module-tab_label,
+.aipkit_module-tabs .aipkit_settings-link-icon,
+.aipkit_module-tabs .aipkit_upgrade_btn_icon {
+  color: inherit;
+}
+
+.aipkit_module-tabs .aipkit_module-tab_label {
+  display: inline-flex;
+  min-height: 13px;
+  max-width: 128px;
+  align-items: center;
+  overflow: hidden;
+  line-height: 13px;
+  text-overflow: ellipsis;
+}
+
+.aipkit_module-tab--is-hidden[hidden] {
+  display: none !important;
+}
+
+.aipkit_module-tab .dashicons,
+.aipkit_module-menu_link .dashicons,
+.aipkit_module-menu_trigger .dashicons {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  font-size: 14px;
+  line-height: 14px;
+  color: currentColor;
+}
+
+.aipkit_module-tab_icon-glyph {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 14px;
+}
+
+.aipkit_module-tab:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.aipkit_module-tab:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.aipkit_module-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.36);
+}
+
+.aipkit_module-tab:active {
+  border-radius: 999px;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active {
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(6, 24, 58, 0.16);
+  color: #164ca5;
+}
+
+/* Keep the selected primary destination readable while it is hovered or focused. */
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active,
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active:visited,
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active:hover,
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active:focus,
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active:focus-visible,
+.aipkit_module-tabs .aipkit_module-tabs_list .aipkit_module-tab--module.aipkit_active:active {
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  background: #fff;
+  color: #164ca5;
+  transform: none;
+}
+
+/* Secondary destinations stay visible but deliberately quieter than the primary rail. */
+.aipkit_module-tab--utility {
+  position: relative;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+}
+
+.aipkit_module-tab--utility:hover,
+.aipkit_module-tab--utility:focus-visible {
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+.aipkit_module-tab--utility.aipkit_active {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.92);
+  color: #fff;
+}
+
+.aipkit_module-tab--utility:focus-visible {
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.92);
+}
+
+.aipkit_module-tab--settings {
+  position: relative;
+  min-height: 40px;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.aipkit_module-tab--settings-control {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+}
+
+.aipkit_module-tab--settings-control .aipkit_module-tab_label {
+  display: none;
+}
+
+.aipkit_module-tab--settings:hover,
+.aipkit_module-tab--settings:active {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+.aipkit_module-tab--settings:focus-visible {
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.92);
+}
+
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active,
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active:visited,
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active:hover,
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active:focus,
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active:focus-visible,
+.aipkit_module-tabs .aipkit_module-tab--settings.aipkit_active:active {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.92);
+  color: #fff;
+  transform: none;
+}
+
+.aipkit_settings-link-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+/* Compact navigation is only exposed once the primary and utility rows no longer fit. */
+.aipkit_module-menu {
+  position: relative;
+  display: none;
+}
+
+.aipkit_module-menu_trigger {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  list-style: none;
+  cursor: pointer;
+}
+
+.aipkit_module-menu_trigger::-webkit-details-marker {
+  display: none;
+}
+
+.aipkit_module-menu_trigger:hover,
+.aipkit_module-menu_trigger:focus-visible,
+.aipkit_module-menu[open] .aipkit_module-menu_trigger {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+}
+
+.aipkit_module-menu_trigger_label {
+  display: none;
+}
+
+.aipkit_module-menu_panel {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 10px);
+  right: 0;
+  display: flex;
+  width: min(280px, calc(100vw - 28px));
+  padding: 8px;
+  flex-direction: column;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.24);
+  color: #1f2937;
+}
+
+.aipkit_module-menu_group {
+  display: grid;
+  gap: 2px;
+}
+
+.aipkit_module-menu_group_label {
+  padding: 7px 9px 5px;
+  color: #8491a5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.aipkit_module-menu_group_label--manage {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid #e5eaf1;
+}
+
+.aipkit_module-menu_link,
+.aipkit_module-menu_link:visited {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.aipkit_module-menu_link:hover,
+.aipkit_module-menu_link:focus-visible {
+  background: #f3f6fb;
+  color: #1f3b66;
+  outline: none;
+  text-decoration: none;
+}
+
+.aipkit_module-menu_link.aipkit_active {
+  background: #ebf0fe;
+  color: #2f50d8;
+}
+
+@container aipkit-dashboard-shell (max-width: 1220px) {
+  .aipkit_module-tabs {
+    gap: 14px;
+    padding-block: 20px;
+  }
+
+  .aipkit_module-brand {
+    min-width: 148px;
+  }
+
+  .aipkit_module-brand_meta {
+    display: none;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 1080px) {
+  .aipkit_module-tab--utility {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .aipkit_module-tab--utility .aipkit_module-tab_label {
+    display: none;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 900px) {
+  .aipkit_module-brand {
+    min-width: 132px;
+  }
+
+  .aipkit_module-tabs_list .aipkit_module-tab {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .aipkit_module-tabs_list .aipkit_module-tab_label {
+    display: none;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 819px) {
+  .aipkit_module-tabs {
+    padding-inline: 16px;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 760px) {
+  .aipkit_module-tabs {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 78px;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .aipkit_module-brand {
+    min-width: 0;
+  }
+
+  .aipkit_module-brand_logo {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
+
+  .aipkit_module-brand_logo img {
+    width: 35px;
+    height: 35px;
+  }
+
+  .aipkit_module-tabs_list,
+  .aipkit_module-tabs_actions > .aipkit_module-tab--utility,
+  .aipkit_module-tabs_actions > .aipkit_module-tab--settings-control {
+    display: none;
+  }
+
+  .aipkit_module-tabs_actions {
+    grid-column: 3;
+    gap: 6px;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .aipkit_module-menu {
+    display: block;
+  }
+
+  .aipkit_module-tabs_actions .aipkit_upgrade_btn.aipkit_module-tab--settings {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .aipkit_module-tabs_actions .aipkit_upgrade_btn_label {
+    display: none;
+  }
+}
+
+@container aipkit-dashboard-shell (max-width: 480px) {
+  .aipkit_module-brand_copy {
+    display: none;
+  }
+}
+
+/* ---- Container ---- */
+.aipkit_container {
+  background-color: var(--aipkit_container-bg);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px var(--aipkit_container-shadow); /* Lighter, flatter shadow */
+  border: 1px solid var(--aipkit_container-border);
+  margin-bottom: var(--aipkit_spacing-lg, 15px); /* Reduced from 20px */
+  overflow: hidden; /* Keep hidden to contain child elements */
+  transition: box-shadow 0.2s ease; /* Faster transition */
+}
+
+.aipkit_container:hover {
+  box-shadow: 0 2px 6px rgba(74, 111, 165, 0.1); /* Lighter hover shadow */
+}
+
+.aipkit_container-header {
+  padding: var(--aipkit_spacing-md, 12px) var(--aipkit_spacing-lg, 15px); /* Reduced padding */
+  border-bottom: 1px solid var(--aipkit_container-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(
+    to right,
+    rgba(237, 242, 247, 0.2),
+    rgba(255, 255, 255, 0)
+  ); /* Softer gradient */
+  min-height: 44px; /* Ensure consistent header height */
+  box-sizing: border-box;
+}
+
+/* New: group title and status inline on the left side */
+.aipkit_container-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--aipkit_spacing-md, 12px);
+}
+.aipkit_container-header-left .aipkit_container-title {
+  margin: 0;
+}
+.aipkit_container-header-left .aipkit_global_status_area {
+  min-height: 1.5em;
+  color: var(--aipkit_text-secondary);
+}
+
+.aipkit_container-title {
+  font-size: var(
+    --aipkit_font-size-h-title,
+    16px
+  ); /* Reduced from 18px, using variable */
+  font-weight: 600;
+  color: var(--aipkit_text-heading);
+}
+
+.aipkit_container-body {
+  padding: var(
+    --aipkit_spacing-lg,
+    15px
+  ); /* Reduced from 20px, using variable */
+}
+
+/* NEW: Styles for generic actions dropdown in container headers */
+.aipkit_actions_menu {
+  position: relative; /* Positioning context for the dropdown */
+  display: inline-block;
+}
+
+.aipkit_actions_dropdown_menu {
+  position: absolute;
+  top: calc(100% + 5px); /* Position it below the button */
+  right: 0;
+  z-index: 100;
+  background-color: var(--aipkit_bg-secondary);
+  border: 1px solid var(--aipkit_container-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  min-width: 200px;
+  padding: 4px;
+  display: none; /* Controlled by JS */
+}
+
+.aipkit_dropdown-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: var(--aipkit_spacing-sm, 8px) var(--aipkit_spacing-md, 12px);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--aipkit_text-primary);
+  font-size: var(--aipkit_font-size-base, 13px);
+  border-radius: 3px;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  line-height: 1; /* Reset button line-height */
+  height: auto; /* Reset button height */
+}
+.aipkit_dropdown-item-btn:hover {
+  background-color: var(--aipkit_menu-hover);
+  color: var(--aipkit_brand-primary);
+}
+.aipkit_dropdown-item-btn .dashicons {
+  margin-right: 0; /* Override any potential button icon margins */
+}
+
+.aipkit_tab-content {
+  display: none;
+}
+
+.aipkit_tab-content.aipkit_active {
+  display: block;
+  animation: fadeIn var(--aipkit-transition-base, 200ms) var(--aipkit-ease-out, ease-out);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Accordion Group (for multiple accordions that should appear connected) */
+.aipkit_accordion-group {
+  border: 1px solid var(--aipkit_container-border);
+  border-radius: 4px;
+  overflow: visible;
+  margin-bottom: var(--aipkit_spacing-lg, 15px);
+  width: 100%;
+  background-color: var(--aipkit_bg-secondary);
+}
+
+.aipkit_accordion-group .aipkit_accordion {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--aipkit_container-border);
+  border-radius: 0;
+  background-color: transparent;
+}
+
+.aipkit_accordion-group .aipkit_accordion:last-child {
+  border-bottom: none;
+}
+
+/* Single Accordion (not in a group) */
+.aipkit_accordion {
+  margin-top: var(--aipkit_spacing-md, 12px);
+  border: 1px solid var(--aipkit_container-border);
+  border-radius: 4px;
+  overflow: visible;
+  background-color: var(--aipkit_bg-secondary);
+}
+.aipkit_accordion:first-child {
+  margin-top: 0;
+}
+
+.aipkit_accordion-header {
+  padding: var(--aipkit_spacing-sm, 10px) var(--aipkit_spacing-md, 12px);
+  font-weight: 500;
+  background-color: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background-color var(--aipkit-transition-fast, 150ms) var(--aipkit-ease-in-out, ease-in-out);
+  font-size: var(--aipkit_font-size-base, 13px);
+  color: var(--aipkit_text-heading);
+  border-bottom: 1px solid transparent;
+  position: relative;
+  z-index: 2;
+}
+
+.aipkit_accordion-group .aipkit_accordion .aipkit_accordion-header {
+  background-color: #fdfdfe;
+}
+
+.aipkit_accordion-header:hover {
+  background-color: var(--aipkit_menu-hover);
+}
+
+.aipkit_accordion-header.aipkit_active {
+  background-color: transparent;
+  border-bottom-color: var(--aipkit_container-border);
+  font-weight: 600;
+}
+.aipkit_accordion-group .aipkit_accordion-header.aipkit_active {
+  background-color: var(--aipkit_menu-hover);
+}
+
+/* Ensure last accordion in group doesn't show bottom border on header when active if it's truly the last */
+.aipkit_accordion-group
+  .aipkit_accordion:last-child
+  .aipkit_accordion-header.aipkit_active {
+  border-bottom-color: transparent;
+}
+
+.aipkit_accordion-header .dashicons {
+  margin-right: var(--aipkit_spacing-xs, 6px);
+  transition: transform var(--aipkit-transition-base, 200ms) var(--aipkit-ease-out, ease-out);
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--aipkit_text-secondary);
+}
+
+.aipkit_accordion-header.aipkit_active .dashicons {
+  transform: rotate(90deg);
+  color: var(--aipkit_brand-primary);
+}
+
+.aipkit_accordion-content {
+  padding: 0;
+  display: none;
+  transition: none;
+  background-color: var(--aipkit_bg-secondary);
+  position: relative;
+  z-index: 1;
+}
+.aipkit_accordion-group .aipkit_accordion-content {
+  background-color: transparent;
+}
+
+.aipkit_accordion-content.aipkit_active {
+  padding: var(--aipkit_spacing-md, 12px) var(--aipkit_spacing-lg, 15px);
+  display: block;
+}
+
+.aipkit_accordion-content h5,
+.aipkit_accordion-content h6 {
+  margin-top: var(--aipkit_spacing-md, 12px);
+  font-size: var(--aipkit_font-size-label, 12px);
+  font-weight: 600;
+  color: var(--aipkit_text-heading);
+}
+.aipkit_accordion-content h5:first-child,
+.aipkit_accordion-content h6:first-child {
+  margin-top: 0;
+}
+
+.aipkit_form-label {
+  display: block;
+  margin-bottom: var(
+    --aipkit_spacing-xs,
+    4px
+  );
+  font-weight: 500;
+  color: var(--aipkit_text-heading);
+  font-size: var(
+    --aipkit_font-size-label,
+    12px
+  );
+}
+
+
+.aipkit_form-input {
+  width: 100%;
+  max-width: 100%;
+  padding: var(--aipkit_spacing-xs, 4px) var(--aipkit_spacing-sm, 8px); /* Reduced padding, using variables */
+  border-radius: 3px;
+  border: 1px solid var(--aipkit_container-border);
+  background-color: var(--aipkit_bg-secondary);
+  color: var(--aipkit_text-primary);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; /* Faster transition */
+  height: var(
+    --aipkit_input-height,
+    30px
+  ); /* Reduced from 36px, using variable */
+  line-height: normal; /* Adjusted for new height, allow browser default or 1.2 */
+  box-sizing: border-box;
+  font-size: var(
+    --aipkit_font-size-base,
+    13px
+  ); /* Reduced from 14px, using variable */
+}
+
+input.aipkit_form-input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+select.aipkit_form-input {
+  min-height: var(--aipkit_input-height, 30px);
+}
+
+.aipkit_form-input:focus {
+  outline: none;
+  border-color: var(--aipkit_brand-primary);
+  box-shadow: 0 0 0 1.5px rgba(74, 111, 165, 0.25); /* Thinner focus ring, slightly more visible */
+}
+
+/* Shared compact search field used by modern admin workspaces. */
+.aipkit_compact_search {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.aipkit_compact_search > svg,
+.aipkit_compact_search > .dashicons {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  color: var(--aipkit_text-secondary, #64748b);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.aipkit_compact_search > .aipkit_form-input {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px 0 32px;
+  border-color: #d6e0ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+  font-size: 12px;
+}
+
+.aipkit_compact_search > .aipkit_form-input:hover:not(:disabled):not(:focus) {
+  border-color: #c4cfdd;
+}
+
+.aipkit_compact_search > .aipkit_form-input:focus {
+  border-color: var(--aipkit_brand-primary, #4a6fa5);
+  box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.12);
+}
+
+/* Shared compact checkbox used in dense admin tables and filters. */
+input.aipkit_checkbox-compact[type="checkbox"] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  border: 1px solid #c6cfdb;
+  border-radius: 5px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #ffffff;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+input.aipkit_checkbox-compact[type="checkbox"]::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  float: none;
+  background: #ffffff;
+  clip-path: polygon(14% 52%, 35% 73%, 84% 24%, 94% 35%, 35% 90%, 4% 61%);
+  content: "";
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.72);
+  transform-origin: center;
+  transition: opacity 0.14s ease, transform 0.15s ease;
+}
+
+input.aipkit_checkbox-compact[type="checkbox"]:checked {
+  border-color: var(--aipkit_brand-primary, #3f5fe8);
+  background: var(--aipkit_brand-primary, #3f5fe8);
+}
+
+input.aipkit_checkbox-compact[type="checkbox"]:checked::before {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+input.aipkit_checkbox-compact[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.18);
+}
+
+input.aipkit_checkbox-compact[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* BASE SELECT STYLES */
+select.aipkit_form-input {
+  padding-right: var(
+    --aipkit_spacing-xl,
+    20px
+  ); /* Adjust space for smaller arrow */
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="%23718096" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'); /* Smaller arrow */
+  background-repeat: no-repeat;
+  background-position: right var(--aipkit_spacing-sm, 8px) center; /* Adjusted position, using variable */
+  background-size: 10px; /* Smaller arrow */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* BASE HELP TEXT STYLES */
+.aipkit_form-help {
+  margin-top: var(
+    --aipkit_spacing-xs,
+    4px
+  ); /* Reduced from 3px, using variable */
+  font-size: var(
+    --aipkit_font_size-help,
+    11px
+  ); /* Stays 11px, using variable */
+  color: var(--aipkit_text-secondary);
+  line-height: 1.3; /* Reduced, more compact */
+}
+
+/* NEW: Placeholder copy styles */
+.aipkit_form-help .aipkit-placeholder {
+  cursor: pointer;
+  background-color: var(--aipkit_menu-active);
+  border: 1px solid var(--aipkit_container-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: monospace;
+  font-size: var(--aipkit_font_size-help, 11px);
+  color: var(--aipkit_text-link);
+  transition: background-color 0.15s, color 0.15s;
+  margin: 0 2px;
+  display: inline-block; /* ensure it behaves nicely */
+  line-height: 1.2;
+}
+.aipkit_form-help .aipkit-placeholder:hover {
+  background-color: var(--aipkit_brand-primary);
+  color: #fff;
+  border-color: var(--aipkit_brand-primary);
+}
+.aipkit_form-help .aipkit-placeholder--copied {
+  background-color: var(--aipkit_status-success) !important;
+  color: #fff !important;
+  border-color: var(--aipkit_status-success) !important;
+}
+/* END NEW */
+
+/* Add specific styles for error/success messages in help text */
+.aipkit_form-help-error {
+  color: var(--aipkit_status-warning);
+  font-weight: 500;
+}
+.aipkit_form-help-success {
+  color: var(--aipkit_status-success);
+  font-weight: 500;
+}
+
+/* BASE TEXTAREA STYLES */
+textarea.aipkit_form-input {
+  height: auto; /* Allow natural height based on rows */
+  min-height: 70px; /* Reduced from 60px, to allow 3-4 lines easily */
+  line-height: 1.4;
+  padding-top: var(--aipkit_spacing-sm, 8px); /* Ensure text starts nicely */
+  padding-bottom: var(--aipkit_spacing-sm, 8px);
+}
+
+/* BASE RANGE INPUT STYLES - Clean & Minimal Design */
+input[type="range"].aipkit_form-input {
+  height: 6px;
+  -webkit-appearance: none;
+  width: 100%;
+  background: #e8ecef;
+  outline: none;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+  margin: 10px 0;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+input[type="range"].aipkit_form-input:hover {
+  background: #dde1e6;
+}
+
+input[type="range"].aipkit_form-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--aipkit_brand-primary);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+input[type="range"].aipkit_form-input::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].aipkit_form-input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--aipkit_brand-primary);
+  cursor: pointer;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+input[type="range"].aipkit_form-input::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"].aipkit_form-input::-moz-range-track {
+  height: 6px;
+  background: #e8ecef;
+  border-radius: 3px;
+  border: none;
+}
+
+input[type="range"].aipkit_form-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+input[type="range"].aipkit_form-input::-webkit-slider-thumb:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(74, 111, 165, 0.15), 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+input[type="range"].aipkit_form-input::-moz-range-thumb:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(74, 111, 165, 0.15), 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+input[type="range"].aipkit_form-input::-moz-focus-outer {
+  border: 0;
+}
+
+/* BASE SLIDER VALUE DISPLAY STYLES - Clean & Minimal */
+.aipkit_slider_wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Increased gap for cleaner spacing */
+}
+
+.aipkit_slider_value {
+  min-width: 40px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--aipkit_brand-primary);
+  font-size: 13px;
+  background: #f8f9fa;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e8ecef;
+  line-height: 1;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+/* BASE FORM ROW/COL LAYOUT STYLES */
+.aipkit_form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--aipkit_spacing-md, 12px); /* Reduced from 10px, using variable */
+  margin-bottom: var(--aipkit_spacing-md, 12px); /* Reduced from 10px */
+}
+.aipkit_form-row:last-child {
+  margin-bottom: 0;
+}
+
+.aipkit_form-col {
+  flex: 1;
+}
+.aipkit_form-group {
+  margin-bottom: var(
+    --aipkit_spacing-md,
+    12px
+  ); /* Spacing below each field group */
+}
+.aipkit_form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* BASE TYPE-SPECIFIC INPUT STYLES */
+input[type="number"].aipkit_form-input {
+  padding-right: var(--aipkit_spacing-xs, 5px);
+}
+
+input[type="file"].aipkit_form-input {
+  padding: var(--aipkit_spacing-xs, 4px) var(--aipkit_spacing-sm, 8px); /* Adjusted for target height */
+  height: auto; /* Allow browser default height for file input */
+}
+
+input[type="color"].aipkit_form-input {
+  height: var(--aipkit_input-height, 30px); /* Consistent height */
+  padding: 2px;
+  cursor: pointer;
+  min-width: 40px; /* Ensure color swatch is visible */
+}
+
+/* Checkbox and Radio custom styling for consistency */
+.aipkit_checkbox-label {
+  display: inline-flex; /* Changed from flex to inline-flex */
+  align-items: center;
+  gap: var(--aipkit_spacing-xs, 5px);
+  cursor: pointer;
+  font-weight: normal; /* Standard font weight for checkbox/radio labels */
+  color: var(--aipkit_text-primary);
+  font-size: var(--aipkit_font-size-base, 13px);
+}
+.aipkit_checkbox-label input[type="checkbox"] {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(
+    --aipkit_brand-primary
+  ); /* Modern way to color checkboxes/radios */
+}
+
+.aipkit_btn {
+  padding: var(--aipkit_spacing-xs, 4px) var(--aipkit_spacing-md, 12px);
+  border-radius: 3px;
+  font-weight: 500;
+  font-size: var(--aipkit_font-size-base, 13px);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  justify-content: center;
+  height: var(
+    --aipkit_button-height,
+    30px
+  );
+  line-height: 1;
+  text-decoration: none !important;
+  white-space: nowrap;
+}
+
+.aipkit_btn-primary {
+  background: var(--aipkit_btn-primary);
+  color: #fff;
+  border-color: var(--aipkit_btn-primary);
+  min-width: 80px;
+}
+
+.aipkit_btn-primary:hover {
+  background: var(--aipkit_btn-primary-hover);
+  border-color: var(--aipkit_btn-primary-hover);
+  box-shadow: 0 1px 2px rgba(74, 111, 165, 0.1);
+  color: #fff !important;
+}
+
+.aipkit_btn-primary:active {
+  background: var(--aipkit_btn-primary-hover);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+.aipkit_btn-primary:disabled,
+.aipkit_btn-primary.aipkit_loading {
+  background-color: var(--aipkit_brand-primary-dark);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.aipkit_btn-secondary {
+  background-color: var(--aipkit_btn-secondary);
+  color: var(--aipkit_text-link);
+  border-color: var(--aipkit_container-border);
+}
+
+.aipkit_btn-secondary:hover {
+  background-color: var(--aipkit_btn-secondary-hover, #e2ebf7);
+  border-color: #c5d3e5;
+  box-shadow: 0 1px 2px rgba(74, 111, 165, 0.08);
+}
+
+.aipkit_btn-secondary:active {
+  background-color: #d0dae7;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+.aipkit_btn-secondary:disabled,
+.aipkit_btn-secondary.aipkit_loading {
+  background-color: #e9edf1;
+  color: #a0aec0;
+  border-color: #e2e8f0;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Neutral low-emphasis action. */
+.aipkit_btn-neutral {
+  border-color: #d0d5dd;
+  background-color: #ffffff;
+  color: #344054;
+  box-shadow: none;
+}
+
+.aipkit_btn-neutral:hover:not(:disabled),
+.aipkit_btn-neutral:focus-visible:not(:disabled) {
+  border-color: #b8c0cc;
+  background-color: #f8fafc;
+  color: #182230;
+  box-shadow: none;
+}
+
+.aipkit_btn-neutral:active:not(:disabled) {
+  border-color: #aeb7c3;
+  background-color: #f2f4f7;
+}
+
+.aipkit_btn-neutral:disabled,
+.aipkit_btn-neutral.aipkit_loading {
+  border-color: #e4e7ec;
+  background-color: #f9fafb;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+/* Link-like button for low-emphasis inline actions that still perform UI state changes. */
+.aipkit_text_action {
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--aipkit_text-link, #3b6ca8);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.aipkit_text_action:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  color: var(--aipkit_brand-primary-dark, #294f86);
+  box-shadow: none;
+}
+
+.aipkit_text_action:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.16);
+}
+
+.aipkit_text_action:disabled {
+  color: var(--aipkit_text-secondary, #98a2b3);
+  cursor: not-allowed;
+}
+
+/* Button with icon */
+.aipkit_btn .dashicons,
+.aipkit_btn-icon .dashicons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 1;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+.wp-core-ui .aipkit_btn .dashicons,
+.wp-core-ui .aipkit_btn-icon .dashicons {
+  line-height: 1;
+  vertical-align: middle;
+}
+.aipkit_btn-icon .aipkit_btn-text + .dashicons, /* Icon after text */
+.aipkit_btn-icon .dashicons + .aipkit_btn-text {
+  /* Icon before text */
+  margin-left: var(--aipkit_spacing-xs, 4px); /* Consistent spacing */
+}
+/* If only icon, no extra margin */
+.aipkit_btn-icon .dashicons:only-child {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.aipkit_btn-danger {
+  background: var(--aipkit_btn-danger, #e53e3e);
+  color: #fff;
+  border-color: var(--aipkit_btn-danger, #e53e3e);
+}
+
+.aipkit_btn-danger:hover {
+  background: var(--aipkit_btn-danger-hover, #c53030);
+  border-color: var(--aipkit_btn-danger-hover, #c53030);
+  box-shadow: 0 1px 2px rgba(229, 62, 62, 0.1);
+}
+
+.aipkit_btn-danger:active {
+  background: var(--aipkit_btn-danger-hover, #c53030);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+.aipkit_btn-danger:disabled,
+.aipkit_btn-danger.aipkit_loading {
+  background-color: #f56565;
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* NEW: Smaller button variant for pagination, table actions etc. */
+.aipkit_btn-small {
+  height: 26px;
+  padding: 0 var(--aipkit_spacing-sm, 8px); /* Horizontal padding, vertical auto due to height */
+  font-size: var(--aipkit_font-size-label, 12px); /* Use label font size */
+}
+.aipkit_btn-small .dashicons {
+  font-size: 12px; /* Ensure icons in small buttons are also smaller */
+  width: 12px;
+  height: 12px;
+  line-height: 1;
+}
+
+/* Modern compact button for dense admin toolbars and inline actions. */
+.aipkit_btn-compact {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Icon-only button variant */
+.aipkit_icon_btn {
+  padding: var(--aipkit_spacing-xs, 4px);
+  min-width: auto;
+  width: var(--aipkit_button-height, 30px); /* Square button */
+  height: var(--aipkit_button-height, 30px);
+  line-height: 1;
+}
+.aipkit_icon_btn .dashicons {
+  margin: 0;
+  font-size: 16px; /* Slightly larger for icon-only */
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+}

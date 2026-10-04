@@ -1,0 +1,199 @@
+/*
+ * AIPKit Dashboard - Responsive
+ *
+ * Media queries and responsive adjustments
+ */
+
+/* ---- Responsive Adjustments ---- */
+@media (max-width: 900px) {
+  /* Tablet and smaller */
+
+  .aipkit_module-tabs_list {
+    flex-wrap: nowrap;
+  }
+
+  .aipkit_sub_container_header {
+    padding: var(--aipkit_spacing-sm, 10px) var(--aipkit_spacing-md, 12px);
+  }
+  .aipkit_sub_container_body {
+    padding: var(--aipkit_spacing-md, 12px);
+  }
+}
+
+/* Further adjustments for smaller screens if needed */
+@media (max-width: 600px) {
+  /* Mobile */
+  /* Main content top margin */
+  .aipkit_main-content,
+  .aipkit_module-workspace {
+    margin-top: 0;
+    padding: 14px 16px 0;
+  }
+
+  .aipkit_form-label {
+    font-size: var(--aipkit_font-size-help, 11px);
+  }
+  .aipkit_form-input {
+    font-size: var(--aipkit_font-size-base, 13px);
+    height: var(--aipkit_input-height, 30px); /* Keep consistent input height */
+    padding: var(--aipkit_spacing-xs, 5px) var(--aipkit_spacing-sm, 8px); /* Adjusted padding for input */
+  }
+  select.aipkit_form-input {
+    background-position: right var(--aipkit_spacing-sm, 8px) center; /* Adjusted */
+  }
+
+  .aipkit_btn {
+    font-size: var(--aipkit_font-size-label, 12px);
+    height: var(
+      --aipkit_button-height,
+      30px
+    ); /* Keep consistent button height */
+    padding: var(--aipkit_spacing-xs, 5px) var(--aipkit_spacing-sm, 10px); /* Adjusted padding for button */
+  }
+  .aipkit_btn .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px; /* Adjusted icon size */
+  }
+  .aipkit_btn-small {
+    font-size: var(--aipkit_font-size-help, 11px);
+    height: 26px; /* Slightly smaller */
+    padding: 0 var(--aipkit_spacing-sm, 8px);
+  }
+  .aipkit_btn-small .dashicons {
+    font-size: 12px;
+    width: 12px;
+    height: 12px;
+  }
+  .aipkit_icon_btn {
+    width: var(--aipkit_button-height, 30px);
+    height: var(--aipkit_button-height, 30px);
+  }
+  .aipkit_icon_btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Tables on mobile */
+  .aipkit_data-table th,
+  .aipkit_data-table td {
+    padding: var(--aipkit_spacing-xs, 6px) var(--aipkit_spacing-sm, 8px);
+    font-size: var(--aipkit_font-size-label, 12px);
+  }
+  .aipkit_data-table th {
+    font-size: var(--aipkit_font-size-help, 11px);
+  }
+  /* Accordions on mobile */
+  .aipkit_accordion-header {
+    padding: var(--aipkit_spacing-xs, 6px) var(--aipkit_spacing-sm, 10px);
+    font-size: var(--aipkit_font-size-base, 13px);
+  }
+  .aipkit_accordion-content.aipkit_active {
+    padding: var(--aipkit_spacing-sm, 10px);
+  }
+
+  /* Sub-container headers on mobile */
+  .aipkit_sub_container_header {
+    padding: var(--aipkit_spacing-sm, 8px) var(--aipkit_spacing-md, 12px);
+    min-height: 36px;
+  }
+  .aipkit_sub_container_title {
+    font-size: 14px;
+  }
+
+  /* Input with button on mobile */
+  .aipkit_input-with-button {
+    flex-wrap: wrap;
+    gap: var(--aipkit_spacing-xs, 5px);
+  }
+  .aipkit_input-with-button > .aipkit_form-input,
+  .aipkit_input-with-button > .aipkit_api-key-wrapper {
+    flex-basis: 100%;
+  }
+  .aipkit_input-with-button .aipkit_btn {
+    flex-basis: 100%;
+    max-width: 150px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button {
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button .aipkit_btn {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_provider_dropdown {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_form-input,
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_api-key-wrapper {
+    width: 100%;
+    max-width: 100%;
+    flex-basis: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_simple_row {
+    /* Optional Settings styles inherit the same responsive row policy. */
+    --aipkit-settings-row-columns: 1fr;
+    --aipkit-settings-row-gap: var(--aipkit_spacing-xs, 5px);
+    --aipkit-settings-row-padding: 9px 0;
+    grid-template-columns: var(--aipkit-settings-row-columns);
+    gap: var(--aipkit-settings-row-gap);
+    padding: var(--aipkit-settings-row-padding);
+  }
+
+  #aipkit_settings_container .aipkit_settings_page_nav_row {
+    overflow-x: auto;
+    overflow-y: hidden;
+    min-height: 0;
+    scrollbar-width: thin;
+  }
+
+  #aipkit_settings_container .aipkit_settings_page_nav {
+    flex-wrap: nowrap;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_page_nav_link {
+    flex: 0 0 auto;
+  }
+
+  #aipkit_settings_container #aipkit_settings_global_messages,
+  #aipkit_settings_container #aipkit_settings_messages,
+  #aipkit_settings_container #aipkit_settings_others_messages {
+    position: static;
+    top: auto;
+    right: auto;
+    text-align: left;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #aipkit_settings_container .aipkit_settings_simple_form .aipkit_form-label {
+    margin-top: 0;
+  }
+
+}

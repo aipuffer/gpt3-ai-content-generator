@@ -1,0 +1,420 @@
+/* AI Forms base styles. Preserve section order before attribution and themes. */
+
+/* Wrapper and inherited typography */
+.aipkit-ai-form-wrapper {
+  padding: 20px;
+  margin-bottom: 25px;
+}
+
+.aipkit-ai-form-wrapper h5.aipkit-ai-form-title {
+  margin-top: 0 !important;
+  margin-bottom: 15px;
+  font-size: 1.3em;
+  padding-bottom: 10px;
+}
+
+/* Ensure form controls inherit wrapper typography for consistency with admin */
+.aipkit-ai-form-wrapper :is(button, input, select, textarea) {
+  font: inherit;
+}
+
+/* Fields and choices */
+.aipkit-ai-form-main .aipkit_form-group {
+  margin-bottom: 15px;
+}
+.aipkit-ai-form-main .aipkit-form-column .aipkit_form-group:last-child {
+  margin-bottom: 0;
+}
+
+.aipkit-ai-form-main .aipkit_form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.95em;
+}
+
+.aipkit-ai-form-main .aipkit_form-input {
+  width: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  font-size: 0.95em;
+}
+
+.aipkit-ai-form-main input.aipkit_form-input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+.aipkit-ai-form-main select.aipkit_form-input {
+  height: var(--aipkit-ai-form-control-height, 46px);
+  min-height: var(--aipkit-ai-form-control-height, 46px);
+  line-height: 1.35;
+}
+
+.aipkit-ai-form-main .aipkit_form-input:focus {
+  outline: none;
+}
+
+.aipkit-ai-form-main textarea.aipkit_form-input {
+  min-height: 100px;
+  line-height: 1.5;
+}
+
+.aipkit-ai-form-main .aipkit_form-help {
+  margin-top: 6px;
+  font-size: 0.85em;
+  opacity: 0.8;
+  line-height: 1.4;
+  /* Color will be inherited from theme */
+}
+
+/* Provider and model controls */
+.aipkit-ai-form-config-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.aipkit-ai-form-config-container .aipkit_form-group {
+  flex: 1 1 200px; /* Allow items to grow and shrink, with a base size */
+  margin-bottom: 0; /* Remove bottom margin as gap is used */
+}
+
+.aipkit-ai-form-main .aipkit_hr {
+  border: none;
+  border-top: 1px solid #e0e0e0; /* Default light border */
+  margin: 20px 0;
+}
+.aipkit-theme-dark .aipkit_hr {
+  border-top-color: #4b5563; /* Darker border for dark theme */
+}
+
+/* Styling for radio button groups */
+.aipkit-ai-form-main .aipkit-radio-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+  margin-bottom: 15px;
+}
+.aipkit-ai-form-main .aipkit-radio-group .aipkit_form-label {
+  /* The legend element */
+  margin-bottom: 8px;
+}
+.aipkit-ai-form-main .aipkit-radio-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.aipkit-ai-form-main .aipkit-radio-item input[type="radio"] {
+  margin-right: 8px;
+}
+.aipkit-ai-form-main .aipkit-radio-item label {
+  font-weight: normal;
+}
+
+/* Checkbox groups */
+.aipkit-ai-form-main .aipkit-checkbox-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+  margin-bottom: 15px;
+}
+.aipkit-ai-form-main .aipkit-checkbox-group .aipkit_form-label {
+  margin-bottom: 8px;
+}
+.aipkit-ai-form-main .aipkit-checkbox-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.aipkit-ai-form-main .aipkit-checkbox-item input[type="checkbox"] {
+  margin-right: 8px;
+}
+.aipkit-ai-form-main .aipkit-checkbox-item label {
+  font-weight: normal;
+}
+
+/* Action buttons and spinner */
+.aipkit-ai-form-main .aipkit_btn,
+.aipkit-ai-form-results-footer-actions .aipkit_btn,
+.aipkit-ai-form-quota-actions .aipkit_btn {
+  padding: 10px 18px;
+  font-size: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center; /* Center content */
+  white-space: nowrap;
+}
+
+.aipkit-ai-form-main .aipkit_btn .aipkit_spinner,
+.aipkit-ai-form-results-footer-actions .aipkit_btn .aipkit_spinner,
+.aipkit-ai-form-quota-actions .aipkit_btn .aipkit_spinner {
+  width: 16px;
+  height: 16px;
+}
+
+/* Shared form spinner */
+@keyframes aipkit_spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Results and generated content */
+.aipkit-ai-form-results {
+  position: relative; /* For positioning copy button */
+  margin-top: 20px;
+  min-height: 60px;
+  font-size: 0.95em;
+  line-height: 1.6;
+  display: none; /* Initially hide the results container */
+}
+
+.aipkit-ai-form-results--quota {
+  min-height: 0;
+}
+
+.aipkit-ai-form-error {
+  padding: 12px 15px;
+  color: #b91c1c;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.9em;
+}
+
+.aipkit-ai-form-quota-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.aipkit-ai-form-quota-message {
+  font-size: 0.95em;
+  line-height: 1.6;
+}
+
+.aipkit-ai-form-quota-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.aipkit-ai-form-quota-action {
+  text-decoration: none !important;
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark .aipkit-ai-form-error {
+  border-top-color: #4b5563;
+}
+
+/* --- Top-right actions (like copy) --- */
+.aipkit-ai-form-results-top-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 5px;
+  z-index: 5; /* Ensure above content */
+}
+
+/* Result content spacing */
+.aipkit-ai-form-results-content {
+  padding: 15px; /* Base padding for top, bottom, left */
+  padding-right: 40px; /* Extra padding on the right to avoid overlap with the copy button */
+}
+
+.aipkit-ai-form-results-attribution {
+  padding: 0 15px 15px;
+}
+
+.aipkit-ai-form-results-attribution:empty {
+  display: none;
+}
+
+.aipkit-ai-form-results-attribution .aipkit_grounding_widget:first-child,
+.aipkit-ai-form-results-attribution .aipkit_citations_widget:first-child {
+  margin-top: 0;
+}
+
+/* --- Footer actions (like save) --- */
+.aipkit-ai-form-results-footer-actions {
+  margin-top: 15px; /* Space above the button */
+  padding: 15px; /* Add padding to the footer for consistency */
+  border-top: 1px solid #e0e0e0; /* Separator line */
+  text-align: right; /* Align button to the right */
+  display: flex; /* Use flexbox for alignment */
+  justify-content: flex-end; /* Align items to the end (right) */
+  gap: 10px; /* Space between buttons */
+}
+
+/* Hide footer if it's empty */
+.aipkit-ai-form-results-footer-actions:empty {
+  display: none;
+}
+
+/* --- Shared styles for buttons inside actions --- */
+.aipkit-ai-form-results-top-actions .aipkit-copy-results-btn,
+.aipkit-ai-form-results-footer-actions .aipkit_btn {
+  display: none; /* Hidden by default, shown by JS */
+}
+
+.aipkit-ai-form-wrapper.aipkit-theme-dark
+  .aipkit-ai-form-results-footer-actions {
+  border-top-color: #4b5563; /* Darker line for dark theme */
+}
+
+/* Copy Button Styles */
+.aipkit-ai-form-results .aipkit-copy-results-btn {
+  position: static; /* Remove absolute positioning */
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.aipkit-ai-form-results .aipkit-copy-results-btn .dashicons,
+.aipkit-ai-form-results .aipkit-copy-results-btn .aipkit-copy-results-icon {
+  display: block;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit-ai-form-results .aipkit-copy-results-btn .aipkit-copy-success-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit-ai-form-results-footer-actions
+  .aipkit-copy-results-footer-btn--copied {
+  cursor: default;
+}
+
+.aipkit-ai-form-results-footer-actions
+  .aipkit-copy-results-footer-btn--copied
+  .aipkit-copy-success-svg {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Reset and base styles for generated content inside the results area */
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content * {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  vertical-align: baseline;
+  box-sizing: border-box;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content :is(p, ul, ol, blockquote, pre, table) {
+  margin-bottom: 1em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h1 {
+  font-size: 1.8em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h2 {
+  font-size: 1.5em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h3 {
+  font-size: 1.25em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h4 {
+  font-size: 1.1em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h5 {
+  font-size: 1em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content h6 {
+  font-size: 0.9em;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content :is(p, h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0 !important;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content p:last-child {
+  margin-bottom: 0;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content :is(ul, ol) {
+  padding-left: 1.5em;
+  list-style-position: outside;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content ul {
+  list-style-type: disc;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content ol {
+  list-style-type: decimal;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content li {
+  margin-bottom: 0.25em;
+  display: list-item;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content a {
+  text-decoration: underline;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content hr,
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content .aipkit-ai-form-stream-rule {
+  display: block;
+  width: 100%;
+  height: 0;
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.18;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content :is(th, td) {
+  border: 1px solid; /* Color will be inherited from theme files */
+  padding: 8px 10px;
+  text-align: left;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content th {
+  font-weight: 700;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content code {
+  font-family: monospace;
+  padding: 2px 4px;
+  font-size: 90%;
+  border-radius: 3px;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content pre {
+  padding: 1em;
+  overflow: auto;
+  border-radius: 4px;
+}
+.aipkit-ai-form-wrapper .aipkit-ai-form-results-content pre code {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+}
+
+/* Rows and columns */
+.aipkit-ai-form-main .aipkit-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  /* Negative margin trick for column gutters */
+  margin-left: -7.5px;
+  margin-right: -7.5px;
+  /* Vertical spacing between rows */
+  margin-bottom: 15px;
+}
+.aipkit-ai-form-main .aipkit-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.aipkit-ai-form-main .aipkit-form-column {
+  flex-grow: 1;
+  flex-shrink: 1;
+  /* Add padding for gutters, which works with inline flex-basis */
+  box-sizing: border-box;
+  padding-left: 7.5px;
+  padding-right: 7.5px;
+  /* flex-basis is set via inline style on the element */
+}

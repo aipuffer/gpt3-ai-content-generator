@@ -1,0 +1,364 @@
+/**
+ * AIPKit Public Chat - Header Base Styles
+ */
+
+.aipkit_chat_header {
+  display: flex;
+  align-items: center;
+  /* Use start + auto margin instead of space-between to avoid
+     layout issues when pseudo-elements or empty groups are present */
+  justify-content: flex-start;
+  padding: 0 var(--aipkit-chat-shell-padding-x, 16px);
+  border-bottom: 1px solid
+    var(
+      --aipkit-chat-header-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  background-color: var(
+    --aipkit-chat-header-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  flex-shrink: 0;
+  height: 64px;
+  min-height: 64px;
+  box-sizing: border-box;
+  position: relative; /* Ensure z-index works if needed */
+  z-index: 2; /* Keep header above messages */
+  color: var(
+    --aipkit-chat-header-text-color,
+    var(--aipkit_text-secondary)
+  ); /* Default text/icon color */
+}
+
+/* Prevent theme/framework clearfix pseudo-elements from becoming flex items */
+.aipkit_chat_header::before,
+.aipkit_chat_header::after {
+  content: none !important;
+  display: none !important;
+}
+
+.aipkit_header_info {
+  display: flex;
+  align-items: center;
+  flex-shrink: 1;
+  gap: var(--aipkit-chat-stack-gap-md, 12px);
+  min-width: 0; /* Prevent overflow */
+}
+
+.aipkit_header_identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.aipkit_header_avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(
+    --aipkit-chat-bot-avatar-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  border: none;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.aipkit_header_avatar_img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.aipkit_header_avatar_icon {
+  color: var(
+    --aipkit-chat-bot-avatar-icon-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.aipkit_header_avatar_icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.aipkit_header_meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.aipkit_header_name {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--aipkit-chat-header-title-color, #111111);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aipkit_header_status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.aipkit_header_status_dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aipkit-chat-header-status-dot-color, #10b981);
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.aipkit_header_status_text {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(
+    --aipkit-chat-header-status-text-color,
+    var(--aipkit-chat-header-text-color, #6b6b6b)
+  );
+}
+
+/* Stabilize sidebar toggle color on focus/active/expanded (avoid theme overrides) */
+
+/* If the toggle stays focused after click, still allow visible hover feedback. */
+
+/* Extend safeguard to other header buttons to avoid theme tinting */
+.aipkit_chat_container .aipkit_fullscreen_btn:focus,
+.aipkit_chat_container .aipkit_fullscreen_btn:focus-visible,
+.aipkit_chat_container .aipkit_fullscreen_btn:active,
+.aipkit_chat_container .aipkit_download_btn:focus,
+.aipkit_chat_container .aipkit_download_btn:focus-visible,
+.aipkit_chat_container .aipkit_download_btn:active {
+  color: inherit !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  filter: none !important;
+}
+
+.aipkit_header_actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+  flex-shrink: 0;
+  /* Push actions to the far right regardless of extra flex items */
+  margin-left: auto;
+  margin-inline-start: auto; /* RTL-aware */
+}
+
+.aipkit_header_drag_zone {
+  display: none;
+}
+
+.aipkit_popup_content .aipkit_header_drag_zone {
+  display: block;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 16px;
+}
+
+@media (min-width: 768px) {
+  .aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open:not(
+      .aipkit-fullscreen-wrapper
+    )
+    .aipkit_header_drag_zone {
+    cursor: grab;
+  }
+
+  .aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-dragging
+    .aipkit_header_drag_zone {
+    cursor: grabbing;
+  }
+}
+
+.aipkit_header_btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit; /* Inherit color from header */
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+
+/* Shield header buttons from theme button styles (e.g., Elementor). */
+.aipkit_chat_container .aipkit_header_btn {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: none;
+}
+.aipkit_chat_container .aipkit_header_btn:hover {
+  background-color: transparent;
+  color: inherit;
+  border-radius: 50%;
+  opacity: 1;
+}
+.aipkit_chat_container .aipkit_header_btn:focus {
+  outline: none;
+  box-shadow: none;
+  border-radius: 50%;
+}
+.aipkit_chat_container .aipkit_header_btn:active {
+  border-radius: 50%;
+}
+.aipkit_header_btn svg {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.aipkit_popup_close_btn {
+  display: none;
+}
+
+.aipkit_popup_wrapper.aipkit-popup-standard.aipkit-popup-open
+  .aipkit_popup_close_btn {
+  display: inline-flex;
+}
+
+/**
+ * AIPKit Public Chat - Footer Base Styles
+ */
+
+.aipkit_chat_footer {
+  width: 100%;
+  padding: var(--aipkit-chat-shell-padding-compact-y, 8px)
+    var(--aipkit-chat-shell-padding-x, 16px);
+  font-size: 11px;
+  color: var(--aipkit-chat-footer-text-color, var(--aipkit_text-secondary));
+  text-align: center;
+  border-top: 1px solid
+    var(
+      --aipkit-chat-footer-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  background-color: var(
+    --aipkit-chat-footer-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  flex-shrink: 0;
+  height: auto;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  position: relative;
+  z-index: 1;
+}
+
+/**
+ * AIPKit Public Chat - Download Dropdown Styles
+ */
+
+.aipkit_download_wrapper {
+  position: relative;
+}
+.aipkit_download_menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  background-color: var(
+    --aipkit-chat-action-menu-bg-color,
+    var(--aipkit_bg-secondary, #fff)
+  );
+  border: 1px solid
+    var(
+      --aipkit-chat-action-menu-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  border-radius: 4px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  min-width: 120px;
+  padding: 4px;
+  animation: aipkit_fadeInDown 0.2s ease-out;
+}
+.aipkit_download_menu.aipkit_active {
+  display: block;
+}
+.aipkit_chat_container .aipkit_download_menu_item {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  line-height: 1.2;
+  color: var(
+    --aipkit-chat-action-menu-item-text-color,
+    var(--aipkit_text-primary)
+  );
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 3px;
+  transition: background-color 0.15s ease-in-out;
+  white-space: nowrap;
+}
+.aipkit_chat_container .aipkit_download_menu_item:hover,
+.aipkit_chat_container .aipkit_download_menu_item:active {
+  background-color: var(
+    --aipkit-chat-action-menu-item-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  color: var(
+    --aipkit-chat-action-menu-item-hover-text-color,
+    var(--aipkit_brand-primary)
+  );
+  border-radius: 3px;
+}
+.aipkit_chat_container .aipkit_download_menu_item:focus-visible {
+  background-color: var(
+    --aipkit-chat-action-menu-item-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  outline: none;
+  box-shadow: none;
+}
+@keyframes aipkit_fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,197 @@
+/* Chatbot message actions: layout, copy, feedback and speech button states. */
+
+/*
+ * Apply relative positioning and bottom padding ONLY to bot messages
+ * that are NOT the initial greeting or typing indicators, to reserve space
+ * for the action buttons container without causing layout shifts.
+ */
+
+.aipkit_chat_message-bot.aipkit_has_message_actions:not(.aipkit_initial_greeting):not(
+    .aipkit_typing-indicator
+  ) {
+  position: relative;
+  padding-bottom: 38px;
+}
+
+/* Container for actions *inside* the message element */
+
+.aipkit_chat_message .aipkit_message_actions {
+  position: absolute;
+  bottom: 2px;
+  padding: 0;
+  left: 0;
+  right: auto;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 32px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.aipkit_chat_message-bot .aipkit_message_actions {
+  justify-content: flex-start;
+  left: 0;
+  padding: 0;
+}
+
+.aipkit_chat_message-user .aipkit_message_actions {
+  justify-content: flex-end;
+  left: auto;
+  right: 0;
+}
+
+.aipkit_chat_container .aipkit_message_action_group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+}
+
+.aipkit_chat_container
+  .aipkit_message_action_group--utility
+  + .aipkit_message_action_group--feedback {
+  margin-left: 13px;
+}
+
+.aipkit_chat_container
+  .aipkit_message_action_group--utility
+  + .aipkit_message_action_group--feedback::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -7px;
+  width: 1px;
+  height: 16px;
+  background-color: var(
+    --aipkit-chat-action-divider-color,
+    var(--aipkit-chat-border-color, #e7e8ec)
+  );
+  transform: translateY(-50%);
+}
+
+/* Reveal actions for pointer hover and keyboard focus. */
+
+.aipkit_chat_message-bot.aipkit_has_message_actions:not(.aipkit_initial_greeting):not(
+    .aipkit_typing-indicator
+  ):not(.aipkit_message_streaming):hover
+  .aipkit_message_actions,
+.aipkit_chat_message-bot.aipkit_has_message_actions:not(.aipkit_initial_greeting):not(
+    .aipkit_typing-indicator
+  ):focus-within
+  .aipkit_message_actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* General button style within actions container */
+
+.aipkit_chat_container .aipkit_message_actions .aipkit_action_btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary));
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+  line-height: 1;
+  flex-shrink: 0;
+  position: relative;
+  pointer-events: auto;
+}
+
+.aipkit_chat_container
+  .aipkit_message_actions
+  .aipkit_action_btn:hover:not(.aipkit_feedback_selected):not(:disabled),
+.aipkit_chat_container
+  .aipkit_message_actions
+  .aipkit_action_btn:active:not(.aipkit_feedback_selected):not(:disabled) {
+  background-color: var(
+    --aipkit-chat-action-button-hover-bg-color,
+    var(--aipkit_menu-hover)
+  );
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+  border-radius: 50%;
+}
+
+.aipkit_chat_container .aipkit_message_actions .aipkit_action_btn:focus,
+.aipkit_chat_container .aipkit_message_actions .aipkit_action_btn:active {
+  outline: none;
+  box-shadow: none;
+  border-radius: 50%;
+}
+
+.aipkit_message_actions .aipkit_action_btn svg {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  line-height: 1;
+  transition: transform 0.2s ease-out, color 0.2s ease-out,
+    opacity 0.2s ease-out;
+}
+
+.aipkit_chat_container .aipkit_message_actions .aipkit_action_btn:disabled {
+  cursor: wait;
+  opacity: var(--aipkit-chat-action-button-disabled-opacity, 0.55);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .aipkit_chat_message-bot.aipkit_has_message_actions:not(.aipkit_initial_greeting):not(
+      .aipkit_typing-indicator
+    ):not(.aipkit_message_streaming)
+    .aipkit_message_actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.aipkit_feedback_btn.aipkit_feedback_selected {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.aipkit_message_actions.aipkit_feedback_pending .aipkit_feedback_btn {
+  cursor: wait;
+}
+
+.aipkit_play_btn.aipkit_loading svg {
+  display: none;
+}
+
+.aipkit_play_btn.aipkit_loading::after {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid
+    var(--aipkit-chat-action-button-color, var(--aipkit_text-secondary));
+  border-top-color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+  border-radius: 50%;
+  animation: aipkit_spin 1s linear infinite;
+  box-sizing: border-box;
+}
+
+.aipkit_play_btn.aipkit_playing svg {
+  fill: currentColor;
+}
+
+.aipkit_play_btn.aipkit_error svg {
+  color: var(
+    --aipkit-chat-action-button-hover-color,
+    var(--aipkit_text-primary)
+  );
+}

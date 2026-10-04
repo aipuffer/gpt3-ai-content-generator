@@ -1,0 +1,16 @@
+/* Canonical brand asset shared by provider pickers and Content Assistant. */
+.aipkit_settings_select_picker_icon.aipkit_settings_select_picker_icon--aipuffercloud,
+.aipkit_unified_model_logo.aipkit_settings_select_picker_icon--aipuffercloud,
+.aipkit_assistant_symbol,
+.mce-aipkit-tinymce-assistant-button > button::before,
+#aipkit_bulk_enhance_btn::before {
+  background-image: url("../../../public/images/icon.svg");
+}
+
+.aipkit_assistant_symbol,
+.mce-aipkit-tinymce-assistant-button > button::before,
+#aipkit_bulk_enhance_btn::before {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}

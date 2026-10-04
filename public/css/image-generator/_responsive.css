@@ -1,0 +1,64 @@
+@media (max-width: 640px) {
+  .aipkit_image_generator_public_wrapper .aipkit_shortcode_body {
+    gap: var(--aipkit-image-space-4);
+  }
+
+  .aipkit_image_result_shell {
+    border-radius: 12px;
+  }
+
+  .aipkit_image_composer_pill {
+    gap: var(--aipkit-image-space-1);
+    padding: var(--aipkit-image-space-2);
+  }
+
+  .aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea {
+    min-width: 52px;
+  }
+
+  .aipkit_image_generator_model_control {
+    max-width: min(38vw, 180px);
+  }
+
+  .aipkit_image_generator_model_picker .aipkit_unified_model_trigger {
+    padding-inline: var(--aipkit-image-space-2);
+  }
+
+}
+
+@media (max-width: 420px) {
+  .aipkit_image_generator_model_control {
+    max-width: min(34vw, 140px);
+  }
+
+  .aipkit_image_generator_model_picker .aipkit_unified_model_logo,
+  .aipkit_image_generator_single_model .aipkit_unified_model_logo {
+    display: none;
+  }
+
+  .aipkit_image_generator_model_picker--provider-hidden
+    .aipkit_unified_model_trigger::before,
+  .aipkit_image_generator_model_picker--model-hidden
+    .aipkit_unified_model_trigger::before {
+    display: none;
+  }
+
+}
+
+@media (hover: none), (pointer: coarse) {
+  .aipkit-image-history-more-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_image_generator_public_wrapper *,
+  .aipkit_image_generator_public_wrapper *::before,
+  .aipkit_image_generator_public_wrapper *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

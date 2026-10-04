@@ -1,0 +1,559 @@
+.aipkit_shortcode_container.aipkit_image_generator_public_wrapper {
+  --aipkit-image-surface: #ffffff;
+  --aipkit-image-surface-subtle: #f7f8fa;
+  --aipkit-image-surface-raised: #ffffff;
+  --aipkit-image-border: #dfe4eb;
+  --aipkit-image-border-strong: #cbd3de;
+  --aipkit-image-text: #1b2430;
+  --aipkit-image-muted: #697586;
+  --aipkit-image-faint: #98a2b3;
+  --aipkit-image-accent: #3b5bdb;
+  --aipkit-image-accent-hover: #3151c6;
+  --aipkit-image-accent-text: #ffffff;
+  --aipkit-image-model-hover: #f2f5f9;
+  --aipkit-image-focus: rgba(59, 91, 219, 0.18);
+  --aipkit-image-danger: #b42318;
+  --aipkit-image-danger-soft: #fff4f2;
+  --aipkit-image-info: #365a82;
+  --aipkit-image-info-soft: #f0f5fa;
+  --aipkit-image-shadow: 0 10px 32px rgba(15, 23, 42, 0.07);
+  --aipkit-image-font-system: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", Arial,
+    sans-serif;
+  --aipkit-image-type-heading: 16px;
+  --aipkit-image-type-body: 14px;
+  --aipkit-image-type-control: 13px;
+  --aipkit-image-type-secondary: 12px;
+  --aipkit-image-type-micro: 11px;
+  --aipkit-image-leading-body: 1.4;
+  --aipkit-image-leading-compact: 1.3;
+  --aipkit-image-space-1: 4px;
+  --aipkit-image-space-2: 8px;
+  --aipkit-image-space-3: 12px;
+  --aipkit-image-space-4: 16px;
+  width: 100%;
+  margin: 0;
+  color: var(--aipkit-image-text);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+.aipkit_shortcode_container.aipkit_image_generator_public_wrapper.aipkit-font-system {
+  font-family: var(--aipkit-image-font-system);
+}
+
+.aipkit_image_generator_public_wrapper,
+.aipkit_image_generator_public_wrapper *,
+.aipkit_image_generator_public_wrapper *::before,
+.aipkit_image_generator_public_wrapper *::after,
+.aipkit_image_generator_model_popover,
+.aipkit_image_generator_model_popover *,
+.aipkit_image_generator_model_popover *::before,
+.aipkit_image_generator_model_popover *::after {
+  box-sizing: border-box;
+}
+
+.aipkit_image_generator_public_wrapper button,
+.aipkit_image_generator_public_wrapper input,
+.aipkit_image_generator_public_wrapper textarea,
+.aipkit_image_generator_public_wrapper select,
+.aipkit_image_generator_model_popover button,
+.aipkit_image_generator_model_popover input,
+.aipkit_image_generator_model_popover select {
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Keep pointer focus clean when host themes style every focused button. */
+.aipkit_image_generator_public_wrapper button:focus:not(:focus-visible),
+.aipkit_image_generator_model_popover button:focus:not(:focus-visible) {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Keep outline icons intact when a site theme globally fills SVG elements. */
+.aipkit_image_generator_public_wrapper svg[fill="none"],
+.aipkit_image_generator_model_popover svg[fill="none"] {
+  fill: none !important;
+}
+
+.aipkit_image_generator_public_wrapper svg[stroke="currentColor"],
+.aipkit_image_generator_model_popover svg[stroke="currentColor"] {
+  stroke: currentColor !important;
+}
+
+.aipkit_image_generator_public_wrapper [hidden] {
+  display: none !important;
+}
+
+.aipkit_image_generator_public_wrapper .aipkit_shortcode_body {
+  display: grid;
+  gap: var(--aipkit-image-space-4);
+  padding: 0;
+}
+
+.aipkit_image_generator_sr_only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(100%) !important;
+  white-space: nowrap !important;
+}
+
+.aipkit_image_generator_input_bar {
+  position: relative;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.aipkit_image_generator_composer {
+  display: grid;
+  gap: var(--aipkit-image-space-2);
+  min-width: 0;
+}
+
+.aipkit_image_composer_pill {
+  display: flex;
+  align-items: center;
+  gap: var(--aipkit-image-space-1);
+  min-height: 48px;
+  min-width: 0;
+  padding: var(--aipkit-image-space-2);
+  border: 0;
+  border-radius: 26px;
+  background: var(--aipkit-image-surface-subtle);
+  box-shadow: none;
+  transition: border-radius 160ms ease, box-shadow 160ms ease;
+}
+
+.aipkit_image_composer_pill.is-expanded {
+  align-items: flex-end;
+  border-radius: 20px;
+}
+
+.aipkit_image_composer_pill:focus-within {
+  box-shadow: 0 0 0 2px var(--aipkit-image-focus);
+}
+
+.aipkit_image_composer_pill.has-attachment-error {
+  box-shadow: 0 0 0 1px var(--aipkit-image-danger);
+}
+
+.aipkit_image_composer_pill.has-attachment-error:focus-within {
+  box-shadow:
+    0 0 0 1px var(--aipkit-image-danger),
+    0 0 0 3px var(--aipkit-image-focus);
+}
+
+.aipkit_image_edit_source_input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(100%) !important;
+  white-space: nowrap !important;
+}
+
+.aipkit_image_composer_attach,
+.aipkit_image_attachment_remove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--aipkit-image-muted);
+  box-shadow: none;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.aipkit_image_composer_attach {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+}
+
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_composer_attach:focus:not(:focus-visible),
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_attachment_remove:focus:not(:focus-visible) {
+  background: transparent !important;
+  color: var(--aipkit-image-muted) !important;
+}
+
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_composer_attach:hover:not(:disabled),
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_composer_attach:active:not(:disabled),
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_composer_attach:focus-visible,
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_attachment_remove:hover,
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_attachment_remove:active,
+.aipkit_image_generator_public_wrapper
+  button.aipkit_image_attachment_remove:focus-visible {
+  background: color-mix(
+    in srgb,
+    var(--aipkit-image-text) 8%,
+    transparent
+  ) !important;
+  color: var(--aipkit-image-text) !important;
+}
+
+.aipkit_image_composer_attach:focus-visible,
+.aipkit_image_attachment_remove:focus-visible {
+  outline: 2px solid var(--aipkit-image-accent);
+  outline-offset: 1px;
+}
+
+.aipkit_image_composer_attach:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.aipkit_image_composer_attach_icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea {
+  appearance: none;
+  display: block;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 72px;
+  min-height: 20px;
+  max-height: 120px;
+  margin: 0;
+  padding: 0 var(--aipkit-image-space-1);
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--aipkit-image-text);
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--aipkit-image-type-body);
+  font-weight: 400;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  resize: none;
+}
+
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea:placeholder-shown {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea:hover {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/*
+ * Host themes commonly add !important focus styles to form controls. Keep the
+ * textarea visually neutral because the composer pill provides the focus ring.
+ */
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea:focus,
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea:focus-visible {
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.aipkit_image_generator_public_wrapper textarea.aipkit_image_prompt_textarea::placeholder {
+  color: var(--aipkit-image-faint);
+  opacity: 1;
+}
+
+.aipkit_image_attachment_chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aipkit-image-space-2);
+  width: fit-content;
+  max-width: min(100%, 300px);
+  min-height: 36px;
+  padding: var(--aipkit-image-space-1);
+  border: 1px solid var(--aipkit-image-border);
+  border-radius: 10px;
+  background: var(--aipkit-image-surface-subtle);
+  color: var(--aipkit-image-text);
+  font-size: var(--aipkit-image-type-secondary);
+  line-height: var(--aipkit-image-leading-compact);
+}
+
+.aipkit_image_attachment_thumbnail {
+  display: block;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--aipkit-image-surface-subtle);
+  object-fit: cover;
+}
+
+.aipkit_image_attachment_name {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aipkit_image_attachment_remove {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border-radius: 50%;
+}
+
+.aipkit_image_attachment_remove svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.aipkit_image_edit_upload_feedback,
+.aipkit_image_generator_edit_mode_notice {
+  display: block;
+  color: var(--aipkit-image-danger);
+  font-size: var(--aipkit-image-type-micro);
+  line-height: var(--aipkit-image-leading-body);
+}
+
+.aipkit_image_edit_upload_feedback {
+  padding-inline: var(--aipkit-image-space-3);
+}
+
+.aipkit_image_generator_edit_mode_notice {
+  margin: 0;
+  padding: var(--aipkit-image-space-2) var(--aipkit-image-space-3);
+  border-radius: 8px;
+  background: var(--aipkit-image-danger-soft);
+}
+
+.aipkit_image_generator_model_control {
+  min-width: 0;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: min(42vw, 220px);
+}
+
+.aipkit_image_generator_model_picker {
+  width: auto;
+  max-width: 100%;
+}
+
+.aipkit_image_generator_model_picker[hidden],
+.aipkit_image_generator_single_model[hidden] {
+  display: none !important;
+}
+
+.aipkit_image_generator_single_model {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aipkit-image-space-2);
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--aipkit-image-space-2);
+  color: var(--aipkit-image-text);
+  font-size: var(--aipkit-image-type-control);
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.aipkit_image_generator_single_model_name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aipkit_image_generator_model_picker .aipkit_unified_model_trigger {
+  width: auto;
+  max-width: 100%;
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 var(--aipkit-image-space-2);
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--aipkit-image-text);
+  box-shadow: none;
+  font-size: var(--aipkit-image-type-control);
+  font-weight: 500;
+  line-height: 16px;
+  transition: background-color 140ms ease, color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.aipkit_image_generator_model_picker .aipkit_unified_model_name {
+  flex: 0 1 auto;
+}
+
+.aipkit_image_generator_model_picker .aipkit_unified_model_trigger::after {
+  margin-left: var(--aipkit-image-space-1);
+}
+
+.aipkit_image_generator_model_picker .aipkit_unified_model_trigger:hover {
+  border: 0;
+  background: var(--aipkit-image-model-hover);
+}
+
+.aipkit_image_generator_model_picker .aipkit_unified_model_trigger:focus-visible,
+.aipkit_image_generator_model_picker.is-open .aipkit_unified_model_trigger {
+  border: 0;
+  outline: 0;
+  background: var(--aipkit-image-model-hover);
+  box-shadow: inset 0 0 0 2px var(--aipkit-image-focus);
+}
+
+.aipkit_image_generator_model_picker--provider-hidden
+  .aipkit_unified_model_trigger::before {
+  content: attr(data-aipkit-model-context-label);
+  flex: 0 0 auto;
+  color: var(--aipkit-image-faint);
+  font-size: var(--aipkit-image-type-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aipkit_image_generator_model_picker--model-hidden
+  .aipkit_unified_model_trigger::before {
+  content: attr(data-aipkit-model-context-label);
+  flex: 0 0 auto;
+  color: var(--aipkit-image-faint);
+  font-size: var(--aipkit-image-type-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aipkit_image_generator_model_popover {
+  --aipkit-image-surface: #ffffff;
+  --aipkit-image-surface-subtle: #f7f8fa;
+  --aipkit-image-surface-raised: #ffffff;
+  --aipkit-image-border: #dfe4eb;
+  --aipkit-image-border-strong: #cbd3de;
+  --aipkit-image-text: #1b2430;
+  --aipkit-image-muted: #697586;
+  --aipkit-image-faint: #98a2b3;
+  --aipkit-image-accent: #3b5bdb;
+  --aipkit_brand-primary: var(--aipkit-image-accent, #3b5bdb);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.aipkit_image_generator_model_popover.aipkit-font-system {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+}
+
+.aipkit_image_generator_model_popover .aipkit_unified_model_panel {
+  max-width: 100%;
+}
+
+.aipkit_image_generator_model_popover--provider-hidden
+  .aipkit_unified_model_body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aipkit_image_generator_model_popover--single-provider
+  .aipkit_unified_model_body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aipkit_image_generator_model_popover--provider-hidden
+  .aipkit_unified_model_providers {
+  display: none;
+}
+
+.aipkit_image_generator_model_popover--single-provider
+  .aipkit_unified_model_providers {
+  display: none;
+}
+
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_body {
+  grid-template-columns: minmax(0, 1fr);
+  height: auto;
+  min-height: 0;
+}
+
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_search_bar {
+  display: none;
+}
+
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_providers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aipkit-image-space-1, 4px);
+  padding: var(--aipkit-image-space-2, 8px);
+  border: 0;
+  background: var(--aipkit-image-surface-raised, #fff);
+}
+
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_provider--all,
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_provider--favorites,
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_results {
+  display: none;
+}
+
+.aipkit_image_generator_model_popover--model-hidden
+  .aipkit_unified_model_provider {
+  margin: 0;
+}
+
+.aipkit_image_generator_model_popover .aipkit_unified_model_footer {
+  justify-content: flex-start;
+}
+
+.aipkit_image_generator_model_popover .aipkit_unified_model_summary {
+  margin-left: auto;
+}

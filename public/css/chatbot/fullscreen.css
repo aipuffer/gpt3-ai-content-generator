@@ -1,0 +1,274 @@
+/*
+ * AIPKit Public Chat - Fullscreen Mode Styles
+ */
+
+/* Fullscreen state class applied to the main container */
+/* MODIFIED: Increased z-index and made position !important to break out of stacking contexts */
+.aipkit_chat_container.aipkit-fullscreen {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  z-index: 999999 !important; /* Increased z-index and made important to win conflicts with theme headers */
+  box-shadow: none !important;
+  border: none !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  transition: none !important;
+  --aipkit-chat-fullscreen-content-max-width: 80rem;
+  --aipkit-chat-fullscreen-content-padding-x: clamp(8px, 2.5vw, 16px);
+  --aipkit-fullscreen-expand-duration: 280ms;
+  --aipkit-fullscreen-restore-duration: 220ms;
+  --aipkit-fullscreen-expand-easing: cubic-bezier(0.16, 1, 0.3, 1);
+  --aipkit-fullscreen-restore-easing: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Fullscreen is edge-to-edge, so the normal body-only shell frame is absent. */
+.aipkit_chat_container.aipkit-fullscreen::after {
+  display: none;
+}
+
+/*
+ * Fullscreen reflows at its real intermediate size. This avoids visually
+ * stretching bubbles and the composer, which a transform scale would do.
+ */
+.aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-transitioning {
+  transition: top var(--aipkit-fullscreen-motion-duration)
+      var(--aipkit-fullscreen-motion-easing),
+    left var(--aipkit-fullscreen-motion-duration)
+      var(--aipkit-fullscreen-motion-easing),
+    width var(--aipkit-fullscreen-motion-duration)
+      var(--aipkit-fullscreen-motion-easing),
+    height var(--aipkit-fullscreen-motion-duration)
+      var(--aipkit-fullscreen-motion-easing),
+    border-radius var(--aipkit-fullscreen-motion-duration)
+      var(--aipkit-fullscreen-motion-easing) !important;
+  will-change: top, left, width, height, border-radius;
+}
+
+.aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-entering {
+  --aipkit-fullscreen-motion-duration: var(
+    --aipkit-fullscreen-expand-duration,
+    280ms
+  );
+  --aipkit-fullscreen-motion-easing: var(
+    --aipkit-fullscreen-expand-easing,
+    cubic-bezier(0.16, 1, 0.3, 1)
+  );
+}
+
+.aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-exiting {
+  --aipkit-fullscreen-motion-duration: var(
+    --aipkit-fullscreen-restore-duration,
+    220ms
+  );
+  --aipkit-fullscreen-motion-easing: var(
+    --aipkit-fullscreen-restore-easing,
+    cubic-bezier(0.4, 0, 1, 1)
+  );
+}
+
+.aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-transitioning:is(
+    .aipkit-fullscreen-start,
+    .aipkit-fullscreen-restoring
+  ) {
+  top: var(--aipkit-fullscreen-source-top) !important;
+  left: var(--aipkit-fullscreen-source-left) !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: var(--aipkit-fullscreen-source-width) !important;
+  height: var(--aipkit-fullscreen-source-height) !important;
+  border-radius: var(--aipkit-fullscreen-source-radius) !important;
+}
+
+.aipkit_fullscreen_backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 999998;
+  background: var(
+    --aipkit-chat-fullscreen-backdrop-color,
+    rgba(15, 23, 42, 0.36)
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.aipkit_fullscreen_backdrop.aipkit-fullscreen-backdrop-visible {
+  opacity: 1;
+}
+
+.aipkit_fullscreen_backdrop.aipkit-fullscreen-backdrop-exiting {
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+ * Keep section backgrounds edge-to-edge in fullscreen. Constrain their
+ * usable content with responsive side padding so prompts, messages, and the
+ * input wrapper share one centered column without exposing white side strips.
+ */
+.aipkit_chat_container.aipkit-fullscreen .aipkit_conversation_starters,
+.aipkit_chat_container.aipkit-fullscreen .aipkit_chat_input {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: max(
+    var(--aipkit-chat-fullscreen-content-padding-x, 16px),
+    calc(
+      (100% - var(--aipkit-chat-fullscreen-content-max-width, 56rem)) / 2 +
+        var(--aipkit-chat-fullscreen-content-padding-x, 16px)
+    )
+  );
+  padding-right: max(
+    var(--aipkit-chat-fullscreen-content-padding-x, 16px),
+    calc(
+      (100% - var(--aipkit-chat-fullscreen-content-max-width, 56rem)) / 2 +
+        var(--aipkit-chat-fullscreen-content-padding-x, 16px)
+    )
+  );
+}
+
+.aipkit_chat_container.aipkit-fullscreen .aipkit_chat_messages {
+  width: 100%;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 16px 0;
+}
+
+/* Keep the accent header visually continuous in fullscreen. */
+.aipkit_chat_container.aipkit-fullscreen .aipkit_chat_header {
+  border-bottom: none;
+}
+
+.aipkit_chat_container.aipkit-fullscreen
+  .aipkit_chat_messages
+  .aipkit_chat_message {
+  width: 100%;
+  max-width: var(--aipkit-chat-fullscreen-content-max-width, 56rem);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--aipkit-chat-fullscreen-content-padding-x, 16px);
+  padding-right: var(--aipkit-chat-fullscreen-content-padding-x, 16px);
+  box-sizing: border-box;
+}
+
+/*
+ * The messages pane owns its vertical scrollbar, while the composer does not.
+ * Anchor the capped row to the viewport in the normal closed-sidebar state so
+ * that scrollbar width cannot shift assistant bubbles off the composer edge.
+ */
+.aipkit_chat_container.aipkit-fullscreen.aipkit-sidebar-state-closed
+  .aipkit_chat_messages
+  .aipkit_chat_message {
+  margin-left: max(
+    0px,
+    calc(
+      (100vw - var(--aipkit-chat-fullscreen-content-max-width, 56rem)) / 2
+    )
+  );
+  margin-right: 0;
+}
+
+/* Actions are absolutely positioned, so explicitly include row padding. */
+.aipkit_chat_container.aipkit-fullscreen
+  .aipkit_chat_message-bot
+  .aipkit_message_actions {
+  left: var(--aipkit-chat-fullscreen-content-padding-x, 16px);
+}
+
+/* For popup mode, the wrapper also needs to be fullscreen */
+/* MODIFIED: Increased z-index and made position !important for consistency */
+.aipkit_popup_wrapper.aipkit-fullscreen-wrapper .aipkit_popup_content {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  z-index: 999999 !important; /* Increased z-index and made important to match above */
+  box-shadow: none !important;
+  border: none !important;
+  margin: 0 !important;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+}
+.aipkit_popup_wrapper.aipkit-fullscreen-wrapper .aipkit_popup_trigger {
+  display: none;
+}
+
+/* Keep fullscreen below the WordPress admin bar in frontend and preview QA. */
+body.admin-bar .aipkit_chat_container.aipkit-fullscreen,
+body.admin-bar
+  .aipkit_popup_wrapper.aipkit-fullscreen-wrapper
+  .aipkit_popup_content {
+  top: 32px !important;
+  height: calc(100% - 32px) !important;
+}
+
+body.admin-bar .aipkit_fullscreen_backdrop {
+  top: 32px;
+}
+
+/* Adjust for the taller WordPress admin bar on smaller screens. */
+@media screen and (max-width: 782px) {
+  body.admin-bar .aipkit_chat_container.aipkit-fullscreen,
+  body.admin-bar
+    .aipkit_popup_wrapper.aipkit-fullscreen-wrapper
+    .aipkit_popup_content {
+    top: 46px !important;
+    height: calc(100% - 46px) !important;
+  }
+
+  body.admin-bar .aipkit_fullscreen_backdrop {
+    top: 46px;
+  }
+}
+/* --- End Admin Bar Adjustments --- */
+
+/* Mobile popup mode is already fullscreen, so manual expansion is desktop-only. */
+@media screen and (max-width: 767px) {
+  .aipkit_chat_container:not(.aipkit-fullscreen) .aipkit_fullscreen_btn {
+    display: none !important;
+  }
+
+  .aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-transitioning {
+    transition: none !important;
+  }
+
+  .aipkit_fullscreen_backdrop {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aipkit_chat_container.aipkit-fullscreen.aipkit-fullscreen-transitioning {
+    transition: none !important;
+  }
+
+  .aipkit_fullscreen_backdrop {
+    transition: opacity 100ms linear;
+  }
+}

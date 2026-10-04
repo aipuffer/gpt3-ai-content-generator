@@ -1,0 +1,205 @@
+/*
+ * AIPKit Public Chat - Core Layout - Container
+ * Styles for .aipkit_chat_container and .aipkit_chat_main
+ * MODIFIED: Explicitly define --aipkit-chat-container-border-radius default.
+ */
+
+/* Container for the chat body and optional full-width footer. */
+.aipkit_chat_container {
+  display: flex;
+  flex-direction: column;
+  width: 100%; /* take full width of its parent */
+  max-width: var(--aipkit-chat-container-max-width, 56rem); /* ~896px */
+  height: var(--aipkit-chat-container-height, 560px);
+  min-height: var(--aipkit-chat-container-min-height, 320px);
+  max-height: var(--aipkit-chat-container-max-height, none);
+
+  --aipkit-chat-container-border-radius: 10px;
+
+  border: none;
+  border-radius: var(--aipkit-chat-container-border-radius);
+  overflow: hidden; /* Keep overflow hidden on main container */
+  background-color: var(
+    --aipkit-chat-container-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  /*
+   * Paint the shell behind the header with the header color. Without this
+   * backing layer, rounded-corner antialiasing blends the header against the
+   * light container background and creates a pale fringe on dark host pages.
+   */
+  background-image: linear-gradient(
+    to bottom,
+    var(
+        --aipkit-chat-header-bg-color,
+        var(--aipkit_bg-secondary, #ffffff)
+      )
+      0,
+    var(
+        --aipkit-chat-header-bg-color,
+        var(--aipkit_bg-secondary, #ffffff)
+      )
+      64px,
+    var(
+        --aipkit-chat-container-bg-color,
+        var(--aipkit_bg-secondary, #ffffff)
+      )
+      64px
+  );
+  color: var(
+    --aipkit-chat-container-text-color,
+    var(--aipkit_text-primary, #111111)
+  );
+  box-shadow: none;
+  margin: 1em auto; /* Center and add margin */
+  box-sizing: border-box;
+  position: relative; /* Needed for potential absolute positioning of children */
+  font-family: var(
+    --aipkit-chat-font-family,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen-Sans,
+    Ubuntu,
+    Cantarell,
+    "Helvetica Neue",
+    sans-serif
+  );
+}
+
+/*
+ * The header meets the shell's clipped top corners directly. Start the neutral
+ * structural frame below the shared 64px header so the body, composer, and
+ * optional footer stay defined without insetting or outlining the header.
+ */
+.aipkit_chat_container::after {
+  content: "";
+  position: absolute;
+  z-index: 10;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border: 1px solid
+    var(
+      --aipkit-chat-container-border-color,
+      var(--aipkit_container-border, #e5e5e5)
+    );
+  border-top: 0;
+  border-radius: 0 0 var(--aipkit-chat-container-border-radius, 16px)
+    var(--aipkit-chat-container-border-radius, 16px);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* Shared two-column body row. The footer is its sibling, not a column child. */
+.aipkit_chat_body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: row;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Container for main chat content (header, messages, and input). */
+.aipkit_chat_main {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1; /* Take remaining space */
+  width: 100%; /* Ensure it tries to take full width initially */
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden; /* Prevent internal elements from causing overflow */
+  position: relative; /* Context for absolute elements if needed */
+  transition: none;
+  box-sizing: border-box; /* Ensure padding/border included in width/height */
+}
+
+/* Enforce hidden attribute inside chat UI even when host CSS is aggressive. */
+.aipkit_chat_container [hidden],
+.aipkit_popup_wrapper [hidden] {
+  display: none !important;
+}
+
+/* Preserve ordinary chat sizing independently of the optional sidebar. */
+@media (max-width: 767px) {
+  .aipkit_chat_container:not(
+      #aipkit_admin_chat_preview_container .aipkit_chat_container
+    )
+    .aipkit_chat_main {
+    width: 100% !important;
+    flex-shrink: 0 !important;
+  }
+
+}
+
+/* Do not expose an unstyled panel or inactive toggles before sidebar setup. */
+.aipkit_chat_container:not([data-aipkit-sidebar-initialized="true"]) .aipkit_chat_sidebar,
+.aipkit_chat_container:not([data-aipkit-sidebar-initialized="true"]) .aipkit_sidebar_mobile_overlay {
+  display: none;
+}
+.aipkit_chat_container:not([data-aipkit-sidebar-initialized="true"]) .aipkit_sidebar_toggle_btn {
+  visibility: hidden;
+}
+
+/*
+ * AIPKit Public Chat - Core Layout - Messages Area
+ * Styles for .aipkit_chat_messages and its scrollbars
+ */
+
+/* The scrollable area containing chat messages */
+.aipkit_chat_container .aipkit_chat_messages {
+  flex: 1; /* Take remaining vertical space within .aipkit_chat_main */
+  padding: var(--aipkit-chat-shell-padding-x, 16px);
+  overflow-y: auto;
+  background-color: var(
+    --aipkit-chat-messages-bg-color,
+    var(--aipkit_bg-primary, #f7f7f7)
+  );
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(
+      --aipkit-chat-messages-scrollbar-thumb-color,
+      var(--aipkit_container-border, #e5e5e5)
+    )
+    var(--aipkit-chat-messages-scrollbar-track-color, transparent); /* Firefox */
+  box-sizing: border-box; /* Include padding in height calculation */
+}
+
+/* Scrollbar styling for WebKit browsers */
+.aipkit_chat_container .aipkit_chat_messages::-webkit-scrollbar {
+  width: 6px;
+}
+.aipkit_chat_container .aipkit_chat_messages::-webkit-scrollbar-track {
+  background: var(--aipkit-chat-messages-scrollbar-track-color, transparent);
+}
+.aipkit_chat_container .aipkit_chat_messages::-webkit-scrollbar-thumb {
+  background-color: var(
+    --aipkit-chat-messages-scrollbar-thumb-color,
+    var(--aipkit_container-border, #e5e5e5)
+  );
+  border-radius: 3px;
+}
+
+/*
+ * AIPKit Public Chat - Core Layout - Input Area Container
+ * Styles for .aipkit_chat_input (the container for the textarea wrapper)
+ */
+
+/* Input area container */
+.aipkit_chat_container .aipkit_chat_input {
+  padding: 14px 12px 12px;
+  background-color: var(
+    --aipkit-chat-input-area-bg-color,
+    var(--aipkit_bg-secondary, #ffffff)
+  );
+  flex-shrink: 0; /* Prevent input area from shrinking */
+  box-sizing: border-box; /* Include padding */
+  position: relative; /* Added for potential absolute positioning of internal elements like preview container */
+  border-top: 1px solid
+    var(--aipkit-chat-input-area-border-color, #e7e8ec);
+}

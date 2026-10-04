@@ -1,0 +1,187 @@
+/**
+ * Shared message metadata: grounding, citations and response status
+ */
+
+.aipkit_grounding_widget {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 0;
+  padding-top: 10px;
+  border-top: 1px solid
+    var(
+      --aipkit-chat-meta-border-color,
+      var(
+        --aipkit-chat-container-border-color,
+        var(--aipkit_container-border, #e5e5e5)
+      )
+    );
+}
+
+.aipkit_citations_widget {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+}
+
+.aipkit_chat_status {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(
+    --aipkit-chat-meta-text-color,
+    var(
+      --aipkit-chat-subgreeting-text-color,
+      var(--aipkit_text-secondary, #6b6b6b)
+    )
+  );
+}
+
+.aipkit_citations_toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(
+    --aipkit-chat-meta-link-color,
+    var(
+      --aipkit-chat-container-text-color,
+      var(--aipkit_text-link, #111111)
+    )
+  );
+  list-style: none;
+}
+
+.aipkit_citations_toggle::-webkit-details-marker {
+  display: none;
+}
+
+.aipkit_citations_toggle_icon {
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease-out;
+  flex-shrink: 0;
+}
+
+.aipkit_citations_widget[open] .aipkit_citations_toggle_icon {
+  transform: rotate(90deg);
+}
+
+.aipkit_citations_toggle_label {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.aipkit_citations_toggle:hover {
+  color: var(
+    --aipkit-chat-meta-link-hover-color,
+    var(
+      --aipkit-chat-meta-link-color,
+      var(--aipkit-chat-container-text-color, #111111)
+    )
+  );
+}
+
+.aipkit_citations_toggle:focus-visible {
+  outline: 2px solid
+    var(
+      --aipkit-chat-meta-focus-ring-color,
+      var(--aipkit-chat-focus-ring-color, var(--aipkit_brand-primary, #111111))
+    );
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.aipkit_citations_panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid
+    var(
+      --aipkit-chat-meta-border-color,
+      var(
+        --aipkit-chat-container-border-color,
+        var(--aipkit_container-border, #e5e5e5)
+      )
+    );
+}
+
+.aipkit_citations_list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.aipkit_citations_item {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.aipkit_citations_item_header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+
+.aipkit_citations_item_link,
+.aipkit_citations_item_title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(
+    --aipkit-chat-meta-link-color,
+    var(
+      --aipkit-chat-container-text-color,
+      var(--aipkit_text-link, #111111)
+    )
+  );
+}
+
+.aipkit_citations_item_link {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.aipkit_citations_item_link:hover {
+  color: var(
+    --aipkit-chat-meta-link-hover-color,
+    var(
+      --aipkit-chat-meta-link-color,
+      var(--aipkit-chat-container-text-color, #111111)
+    )
+  );
+}
+
+.aipkit_citations_item_location {
+  font-size: 11px;
+  color: var(
+    --aipkit-chat-meta-text-color,
+    var(
+      --aipkit-chat-subgreeting-text-color,
+      var(--aipkit_text-secondary, #6b6b6b)
+    )
+  );
+}
+
+.aipkit_citations_item_excerpt {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(
+    --aipkit-chat-meta-text-color,
+    var(
+      --aipkit-chat-subgreeting-text-color,
+      var(--aipkit_text-secondary, #6b6b6b)
+    )
+  );
+}
