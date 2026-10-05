@@ -4,7 +4,7 @@ Tags: chatbot, chatgpt, ai writer, openai, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.94
+Stable tag: 2.4.95
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -166,7 +166,7 @@ The plugin contacts external services when you connect or use them, manage licen
 
 * Connecting happens only after an administrator accepts the connection terms and clicks Connect. It sends the site's Freemius install ID, the site address, a signed proof of the installation and the attempt's support reference.
 * Using its models sends the request content and model settings. Cloud passes each request to the AI service behind the chosen model (such as OpenAI, Anthropic or Google), through service providers such as OpenRouter where applicable, and returns the result and the credits used. Balance, model, checkout and disconnect requests send the site address and its Cloud credential; deleting the plugin also disconnects the site. While connected, the setup wizard sends your setup choices and completed steps.
-* Connection diagnostics: each Connect attempt, including one that fails before account registration, sends its outcome, the step reached, error codes, HTTP status, timing, software versions and a random support reference. Your browser sends the report, so Cloud also sees the browser's IP address and the site's domain. Cloud keeps diagnostic reports for 30 days. The plugin keeps at most 10 local reports, removes those older than 30 days on the next attempt, and never reports on ordinary page loads.
+* Connection diagnostics: each Connect attempt, including one that fails before account registration, sends its outcome, the step reached, error codes, safe network failure details, HTTP status, timing, software versions and a random support reference. Once an installation identity is available, the report also includes its site address and installation ID as unverified troubleshooting context. Your browser sends the report, so Cloud also sees the browser's IP address and the site's domain. Cloud keeps diagnostic reports for 30 days. The plugin keeps at most 10 local reports, removes those older than 30 days on the next attempt, and never reports on ordinary page loads.
 * [Terms](https://aipower.org/terms-and-conditions/) · [Privacy](https://aipower.org/privacy-policy/)
 
 **Freemius** ([freemius.com](https://freemius.com)): account registration, email verification, licensing, and checkout for Pro plans and credits. Registration happens only when you choose it, for example by connecting Cloud or signing up for product updates in the setup wizard. It sends your name, email address and site address, plus basic plugin details such as the version. General usage tracking is turned off in the setup flow, and marketing emails are optional. The in-plugin pricing page, checkout and license activation also contact Freemius. An answer to the optional deactivation feedback form is sent to Freemius when the plugin is deleted and, unless you tick "Anonymous feedback", registers the site. [Terms](https://freemius.com/terms/) · [Privacy](https://freemius.com/privacy/)
@@ -205,10 +205,19 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.4.95 =
+Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer connection diagnostics for support.
+
 = 2.4.94 =
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.4.95 =
+
+- Fixed AI Puffer Cloud reconnection after reinstalling when WordPress background synchronization is delayed or disabled.
+- Improved connection diagnostics to retain network failure causes and submitted site details for troubleshooting.
+- Updated guidance when a site’s account connection is inactive.
 
 = 2.4.94 =
 

@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name:       AI Puffer – AI Chatbot, AI Writer & Automation
  * Description:       AI chatbot that answers from your content, an AI writer that drafts and schedules posts, AI forms and images. Use AI Puffer Cloud or your own provider keys. Formerly AI Power.
- * Version:           2.4.94
+ * Version:           2.4.95
  * Author:            Senol Sahin
  * Author URI:        https://aipower.org
  * License:           GPL-2.0+
@@ -29,7 +29,7 @@ if ( function_exists( 'wpaicg_gacg_fs' ) ) {
     wpaicg_gacg_fs()->set_basename( false, __FILE__ );
 } else {
     // Only the first edition loaded in this request owns the plugin runtime.
-    define( 'WPAICG_VERSION', '2.4.94' );
+    define( 'WPAICG_VERSION', '2.4.95' );
     define( 'WPAICG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
     define( 'WPAICG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'WPAICG_LIB_DIR', WPAICG_PLUGIN_DIR . 'lib/' );

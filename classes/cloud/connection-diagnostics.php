@@ -52,7 +52,21 @@ final class ConnectionDiagnostics
 
     public static function error(string $code): void
     {
+        if ($code === 'cloud_unavailable' && self::$report !== null) {
+            if (in_array(self::$report['code'], ['http_request_failed', 'http_request_not_executed', 'http_request_rejected', 'connect_timeout'], true)) { return; }
+            $code = 'connection_unavailable';
+        }
         if (self::$report !== null) { self::$report['code'] = in_array($code, self::CODES, true) ? $code : 'unexpected_error'; }
+    }
+
+    /** Submitted installation context is unverified and used only for troubleshooting a consented attempt. */
+    public static function context(string $site, string $install): void
+    {
+        $parts = wp_parse_url($site);
+        if (self::$report === null || !preg_match('/^[1-9][0-9]{0,18}$/D', $install) || strlen($site) > 2048 || !is_array($parts)
+            || !in_array($parts['scheme'] ?? '', ['http', 'https'], true) || empty($parts['host'])
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) { return; }
+        self::$report['context'] = ['siteUrl' => $site, 'installId' => $install];
     }
 
     public static function sdk_result($result): void
@@ -75,6 +89,18 @@ final class ConnectionDiagnostics
         if (is_wp_error($response)) {
             $code = (string) $response->get_error_code();
             $row['errorCode'] = in_array($code, self::CODES, true) ? $code : 'transport_error';
+            // Extract only a numeric transport code or a fixed classification. Never retain the raw message.
+            $message = $response->get_error_message();
+            if (preg_match('/cURL error ([1-9][0-9]?):/i', $message, $match)) {
+                $row['curlCode'] = (int) $match[1];
+                if ($row['curlCode'] === 28) { $row['transportCause'] = 'timeout'; }
+                elseif (in_array($row['curlCode'], [5, 6], true)) { $row['transportCause'] = 'dns'; }
+                elseif (in_array($row['curlCode'], [35, 51, 58, 59, 60, 77, 80, 83, 90, 91], true)) { $row['transportCause'] = 'tls'; }
+                elseif ($row['curlCode'] === 7) { $row['transportCause'] = 'connection'; }
+            } elseif (preg_match('/timed out|timeout/i', $message)) { $row['transportCause'] = 'timeout'; }
+            elseif (preg_match('/could not resolve|name resolution|name or service not known/i', $message)) { $row['transportCause'] = 'dns'; }
+            elseif (preg_match('/SSL|TLS|certificate/i', $message)) { $row['transportCause'] = 'tls'; }
+            elseif (preg_match('/failed to connect|connection refused|network unreachable/i', $message)) { $row['transportCause'] = 'connection'; }
             self::error($code);
         } else {
             $row['httpStatus'] = (int) wp_remote_retrieve_response_code($response);

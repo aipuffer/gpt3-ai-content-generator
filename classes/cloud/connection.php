@@ -673,7 +673,7 @@ final class Connection
         $messages = [
             'freemius_failed' => __('We couldn’t connect this site to AI Puffer Cloud. Please try again. If the problem continues, contact support.', 'gpt3-ai-content-generator'),
             'unavailable' => __('We couldn’t connect this site to AI Puffer Cloud. Please try again. If the problem continues, contact support.', 'gpt3-ai-content-generator'),
-            'installation_inactive' => __('This site’s account connection is inactive. Deactivate and reactivate AI Puffer, then connect again.', 'gpt3-ai-content-generator'),
+            'installation_inactive' => __('This site’s account connection is inactive. Please try connecting again. If the problem continues, contact support.', 'gpt3-ai-content-generator'),
             'site_mismatch' => __('Your account has a different address for this site. Deactivate and reactivate AI Puffer, then connect again.', 'gpt3-ai-content-generator'),
             'account_unavailable' => __('This Cloud account is paused. Please contact AI Puffer support.', 'gpt3-ai-content-generator'),
             'busy' => __('Another connection action is in progress. Please wait before trying again.', 'gpt3-ai-content-generator'),
@@ -901,7 +901,8 @@ final class Connection
     {
         if (function_exists('set_time_limit')) { @set_time_limit(120); } // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, Squiz.PHP.DiscouragedFunctions.Discouraged -- Bounded explicit action; disabled on some hosts. Provider requests retain their own timeouts.
         try { $fs = wpaicg_gacg_fs(); } catch (\Throwable $error) { ConnectionDiagnostics::error('sdk_unavailable'); return 'freemius_failed'; }
-        if (!$fs->is_registered(true)) {
+        $registered = $fs->is_registered(true);
+        if (!$registered) {
             // Registration email is explicit; changing it never edits the WordPress profile.
             if ($email === '') { $email = (string) (get_option(self::REGISTRATION, [])['email'] ?? wp_get_current_user()->user_email); }
             if (!is_email($email)) { return 'invalid_email'; }
@@ -911,11 +912,27 @@ final class Connection
             catch (\Throwable $error) { ConnectionDiagnostics::error($error->getMessage()); return 'freemius_failed'; }
             if (!$fs->is_registered(true)) { return $fs->is_pending_activation() ? 'confirm_email' : 'freemius_failed'; }
         }
+        if ($registered) {
+            // Reinstall activation queues this update in cron. Explicit Connect must not depend on cron running.
+            // Preserve tracking permissions and skip extension inventories for this connection-only update.
+            // Cloud still independently verifies this install.
+            $sync_timeout = static function (array $args, string $url): array {
+                if (in_array(wp_parse_url($url, PHP_URL_HOST), ['api.freemius.com', 'wp.freemius.com'], true)) {
+                    $args['timeout'] = min(10, (float) ($args['timeout'] ?? 10));
+                }
+                return $args;
+            };
+            add_filter('http_request_args', $sync_timeout, PHP_INT_MAX, 2);
+            try { $fs->sync_install(['plugins' => [], 'themes' => []], true); }
+            catch (\Throwable $error) { ConnectionDiagnostics::error($error->getMessage()); }
+            finally { remove_filter('http_request_args', $sync_timeout, PHP_INT_MAX); }
+        }
         $install = $fs->get_site();
         $install_id = is_object($install) ? (string) ($install->id ?? '') : '';
         $secret = is_object($install) ? (string) ($install->secret_key ?? '') : '';
         $url = is_object($install) && is_string($install->url ?? null) ? untrailingslashit($install->url) : '';
         if (!preg_match('/^[1-9][0-9]{0,18}$/D', $install_id) || strlen($secret) < 16 || $url === '') { ConnectionDiagnostics::error('installation_missing'); return 'freemius_failed'; }
+        ConnectionDiagnostics::context($url, $install_id);
         try {
             ConnectionDiagnostics::stage('challenge');
             $reference = ConnectionDiagnostics::report()['reference'] ?? null;
