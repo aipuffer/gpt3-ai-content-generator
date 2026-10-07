@@ -8,10 +8,6 @@
 @media (max-width: 900px) {
   /* Tablet and smaller */
 
-  .aipkit_module-tabs_list {
-    flex-wrap: nowrap;
-  }
-
   .aipkit_sub_container_header {
     padding: var(--aipkit_spacing-sm, 10px) var(--aipkit_spacing-md, 12px);
   }

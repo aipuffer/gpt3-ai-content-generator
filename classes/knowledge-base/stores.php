@@ -61,6 +61,28 @@ class AIPKit_Vector_Store_Registry {
     }
 
     /**
+     * OpenAI can briefly omit a successfully created store from its list endpoint.
+     * Keep that confirmed creation for at most one minute while the list catches up.
+     * Only list reconciliation uses this; explicit deletion still removes it immediately.
+     */
+    public static function reconcile_openai_store_list(array $stores_list): array {
+        $stores = self::normalize_stores_for_provider('OpenAI', $stores_list);
+        $listed_ids = array_column($stores, 'id');
+        $now = time();
+        foreach (self::get_registered_stores_by_provider('OpenAI') as $store) {
+            if (!is_array($store) || empty($store['id']) || in_array($store['id'], $listed_ids, true)) {
+                continue;
+            }
+            $created_at = isset($store['created_at']) && is_numeric($store['created_at']) ? (int) $store['created_at'] : 0;
+            if ($created_at <= 0 || $created_at > $now || $now - $created_at >= 60 || ($store['status'] ?? '') === 'expired') {
+                continue;
+            }
+            $stores[] = $store;
+        }
+        return $stores;
+    }
+
+    /**
      * Updates the list of registered stores for a specific provider.
      * This will overwrite any existing stores for that provider.
      *

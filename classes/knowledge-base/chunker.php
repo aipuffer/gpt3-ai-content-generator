@@ -116,6 +116,9 @@ class AIPKit_Vector_Text_Chunker
                 'end' => min($start + $chunk_chars, $content_len),
                 'index' => $idx,
             ];
+            if ($start + $chunk_chars >= $content_len) {
+                break; // The remaining overlap is already covered by this final chunk.
+            }
         }
 
         return $chunks;

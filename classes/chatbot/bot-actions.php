@@ -1127,6 +1127,12 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
             );
         }
 
+        if (isset($_POST['theme_dimension_overrides'])) {
+            // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified by check_module_access_permissions.
+            $dimension_overrides = BotSettingsManager::normalize_theme_dimension_overrides(wp_unslash($_POST['theme_dimension_overrides']));
+            update_post_meta($bot_id, '_aipkit_theme_dimension_overrides', $dimension_overrides);
+        }
+
         if (isset($_POST['custom_theme_settings']) && is_array($_POST['custom_theme_settings'])) {
             // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Reason: Nonce verification is handled in check_module_access_permissions method.
             $custom_theme_raw = wp_unslash($_POST['custom_theme_settings']);
@@ -1502,7 +1508,8 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
             $vector_embedding_provider = isset($_POST['vector_embedding_provider'])
                 ? sanitize_key(wp_unslash($_POST['vector_embedding_provider']))
                 : BotSettingsManager::DEFAULT_VECTOR_EMBEDDING_PROVIDER;
-            $allowed_embedding_providers = AIPKit_Providers::get_embedding_provider_keys('chatbot_admin_save');
+            $allowed_embedding_providers = array_unique(array_merge(AIPKit_Providers::get_embedding_provider_keys('chatbot_admin_save'), ['aipuffercloud']));
+            // Saving settings must preserve Cloud identity while disconnected; dispatch checks availability.
             if (!in_array($vector_embedding_provider, $allowed_embedding_providers, true)) {
                 $vector_embedding_provider = BotSettingsManager::DEFAULT_VECTOR_EMBEDDING_PROVIDER;
             }
@@ -3353,6 +3360,8 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $cursor_timestamp = isset($_POST['cursor_timestamp']) ? sanitize_text_field(wp_unslash($_POST['cursor_timestamp'])) : '';
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verification is handled in check_module_access_permissions method.
         $cursor_id = isset($_POST['cursor_id']) ? absint($_POST['cursor_id']) : 0;
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verification is handled in check_module_access_permissions method.
+        $include_summary = isset($_POST['include_summary']) && sanitize_text_field(wp_unslash($_POST['include_summary'])) === '1';
 
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Reason: Nonce verification is handled in check_module_access_permissions method.
         $search = isset($_POST['search']) ? sanitize_text_field(wp_unslash($_POST['search'])) : '';
@@ -3370,6 +3379,71 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
 
         global $wpdb;
         $table_name = $wpdb->prefix . 'aipkit_vector_data_source';
+        require_once WPAICG_PLUGIN_DIR . 'classes/knowledge-base/file-source-groups.php';
+        $raw_table = $table_name;
+        $file_group_key = \WPAICG\KnowledgeBase\FileSourceGroups::key_sql();
+        // Group before filtering and pagination so a file never spans multiple source pages.
+        $table_name = "(SELECT source.* FROM {$raw_table} source INNER JOIN (SELECT MAX(id) AS source_id FROM {$raw_table} GROUP BY {$file_group_key}) file_groups ON source.id = file_groups.source_id) sources";
+
+        // Each status and kind is one condition, shared by the list filters and the summary counts.
+        $status_clause = static function (string $status): array {
+            if ($status === 'processing') {
+                return ['status IN (%s, %s)', ['processing', 'queued']];
+            }
+            if ($status === 'indexed') {
+                return ['status IN (%s, %s, %s)', ['indexed', 'skipped_already_indexed', 'success']];
+            }
+            return ['status = %s', [$status]];
+        };
+        $kind_clause = static function (string $kind): array {
+            if ($kind === 'site') {
+                return ['(' . implode(' OR ', [
+                    '(post_id IS NOT NULL AND post_id > 0)',
+                    '(message LIKE %s)',
+                    '(file_id LIKE %s)',
+                    '(provider = %s AND message LIKE %s AND message LIKE %s)',
+                ]) . ')', [
+                    '%wordpress post content submitted for indexing%',
+                    'wp_post_%',
+                    'Qdrant',
+                    '%points upserted to qdrant%',
+                    '%post id:%',
+                ]];
+            }
+            if ($kind === 'text') {
+                return ['(' . implode(' OR ', [
+                    '(message LIKE %s)',
+                    '(file_id LIKE %s)',
+                    '(provider = %s AND message LIKE %s AND (post_id IS NULL OR post_id = 0) AND message NOT LIKE %s)',
+                    '(provider = %s AND message LIKE %s AND (post_id IS NULL OR post_id = 0))',
+                ]) . ')', [
+                    '%text content submitted for indexing%',
+                    'text_%',
+                    'Qdrant',
+                    '%points upserted to qdrant%',
+                    '%post id:%',
+                    'Chroma',
+                    '%chroma records upserted%',
+                ]];
+            }
+            return ['(' . implode(' OR ', [
+                '(message LIKE %s)',
+                '(message LIKE %s)',
+                '(message LIKE %s)',
+                '(message LIKE %s)',
+                '(file_id LIKE %s)',
+                '(message LIKE %s)',
+                '(file_id LIKE %s)',
+            ]) . ')', [
+                '%file content submitted for indexing%',
+                '%file content embedded and upserted%',
+                '%original filename:%',
+                '%file uploaded%',
+                'pinecone_file_%',
+                '%file chunk embedded%',
+                'chroma_file_%',
+            ]];
+        };
 
         $where_clauses = ['provider = %s'];
         $params = [$provider_label];
@@ -3378,71 +3452,50 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $where_clauses[] = "vector_store_id IN ($store_placeholders)";
         $params = array_merge($params, $store_ids);
 
-        if ($status_filter) {
-            if ($status_filter === 'processing') {
-                $where_clauses[] = '(status = %s OR status = %s)';
-                $params[] = 'processing';
-                $params[] = 'queued';
-            } elseif ($status_filter === 'indexed') {
-                $where_clauses[] = '(status = %s OR status = %s OR status = %s)';
-                $params[] = 'indexed';
-                $params[] = 'skipped_already_indexed';
-                $params[] = 'success';
-            } else {
-                $where_clauses[] = 'status = %s';
-                $params[] = $status_filter;
-            }
-        }
-
-        if ($source_type_filter === 'site') {
-            $where_clauses[] = '(' . implode(' OR ', [
-                '(post_id IS NOT NULL AND post_id > 0)',
-                '(message LIKE %s)',
-                '(file_id LIKE %s)',
-                '(provider = %s AND message LIKE %s AND message LIKE %s)',
-            ]) . ')';
-            $params[] = '%wordpress post content submitted for indexing%';
-            $params[] = 'wp_post_%';
-            $params[] = 'Qdrant';
-            $params[] = '%points upserted to qdrant%';
-            $params[] = '%post id:%';
-        } elseif ($source_type_filter === 'text') {
-            $where_clauses[] = '(' . implode(' OR ', [
-                '(message LIKE %s)',
-                '(file_id LIKE %s)',
-                '(provider = %s AND message LIKE %s AND (post_id IS NULL OR post_id = 0) AND message NOT LIKE %s)',
-                '(provider = %s AND message LIKE %s AND (post_id IS NULL OR post_id = 0))',
-            ]) . ')';
-            $params[] = '%text content submitted for indexing%';
-            $params[] = 'text_%';
-            $params[] = 'Qdrant';
-            $params[] = '%points upserted to qdrant%';
-            $params[] = '%post id:%';
-            $params[] = 'Chroma';
-            $params[] = '%chroma records upserted%';
-        } elseif ($source_type_filter === 'file') {
-            $where_clauses[] = '(' . implode(' OR ', [
-                '(message LIKE %s)',
-                '(message LIKE %s)',
-                '(message LIKE %s)',
-                '(message LIKE %s)',
-                '(file_id LIKE %s)',
-                '(message LIKE %s)',
-                '(file_id LIKE %s)',
-            ]) . ')';
-            $params[] = '%file content submitted for indexing%';
-            $params[] = '%file content embedded and upserted%';
-            $params[] = '%original filename:%';
-            $params[] = '%file uploaded%';
-            $params[] = 'pinecone_file_%';
-            $params[] = '%file chunk embedded%';
-            $params[] = 'chroma_file_%';
-        }
-
         if ($search) {
             $like = '%' . $wpdb->esc_like($search) . '%';
             $where_clauses[] = '(message LIKE %s OR post_title LIKE %s OR file_id LIKE %s OR vector_store_name LIKE %s OR indexed_content LIKE %s)';
-            $params = array_merge($params, array_fill(0, 5, $like));
+            $where_clauses[count($where_clauses) - 1] = '(' . $where_clauses[count($where_clauses) - 1] . " OR {$file_group_key} IN (SELECT {$file_group_key} FROM {$raw_table} WHERE indexed_content LIKE %s))";
+            $params = array_merge($params, array_fill(0, 6, $like));
+        }
+
+        // What it knows: counts by kind and status for this search, whatever the list shows.
+        $summary = null;
+        if ($include_summary) {
+            $summary_kinds = ['all', 'site', 'text', 'file'];
+            $summary_statuses = ['all' => '', 'ready' => 'indexed', 'adding' => 'processing', 'failed' => 'failed'];
+            $columns = [];
+            $column_params = [];
+            foreach ($summary_kinds as $kind) {
+                [$kind_sql, $kind_params] = $kind === 'all' ? ['1 = 1', []] : $kind_clause($kind);
+                foreach ($summary_statuses as $status) {
+                    [$status_sql, $status_params] = $status === '' ? ['1 = 1', []] : $status_clause($status);
+                    // Each count gets its own name: unnamed expressions can share a truncated name and overwrite each other.
+                    $columns[] = "SUM(CASE WHEN {$kind_sql} AND {$status_sql} THEN 1 ELSE 0 END) AS count_" . count($columns);
+                    $column_params = array_merge($column_params, $kind_params, $status_params);
+                }
+            }
+            $summary_where_sql = implode(' AND ', $where_clauses);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name, columns and WHERE clause are internal and scalar values are prepared below.
+            $counts = (array) $wpdb->get_row($wpdb->prepare('SELECT ' . implode(', ', $columns) . " FROM {$table_name} WHERE {$summary_where_sql}", ...array_merge($column_params, $params)), ARRAY_A);
+            $summary = [];
+            $index = 0;
+            foreach ($summary_kinds as $kind) {
+                foreach (array_keys($summary_statuses) as $status_key) {
+                    $summary[$kind][$status_key] = (int) ($counts['count_' . $index++] ?? 0);
+                }
+            }
+        }
+
+        if ($status_filter) {
+            [$status_sql, $status_params] = $status_clause($status_filter);
+            $where_clauses[] = $status_sql;
+            $params = array_merge($params, $status_params);
+        }
+        if ($source_type_filter) {
+            [$kind_sql, $kind_params] = $kind_clause($source_type_filter);
+            $where_clauses[] = $kind_sql;
+            $params = array_merge($params, $kind_params);
         }
 
         if ($cursor_mode && $cursor_timestamp !== '' && $cursor_id > 0) {
@@ -3480,6 +3533,14 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
             ];
         }
 
+        foreach ($logs as &$log) {
+            $chunks = \WPAICG\KnowledgeBase\FileSourceGroups::chunks($log);
+            if ($chunks) {
+                $log['file_chunks'] = $chunks;
+            }
+        }
+        unset($log);
+
         wp_send_json_success([
             'logs' => $logs ?: [],
             'pagination' => [
@@ -3493,6 +3554,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
                 'item_count' => count((array) $logs),
             ],
             'provider' => $provider_label,
+            'summary' => $summary,
         ]);
     }
     // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized

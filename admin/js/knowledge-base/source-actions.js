@@ -2,6 +2,7 @@ export function createSourceActionMenu({ __, escaper }) {
   // Callers own action eligibility and supply escaped, action-specific attributes.
   function renderSourceAction(attributes, className, icon, label, disabled) {
     return `<button type="button" role="menuitem" class="aipkit_sources_action_menu_item ${className}"
+      title="${escaper(label)}"
       ${attributes}
       ${disabled ? 'disabled aria-disabled="true"' : ""}
     >

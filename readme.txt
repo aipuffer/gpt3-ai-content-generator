@@ -4,7 +4,7 @@ Tags: chatbot, chatgpt, ai writer, openai, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.95
+Stable tag: 2.4.96
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -205,6 +205,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.4.96 =
+Redesigned chatbot settings and navigation, with improved knowledge-source management, audio controls and settings reliability.
+
 = 2.4.95 =
 Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer connection diagnostics for support.
 
@@ -212,6 +215,17 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.4.96 =
+
+- Updated Freemius SDK to the latest version.
+- Redesigned plugin navigation and chatbot Answers, Look, Features and Publish settings for easier setup.
+- Improved knowledge-source previews, editing, progress updates and removal. Uploaded files now appear as one source with expandable chunks.
+- Fixed extra trailing chunks and improved PDF, CSV and JSON ingestion and empty-file validation.
+- Unified audio provider and model controls, and improved knowledge and image picker behavior.
+- Improved autosave, bot switching, instruction editing, notifications and paid-feature compatibility.
+- Fixed chatbot size changes with named colors while preserving existing appearance settings.
+- Fixed knowledge settings changing the Cloud embedding provider when saving while disconnected.
 
 = 2.4.95 =
 

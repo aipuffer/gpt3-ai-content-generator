@@ -202,72 +202,76 @@ $aipkit_notice_context = __('run this automation', 'gpt3-ai-content-generator');
 include WPAICG_PLUGIN_DIR . 'admin/views/shared/provider-key-notice.php';
 include WPAICG_PLUGIN_DIR . 'admin/views/shared/seo-plugin-conflict-notice.php';
 ?>
+<?php if (!$aipkit_cron_disabled || $aipkit_cron_state === 'server') : ?>
+<span hidden data-aipkit-notice-resolved="autogpt-cron-runner-unavailable-v2"></span>
+<?php endif; ?>
+<?php if ($aipkit_cron_state !== 'overdue') : ?>
+<span hidden data-aipkit-notice-resolved="autogpt-wp-cron-overdue-v1"></span>
+<?php endif; ?>
 <?php if ($aipkit_cron_disabled) : ?>
 <?php
-$aipkit_runner_notice_state = $aipkit_cron_state;
-$aipkit_runner_notice_message = __('WP-Cron is disabled. Automated tasks won’t run.', 'gpt3-ai-content-generator');
-$aipkit_runner_notice_action = __('Use server cron instead', 'gpt3-ai-content-generator');
-$aipkit_runner_notice_show_wp_link = true;
-if ($aipkit_runner_notice_state === 'server_pending') {
-    $aipkit_runner_notice_message = __('Server cron hasn’t checked in yet. Automated tasks won’t run until setup is complete.', 'gpt3-ai-content-generator');
-    $aipkit_runner_notice_action = __('Finish server cron setup', 'gpt3-ai-content-generator');
-    $aipkit_runner_notice_show_wp_link = false;
-} elseif ($aipkit_runner_notice_state === 'server_delayed') {
-    $aipkit_runner_notice_message = __('Server cron hasn’t checked in recently. Automated tasks may be delayed.', 'gpt3-ai-content-generator');
-    $aipkit_runner_notice_action = __('Check server cron setup', 'gpt3-ai-content-generator');
-    $aipkit_runner_notice_show_wp_link = false;
-}
+// The runner notice's three states; server-cron-controls.js switches between them as checks come in.
+$aipkit_runner_states = [
+    'disabled' => [
+        'tone' => 'critical',
+        'lead' => __('WP-Cron is off, so automations won’t run.', 'gpt3-ai-content-generator'),
+        'detail' => __('Server cron can run them instead.', 'gpt3-ai-content-generator'),
+        'action' => __('Use server cron', 'gpt3-ai-content-generator'),
+    ],
+    'pending' => [
+        'tone' => 'warning',
+        'lead' => __('Server cron hasn’t checked in yet.', 'gpt3-ai-content-generator'),
+        'detail' => __('Automations won’t run until setup is finished.', 'gpt3-ai-content-generator'),
+        'action' => __('Finish setup', 'gpt3-ai-content-generator'),
+    ],
+    'delayed' => [
+        'tone' => 'warning',
+        'lead' => __('Server cron hasn’t checked in recently.', 'gpt3-ai-content-generator'),
+        'detail' => __('Automations may run late.', 'gpt3-ai-content-generator'),
+        'action' => __('Check setup', 'gpt3-ai-content-generator'),
+    ],
+];
+$aipkit_runner = $aipkit_runner_states[
+    $aipkit_cron_state === 'server_pending' ? 'pending' : ($aipkit_cron_state === 'server_delayed' ? 'delayed' : 'disabled')
+];
 ?>
 <div
-    class="aipkit_notification_bar aipkit_notification_bar--warning aipkit_autogpt_cron_notice"
+    class="aipkit_notification_bar aipkit_notification_bar--<?php echo esc_attr($aipkit_runner['tone']); ?>"
     data-aipkit-dismissible-notice="autogpt-cron-runner-unavailable-v2"
     data-aipkit-cron-runner-notice
-    data-aipkit-message-disabled="<?php echo esc_attr__('WP-Cron is disabled. Automated tasks won’t run.', 'gpt3-ai-content-generator'); ?>"
-    data-aipkit-message-pending="<?php echo esc_attr__('Server cron hasn’t checked in yet. Automated tasks won’t run until setup is complete.', 'gpt3-ai-content-generator'); ?>"
-    data-aipkit-message-delayed="<?php echo esc_attr__('Server cron hasn’t checked in recently. Automated tasks may be delayed.', 'gpt3-ai-content-generator'); ?>"
-    data-aipkit-action-disabled="<?php echo esc_attr__('Use server cron instead', 'gpt3-ai-content-generator'); ?>"
-    data-aipkit-action-pending="<?php echo esc_attr__('Finish server cron setup', 'gpt3-ai-content-generator'); ?>"
-    data-aipkit-action-delayed="<?php echo esc_attr__('Check server cron setup', 'gpt3-ai-content-generator'); ?>"
-    <?php if ($aipkit_runner_notice_state === 'server') : ?>hidden<?php endif; ?>
+    data-aipkit-notice-state="<?php echo esc_attr($aipkit_cron_state === 'server' ? '' : str_replace('server_', '', $aipkit_cron_state)); ?>"
+    data-aipkit-runner-states="<?php echo esc_attr(wp_json_encode($aipkit_runner_states)); ?>"
+    <?php if ($aipkit_cron_state === 'server') : ?>hidden<?php endif; ?>
 >
-    <div class="aipkit_notification_bar__icon" aria-hidden="true">
-        <span class="dashicons dashicons-clock"></span>
-    </div>
+    <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-clock"></span></span>
     <div class="aipkit_notification_bar__content">
         <p>
-            <span data-aipkit-cron-notice-message><?php echo esc_html($aipkit_runner_notice_message); ?></span>
+            <strong data-aipkit-cron-notice-lead><?php echo esc_html($aipkit_runner['lead']); ?></strong>
+            <span data-aipkit-cron-notice-detail><?php echo esc_html($aipkit_runner['detail']); ?></span>
             <a
                 href="<?php echo esc_url('https://www.siteground.com/kb/enable-wordpress-cron/'); ?>"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-aipkit-cron-notice-wp-link
-                <?php if (!$aipkit_runner_notice_show_wp_link) : ?>hidden<?php endif; ?>
+                <?php if ($aipkit_runner !== $aipkit_runner_states['disabled']) : ?>hidden<?php endif; ?>
             ><?php esc_html_e('Learn how to enable WP-Cron', 'gpt3-ai-content-generator'); ?></a>
         </p>
     </div>
-    <div class="aipkit_notification_bar__actions">
-        <button type="button" class="aipkit_autogpt_cron_notice_action" data-aipkit-open-server-cron data-aipkit-cron-notice-action>
-            <?php echo esc_html($aipkit_runner_notice_action); ?>
-        </button>
-    </div>
-    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>">
-        &times;
-    </button>
+    <button type="button" class="aipkit_notification_bar__action" data-aipkit-open-server-cron data-aipkit-cron-notice-action><?php echo esc_html($aipkit_runner['action']); ?></button>
+    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
 </div>
 <?php elseif ($aipkit_cron_state === 'overdue') : ?>
 <div
     class="aipkit_notification_bar aipkit_notification_bar--warning"
     data-aipkit-dismissible-notice="autogpt-wp-cron-overdue-v1"
+    data-aipkit-notice-state="overdue"
 >
-    <div class="aipkit_notification_bar__icon" aria-hidden="true">
-        <span class="dashicons dashicons-clock"></span>
-    </div>
+    <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-clock"></span></span>
     <div class="aipkit_notification_bar__content">
-        <p><?php esc_html_e('WP-Cron appears delayed. Automated tasks run on page loads, so low traffic can delay runs.', 'gpt3-ai-content-generator'); ?></p>
+        <p><strong><?php esc_html_e('WP-Cron is running late.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('It runs on page visits, so quiet sites run late.', 'gpt3-ai-content-generator'); ?></p>
     </div>
-    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>">
-        &times;
-    </button>
+    <button type="button" class="aipkit_notification_bar__action" data-aipkit-open-server-cron><?php esc_html_e('Use server cron', 'gpt3-ai-content-generator'); ?></button>
+    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
 </div>
 <?php endif; ?>
 <div class="aipkit_module_autogpt aipkit_admin_ui" id="aipkit_autogpt_container" data-workspace-state="checking" aria-busy="true">

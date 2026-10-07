@@ -45,25 +45,23 @@ $aipkit_provider_notice_settings_url = add_query_arg(
 ?>
 <div
     id="<?php echo esc_attr($aipkit_provider_notice_id); ?>"
-    class="aipkit_notification_bar aipkit_notification_bar--info aipkit_provider_key_notice aipkit_provider_notice--hidden <?php echo esc_attr($aipkit_provider_notice_class); ?>"
+    class="aipkit_notification_bar aipkit_notification_bar--setup aipkit_provider_key_notice aipkit_provider_notice--hidden <?php echo esc_attr($aipkit_provider_notice_class); ?>"
     data-aipkit-provider-notice="1"
     <?php if (!empty($aipkit_notice_model_source)) : ?>data-aipkit-connection-model-source="<?php echo esc_attr($aipkit_notice_model_source); ?>"<?php endif; ?>
     data-aipkit-settings-url="<?php echo esc_url($aipkit_provider_notice_settings_url); ?>"
     data-message-default="<?php echo esc_attr($aipkit_provider_notice_default_message); ?>"
     data-action-default="<?php echo esc_attr__('Connect a provider', 'gpt3-ai-content-generator'); ?>"
 >
-    <img class="aipkit_notification_bar__icon" src="<?php echo esc_url(WPAICG_LOGO_URL); ?>" width="28" height="28" alt="" />
+    <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-admin-plugins"></span></span>
     <div class="aipkit_notification_bar__content">
         <p>
-            <span class="aipkit_provider_notice_message">
-                <?php echo esc_html($aipkit_provider_notice_default_message); ?>
-            </span>
+            <strong class="aipkit_provider_notice_message"><?php echo esc_html($aipkit_provider_notice_default_message); ?></strong>
         </p>
     </div>
     <div class="aipkit_notification_bar__actions">
         <a
             href="<?php echo esc_url($aipkit_provider_notice_settings_url); ?>"
-            class="aipkit_btn aipkit_btn-primary aipkit_provider_notice_settings_link"
+            class="aipkit_notification_bar__action is-primary aipkit_provider_notice_settings_link"
             data-aipkit-provider-action
             data-aipkit-settings-page="ai"
             data-aipkit-settings-card="OpenAI"

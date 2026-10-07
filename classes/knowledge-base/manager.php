@@ -35,7 +35,9 @@ class AIPKit_Vector_Store_Manager
             if (is_wp_error($description)) { return $description; }
             $size = $description['dimensions'] ?? $description['dimension'] ?? $description['config']['params']['vectors']['size'] ?? null;
             // Empty Chroma collections acquire their dimension from the first vectors.
-            if ($size === null && strtolower($provider) === 'chroma' && ($description['total_vector_count'] ?? null) === 0) { $size = $policy['default']; }
+            if ($size === null && strtolower($provider) === 'chroma'
+                && ((array_key_exists('dimension', $description) && $description['dimension'] === null)
+                    || ($description['total_vector_count'] ?? null) === 0)) { $size = $policy['default']; }
             $size = (int) $size;
             $supported = isset($policy['sizes']) ? in_array($size, $policy['sizes'], true) : ($size >= $policy['min'] && $size <= $policy['max']);
             if (!$supported) {

@@ -241,3 +241,24 @@ export function startChatbotEditorPreview({builder, getSelectableBotIds, getSele
     placeholder: fallbackText
   });
 }
+
+/** Preview width: desktop, or a phone-sized frame. */
+
+export function bindChatbotPreviewDevice(builder) {
+  const group = builder.querySelector("[data-aipkit-preview-device]");
+  const frame = builder.querySelector(".aipkit_builder_preview_frame");
+  if (!group || !frame || group.dataset.deviceBound) {
+    return;
+  }
+  group.dataset.deviceBound = "1";
+  group.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-device]");
+    if (!option) {
+      return;
+    }
+    group.querySelectorAll("[data-device]").forEach((button) => {
+      button.setAttribute("aria-pressed", button === option ? "true" : "false");
+    });
+    frame.classList.toggle("is-mobile", option.dataset.device === "mobile");
+  });
+}

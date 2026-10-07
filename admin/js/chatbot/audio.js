@@ -300,82 +300,75 @@ const audioChangeSelectors = audioFeatures.flatMap(({ selector, values }) => [
     ? `.aipkit_${name}_select` : `[name="${name}"]`),
 ]);
 
-// One document delegate serves live panels without retaining retired panel closures.
-const audioPanelClosers = new WeakMap();
-let audioPanelEventsController = null;
-let audioPanelCount = 0;
-function registerAudioPanelEvents(panel, close, signal) {
-  audioPanelClosers.set(panel, close);
-  audioPanelCount++;
-  signal.addEventListener("abort", () => {
-    audioPanelClosers.delete(panel);
-    if (--audioPanelCount === 0) {
-      audioPanelEventsController.abort();
-      audioPanelEventsController = null;
-    }
-  }, { once: true });
-  if (audioPanelEventsController) return;
-  audioPanelEventsController = new AbortController();
-  const openPanels = () => document.querySelectorAll(".aipkit_builder_audio_settings_modal.is-open");
-  document.addEventListener("click", (event) => {
-    openPanels().forEach((panel) => {
-      if (panel.classList.contains("aipkit_inline_settings_content") ||
-          event.target.closest(".aipkit_audio_settings_config_btn") ||
-          event.target.closest('[data-aipkit-inline-settings-target="aipkit_builder_audio_settings_modal"]') ||
-          event.target.closest("#aipkit_builder_audio_settings_modal")) return;
-      audioPanelClosers.get(panel)?.();
-    });
-  }, { signal: audioPanelEventsController.signal });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") openPanels().forEach((panel) => audioPanelClosers.get(panel)?.());
-  }, { signal: audioPanelEventsController.signal });
-}
-
+/**
+ * The Voice panel: one card per voice option, its settings open under it one card at a time, and a line in
+ * each card's head saying how it is set up. Saves and catalogs follow the panel's fields.
+ */
 export function createChatbotAudio({
   builder,
   audioSettingsModal,
   isToggleFieldOn,
-  syncInlineSettingsPanelState,
   syncToolsEnabledOptionsFromFields,
-  closeOtherAdvancedDetailPanels,
-  mountInlineSettingsPanelForTrigger,
-  registerAdvancedDetailPanelCloser,
 }) {
-  let activeAudioSettingsTrigger = null;
+  const __ = (text) => (window.wp?.i18n?.__ || ((value) => value))(text, "gpt3-ai-content-generator");
+  const cards = () => Array.from(audioSettingsModal?.querySelectorAll("[data-aipkit-voice-option]") || []);
+  const featureFor = (card) => audioFeatures[["stt", "tts", "realtime"].indexOf(card.dataset.aipkitVoiceOption)];
+  const isCardOn = (card) => {
+    const feature = featureFor(card);
+    return Boolean(feature) && isToggleFieldOn(builder.querySelector(feature.selector));
+  };
+  const selectedText = (select) => String(select?.selectedOptions?.[0]?.textContent || "").trim();
+  const PROVIDER_SLUGS = { OpenAI: "openai", Google: "google", ElevenLabs: "elevenlabs", AIPufferCloud: "cloud" };
 
-  const applyAudioSettingsFeatureFilter = () => {
-    if (!audioSettingsModal) {
-      return;
+  // What each card's settings come to, in a few words; switched off, its own description.
+  const describeCard = (card) => {
+    const key = card.dataset.aipkitVoiceOption;
+    if (key === "stt") {
+      const slug = PROVIDER_SLUGS[audioSettingsModal.querySelector('[name="stt_provider"]')?.value];
+      return selectedText(audioSettingsModal.querySelector(`[name="stt_${slug}_model_id"]`));
     }
-    const activeFeature = (audioSettingsModal.dataset.activeAudioFeature || "").trim();
-    const featureGroups = audioSettingsModal.querySelectorAll(
-      ".aipkit_audio_feature_group"
-    );
-    if (!featureGroups.length) {
-      return;
+    if (key === "tts") {
+      const slug = PROVIDER_SLUGS[audioSettingsModal.querySelector('[name="tts_provider"]')?.value];
+      if (!slug) return "";
+      const autoPlay = audioSettingsModal.querySelector('[name="tts_auto_play"]');
+      return [
+        selectedText(audioSettingsModal.querySelector(`[name="tts_${slug}_voice_id"]`)),
+        selectedText(audioSettingsModal.querySelector(`[name="tts_${slug}_model_id"]`)),
+        autoPlay?.checked ? __("plays automatically") : __("plays when tapped"),
+      ].filter((part) => part && !part.startsWith("--")).join(" · ");
     }
-    featureGroups.forEach((group) => {
-      if (!activeFeature) {
-        group.style.display = "";
-        return;
-      }
-      group.style.display = group.classList.contains(
-        `aipkit_audio_feature_group--${activeFeature}`
-      )
-        ? ""
-        : "none";
-    });
+    return window.aipkit_describeLiveVoice?.(audioSettingsModal) || "";
   };
 
-  const closeAudioSettingsFlyout = () => {
-    audioSettingsModal.classList.remove("is-open");
-    audioSettingsModal.setAttribute("aria-hidden", "true");
-    syncInlineSettingsPanelState(audioSettingsModal, false);
-    delete audioSettingsModal.dataset.activeAudioFeature;
-    if (activeAudioSettingsTrigger) {
-      activeAudioSettingsTrigger.setAttribute("aria-expanded", "false");
-      activeAudioSettingsTrigger = null;
+  const setCardOpen = (card, open) => {
+    const body = card.querySelector(".aipkit_voice_option_body");
+    const button = card.querySelector("[data-aipkit-voice-open]");
+    const next = Boolean(open && body && isCardOn(card));
+    card.classList.toggle("is-open", next);
+    if (!body) return false;
+    body.hidden = !next;
+    button?.setAttribute("aria-expanded", next ? "true" : "false");
+    return next;
+  };
+  // One card open at a time.
+  const openCard = (card) => {
+    cards().forEach((other) => { if (other !== card) setCardOpen(other, false); });
+    if (setCardOpen(card, true) && card.dataset.aipkitVoiceOption === "tts") {
+      window.aipkit_syncAudioTtsOnOpen?.().catch(() => {});
     }
+  };
+  const closeCards = () => cards().forEach((card) => setCardOpen(card, false));
+
+  const syncCards = () => {
+    cards().forEach((card) => {
+      const on = isCardOn(card);
+      const button = card.querySelector("[data-aipkit-voice-open]");
+      if (button) button.disabled = !on || !card.querySelector(".aipkit_voice_option_body");
+      card.classList.toggle("is-on", on);
+      if (!on && card.classList.contains("is-open")) setCardOpen(card, false);
+      const summary = card.querySelector("[data-aipkit-voice-summary]");
+      if (summary) summary.textContent = (on && describeCard(card)) || summary.dataset.defaultSummary || "";
+    });
   };
 
   const updateAudioVisibility = () => {
@@ -385,23 +378,6 @@ export function createChatbotAudio({
 
     const getToolsToggleState = (selector) =>
       isToggleFieldOn(builder.querySelector(selector));
-    const setAudioOptionsButtonState = (
-      feature,
-      { available = true, enabled = false } = {}
-    ) => {
-      builder
-        .querySelectorAll(
-          `.aipkit_audio_settings_config_btn[data-audio-feature="${feature}"]`
-        )
-        .forEach((button) => {
-          button.style.display = available ? "" : "none";
-          button.disabled = !available || !enabled;
-          button.setAttribute(
-            "aria-disabled",
-            available && enabled ? "false" : "true"
-          );
-        });
-    };
 
     const showStt = getToolsToggleState(
       ".aipkit_audio_toggle_voice_input_row .aipkit_voice_input_toggle_switch"
@@ -454,10 +430,6 @@ export function createChatbotAudio({
       ensureSelectValue(sttProviderSelect, defaultProvider);
       ensureSelectValue(sttModelSelect, defaultModel);
     }
-    setAudioOptionsButtonState("stt", {
-      available: !sttControlsHidden,
-      enabled: showStt,
-    });
     if (typeof window.aipkit_toggleSttModelFields === "function") {
       window.aipkit_toggleSttModelFields(audioSettingsModal);
     }
@@ -490,7 +462,6 @@ export function createChatbotAudio({
       field.style.display =
         showTts && provider === selectedTtsProvider ? "flex" : "none";
     });
-    setAudioOptionsButtonState("tts", { enabled: showTts });
 
     const realtimeContainer = audioSettingsModal.querySelector(
       ".aipkit_realtime_voice_settings_container"
@@ -514,6 +485,7 @@ export function createChatbotAudio({
     audioSettingsModal.querySelectorAll('[data-aipkit-realtime-connect], [data-aipkit-realtime-admin-hint]').forEach((control) => {
       control.hidden = openaiConfigured;
     });
+    window.aipkit_syncLiveVoicePicker?.(audioSettingsModal);
     const voiceEngine = audioSettingsModal.querySelector('[name="voice_engine"]')?.value || "realtime";
     audioSettingsModal.querySelectorAll(".aipkit_rt_dependent").forEach((row) => {
       row.style.display = showRealtime && (!row.dataset.voiceEngine || row.dataset.voiceEngine === voiceEngine) ? "" : "none";
@@ -543,108 +515,53 @@ export function createChatbotAudio({
         popupEnabledForDirectVoice
       );
     }
-    setAudioOptionsButtonState("realtime", {
-      enabled:
-        realtimeEnabledFromTools &&
-        Boolean(realtimeToolsToggle) &&
-        !realtimeToolsToggle.disabled,
-    });
-
-    if (audioSettingsModal.classList.contains("is-open")) {
-      const activeFeature = String(
-        audioSettingsModal.dataset.activeAudioFeature || ""
-      )
-        .trim()
-        .toLowerCase();
-      const featureStillEnabled =
-        (activeFeature === "stt" && showStt) ||
-        (activeFeature === "tts" && showTts) ||
-        (activeFeature === "realtime" && realtimeEnabledFromTools);
-      if (activeFeature && !featureStillEnabled) {
-        closeAudioSettingsFlyout();
-      }
-    }
-
     syncToolsEnabledOptionsFromFields();
-    applyAudioSettingsFeatureFilter();
+    syncCards();
   };
 
   const bindPanel = () => {
-    if (audioSettingsModal && builder.isConnected && audioSettingsModal.isConnected && !audioSettingsModal.dataset.bound) {
-      const controller = new AbortController();
-      const observer = new MutationObserver(() => {
-        if (builder.isConnected && audioSettingsModal.isConnected) return;
-        controller.abort();
-        observer.disconnect();
-        closeAudioSettingsFlyout();
-        delete audioSettingsModal.dataset.bound;
-      });
-      const openAudioSettingsFlyout = (trigger) => {
-        if (!audioSettingsModal || !trigger) {
-          return;
-        }
-        closeOtherAdvancedDetailPanels(audioSettingsModal);
-        mountInlineSettingsPanelForTrigger(audioSettingsModal, trigger);
-        const featureKey = String(trigger.dataset.audioFeature || "")
-          .trim()
-          .toLowerCase();
-        audioSettingsModal.dataset.activeAudioFeature = featureKey;
-        audioSettingsModal.classList.add("is-open");
-        audioSettingsModal.setAttribute("aria-hidden", "false");
-        syncInlineSettingsPanelState(audioSettingsModal, true);
-        if (activeAudioSettingsTrigger && activeAudioSettingsTrigger !== trigger) {
-          activeAudioSettingsTrigger.setAttribute("aria-expanded", "false");
-        }
-        trigger.setAttribute("aria-expanded", "true");
-        activeAudioSettingsTrigger = trigger;
-
-        if (typeof window.aipkit_attachRangeValueHandlers === "function") {
-          window.aipkit_attachRangeValueHandlers(
-            "#aipkit_builder_audio_settings_modal"
-          );
-        }
-
-        updateAudioVisibility();
-        if (typeof window.aipkit_syncAudioTtsOnOpen === "function") {
-          window.aipkit_syncAudioTtsOnOpen().catch(() => {});
-        }
-      };
-
-      const unregister = registerAdvancedDetailPanelCloser(audioSettingsModal, closeAudioSettingsFlyout);
-      controller.signal.addEventListener("abort", () => unregister?.(), { once: true });
-
-      audioSettingsModal.addEventListener("click", (event) => {
-        const connect = event.target.closest('[data-aipkit-realtime-connect]');
-        if (!connect) return;
+    if (!audioSettingsModal || !builder.isConnected || !audioSettingsModal.isConnected || audioSettingsModal.dataset.bound) {
+      return;
+    }
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    const observer = new MutationObserver(() => {
+      if (builder.isConnected && audioSettingsModal.isConnected) return;
+      controller.abort();
+      observer.disconnect();
+      delete audioSettingsModal.dataset.bound;
+    });
+    audioSettingsModal.addEventListener("click", (event) => {
+      const connect = event.target.closest("[data-aipkit-realtime-connect]");
+      if (connect) {
         event.preventDefault();
         window.aipkit_openProviderConnection?.(connect, null, { provider: "OpenAI" });
-      }, { signal: controller.signal });
-      window.addEventListener('aipkit:provider-status-updated', updateAudioVisibility, { signal: controller.signal });
-
-      builder.addEventListener("click", (event) => {
-        const configBtn = event.target.closest(
-          ".aipkit_audio_settings_config_btn"
-        );
-        if (!configBtn) {
-          return;
-        }
-        event.preventDefault();
-        if (
-          audioSettingsModal.classList.contains("is-open") &&
-          activeAudioSettingsTrigger === configBtn
-        ) {
-          closeAudioSettingsFlyout();
-          return;
-        }
-        openAudioSettingsFlyout(configBtn);
-      }, { signal: controller.signal });
-
-      registerAudioPanelEvents(audioSettingsModal, closeAudioSettingsFlyout, controller.signal);
-      observer.observe(builder.ownerDocument.documentElement, { childList: true, subtree: true });
-
-      audioSettingsModal.dataset.bound = "1";
-    }
-
+        return;
+      }
+      // The head opens its card; the chevron belongs to the head. The switch only switches.
+      const head = event.target.closest(".aipkit_voice_option_head");
+      if (!head || event.target.closest(".aipkit_voice_option_switch, a")) return;
+      const card = head.closest("[data-aipkit-voice-option]");
+      const button = head.querySelector("[data-aipkit-voice-open]");
+      if (!card || !button || button.disabled) return;
+      if (card.classList.contains("is-open")) setCardOpen(card, false);
+      else openCard(card);
+    }, options);
+    // Switching an option on opens its card; switching it off closes it.
+    audioSettingsModal.addEventListener("change", (event) => {
+      const feature = audioFeatures.find(({ selector }) => event.target.matches?.(selector.split(" ").pop()));
+      const card = feature && event.target.closest("[data-aipkit-voice-option]");
+      if (!card) return;
+      syncCards();
+      if (isCardOn(card)) openCard(card);
+      else setCardOpen(card, false);
+    }, options);
+    audioSettingsModal.addEventListener("input", syncCards, options);
+    // Another chatbot starts with every card closed.
+    builder.addEventListener("aipkit:bot-state-applied", closeCards, options);
+    window.addEventListener("aipkit:provider-status-updated", updateAudioVisibility, options);
+    observer.observe(builder.ownerDocument.documentElement, { childList: true, subtree: true });
+    audioSettingsModal.dataset.bound = "1";
   };
 
   const bindPersistence = (persistence) => {

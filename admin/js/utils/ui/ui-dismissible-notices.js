@@ -1,70 +1,48 @@
-// AIPKit UI Utils - Dismissible module notices
+// Operational notices remember the condition, not an unconditional dismissal.
 (function () {
   "use strict";
-
-  const STORAGE_PREFIX = "aipkit_dismissed_notice_";
-
-  const getStorageKey = (notice) => {
+  const storageKey = key => `aipkit_dismissed_notice_${key}`;
+  const read = key => {
+    try { return window.localStorage.getItem(storageKey(key)); } catch { return null; }
+  };
+  const write = (key, state) => {
+    try {
+      if (state === null) window.localStorage.removeItem(storageKey(key));
+      else window.localStorage.setItem(storageKey(key), state);
+    } catch { /* Dismissal still works for this view when storage is unavailable. */ }
+  };
+  function setNoticeState(notice, state) {
     const key = notice?.dataset?.aipkitDismissibleNotice;
-    return key ? `${STORAGE_PREFIX}${key}` : "";
-  };
-
-  const isDismissed = (storageKey) => {
-    if (!storageKey) return false;
-    try {
-      return window.localStorage.getItem(storageKey) === "1";
-    } catch (error) {
-      return false;
+    if (!key) return;
+    notice.dataset.aipkitNoticeState = state || '';
+    if (!state) {
+      write(key, null);
+      delete notice.dataset.aipkitDismissedState;
     }
-  };
-
-  const persistDismissal = (storageKey) => {
-    if (!storageKey) return;
-    try {
-      window.localStorage.setItem(storageKey, "1");
-    } catch (error) {
-      // Ignore storage failures; the notice is still dismissed for this view.
-    }
-  };
-
-  const hideNotice = (notice) => {
-    if (!notice) return;
-    notice.hidden = true;
-    notice.style.display = "none";
-  };
-
-  function initDismissibleNotices(scope) {
-    const root = scope || document;
-    const notices = root.querySelectorAll("[data-aipkit-dismissible-notice]");
-    notices.forEach((notice) => {
-      const storageKey = getStorageKey(notice);
-      if (isDismissed(storageKey)) {
-        hideNotice(notice);
-        return;
-      }
-
-      if (notice.dataset.aipkitDismissibleBound === "true") {
-        return;
-      }
-
-      const closeButton = notice.querySelector("[data-aipkit-dismiss-notice]");
-      if (!closeButton) {
-        return;
-      }
-
-      closeButton.addEventListener("click", () => {
-        persistDismissal(storageKey);
-        hideNotice(notice);
+    const hidden = !state || read(key) === state || notice.dataset.aipkitDismissedState === state;
+    notice.hidden = hidden;
+    notice.style.display = hidden ? 'none' : '';
+  }
+  function initDismissibleNotices(scope = document) {
+    scope.querySelectorAll('[data-aipkit-notice-resolved]').forEach(marker =>
+      write(marker.dataset.aipkitNoticeResolved, null));
+    scope.querySelectorAll('[data-aipkit-dismissible-notice]').forEach(notice => {
+      setNoticeState(notice, notice.dataset.aipkitNoticeState ?? 'active');
+      if (notice.dataset.aipkitDismissibleBound === 'true') return;
+      const close = notice.querySelector('[data-aipkit-dismiss-notice]');
+      if (!close) return;
+      close.addEventListener('click', () => {
+        const state = notice.dataset.aipkitNoticeState;
+        write(notice.dataset.aipkitDismissibleNotice, state);
+        notice.dataset.aipkitDismissedState = state;
+        setNoticeState(notice, state);
       });
-      notice.dataset.aipkitDismissibleBound = "true";
+      notice.dataset.aipkitDismissibleBound = 'true';
     });
   }
-
+  window.aipkit_setDismissibleNoticeState = setNoticeState;
   window.aipkit_initDismissibleNotices = initDismissibleNotices;
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => initDismissibleNotices());
-  } else {
-    initDismissibleNotices();
-  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initDismissibleNotices());
+  } else initDismissibleNotices();
 })();

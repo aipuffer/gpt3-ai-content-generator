@@ -168,3 +168,37 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 });
+
+/**
+ * Top-bar AI status chip.
+ *
+ * The server renders the chip (Cloud credits, a connected provider, or Connect AI)
+ * and returns fresh markup as `navStatusHtml` from every response that can change
+ * the connection; api.js hands that markup to aipkit_applyNavStatus.
+ */
+function applyNavStatus(html) {
+  if (typeof html !== "string") {
+    return;
+  }
+  const current = document.querySelector("[data-aipkit-nav-status]");
+  if (!current) {
+    return;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  const next = template.content.querySelector("[data-aipkit-nav-status]");
+  if (next) {
+    current.replaceWith(next);
+  }
+}
+
+window.aipkit_applyNavStatus = applyNavStatus;
+
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-aipkit-nav-connect]");
+  if (!trigger || typeof window.aipkit_openProviderConnection !== "function") {
+    return;
+  }
+  event.preventDefault();
+  window.aipkit_openProviderConnection(trigger);
+});

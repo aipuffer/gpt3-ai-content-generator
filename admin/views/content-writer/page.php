@@ -32,28 +32,24 @@ include WPAICG_PLUGIN_DIR . 'admin/views/shared/provider-key-notice.php';
 include WPAICG_PLUGIN_DIR . 'admin/views/shared/seo-plugin-conflict-notice.php';
 ?>
 <?php if (!empty($aipkit_cw_timeout_warnings)) : ?>
-<div class="aipkit_notification_bar aipkit_notification_bar--warning" data-aipkit-dismissible-notice="content-writer-low-php-timeouts-v1">
-    <div class="aipkit_notification_bar__icon" aria-hidden="true">
-        <span class="dashicons dashicons-clock"></span>
-    </div>
+<div class="aipkit_notification_bar aipkit_notification_bar--warning" data-aipkit-dismissible-notice="content-writer-low-php-timeouts-v1" data-aipkit-notice-state="<?php echo esc_attr(implode(',', $aipkit_cw_timeout_warnings)); ?>">
+    <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-clock"></span></span>
     <div class="aipkit_notification_bar__content">
         <p>
-            <?php
+            <strong><?php
             printf(
                 /* translators: %s: comma-separated list of PHP timeout settings that are too low. */
-                esc_html__(
-                    'Low PHP timeouts detected (%s). Long content generations may time out. Increase max_execution_time/default_socket_timeout in php.ini and any web-server timeouts.',
-                    'gpt3-ai-content-generator'
-                ),
+                esc_html__('PHP timeouts are short (%s).', 'gpt3-ai-content-generator'),
                 esc_html(implode(', ', $aipkit_cw_timeout_warnings))
             );
-            ?>
+            ?></strong>
+            <?php esc_html_e('Long articles may stop before they finish; raise them in php.ini and any web-server timeout.', 'gpt3-ai-content-generator'); ?>
         </p>
     </div>
-    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>">
-        &times;
-    </button>
+    <button type="button" class="aipkit_notification_bar__close" data-aipkit-dismiss-notice aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
 </div>
+<?php else : ?>
+<span hidden data-aipkit-notice-resolved="content-writer-low-php-timeouts-v1"></span>
 <?php endif; ?>
 <div class="aipkit_module_content_writer aipkit_admin_ui" id="aipkit_content_writer_container">
     <form id="aipkit_content_writer_form" onsubmit="return false;">

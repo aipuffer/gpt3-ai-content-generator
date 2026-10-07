@@ -700,6 +700,16 @@ class BotSettingsManager
         ];
     }
 
+    /** Explicit dimension choices, independent of the selected color palette. */
+    public static function normalize_theme_dimension_overrides($value): string
+    {
+        $keys = is_string($value) ? explode(',', $value) : (is_array($value) ? $value : []);
+        return implode(',', array_intersect([
+            'container_max_width', 'popup_width', 'container_height',
+            'container_min_height', 'container_max_height',
+        ], array_filter($keys, 'is_string')));
+    }
+
     /**
      * Returns an array of default values for custom theme settings.
      * @return array
@@ -1758,6 +1768,7 @@ function get_appearance_settings_logic(int $bot_id, string $bot_name, callable $
     )
         ? $raw_theme_preset_key
         : '';
+    $settings['theme_dimension_overrides'] = BotSettingsManager::normalize_theme_dimension_overrides($get_meta_fn('_aipkit_theme_dimension_overrides', ''));
     $settings['footer_text'] = $get_meta_fn('_aipkit_footer_text');
     $settings['input_placeholder'] = $get_meta_fn('_aipkit_input_placeholder', __('Type your message...', 'gpt3-ai-content-generator'));
     $header_avatar_url = $get_meta_fn('_aipkit_header_avatar_url', BotSettingsManager::DEFAULT_HEADER_AVATAR_URL);
@@ -2678,6 +2689,7 @@ function sanitize_settings_logic(array $raw_settings, int $bot_id): array
     )
         ? $raw_theme_preset_key
         : '';
+    $sanitized['theme_dimension_overrides'] = BotSettingsManager::normalize_theme_dimension_overrides($raw_settings['theme_dimension_overrides'] ?? '');
     $sanitized['instructions'] = isset($raw_settings['instructions']) ? AIPKit_Prompt_Sanitizer::sanitize($raw_settings['instructions']) : '';
     $sanitized['popup_enabled'] = isset($raw_settings['popup_enabled'])
         ? (($raw_settings['popup_enabled'] === '1') ? '1' : '0')
@@ -2980,7 +2992,7 @@ function sanitize_settings_logic(array $raw_settings, int $bot_id): array
     $sanitized['local_store_ids'] = wp_json_encode(array_values(array_unique(array_filter(array_map(static function ($id) {
         return substr((string) preg_replace('/[^a-z0-9_-]/', '', strtolower((string) $id)), 0, 64);
     }, $local_ids_raw)))));
-    $allowed_embedding_providers = AIPKit_Providers::get_embedding_provider_keys('chat_settings_sanitize');
+    $allowed_embedding_providers = array_unique(array_merge(AIPKit_Providers::get_embedding_provider_keys('chat_settings_sanitize'), ['aipuffercloud']));
     $uses_custom_embedding_provider = in_array($sanitized['vector_store_provider'], ['pinecone', 'qdrant', 'chroma', 'local'], true);
     $sanitized['vector_embedding_provider'] = ($uses_custom_embedding_provider && isset($raw_settings['vector_embedding_provider']))
         ? sanitize_key($raw_settings['vector_embedding_provider'])
@@ -3234,6 +3246,7 @@ function save_meta_fields_logic(int $botId, array $sanitized_settings)
     } else {
         delete_post_meta($botId, '_aipkit_theme_preset_key');
     }
+    update_post_meta($botId, '_aipkit_theme_dimension_overrides', $sanitized_settings['theme_dimension_overrides'] ?? '');
     update_post_meta($botId, '_aipkit_instructions', $sanitized_settings['instructions']);
     update_post_meta($botId, '_aipkit_deploy_mode', $sanitized_settings['deploy_mode']);
     update_post_meta($botId, '_aipkit_popup_enabled', $sanitized_settings['popup_enabled']);

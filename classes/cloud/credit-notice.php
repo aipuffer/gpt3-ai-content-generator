@@ -23,37 +23,50 @@ final class CreditNotice
         add_action('wp_ajax_' . self::ACTION, [self::class, 'dismiss']);
     }
 
-    /** @return array{key: string, type: string, message: string}|null */
+    /**
+     * The notice for the account's credit problem, if any: what happened (lead), what it means (detail), the
+     * account link's label, and how serious it is (tone) with its icon. message is lead and detail together.
+     *
+     * @return array{key: string, type: string, tone: string, icon: string, lead: string, detail: string, action: string, message: string}|null
+     */
     public static function alert(): ?array
     {
         if (!Connection::generation_ready()) { return null; }
         $state = Connection::credit_state();
         $date = Connection::refresh_date();
+        /* translators: %s: date the free monthly credits refresh. */
+        $refresh = $date !== '' ? sprintf(__('Free credits refresh on %s.', 'gpt3-ai-content-generator'), $date) : '';
+        $alert = null;
         if (($state['problem'] ?? '') === 'site_limit') {
-            return ['key' => 'site_limit', 'type' => 'error',
-                'message' => __('This site has reached its AI Puffer Cloud spending limit. Cloud requests cannot complete until the limit resets or you raise it in your Cloud account.', 'gpt3-ai-content-generator')];
-        }
-        if (!empty($state['credits']['restricted']) || ($state['problem'] ?? '') === 'credit_deficit') {
-            return ['key' => 'credit_deficit', 'type' => 'error',
-                'message' => __('A refunded or disputed Cloud credit purchase left this account with a credit deficit. Cloud requests are restricted until you add credits or contact AI Puffer support.', 'gpt3-ai-content-generator')];
-        }
-        if (Connection::credits_exhausted()) {
-            return ['key' => 'empty', 'type' => 'error', 'message' => $date !== ''
-                /* translators: %s: date the free monthly credits refresh. */
-                ? sprintf(__('Your AI Puffer Cloud credits have run out. Cloud requests need credits to continue. Free credits refresh on %s.', 'gpt3-ai-content-generator'), $date)
-                : __('Your AI Puffer Cloud credits have run out. Cloud requests need credits to continue.', 'gpt3-ai-content-generator')];
-        }
-        if (Connection::credits_low()) {
+            $alert = ['key' => 'site_limit', 'type' => 'error', 'tone' => 'critical', 'icon' => 'controls-pause',
+                'lead' => __('This site reached its AI Puffer Cloud spending limit.', 'gpt3-ai-content-generator'),
+                'detail' => __('Requests resume when the limit resets. Contact AI Puffer support if you need a higher limit.', 'gpt3-ai-content-generator'),
+                'action' => __('View credits', 'gpt3-ai-content-generator')];
+        } elseif (!empty($state['credits']['restricted']) || ($state['problem'] ?? '') === 'credit_deficit') {
+            $alert = ['key' => 'credit_deficit', 'type' => 'error', 'tone' => 'critical', 'icon' => 'warning',
+                'lead' => __('Cloud requests are paused: a refunded or disputed purchase left a credit deficit.', 'gpt3-ai-content-generator'),
+                'detail' => __('Add credits or contact AI Puffer support to continue.', 'gpt3-ai-content-generator'),
+                'action' => __('Add credits', 'gpt3-ai-content-generator')];
+        } elseif (Connection::credits_exhausted()) {
+            $alert = ['key' => 'empty', 'type' => 'error', 'tone' => 'critical', 'icon' => 'cloud',
+                'lead' => __('Your AI Puffer Cloud credits have run out.', 'gpt3-ai-content-generator'),
+                'detail' => $refresh !== '' ? $refresh : __('Add credits to continue.', 'gpt3-ai-content-generator'),
+                'action' => __('View credits', 'gpt3-ai-content-generator')];
+        } elseif (Connection::credits_low()) {
             $available_units = (int) ($state['credits']['available'] ?? 0);
-            return ['key' => 'low', 'type' => 'warning', 'message' => sprintf(
-                /* translators: %s: number of credits left. */
-                _n('Only %s AI Puffer Cloud credit left.', 'Only %s AI Puffer Cloud credits left.', $available_units === 1000 ? 1 : 2, 'gpt3-ai-content-generator'),
-                Connection::format_credits($available_units)
-            ) . ($date !== ''
-                /* translators: %s: date the free monthly credits refresh. */
-                ? ' ' . sprintf(__('Free credits refresh on %s.', 'gpt3-ai-content-generator'), $date) : '')];
+            $alert = ['key' => 'low', 'type' => 'warning', 'tone' => 'warning', 'icon' => 'cloud',
+                'lead' => sprintf(
+                    /* translators: %s: number of credits left. */
+                    _n('Only %s AI Puffer Cloud credit left.', 'Only %s AI Puffer Cloud credits left.', $available_units === 1000 ? 1 : 2, 'gpt3-ai-content-generator'),
+                    Connection::format_credits($available_units)
+                ),
+                'detail' => $refresh,
+                'action' => __('Add credits', 'gpt3-ai-content-generator')];
         }
-        return null;
+        if ($alert) {
+            $alert['message'] = trim($alert['lead'] . ' ' . $alert['detail']);
+        }
+        return $alert;
     }
 
     private static function plugin_screen(): bool
@@ -115,16 +128,16 @@ final class CreditNotice
         $alert = self::visible_alert();
         if (!$alert) { return; }
         ?>
-        <div class="<?php echo $on_plugin_screen ? '' : 'notice '; ?>aipkit_notification_bar aipkit_notification_bar--info aipkit_cloud_credit_notice" role="alert"
+        <div class="<?php echo $on_plugin_screen ? '' : 'notice '; ?>aipkit_notification_bar aipkit_notification_bar--<?php echo esc_attr($alert['tone']); ?> aipkit_cloud_credit_notice" role="alert"
             data-cloud-credit-key="<?php echo esc_attr($alert['key']); ?>" data-cloud-credit-fingerprint="<?php echo esc_attr(self::fingerprint($alert)); ?>"
             data-cloud-credit-error="<?php esc_attr_e('Could not dismiss the notice. Please reload and try again.', 'gpt3-ai-content-generator'); ?>"
             data-cloud-credit-nonce="<?php echo esc_attr(wp_create_nonce(self::ACTION)); ?>" data-cloud-credit-url="<?php echo esc_url(admin_url('admin-ajax.php')); ?>">
-            <img class="aipkit_notification_bar__icon" src="<?php echo esc_url(WPAICG_LOGO_URL); ?>" width="28" height="28" alt="" />
+            <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-<?php echo esc_attr($alert['icon']); ?>"></span></span>
             <div class="aipkit_notification_bar__content">
-                <p><?php echo esc_html($alert['message']); ?></p>
+                <p><strong><?php echo esc_html($alert['lead']); ?></strong><?php echo $alert['detail'] !== '' ? ' ' . esc_html($alert['detail']) : ''; ?></p>
                 <p data-cloud-credit-feedback role="status" hidden></p>
             </div>
-            <a class="aipkit_btn aipkit_btn-primary" href="<?php echo esc_url(Connection::account_url()); ?>"><?php esc_html_e('View credits', 'gpt3-ai-content-generator'); ?></a>
+            <a class="aipkit_notification_bar__action" href="<?php echo esc_url(Connection::account_url()); ?>"><?php echo esc_html($alert['action']); ?></a>
             <button type="button" class="aipkit_notification_bar__close" data-cloud-credit-dismiss aria-label="<?php esc_attr_e('Dismiss credit notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
         </div>
         <?php

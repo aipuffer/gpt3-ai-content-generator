@@ -28,13 +28,13 @@ final class Announcement
             'aipkit_provider' => 'AIPufferCloud',
         ], admin_url('admin.php'));
         ?>
-        <div class="aipkit_notification_bar aipkit_notification_bar--info" data-aipkit-cloud-announcement<?php if ($connected) : ?> hidden<?php endif; ?>>
-            <img class="aipkit_notification_bar__icon" src="<?php echo esc_url(WPAICG_LOGO_URL); ?>" width="28" height="28" alt="" />
+        <div class="aipkit_notification_bar aipkit_notification_bar--promo" data-aipkit-cloud-announcement<?php if ($connected) : ?> hidden<?php endif; ?>>
+            <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-cloud"></span></span>
             <div class="aipkit_notification_bar__content">
-                <p><?php esc_html_e('Try AI Puffer Cloud — 25 free credits every month. No API key needed.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong><?php esc_html_e('Try AI Puffer Cloud: 25 free credits every month.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('No API key needed.', 'gpt3-ai-content-generator'); ?></p>
                 <p data-cloud-announcement-feedback role="status" hidden></p>
             </div>
-            <a href="<?php echo esc_url($settings_url); ?>" class="aipkit_btn aipkit_btn-primary" data-cloud-announcement-connect><?php esc_html_e('Claim free credits', 'gpt3-ai-content-generator'); ?></a>
+            <a href="<?php echo esc_url($settings_url); ?>" class="aipkit_notification_bar__action is-primary" data-cloud-announcement-connect><?php esc_html_e('Claim free credits', 'gpt3-ai-content-generator'); ?></a>
             <button type="button" class="aipkit_notification_bar__close" data-cloud-announcement-dismiss aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
         </div>
         <?php

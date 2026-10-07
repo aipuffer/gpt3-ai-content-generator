@@ -75,7 +75,7 @@
     if (!notice) return;
 
     if (status.healthy) {
-      notice.hidden = true;
+      window.aipkit_setDismissibleNoticeState?.(notice, '');
       return;
     }
 
@@ -84,28 +84,28 @@
         ? "delayed"
         : "pending"
       : "disabled";
-    const message = notice.querySelector("[data-aipkit-cron-notice-message]");
+    // Each state brings its own words and colour: off is red, the server-cron states amber.
+    let states = {};
+    try {
+      states = JSON.parse(notice.dataset.aipkitRunnerStates || "{}");
+    } catch (error) {
+      states = {};
+    }
+    const info = states[state] || {};
+    const lead = notice.querySelector("[data-aipkit-cron-notice-lead]");
+    const detail = notice.querySelector("[data-aipkit-cron-notice-detail]");
     const wpCronLink = notice.querySelector(
       "[data-aipkit-cron-notice-wp-link]"
     );
     const action = notice.querySelector("[data-aipkit-cron-notice-action]");
-    const messageKey =
-      state === "pending"
-        ? "aipkitMessagePending"
-        : state === "delayed"
-          ? "aipkitMessageDelayed"
-          : "aipkitMessageDisabled";
-    const actionKey =
-      state === "pending"
-        ? "aipkitActionPending"
-        : state === "delayed"
-          ? "aipkitActionDelayed"
-          : "aipkitActionDisabled";
 
-    if (message) message.textContent = notice.dataset[messageKey] || "";
+    if (lead) lead.textContent = info.lead || "";
+    if (detail) detail.textContent = info.detail || "";
     if (wpCronLink) wpCronLink.hidden = state !== "disabled";
-    if (action) action.textContent = notice.dataset[actionKey] || "";
-    notice.hidden = false;
+    if (action) action.textContent = info.action || "";
+    notice.classList.toggle("aipkit_notification_bar--critical", info.tone === "critical");
+    notice.classList.toggle("aipkit_notification_bar--warning", info.tone !== "critical");
+    window.aipkit_setDismissibleNoticeState?.(notice, state);
   };
 
   const updateCronCard = (container, panel, status) => {

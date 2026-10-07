@@ -19,6 +19,9 @@
  * - filter_aria_label (string, optional)
  * - manage_url (string, optional)
  * - show_manage_link (bool, optional; defaults to true)
+ * - trigger_action_label (string, optional): shown at the trigger's end, such as Change; the trigger then
+ *   also names the model's provider under the model
+ * - show_sync_button (bool, optional; defaults to false): a footer button that syncs the provider being browsed
  */
 
 if (!defined('ABSPATH')) {
@@ -83,6 +86,10 @@ $aipkit_unified_model_manage_url = isset($aipkit_unified_model_selector_config['
     : admin_url('admin.php?page=wpaicg&aipkit_module=settings&aipkit_settings_page=ai');
 $aipkit_unified_model_show_manage_link = !isset($aipkit_unified_model_selector_config['show_manage_link'])
     || (bool) $aipkit_unified_model_selector_config['show_manage_link'];
+$aipkit_unified_model_action_label = isset($aipkit_unified_model_selector_config['trigger_action_label'])
+    ? (string) $aipkit_unified_model_selector_config['trigger_action_label']
+    : '';
+$aipkit_unified_model_show_sync_button = !empty($aipkit_unified_model_selector_config['show_sync_button']);
 ?>
 <div
     class="aipkit_unified_model_selector<?php echo $aipkit_unified_model_class_name !== '' ? ' ' . esc_attr($aipkit_unified_model_class_name) : ''; ?>"
@@ -107,7 +114,15 @@ $aipkit_unified_model_show_manage_link = !isset($aipkit_unified_model_selector_c
         <?php if ($aipkit_unified_model_show_trigger_logo) : ?>
             <span class="aipkit_unified_model_logo" data-aipkit-unified-model-logo aria-hidden="true"></span>
         <?php endif; ?>
-        <span class="aipkit_unified_model_name" data-aipkit-unified-model-name><?php echo esc_html($aipkit_unified_model_initial_label); ?></span>
+        <?php if ($aipkit_unified_model_action_label !== '') : ?>
+            <span class="aipkit_unified_model_copy">
+                <span class="aipkit_unified_model_name" data-aipkit-unified-model-name><?php echo esc_html($aipkit_unified_model_initial_label); ?></span>
+                <span class="aipkit_unified_model_provider_label" data-aipkit-unified-model-provider></span>
+            </span>
+            <span class="aipkit_unified_model_action"><?php echo esc_html($aipkit_unified_model_action_label); ?></span>
+        <?php else : ?>
+            <span class="aipkit_unified_model_name" data-aipkit-unified-model-name><?php echo esc_html($aipkit_unified_model_initial_label); ?></span>
+        <?php endif; ?>
     </button>
     <div
         id="<?php echo esc_attr($aipkit_unified_model_popover_id); ?>"
@@ -188,6 +203,12 @@ $aipkit_unified_model_show_manage_link = !isset($aipkit_unified_model_selector_c
                     <span>↵</span> <?php esc_html_e('select', 'gpt3-ai-content-generator'); ?>
                 </span>
                 <span class="aipkit_unified_model_summary" data-aipkit-unified-model-summary aria-live="polite"></span>
+                <?php if ($aipkit_unified_model_show_sync_button) : ?>
+                    <button type="button" class="aipkit_unified_model_sync" data-aipkit-unified-model-sync hidden>
+                        <span class="dashicons dashicons-update" aria-hidden="true"></span>
+                        <span data-aipkit-unified-model-sync-label><?php esc_html_e('Sync models', 'gpt3-ai-content-generator'); ?></span>
+                    </button>
+                <?php endif; ?>
                 <?php if ($aipkit_unified_model_show_manage_link) : ?>
                     <a
                         class="aipkit_unified_model_manage_link"

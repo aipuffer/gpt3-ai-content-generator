@@ -3,8 +3,9 @@ import { isMissingProviderCredentialMessage, resolveChatbotProviderConfigured } 
 import { createSourceActionMenu } from "../knowledge-base/source-actions.js";
 
 import { createChatbotSourceRecords, getSourceUpdatedMeta } from "../knowledge-base/source-records.js";
+import { createChatbotSourcePage } from "./source-page.js";
 
-import { createChatbotKnowledgeRun, bindChatbotSourceInventory, createChatbotTrainingStatus, createChatbotWebsiteSources, createChatbotSourceEditor, bindChatbotSourcePicker, getKnowledgeProviderCompatibilityMessage, resolveChatbotSourceSetup } from "./knowledge.js";
+import { createChatbotKnowledgeRun, bindChatbotSourceInventory, createChatbotTrainingStatus, createChatbotWebsiteSources, bindChatbotSourcePicker, getKnowledgeProviderCompatibilityMessage, resolveChatbotSourceSetup } from "./knowledge.js";
 import { getConfiguredVectorStoreValues } from "../utils/vector-store-selection-state.js";
 
 import { bindChatbotContextSettings } from "./knowledge-settings.js";
@@ -56,6 +57,7 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
   const trainingPresentation = createChatbotTrainingStatus({
     builder,
     __,
+    _n,
     trainingMainAddButton,
     trainingSheetAddButton,
     getActiveTrainingTabKey: () => activeTrainingSource,
@@ -163,17 +165,14 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
   };
   updateTrainingCardVisibility();
   const sourcesSheetSection = sheetOverlay ? sheetOverlay.querySelector('.aipkit_builder_sheet_section[data-sheet="sources"]') : null;
-  const sourcesTableBody = sourcesSheetSection ? sourcesSheetSection.querySelector("#aipkit_sources_table_body") : null;
-  const sourcesSearchInput = sourcesSheetSection ? sourcesSheetSection.querySelector(".aipkit_sources_search_input") : null;
+  const sourcesList = sourcesSheetSection ? sourcesSheetSection.querySelector("#aipkit_known_list") : null;
+  const sourcesSearchInput = sourcesSheetSection ? sourcesSheetSection.querySelector(".aipkit_known_search_input") : null;
   const sourcesFilterSelect = sourcesSheetSection ? sourcesSheetSection.querySelector(".aipkit_sources_filter_select") : null;
   const sourcesTypeFilter = sourcesSheetSection ? sourcesSheetSection.querySelector(".aipkit_sources_type_filter") : null;
-  const sourcesRefreshButton = sourcesSheetSection ? sourcesSheetSection.querySelector(".aipkit_sources_refresh_btn") : null;
-  const sourcesPagination = sourcesSheetSection ? sourcesSheetSection.querySelector("#aipkit_sources_pagination") : null;
+  const sourcesCounts = sourcesSheetSection ? sourcesSheetSection.querySelector("[data-aipkit-known-counts]") : null;
+  const sourcesMore = sourcesSheetSection ? sourcesSheetSection.querySelector("[data-aipkit-known-more]") : null;
+  const sourcesAddButton = sheetOverlay ? sheetOverlay.querySelector("[data-aipkit-known-add]") : null;
   const sourcesStatus = sourcesSheetSection ? sourcesSheetSection.querySelector("#aipkit_sources_status") : null;
-  const sourceEditor = createChatbotSourceEditor({
-    sourcesEditor: document.getElementById("aipkit_sources_editor_modal"),
-    __
-  });
   let finalizeTrainingSourceDiscard;
   const bindSourcePicker = () => {
     finalizeTrainingSourceDiscard = bindChatbotSourcePicker({
@@ -1326,7 +1325,7 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
                 window.aipkit_refreshSourcesSheet();
               }
               if (failedFileCount === 0 && typeof window.aipkit_closeTrainingSourcePopover === "function") {
-                window.aipkit_closeTrainingSourcePopover();
+                window.aipkit_closeTrainingSourcePopover({ saved: true });
               }
               return;
             } else if (activeTabKey === "website" && websiteSettings) {
@@ -1385,7 +1384,7 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
                 window.aipkit_refreshSourcesSheet();
               }
               if (typeof window.aipkit_closeTrainingSourcePopover === "function") {
-                window.aipkit_closeTrainingSourcePopover();
+                window.aipkit_closeTrainingSourcePopover({ saved: true });
               }
             } else {
               setTrainingStatus(getTrainingActionLabels(activeTabKey).loading, "loading");
@@ -1522,7 +1521,7 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
                 window.aipkit_refreshSourcesSheet();
               }
               if (typeof window.aipkit_closeTrainingSourcePopover === "function") {
-                window.aipkit_closeTrainingSourcePopover();
+                window.aipkit_closeTrainingSourcePopover({ saved: true });
               }
             }
           } catch (error) {
@@ -1537,7 +1536,6 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
               if (typeof window.aipkit_refreshSourcesSheet === "function") {
                 window.aipkit_refreshSourcesSheet();
               }
-              updateTrainingSourcesCount();
             } else {
               const rawErrorMessage = error?.message || "";
               const missingProviderConfig = isMissingProviderCredentialMessage(rawErrorMessage, {
@@ -1546,6 +1544,9 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
               const knowledgeSettingsSaveFailed = error?.code === "aipkit_knowledge_settings_save_failed";
               setTrainingStatus(missingProviderConfig ? "Connect an API key to add knowledge." : knowledgeSettingsSaveFailed ? rawErrorMessage || __("Could not save knowledge settings. Please try again.", "gpt3-ai-content-generator") : `Error: ${rawErrorMessage || "Adding knowledge failed."}`, "error");
             }
+            // Failed or stopped indexing can still write a source log. Refresh even
+            // when the successful-source count and queue counters did not change.
+            refreshTrainingSourcesAfterMutation(getContextSettings());
           } finally {
             if (!fileRun || activeFileTrainingRun === fileRun) {
               const shouldCloseTrainingSource = closeTrainingSourceWhenStopped;
@@ -1583,24 +1584,22 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
           claude_files: "Anthropic Files",
           google: "Google"
         };
+        const SOURCES_PAGE_SIZE = 20;
         const sourcesState = {
-          page: 1,
           search: "",
           type: "",
           status: "",
-          pageCursors: [ null ]
+          loaded: 0,
+          cursor: null,
+          hasMore: false,
+          summary: null
         };
         let searchTimeout = null;
         let openSourcesActionMenu = null;
         let sourcesFetchGeneration = 0;
         const normalizeSourceProviderKey = value => String(value || "").trim().toLowerCase();
-        const truncateSourceText = (text, maxLength) => {
-          const safeText = String(text || "");
-          return safeText.length > maxLength ? `${safeText.slice(0, maxLength)}...` : safeText;
-        };
         const {
           getStatusMeta: getSourceStatusMeta,
-          isQaTextSource: isQaSourceText,
           getContentTypeMeta: getSourceContentTypeMeta,
           getSourceDisplay,
           getSourceChunkMeta
@@ -1748,126 +1747,220 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
             storeIds
           };
         };
-        const renderSourcesEmpty = message => {
-          if (!sourcesTableBody) {
-            return;
+        let sourcePage = null;
+        const sourcesMoreShown = sourcesMore ? sourcesMore.querySelector("[data-aipkit-known-shown]") : null;
+        const sourcesMoreButton = sourcesMore ? sourcesMore.querySelector("[data-aipkit-known-more-button]") : null;
+        const STATUS_KEYS = {
+          indexed: "ready",
+          processing: "adding",
+          failed: "failed"
+        };
+        const countLabels = {
+          /* translators: %s: number of sources the chatbot answers from. */
+          ready: count => _n("%s ready", "%s ready", count, "gpt3-ai-content-generator"),
+          /* translators: %s: number of sources still being added. */
+          adding: count => _n("%s adding", "%s adding", count, "gpt3-ai-content-generator"),
+          /* translators: %s: number of sources that failed to add. */
+          failed: count => _n("%s couldn't be added", "%s couldn't be added", count, "gpt3-ai-content-generator")
+        };
+        // Status counts for the kind on show (a pressed one stays so it can be turned off), kind sizes for the
+        // status on show, and how many of them the list shows.
+        const renderSourcesSummary = () => {
+          const summary = sourcesState.summary;
+          const kind = sourcesState.type || "all";
+          const statusKey = STATUS_KEYS[sourcesState.status] || "all";
+          let anyCount = false;
+          sourcesCounts?.querySelectorAll("[data-aipkit-known-status]").forEach(button => {
+            const status = button.dataset.aipkitKnownStatus;
+            const key = STATUS_KEYS[status];
+            const count = Number(summary?.[kind]?.[key] || 0);
+            const pressed = sourcesState.status === status;
+            button.hidden = !count && !pressed;
+            button.setAttribute("aria-pressed", pressed ? "true" : "false");
+            const label = button.querySelector("[data-aipkit-known-count-label]");
+            if (label) {
+              label.textContent = sprintf(countLabels[key](count), count.toLocaleString());
+            }
+            anyCount = anyCount || !button.hidden;
+          });
+          if (sourcesCounts) {
+            sourcesCounts.hidden = !anyCount;
           }
-          closeSourcesActionMenu();
-          sourcesTableBody.innerHTML = `<tr><td colspan="4" class="aipkit_text-center">${escaper(message)}</td></tr>`;
-          if (sourcesPagination) {
-            sourcesPagination.innerHTML = "";
+          sourcesSheetSection.querySelectorAll("[data-aipkit-known-kind-count]").forEach(node => {
+            const count = summary?.[node.dataset.aipkitKnownKindCount]?.[statusKey];
+            node.textContent = Number.isFinite(count) ? count.toLocaleString() : "";
+          });
+          if (sourcesMore) {
+            const total = summary?.[kind]?.[statusKey];
+            sourcesMore.hidden = !sourcesState.hasMore;
+            if (sourcesMoreShown) {
+              sourcesMoreShown.textContent = Number.isFinite(total) && total > sourcesState.loaded
+                /* translators: 1: sources shown, 2: all sources that match. */
+                ? sprintf(__("Showing %1$s of %2$s", "gpt3-ai-content-generator"), sourcesState.loaded.toLocaleString(), total.toLocaleString())
+                : "";
+            }
           }
         };
-        const renderSourcesRows = (logs, providerLabel) => {
-          if (!sourcesTableBody) {
-            return;
-          }
-          if (!logs.length) {
-            renderSourcesEmpty("No trained content found.");
+        const renderSourcesEmpty = message => {
+          if (!sourcesList) {
             return;
           }
           closeSourcesActionMenu();
-          const rows = logs.map(log => {
-            const providerKey = normalizeSourceProviderKey(log.provider || providerLabel || "");
-            const actionProvider = providerLabels[providerKey] || log.provider || providerLabel || "";
-            const rowProviderLabel = providerLabels[providerKey] || log.provider || providerLabel || "—";
-            const contentType = getSourceContentTypeMeta(log, providerKey);
-            const statusMeta = getSourceStatusMeta(log.status);
-            const isProcessing = log.status === "processing" || log.status === "queued";
-            const updatedMeta = getSourceUpdatedMeta(log);
-            const sourceDisplay = String(getSourceDisplay(log) || "—");
-            const truncatedSource = truncateSourceText(sourceDisplay, 60);
-            const chunkMeta = getSourceChunkMeta(log);
-            const sourceTitle = chunkMeta ? `${sourceDisplay} · ${chunkMeta.label}` : sourceDisplay;
-            const sourceTypeIcon = getSourceTypeIcon(contentType);
-            const snippet = log.indexed_content || "";
-            const sourceViewLog = {
-              provider: log.provider || rowProviderLabel,
-              post_id: log.post_id || "",
-              post_title: log.post_title || "",
-              message: log.message || "",
-              file_id: log.file_id || "",
-              vector_store_id: log.vector_store_id || "",
-              vector_store_name: log.vector_store_name || ""
-            };
-            const actions = [];
-            if (snippet) {
-              actions.push(renderSourceAction(`data-file-id="${escaper(log.file_id || "")}"\n                      data-snippet="${escaper(snippet)}"\n                      data-store-id="${escaper(log.vector_store_id || "")}"\n                      data-store-name="${escaper(log.vector_store_name || "")}"\n                      data-source-log="${escaper(JSON.stringify(sourceViewLog))}"`, "aipkit_sources_action_view aipkit_view_snippet_icon", "dashicons-visibility", __("View", "gpt3-ai-content-generator"), isProcessing));
+          sourcesList.innerHTML = `<p class="aipkit_known_empty">${escaper(message)}</p>`;
+          sourcesState.loaded = 0;
+          sourcesState.hasMore = false;
+          renderSourcesSummary();
+        };
+        // A website page shows where it lives; the page's address is the first line of what was read.
+        const getSourcePath = log => {
+          const match = String(log.indexed_content || "").match(/^Source URL:\s*(\S+)/m);
+          if (!match) {
+            return "";
+          }
+          try {
+            const url = new URL(match[1]);
+            return decodeURI(`${url.pathname}${url.search}`) || "/";
+          } catch (error) {
+            return "";
+          }
+        };
+        // Each row's source, kept so its page can open without another request.
+        const sourcesById = new Map();
+        const renderSourceRow = (log, providerLabel) => {
+          const providerKey = normalizeSourceProviderKey(log.provider || providerLabel || "");
+          const actionProvider = providerLabels[providerKey] || log.provider || providerLabel || "";
+          const contentType = getSourceContentTypeMeta(log, providerKey);
+          const statusMeta = getSourceStatusMeta(log.status);
+          const isProcessing = log.status === "processing" || log.status === "queued";
+          const tone = log.status === "failed" ? "failed" : isProcessing ? "adding" : "ready";
+          // Website pages are learned; the other sources are added.
+          const statusLabel = contentType.key === "site" && tone !== "ready"
+            ? tone === "failed" ? __("Couldn't learn", "gpt3-ai-content-generator") : __("Learning...", "gpt3-ai-content-generator")
+            : statusMeta.label;
+          const updatedMeta = getSourceUpdatedMeta(log);
+          const sourceDisplay = String(getSourceDisplay(log) || "—");
+          // An uploaded file is one source; the parts it was split into are counted, not listed.
+          /* translators: %s: number of parts an uploaded file was split into. */
+          const chunkMeta = log.file_chunks?.length > 1 ? {label: sprintf(_n("%s part", "%s parts", log.file_chunks.length, "gpt3-ai-content-generator"), log.file_chunks.length.toLocaleString())} : getSourceChunkMeta(log);
+          const id = String(log.id || "");
+          sourcesById.set(id, {
+            log,
+            kind: contentType.key,
+            kindLabel: contentType.label,
+            tone,
+            statusLabel,
+            updated: updatedMeta,
+            display: sourceDisplay,
+            target: {
+              provider: actionProvider,
+              storeId: String(log.vector_store_id || ""),
+              vectorId: String(log.file_id || ""),
+              logId: id
             }
-            if (contentType.key === "site" && log.post_id) {
-              actions.push(renderSourceAction(`${renderSourceTargetAttributes(log, actionProvider)}\n                      data-post-id="${escaper(log.post_id || "")}"\n                      data-embedding-provider="${escaper(log.embedding_provider || "")}"\n                      data-embedding-model="${escaper(log.embedding_model || "")}"`, "aipkit_sources_action_retrain", "dashicons-update", isProcessing ? __("Updating...", "gpt3-ai-content-generator") : __("Update", "gpt3-ai-content-generator"), isProcessing));
-            }
-            if (contentType.key === "text" && snippet) {
-              actions.push(renderSourceAction(`${renderSourceTargetAttributes(log, actionProvider)}\n                      data-embedding-provider="${escaper(log.embedding_provider || "")}"\n                      data-embedding-model="${escaper(log.embedding_model || "")}"\n                      data-source-kind="${isQaSourceText(log) ? "qa" : "text"}"\n                      data-content="${escaper(encodeURIComponent(snippet))}"`, "aipkit_sources_action_edit", "dashicons-edit", isProcessing ? __("Updating...", "gpt3-ai-content-generator") : __("Edit", "gpt3-ai-content-generator"), isProcessing));
-            }
-            if (log.file_id) {
-              const deleteDividerClass = actions.length ? " aipkit_sources_action_menu_item--separated" : "";
-              actions.push(renderSourceAction(renderSourceTargetAttributes(log, actionProvider), `aipkit_sources_action_menu_item--danger${deleteDividerClass} aipkit_sources_action_delete`, "dashicons-trash", __("Delete", "gpt3-ai-content-generator"), isProcessing));
-            }
-            const actionMenu = renderSourceActionMenu(actions);
-            return `<tr data-log-id="${escaper(log.id || "")}">\n                <td class="aipkit_sources_status_cell">\n                  <div class="aipkit_sources_status_wrap">\n                    <span class="aipkit_status-tag ${escaper(statusMeta.className)}">${escaper(statusMeta.label)}</span>\n                  </div>\n                </td>\n                <td class="aipkit_sources_source_cell" title="${escaper(sourceTitle)}">\n                  <div class="aipkit_sources_source_identity">\n                    <span class="aipkit_sources_source_icon dashicons ${escaper(sourceTypeIcon)}" role="img" aria-label="${escaper(contentType.label)}" title="${escaper(contentType.label)}"></span>\n                    <div class="aipkit_sources_source_stack">\n                      <span class="aipkit_sources_source_title_line">\n                        <span class="aipkit_sources_source_title">${escaper(truncatedSource)}</span>\n                        ${chunkMeta ? `<span class="aipkit_sources_chunk_badge">${escaper(chunkMeta.label)}</span>` : ""}\n                      </span>\n                    </div>\n                  </div>\n                </td>\n                <td class="aipkit_sources_time_cell" title="${escaper(updatedMeta.title)}">\n                  <span class="aipkit_sources_time_value">${escaper(updatedMeta.label)}</span>\n                </td>\n                <td class="aipkit_actions_cell aipkit_sources_actions_cell">\n                  ${actionMenu}\n                </td>\n              </tr>`;
-          }).join("");
-          sourcesTableBody.innerHTML = rows;
-          if (typeof window.aipkit_attachSnippetModalListeners === "function") {
-            window.aipkit_attachSnippetModalListeners(sourcesTableBody, providerLabel);
+          });
+          // Ready sources say where they come from; the others say what is happening or what went wrong.
+          const detail = tone === "failed"
+            ? String(log.message || statusLabel)
+            : [ (contentType.key === "site" && getSourcePath(log)) || `${contentType.label} · ${updatedMeta.label}`, chunkMeta?.label ].filter(Boolean).join(" · ");
+          const actions = [ renderSourceAction(`data-log-id="${escaper(id)}"`, "aipkit_sources_action_open", contentType.key === "text" ? "dashicons-edit" : "dashicons-visibility", contentType.key === "text" ? __("Edit", "gpt3-ai-content-generator") : __("View what it read", "gpt3-ai-content-generator"), false) ];
+          if (contentType.key === "site" && log.post_id) {
+            actions.push(renderSourceAction(`${renderSourceTargetAttributes(log, actionProvider)}
+                      data-post-id="${escaper(log.post_id || "")}"
+                      data-embedding-provider="${escaper(log.embedding_provider || "")}"
+                      data-embedding-model="${escaper(log.embedding_model || "")}"`, "aipkit_sources_action_retrain", "dashicons-update", isProcessing ? __("Learning...", "gpt3-ai-content-generator") : __("Learn again", "gpt3-ai-content-generator"), isProcessing));
+          }
+          if (log.file_id) {
+            actions.push(renderSourceAction(renderSourceTargetAttributes(log, actionProvider), "aipkit_sources_action_menu_item--danger aipkit_sources_action_menu_item--separated aipkit_sources_action_delete", "dashicons-trash", __("Remove", "gpt3-ai-content-generator"), isProcessing));
+          }
+          return `<div class="aipkit_known_row is-${tone}" role="listitem" data-log-id="${escaper(id)}">
+              <button type="button" class="aipkit_known_open" data-aipkit-known-open="${escaper(id)}">
+                <span class="aipkit_known_icon dashicons ${escaper(getSourceTypeIcon(contentType))}" role="img" aria-label="${escaper(contentType.label)}"></span>
+                <span class="aipkit_known_copy">
+                  <span class="aipkit_known_title">${escaper(sourceDisplay)}</span>
+                  <span class="aipkit_known_detail" title="${escaper(updatedMeta.title)}">${escaper(detail)}</span>
+                </span>
+                ${tone === "ready" ? "" : `<span class="aipkit_known_state">${escaper(statusLabel)}</span>`}
+              </button>
+              ${renderSourceActionMenu(actions)}
+            </div>`;
+        };
+        const renderSourcesRows = (logs, providerLabel, append) => {
+          if (!sourcesList) {
+            return;
+          }
+          closeSourcesActionMenu();
+          if (!append) {
+            sourcesById.clear();
+          }
+          if (!append && !logs.length) {
+            const message = sourcesState.search
+              /* translators: %s: what someone searched for. */
+              ? sprintf(__("Nothing matches “%s”.", "gpt3-ai-content-generator"), sourcesState.search)
+              : sourcesState.type || sourcesState.status
+                ? __("Nothing matches these filters.", "gpt3-ai-content-generator")
+                : __("Nothing here yet. Add your website, questions and answers, or files.", "gpt3-ai-content-generator");
+            renderSourcesEmpty(message);
+            return;
+          }
+          const rows = logs.map(log => renderSourceRow(log, providerLabel)).join("");
+          if (append) {
+            sourcesList.insertAdjacentHTML("beforeend", rows);
+          } else {
+            sourcesList.innerHTML = rows;
           }
         };
         let sourcesRefreshTimer;
-        let hasProcessingSources = false;
-        const fetchSourcesPage = async (page = 1, silent = false) => {
+        // The first sources (as many as were showing, when kept), or the next ones for Show more.
+        const fetchSources = async ({append = false, keep = false, silent = false} = {}) => {
           window.clearTimeout(sourcesRefreshTimer);
-          if (!sourcesTableBody || typeof window.aipkit_apiRequest !== "function") {
+          if (!sourcesList || typeof window.aipkit_apiRequest !== "function") {
             return;
           }
           const botId = getSelectedBuilderBotId();
           if (!botId) {
-            renderSourcesEmpty("Select a chatbot to view trained content.");
+            renderSourcesEmpty(__("Select a chatbot to see what it knows.", "gpt3-ai-content-generator"));
             return;
           }
           const {contextSettings, providerKey, providerLabel, storeIds} = getSourcesContext();
           const requestGeneration = ++sourcesFetchGeneration;
-          const requestSignature = JSON.stringify({
-            botId: String(botId),
-            providerKey,
-            storeIds,
-            page,
+          const signatureOf = (id, context) => JSON.stringify({
+            botId: String(id || ""),
+            providerKey: context.providerKey,
+            storeIds: context.storeIds,
             search: sourcesState.search,
             type: sourcesState.type,
             status: sourcesState.status
           });
-          const isCurrentRequest = () => {
-            const currentContext = getSourcesContext();
-            return requestGeneration === sourcesFetchGeneration && requestSignature === JSON.stringify({
-              botId: String(getSelectedBuilderBotId() || ""),
-              providerKey: currentContext.providerKey,
-              storeIds: currentContext.storeIds,
-              page,
-              search: sourcesState.search,
-              type: sourcesState.type,
-              status: sourcesState.status
-            });
-          };
+          const requestSignature = signatureOf(botId, getSourcesContext());
+          const isCurrentRequest = () => requestGeneration === sourcesFetchGeneration && requestSignature === signatureOf(getSelectedBuilderBotId(), getSourcesContext());
           if (!providerKey || !storeIds.length) {
-            hasProcessingSources = false;
-            renderSourcesEmpty("Train content to view it here.");
+            sourcesState.summary = null;
+            renderSourcesEmpty(__("Nothing here yet. Add your website, questions and answers, or files.", "gpt3-ai-content-generator"));
             return;
           }
-          if (page === 1) {
-            sourcesState.pageCursors = [ null ];
+          const cursor = append ? sourcesState.cursor : null;
+          if (append && !cursor) {
+            return;
           }
-          const pageCursor = sourcesState.pageCursors[Math.max(0, page - 1)] || null;
-          if (!silent) {
-            sourcesTableBody.innerHTML = `<tr><td colspan="4" class="aipkit_text-center"><span class="aipkit_spinner" style="display:inline-block;"></span> Loading trained content...</td></tr>`;
-            if (sourcesPagination) sourcesPagination.innerHTML = "";
+          if (!silent && !append) {
+            sourcesList.innerHTML = `<p class="aipkit_known_empty"><span class="aipkit_spinner" aria-hidden="true"></span> ${escaper(__("Loading…", "gpt3-ai-content-generator"))}</p>`;
+            if (sourcesMore) {
+              sourcesMore.hidden = true;
+            }
+          }
+          if (sourcesMoreButton) {
+            sourcesMoreButton.disabled = append;
           }
           try {
-            const payload = {
+            const response = await window.aipkit_apiRequest("aipkit_get_chatbot_training_sources", {
               bot_id: botId,
-              page,
+              page: 1,
+              per_page: append ? SOURCES_PAGE_SIZE : Math.min(50, Math.max(SOURCES_PAGE_SIZE, keep ? sourcesState.loaded : 0)),
               include_total: "0",
+              include_summary: append ? "0" : "1",
               cursor_mode: "1",
-              cursor_timestamp: pageCursor?.timestamp || "",
-              cursor_id: pageCursor?.id || 0,
+              cursor_timestamp: cursor?.timestamp || "",
+              cursor_id: cursor?.id || 0,
               search: sourcesState.search,
               source_type: sourcesState.type,
               status: sourcesState.status,
@@ -1880,118 +1973,111 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
               qdrant_collection_names: contextSettings.qdrant_collection_names || [],
               chroma_collection_names: contextSettings.chroma_collection_names || [],
               local_store_ids: contextSettings.local_store_ids || []
-            };
-            const response = await window.aipkit_apiRequest("aipkit_get_chatbot_training_sources", payload);
+            });
             if (!isCurrentRequest()) {
               return;
             }
-            sourcesState.page = page;
-            const nextCursor = response.pagination?.next_cursor || null;
-            sourcesState.pageCursors = sourcesState.pageCursors.slice(0, page);
-            if (nextCursor?.timestamp && Number(nextCursor?.id || 0) > 0) {
-              sourcesState.pageCursors[page] = nextCursor;
+            const logs = response.logs || [];
+            if (!append) {
+              sourcesState.summary = response.summary || null;
             }
-            renderSourcesRows(response.logs || [], providerLabel);
-            hasProcessingSources = (response.logs || []).some(log => [ 'processing', 'queued' ].includes(log.status));
-            if (typeof window.aipkit_renderLogsPagination === "function" && response.pagination && sourcesPagination) {
-              window.aipkit_renderLogsPagination(response.pagination, sourcesPagination, newPage => fetchSourcesPage(newPage));
+            const nextCursor = response.pagination?.next_cursor || null;
+            sourcesState.cursor = nextCursor?.timestamp && Number(nextCursor?.id || 0) > 0 ? nextCursor : null;
+            sourcesState.hasMore = Boolean(response.pagination?.has_more && sourcesState.cursor);
+            renderSourcesRows(logs, providerLabel, append);
+            const opened = sourcePage && sourcesById.get(sourcePage.currentId());
+            if (opened) sourcePage.refresh(opened);
+            if (append || logs.length) {
+              sourcesState.loaded = (append ? sourcesState.loaded : 0) + logs.length;
+              renderSourcesSummary();
             }
           } catch (error) {
             if (!isCurrentRequest()) {
               return;
             }
-            if (!silent) {
-              renderSourcesEmpty(`Error loading trained content: ${escaper(error.message || "Unknown error")}`);
+            if (!silent && !append) {
+              /* translators: %s: error message. */
+              renderSourcesEmpty(sprintf(__("Couldn't load what it knows: %s", "gpt3-ai-content-generator"), error.message || __("Unknown error", "gpt3-ai-content-generator")));
             }
           } finally {
-            if (hasProcessingSources && isCurrentRequest()) {
+            if (sourcesMoreButton && isCurrentRequest()) {
+              sourcesMoreButton.disabled = false;
+            }
+            // While something is being added, the list checks again every ten seconds.
+            if (isCurrentRequest() && sourcesList.querySelector(".aipkit_known_row.is-adding")) {
               const refreshWhenVisible = () => {
                 if (!isCurrentRequest() || !builder.isConnected || !sheetOverlay?.classList.contains('aipkit-active') || sourcesSheetSection.hidden) return;
                 if (document.visibilityState === 'hidden') {
                   sourcesRefreshTimer = window.setTimeout(refreshWhenVisible, 1e4);
                   return;
                 }
-                fetchSourcesPage(page, true);
+                fetchSources({keep: true, silent: true});
               };
               sourcesRefreshTimer = window.setTimeout(refreshWhenVisible, 1e4);
             }
           }
         };
-        const refreshSourcesSheet = (page = 1) => {
+        // "keep" reloads as many sources as are showing (after an update or removal); anything else starts at the top.
+        const refreshSourcesSheet = mode => {
           if (!sheetOverlay || !sheetOverlay.classList.contains("aipkit-active") || sourcesSheetSection.hidden) {
             return;
           }
-          fetchSourcesPage(page);
+          fetchSources({keep: mode === "keep"});
         };
         window.aipkit_refreshSourcesSheet = refreshSourcesSheet;
+        // The row's buttons (and the page's Remove) wait while a source is removed or updated.
+        const findSourceRow = logId => {
+          const safeId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(logId)) : String(logId).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+          return sourcesList ? sourcesList.querySelector(`.aipkit_known_row[data-log-id="${safeId}"]`) : null;
+        };
+        const holdSourceButtons = (logId, button) => {
+          const row = findSourceRow(logId);
+          const buttons = [ button, ...(row ? Array.from(row.querySelectorAll("button")) : []) ].filter(Boolean);
+          const set = busy => buttons.forEach(node => {
+            node.disabled = busy;
+            if (busy) {
+              node.setAttribute("aria-disabled", "true");
+            } else {
+              node.removeAttribute("aria-disabled");
+            }
+          });
+          set(true);
+          return () => set(false);
+        };
         const deleteSourceFromSheet = async details => {
-          const providerLabel = details.providerLabel || "";
-          const storeId = details.storeId || "";
-          const vectorId = details.vectorId || "";
-          const logId = details.logId || "";
+          const {providerLabel = "", storeId = "", vectorId = "", logId = "", button = null} = details;
           if (!providerLabel || !storeId || !vectorId || !logId) {
             setSourcesStatus("Missing content details.", "error");
             clearSourcesStatusSoon();
             return;
           }
-          let row = null;
-          let editButton = null;
-          let retrainButton = null;
-          let viewButton = null;
-          let deleteButton = null;
-          if (sourcesTableBody && logId) {
-            const safeId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(logId)) : String(logId).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
-            row = sourcesTableBody.querySelector(`tr[data-log-id="${safeId}"]`);
-            if (row) {
-              editButton = row.querySelector(".aipkit_sources_action_edit");
-              retrainButton = row.querySelector(".aipkit_sources_action_retrain");
-              viewButton = row.querySelector(".aipkit_view_snippet_icon");
-              deleteButton = row.querySelector(".aipkit_sources_action_delete");
-              [ editButton, retrainButton, viewButton, deleteButton ].forEach(button => {
-                if (!button) {
-                  return;
-                }
-                button.disabled = true;
-                button.setAttribute("aria-disabled", "true");
-              });
-              if (deleteButton) {
-                deleteButton.textContent = "Deleting...";
-              }
-            }
-          }
-          setSourcesStatus("Deleting...", "");
+          const release = holdSourceButtons(logId, button);
+          setSourcesStatus(__("Removing...", "gpt3-ai-content-generator"), "");
           try {
             await window.aipkit_apiRequest("aipkit_delete_vector_data_source_entry", {
               provider: providerLabel,
               store_id: storeId,
               vector_id: vectorId,
-              log_id: logId
+              log_id: logId,
+              remove_file: sourcesById.get(String(logId))?.log.file_chunks?.length ? "1" : "0"
             });
-            setSourcesStatus("Deleted", "success");
+            sourcePage.close();
+            setSourcesStatus(__("Removed", "gpt3-ai-content-generator"), "success");
             clearSourcesStatusSoon();
-            refreshSourcesSheet(sourcesState.page || 1);
+            refreshSourcesSheet("keep");
             refreshTrainingSourcesAfterMutation(getContextSettings());
           } catch (error) {
             setSourcesStatus(`Error: ${error.message || "Failed to delete."}`, "error");
-            [ editButton, retrainButton, viewButton, deleteButton ].forEach(button => {
-              if (!button) {
-                return;
-              }
-              button.disabled = false;
-              button.removeAttribute("aria-disabled");
-            });
-            if (deleteButton) {
-              deleteButton.textContent = "Delete";
-            }
+            release();
           }
         };
         const confirmSourceDelete = details => {
-          const message = __("This permanently deletes the selected source from your knowledge base. This cannot be undone.", "gpt3-ai-content-generator");
+          const message = __("The chatbot stops answering from it. This can't be undone.", "gpt3-ai-content-generator");
           const runDelete = () => deleteSourceFromSheet(details);
           if (typeof window.aipkit_showConfirmModal === "function") {
             window.aipkit_showConfirmModal(message, {
-              title: __("Delete source", "gpt3-ai-content-generator"),
-              confirmText: __("Delete", "gpt3-ai-content-generator"),
+              title: __("Remove this source?", "gpt3-ai-content-generator"),
+              confirmText: __("Remove", "gpt3-ai-content-generator"),
               cancelText: __("Cancel", "gpt3-ai-content-generator"),
               variant: "danger",
               onConfirm: runDelete
@@ -2002,7 +2088,20 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
             runDelete();
           }
         };
-        const upsertEditedText = async (providerLabel, storeId, text, embeddingProvider, embeddingModel, sourceKind = "text") => {
+        const waitForReplacement = async readStatus => {
+          for (let attempt = 0; attempt < 40; attempt++) {
+            const status = String(await readStatus()).toLowerCase();
+            if (status === "indexed") return;
+            if (["failed", "cancelled", "expired"].includes(status)) {
+              const error = new Error(__("The replacement could not be indexed. The original source was kept. You can try saving again.", "gpt3-ai-content-generator"));
+              error.indexingFailed = true;
+              throw error;
+            }
+            if (attempt < 39) await new Promise(resolve => window.setTimeout(resolve, 3000));
+          }
+          throw new Error(__("The replacement is still processing. The original source was kept. Try Save again to check its status.", "gpt3-ai-content-generator"));
+        };
+        const upsertEditedText = async (providerLabel, storeId, text, embeddingProvider, embeddingModel, sourceKind = "text", replacement = {}) => {
           const providerKey = providerLabel.toLowerCase();
           const sourceType = sourceKind === "qa" ? "chatbot_training_qa" : "chatbot_training_text";
           if (providerKey === "openai") {
@@ -2010,11 +2109,21 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
             if (!openaiNonce) {
               throw new Error("OpenAI nonce missing.");
             }
-            await window.aipkit_apiRequest("aipkit_add_text_to_vector_store_openai", {
+            replacement.response ||= await window.aipkit_apiRequest("aipkit_add_text_to_vector_store_openai", {
               _ajax_nonce: openaiNonce,
               target_store_id: storeId,
               text_content: text,
               source_type: sourceType
+            });
+            const batchId = replacement.response?.batch?.id;
+            if (!batchId) throw new Error(__("The replacement could not be verified. The original source was kept.", "gpt3-ai-content-generator"));
+            await waitForReplacement(async () => {
+              const result = await window.aipkit_apiRequest("aipkit_get_openai_file_batch_status", {
+                _ajax_nonce: openaiNonce, store_id: storeId, batch_id: batchId
+              });
+              const batch = result.batch || {};
+              if (Number(batch.file_counts?.failed || 0) || Number(batch.file_counts?.cancelled || 0)) return "failed";
+              return result.status === "completed" ? "indexed" : result.status;
             });
             return;
           }
@@ -2023,14 +2132,21 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
             if (!googleNonce) {
               throw new Error("Google File Search nonce missing.");
             }
-            const googleResponse = await window.aipkit_apiRequest("aipkit_add_text_to_google_file_search", {
+            const googleResponse = replacement.response ||= await window.aipkit_apiRequest("aipkit_add_text_to_google_file_search", {
               _ajax_nonce: googleNonce,
               target_store_id: storeId,
               text_content: text,
               source_type: sourceType
             });
             if (googleResponse?.job_id && String(googleResponse?.status || "").toLowerCase() !== "indexed") {
-              pollGoogleFileSearchJob(googleResponse.job_id);
+              await waitForReplacement(async () => {
+                const result = await window.aipkit_apiRequest("aipkit_get_google_file_search_job_status", {
+                  _ajax_nonce: googleNonce, job_id: googleResponse.job_id
+                });
+                return result.status;
+              });
+            } else if (String(googleResponse?.status || "").toLowerCase() !== "indexed") {
+              throw new Error(__("The replacement could not be verified. The original source was kept.", "gpt3-ai-content-generator"));
             }
             return;
           }
@@ -2095,6 +2211,64 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
           }
           throw new Error("Unsupported provider for edit.");
         };
+        // Keep acknowledged replacements across retries, including pending native indexing jobs.
+        const replacements = new Map();
+        const saveSourceText = async ({entry, kind, text}) => {
+          const {provider, storeId, vectorId, logId} = entry.target;
+          if (!provider || !storeId || !vectorId || !logId) {
+            setSourcesStatus("Missing content details.", "error");
+            throw new Error("Missing content details.");
+          }
+          setSourcesStatus(__("Saving...", "gpt3-ai-content-generator"), "");
+          const key = JSON.stringify([provider, storeId, vectorId, logId]);
+          let replacement = replacements.get(key);
+          if (replacement && replacement.text !== text) {
+            const message = __("A previous replacement is pending. Restore the text from that attempt and save again, or review the sources before starting another edit.", "gpt3-ai-content-generator");
+            setSourcesStatus(message, "error");
+            throw new Error(message);
+          }
+          replacement ||= {text, ready: false};
+          replacements.set(key, replacement);
+          try {
+            if (!replacement.ready) {
+              await upsertEditedText(provider, storeId, text, entry.log.embedding_provider || "", entry.log.embedding_model || "", kind, replacement);
+              replacement.ready = true;
+            }
+            try {
+              await window.aipkit_apiRequest("aipkit_delete_vector_data_source_entry", {
+                provider, store_id: storeId, vector_id: vectorId, log_id: logId
+              });
+            } catch (error) {
+              throw new Error(__("The new version is ready, but the original could not be removed. Both were kept. Try Save again to finish replacing it.", "gpt3-ai-content-generator"));
+            }
+            replacements.delete(key);
+          } catch (error) {
+            if (error.indexingFailed || (!replacement.response && !replacement.ready)) replacements.delete(key);
+            /* translators: %s: error message. */
+            setSourcesStatus(sprintf(__("Couldn't save it: %s", "gpt3-ai-content-generator"), error.message || __("Unknown error", "gpt3-ai-content-generator")), "error");
+            throw error;
+          }
+          setSourcesStatus(__("Saved", "gpt3-ai-content-generator"), "success");
+          clearSourcesStatusSoon();
+          refreshSourcesSheet("keep");
+          refreshTrainingSourcesAfterMutation(getContextSettings());
+        };
+        sourcePage = createChatbotSourcePage({
+          sheet: sheetOverlay,
+          section: sourcesSheetSection,
+          __,
+          _n,
+          sprintf,
+          escaper,
+          parsePreview: (log, text) => typeof window.aipkit_parseSourcePreview === "function" ? window.aipkit_parseSourcePreview(log, text) : null,
+          parseEditorContent: text => typeof window.aipkit_parseSourceEditorContent === "function"
+            ? window.aipkit_parseSourceEditorContent(text)
+            : {type: "text", text, question: "", answer: ""},
+          onSave: saveSourceText
+        });
+        // The sheet opens on the list; another chatbot's sources start there too.
+        sheetOverlay.addEventListener("aipkit:builder-sheet-open", () => sourcePage.close());
+        builder.addEventListener("aipkit:bot-state-applied", () => sourcePage.close());
         if (sourcesSearchInput) {
           sourcesSearchInput.addEventListener("input", () => {
             if (searchTimeout) {
@@ -2102,38 +2276,47 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
             }
             searchTimeout = window.setTimeout(() => {
               sourcesState.search = sourcesSearchInput.value.trim();
-              refreshSourcesSheet(1);
+              refreshSourcesSheet();
             }, 300);
           });
         }
         if (sourcesFilterSelect) {
           sourcesFilterSelect.addEventListener("change", () => {
             sourcesState.status = sourcesFilterSelect.value;
-            refreshSourcesSheet(1);
+            renderSourcesSummary();
+            refreshSourcesSheet();
           });
         }
         if (sourcesTypeFilter) {
           sourcesTypeFilter.addEventListener("change", () => {
             sourcesState.type = sourcesTypeFilter.value;
-            refreshSourcesSheet(1);
+            renderSourcesSummary();
+            refreshSourcesSheet();
           });
         }
-        if (sourcesRefreshButton) {
-          sourcesRefreshButton.addEventListener("click", () => {
-            refreshSourcesSheet(sourcesState.page || 1);
-          });
-        }
-        sourceEditor.bind({
-          sourcesTableBody,
-          setSourcesStatus,
-          clearSourcesStatusSoon,
-          upsertEditedText,
-          refreshSourcesSheet,
-          sourcesState,
-          refreshTrainingSourcesAfterMutation,
-          getContextSettings
+        // A status count filters the list to it; pressing it again shows every status.
+        sourcesCounts?.addEventListener("click", event => {
+          const button = event.target.closest("[data-aipkit-known-status]");
+          if (!button || !sourcesFilterSelect) {
+            return;
+          }
+          const status = button.dataset.aipkitKnownStatus;
+          sourcesFilterSelect.value = sourcesFilterSelect.value === status ? "" : status;
+          sourcesFilterSelect.dispatchEvent(new Event("change", {
+            bubbles: true
+          }));
         });
-        sourcesSheetSection.addEventListener("click", async event => {
+        sourcesMoreButton?.addEventListener("click", () => {
+          fetchSources({append: true});
+        });
+        // The sheet closes on this click; the picker opens next, beside the Knowledge card's own Add source.
+        sourcesAddButton?.addEventListener("click", () => {
+          window.setTimeout(() => {
+            trainingAddSourceButton?.scrollIntoView({block: "nearest"});
+            trainingAddSourceButton?.click();
+          }, 0);
+        });
+        sheetOverlay.addEventListener("click", async event => {
           const menuTrigger = event.target.closest(".aipkit_sources_action_menu_trigger");
           if (menuTrigger) {
             event.preventDefault();
@@ -2144,9 +2327,16 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
           if (event.target.closest(".aipkit_sources_action_menu_item")) {
             closeSourcesActionMenu();
           }
-          const editButton = event.target.closest(".aipkit_sources_action_edit");
-          if (editButton) {
-            sourceEditor.open(editButton);
+          const opener = event.target.closest("[data-aipkit-known-open], .aipkit_sources_action_open");
+          if (opener) {
+            sourcePage.open(sourcesById.get(String(opener.dataset.aipkitKnownOpen || opener.dataset.logId || "")));
+            return;
+          }
+          if (event.target.closest("[data-aipkit-known-back]")) {
+            const logId = sourcePage.currentId();
+            sourcePage.close();
+            // Back on the list, the source just left keeps focus.
+            findSourceRow(logId)?.querySelector("[data-aipkit-known-open]")?.focus();
             return;
           }
           const deleteButton = event.target.closest(".aipkit_sources_action_delete");
@@ -2164,7 +2354,8 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
               providerLabel,
               storeId,
               vectorId,
-              logId
+              logId,
+              button: deleteButton
             });
             return;
           }
@@ -2182,21 +2373,10 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
               clearSourcesStatusSoon();
               return;
             }
-            retrainButton.disabled = true;
-            retrainButton.setAttribute("aria-disabled", "true");
-            retrainButton.textContent = "Updating...";
-            const row = retrainButton.closest("tr");
-            const viewButton = row ? row.querySelector(".aipkit_view_snippet_icon") : null;
-            const deleteButton = row ? row.querySelector(".aipkit_sources_action_delete") : null;
-            if (viewButton) {
-              viewButton.disabled = true;
-              viewButton.setAttribute("aria-disabled", "true");
-            }
-            if (deleteButton) {
-              deleteButton.disabled = true;
-              deleteButton.setAttribute("aria-disabled", "true");
-            }
-            setSourcesStatus("Updating...", "");
+            const label = retrainButton.innerHTML;
+            const release = holdSourceButtons(logId, retrainButton);
+            retrainButton.textContent = __("Learning...", "gpt3-ai-content-generator");
+            setSourcesStatus(__("Learning...", "gpt3-ai-content-generator"), "");
             try {
               const response = await window.aipkit_apiRequest("aipkit_reindex_vector_data_source_entry", {
                 provider: providerLabel,
@@ -2207,23 +2387,15 @@ export function createChatbotTraining({builder, __, _n, sprintf, getSelectedBuil
                 embedding_provider: embeddingProvider,
                 embedding_model: embeddingModel
               });
-              setSourcesStatus(response.processing ? __("Submitted — processing in background", "gpt3-ai-content-generator") : __("Updated", "gpt3-ai-content-generator"), response.processing ? "info" : "success");
+              sourcePage.close();
+              setSourcesStatus(response.processing ? __("Learning it in the background.", "gpt3-ai-content-generator") : __("Learned again.", "gpt3-ai-content-generator"), response.processing ? "info" : "success");
               clearSourcesStatusSoon();
-              refreshSourcesSheet(sourcesState.page || 1);
+              refreshSourcesSheet("keep");
               refreshTrainingSourcesAfterMutation(getContextSettings());
             } catch (error) {
-              setSourcesStatus(`Error: ${error.message || "Failed to retrain."}`, "error");
-              retrainButton.disabled = false;
-              retrainButton.removeAttribute("aria-disabled");
-              retrainButton.textContent = "Update";
-              if (viewButton) {
-                viewButton.disabled = false;
-                viewButton.removeAttribute("aria-disabled");
-              }
-              if (deleteButton) {
-                deleteButton.disabled = false;
-                deleteButton.removeAttribute("aria-disabled");
-              }
+              setSourcesStatus(error.message || __("Couldn't learn this page.", "gpt3-ai-content-generator"), "error");
+              retrainButton.innerHTML = label;
+              release();
             }
           }
         });

@@ -228,6 +228,7 @@
     ) {
       const customThemeOptions = {
         skipDimensionSync: !!config.customThemePresetKey,
+        dimensionOverrides: config.themeDimensionOverrides || [],
       };
       window.aipkit_chatUI_applyCustomThemeStyles(
         chatContainer,

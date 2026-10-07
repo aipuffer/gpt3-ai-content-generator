@@ -3609,8 +3609,7 @@
   gap: 7px;
 }
 
-#aipkit_autogpt_container .aipkit_autogpt_server_cron_action,
-.aipkit_autogpt_cron_notice_action {
+#aipkit_autogpt_container .aipkit_autogpt_server_cron_action {
   appearance: none;
   box-sizing: border-box;
   display: inline-flex;
@@ -3633,58 +3632,21 @@
   cursor: pointer;
 }
 
-#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:hover:not(:disabled),
-.aipkit_autogpt_cron_notice_action:hover:not(:disabled) {
+#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:hover:not(:disabled) {
   border-color: #c7d0dc;
   background: #f8fafc;
   color: #1d2939;
 }
 
-#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:focus-visible,
-.aipkit_autogpt_cron_notice_action:focus-visible {
+#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:focus-visible {
   outline: 0;
   border-color: #9fb5ca;
   box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.14);
 }
 
-#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:disabled,
-.aipkit_autogpt_cron_notice_action:disabled {
+#aipkit_autogpt_container .aipkit_autogpt_server_cron_action:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.aipkit_autogpt_cron_notice[hidden] {
-  display: none;
-}
-
-.aipkit_autogpt_cron_notice .aipkit_notification_bar__content a {
-  margin-left: 3px;
-  color: inherit;
-  font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.aipkit_autogpt_cron_notice
-  .aipkit_notification_bar__content
-  [data-aipkit-cron-notice-wp-link][hidden] {
-  display: none;
-}
-
-.aipkit_autogpt_cron_notice_action {
-  height: 30px;
-  min-height: 30px;
-  padding-inline: 10px;
-  border-color: #e5c36f;
-  background: rgba(255, 255, 255, 0.72);
-  color: #7a4a0b;
-  font-size: 11.5px;
-}
-
-.aipkit_autogpt_cron_notice_action:hover:not(:disabled) {
-  border-color: #d8ad4f;
-  background: #fff;
-  color: #693f08;
 }
 
 #aipkit_autogpt_container .aipkit_autogpt_server_cron_text_action {
@@ -7932,26 +7894,6 @@ body.aipkit-instructions-modal-open {
   border-top: 1px solid var(--aipkit-step-line);
 }
 
-/* Semantic notices remain visible, but compact. */
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  .aipkit_notification_bar:not(.aipkit_notification_bar--info) {
-  gap: 8px;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  box-shadow: none;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  .aipkit_notification_bar:not(.aipkit_notification_bar--info) p {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.4;
-}
-
 /* WP 7-style control polish: white controls, calmer borders, larger touch targets. */
 
 #aipkit_autogpt_container
@@ -11493,7 +11435,6 @@ body.aipkit-instructions-modal-open
     grid-template-columns: minmax(0, 1fr);
   }
 }
-
 
 #aipkit_autogpt_container .aipkit_autogpt_progressive_builder .aipkit_ci_categories_row.has-checklist-disclosure {
   position: relative;

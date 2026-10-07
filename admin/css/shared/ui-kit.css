@@ -1896,15 +1896,11 @@ body.aipkit_builder_sheet_scroll_lock {
   }
 }
 
-#aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_upsell,
-
 #aipkit_ai_forms_container .aipkit_ai_form_connected_apps_upsell {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-
-#aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_intro_text,
 
 #aipkit_ai_forms_container .aipkit_chatbot_connected_apps_intro_text {
   margin: 0;
@@ -1913,14 +1909,12 @@ body.aipkit_builder_sheet_scroll_lock {
   color: #52637a;
 }
 
-#aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_logo_grid,
 #aipkit_ai_forms_container .aipkit_chatbot_connected_apps_logo_grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
-#aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_logo_item,
 #aipkit_ai_forms_container .aipkit_chatbot_connected_apps_logo_item {
   display: flex;
   align-items: center;
@@ -1932,7 +1926,6 @@ body.aipkit_builder_sheet_scroll_lock {
   background: #ffffff;
 }
 
-#aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_logo,
 #aipkit_ai_forms_container .aipkit_chatbot_connected_apps_logo {
   width: 100%;
   max-width: 76px;
@@ -1941,7 +1934,6 @@ body.aipkit_builder_sheet_scroll_lock {
 }
 
 @media (max-width: 782px) {
-  #aipkit_chatbot_settings_panel .aipkit_chatbot_connected_apps_logo_grid,
   #aipkit_ai_forms_container .aipkit_chatbot_connected_apps_logo_grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -2361,17 +2353,6 @@ body.aipkit_builder_sheet_scroll_lock {
   color: var(--aipkit-builder-muted);
 }
 
-:where(.aipkit_admin_ui) .aipkit_popover_option_row--notice {
-  border-bottom: none;
-  padding: var(--aipkit-popover-row-padding) 0;
-  min-height: var(--aipkit-popover-row-height);
-}
-
-:where(.aipkit_admin_ui) .aipkit_popover_option_notice {
-  font-size: 11px;
-  color: #b32d2e;
-}
-
 :where(.aipkit_admin_ui) .aipkit_popover_upgrade_link {
   display: inline-flex;
   align-items: center;
@@ -2617,7 +2598,6 @@ body.aipkit_builder_sheet_scroll_lock {
 :where(.aipkit_chatbot_builder, #aipkit_settings_container, #aipkit_content_writer_container, #aipkit_stats_container, #aipkit_ai_forms_container, #aipkit_image_generator_container) .aipkit_model_settings_popover_panel .aipkit_popover_option_input--framed:focus,
 :where(.aipkit_admin_ui) .aipkit_builder_sheet_body .aipkit_popover_option_input--framed:focus,
 :where(.aipkit_admin_ui) .aipkit_settings_web_body .aipkit_popover_option_input--framed:focus,
-:where(.aipkit_admin_ui) .aipkit_settings_audio_body .aipkit_popover_option_input--framed:focus,
 :where(.aipkit_admin_ui) .aipkit_popover_option_input:focus {
   outline: none;
   background-color: #ffffff;
@@ -2996,18 +2976,13 @@ body.aipkit_builder_sheet_scroll_lock {
   gap: 10px;
 }
 
-:where(.aipkit_admin_ui) .aipkit_trigger_hidden_textarea {
-  display: none;
-}
-
 :where(.aipkit_admin_ui) .aipkit_popover_option_input--framed {
   text-align: left;
 }
 
 :where(.aipkit_chatbot_builder, #aipkit_settings_container, #aipkit_content_writer_container, #aipkit_stats_container, #aipkit_ai_forms_container, #aipkit_image_generator_container) .aipkit_model_settings_popover_panel .aipkit_popover_option_input--framed,
 :where(.aipkit_admin_ui) .aipkit_builder_sheet_body .aipkit_popover_option_input--framed,
-:where(.aipkit_admin_ui) .aipkit_settings_web_body .aipkit_popover_option_input--framed,
-:where(.aipkit_admin_ui) .aipkit_settings_audio_body .aipkit_popover_option_input--framed {
+:where(.aipkit_admin_ui) .aipkit_settings_web_body .aipkit_popover_option_input--framed {
   border: 1px solid #d7e2f0;
   background-color: #f9fbff;
   border-radius: 8px;

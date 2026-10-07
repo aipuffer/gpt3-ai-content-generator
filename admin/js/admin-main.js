@@ -19,6 +19,7 @@ import "./utils/ui/ui-placeholder-copy.js";
 import "./utils/ui/ui-provider-key-notice.js";
 import "./utils/ui/ui-dismissible-notices.js";
 import "./utils/ui/ui-cloud-announcement.js";
+import "./utils/ui/ui-notice-stack.js";
 import "./utils/ui/ui-cloud-credit-notice.js";
 import "./utils/ui/ui-module-settings-tabs.js";
 import "./utils/ai/new-model-selection.js";

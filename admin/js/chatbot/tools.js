@@ -352,21 +352,10 @@ export function bindChatbotImagePanel({
 
 /** Keeps the upload setting interactive only for supported paid capabilities. */
 export function createChatbotUploadAvailability({modelPopoverPanel, getChatbotCapabilityState, syncToolsEnabledOptionsFromFields, __}) {
-  const getFileUploadHint = uploadProvider => {
-    if (uploadProvider === "google") {
-      return "";
-    }
-    if (uploadProvider === "claude_files") {
-      return __("Temporary documents use Anthropic Files and are not added to Knowledge.", "gpt3-ai-content-generator");
-    }
-    if (uploadProvider === "openai") {
-      return __("Temporary documents use an expiring OpenAI vector store.", "gpt3-ai-content-generator");
-    }
-    if ([ "pinecone", "qdrant", "chroma", "local" ].includes(uploadProvider)) {
-      return __("Uploaded documents use the configured Knowledge provider.", "gpt3-ai-content-generator");
-    }
-    return __("Enable Knowledge and select a supported store before enabling file upload for this AI provider.", "gpt3-ai-content-generator");
-  };
+  // The same plain line wherever the documents are kept; only a chatbot that can't take them yet says why.
+  const getFileUploadHint = uploadProvider => uploadProvider
+    ? __("Visitors can share documents in the chat.", "gpt3-ai-content-generator")
+    : __("Turn on Knowledge with a knowledge base to use this with your AI model.", "gpt3-ai-content-generator");
   const updateFileUploadAvailability = () => {
     if (!modelPopoverPanel) {
       return;

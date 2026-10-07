@@ -1,6 +1,6 @@
 # AI Puffer — Free source
 
-Public source and build tools for the free WordPress plugin, version **2.4.95**.
+Public source and build tools for the free WordPress plugin, version **2.4.96**.
 
 This snapshot includes the Freemius-generated free PHP edition and the original sources for its bundled assets.
 
@@ -18,7 +18,7 @@ Original JavaScript and CSS are under `admin/js`, `admin/css`, `public/js` and `
 
 ## Releases
 
-Version tags such as `v2.4.95` identify complete snapshots verified against the matching Freemius-generated free package. The private development repository remains the source of development; this public repository is generated from releases. Premium implementations and private development history are excluded.
+Version tags such as `v2.4.96` identify complete snapshots verified against the matching Freemius-generated free package. The private development repository remains the source of development; this public repository is generated from releases. Premium implementations and private development history are excluded.
 
 Install the released free plugin from [WordPress.org](https://wordpress.org/plugins/gpt3-ai-content-generator/). Documentation: [docs.aipower.org](https://docs.aipower.org/).
 

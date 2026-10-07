@@ -6,6 +6,125 @@
  */
 window.aipkit_initUnifiedModelSelector = function () {
   "use strict";
+  const positionUnifiedPopover = ({ selector, trigger, popover, modelBody, providersList, list, mountPopover, onLayout = () => {} }) => {
+    if (!popover || popover.hidden) {
+      return;
+    }
+    let compactPanel = popover.classList.contains("is-compact");
+    let bottomSheet = popover.classList.contains("is-bottom-sheet");
+    const panelScrollPosition = {
+      providerTop: providersList?.scrollTop || 0,
+      providerLeft: providersList?.scrollLeft || 0,
+      listTop: list?.scrollTop || 0,
+      listLeft: list?.scrollLeft || 0,
+    };
+    const restorePanelScrollPosition = () => {
+      if (providersList) {
+        providersList.scrollTop = panelScrollPosition.providerTop;
+        providersList.scrollLeft = panelScrollPosition.providerLeft;
+      }
+      if (list) {
+        list.scrollTop = panelScrollPosition.listTop;
+        list.scrollLeft = panelScrollPosition.listLeft;
+      }
+    };
+    mountPopover();
+    const gutter = 12;
+    const gap = 8;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const triggerRect = trigger.getBoundingClientRect();
+    const nextBottomSheet = window.matchMedia("(max-width: 640px)").matches;
+
+    popover.style.position = "fixed";
+    popover.style.right = "auto";
+    popover.style.transform = "none";
+    ["height", "min-height"].forEach((property) =>
+      modelBody?.style.removeProperty(property)
+    );
+
+    if (nextBottomSheet) {
+      const layoutChanged = !compactPanel || !bottomSheet;
+      compactPanel = true;
+      bottomSheet = true;
+      popover.classList.add("is-compact", "is-bottom-sheet");
+      popover.classList.remove("opens-up");
+      popover.setAttribute("aria-modal", "true");
+      popover.style.top = "auto";
+      popover.style.bottom = "0px";
+      popover.style.left = "0px";
+      popover.style.width = `${Math.max(0, viewportWidth)}px`;
+      if (layoutChanged) {
+        onLayout(compactPanel, bottomSheet);
+      }
+      restorePanelScrollPosition();
+      return;
+    }
+
+    bottomSheet = false;
+    popover.classList.remove("is-bottom-sheet");
+    popover.removeAttribute("aria-modal");
+    popover.style.bottom = "auto";
+
+    let leftBoundary = gutter;
+    let rightBoundary = viewportWidth - gutter;
+    let topBoundary = gutter;
+    let bottomBoundary = viewportHeight - gutter;
+    const adminBar = document.getElementById("wpadminbar");
+    if (adminBar) {
+      const adminBarRect = adminBar.getBoundingClientRect();
+      if (adminBarRect.bottom > 0) {
+        topBoundary = Math.max(topBoundary, adminBarRect.bottom + gutter);
+      }
+    }
+    const panelWidth = Math.min(600, rightBoundary - leftBoundary);
+    const nextCompactPanel = panelWidth < 560;
+    const layoutChanged = compactPanel !== nextCompactPanel;
+    compactPanel = nextCompactPanel;
+    popover.classList.toggle("is-compact", compactPanel);
+    popover.style.width = `${Math.max(0, panelWidth)}px`;
+    if (layoutChanged) {
+      onLayout(compactPanel, bottomSheet);
+    }
+
+    let popoverRect = popover.getBoundingClientRect();
+    const spaceBelow = bottomBoundary - triggerRect.bottom - gap;
+    const spaceAbove = triggerRect.top - topBoundary - gap;
+    const prefersTop = selector.dataset.aipkitPopoverPlacement === "top";
+    const opensUp = prefersTop
+      ? spaceAbove >= Math.min(120, popoverRect.height)
+      : spaceBelow < popoverRect.height && spaceAbove > spaceBelow;
+    const availableHeight = opensUp ? spaceAbove : spaceBelow;
+    if (
+      modelBody &&
+      availableHeight > 0 &&
+      popoverRect.height > availableHeight
+    ) {
+      const modelBodyRect = modelBody.getBoundingClientRect();
+      const fixedHeight = popoverRect.height - modelBodyRect.height;
+      modelBody.style.height = `${Math.max(
+        120,
+        Math.floor(availableHeight - fixedHeight)
+      )}px`;
+      modelBody.style.minHeight = "0px";
+      popoverRect = popover.getBoundingClientRect();
+    }
+    const left = Math.min(
+      Math.max(triggerRect.left, leftBoundary),
+      Math.max(leftBoundary, rightBoundary - popoverRect.width)
+    );
+    const top = opensUp
+      ? Math.max(topBoundary, triggerRect.top - popoverRect.height - gap)
+      : Math.min(
+          triggerRect.bottom + gap,
+          Math.max(topBoundary, bottomBoundary - popoverRect.height)
+        );
+
+    popover.style.left = `${Math.round(left)}px`;
+    popover.style.top = `${Math.round(top)}px`;
+    popover.classList.toggle("opens-up", opensUp);
+    restorePanelScrollPosition();
+  };
 
   if (typeof window.aipkit_createUnifiedModelSelector === "function") {
     return;
@@ -1209,6 +1328,15 @@ window.aipkit_initUnifiedModelSelector = function () {
     const manageLink = selector.querySelector(
       ".aipkit_unified_model_manage_link"
     );
+    const providerName = selector.querySelector(
+      "[data-aipkit-unified-model-provider]"
+    );
+    const syncButton = selector.querySelector(
+      "[data-aipkit-unified-model-sync]"
+    );
+    const syncLabel = syncButton?.querySelector(
+      "[data-aipkit-unified-model-sync-label]"
+    );
     const summary = popover?.querySelector(
       "[data-aipkit-unified-model-summary]"
     );
@@ -1229,7 +1357,6 @@ window.aipkit_initUnifiedModelSelector = function () {
       )?.dataset.aipkitUnifiedModelFilter || "all";
     let activeProvider = "";
     let compactPanel = false;
-    let bottomSheet = false;
     let searchHadValue = false;
     let providerBeforeSearch = "";
     let currentAdapter = adapter;
@@ -1273,7 +1400,6 @@ window.aipkit_initUnifiedModelSelector = function () {
       );
       popover.removeAttribute("aria-modal");
       compactPanel = false;
-      bottomSheet = false;
       if (popoverAnchor.parentNode) {
         popoverAnchor.parentNode.insertBefore(popover, popoverAnchor.nextSibling);
       } else {
@@ -1369,6 +1495,38 @@ window.aipkit_initUnifiedModelSelector = function () {
       noticeAction.dataset.provider = record.provider;
       noticeAction.textContent = content.actionLabel;
       noticeAction.disabled = content.tone === "syncing";
+    };
+
+    // Footer sync: the provider being browsed, or the chosen model's provider in All and Favorites.
+    // A provider whose notice already offers a sync keeps that one action.
+    const renderSyncButton = (record, noticeShown = false) => {
+      if (!syncButton) {
+        return;
+      }
+      const key = normalizeProviderKey(record?.provider);
+      const status = record?.state?.status || "";
+      const syncing = Boolean(record) && syncingProviders.has(key);
+      const syncable =
+        providerDiagnosticsEnabled &&
+        Boolean(record) &&
+        syncableProviders.has(key) &&
+        (status === "ready" ||
+          (!noticeShown &&
+            ["stale", "error", "configured_unsynced"].includes(status)));
+      syncButton.hidden = !syncing && !syncable;
+      syncButton.dataset.provider = record?.provider || "";
+      syncButton.setAttribute("aria-disabled", syncing ? "true" : "false");
+      syncButton.title = record
+        ? translate("Sync %s models", "gpt3-ai-content-generator").replace(
+            "%s",
+            record.providerLabel || getProviderLabel(record.provider)
+          )
+        : "";
+      if (syncLabel) {
+        syncLabel.textContent = syncing
+          ? translate("Syncing…", "gpt3-ai-content-generator")
+          : translate("Sync models", "gpt3-ai-content-generator");
+      }
     };
 
     const render = () => {
@@ -1476,6 +1634,7 @@ window.aipkit_initUnifiedModelSelector = function () {
           )}`;
         }
         renderNotice(null);
+        renderSyncButton(null);
         return;
       }
       list.setAttribute("role", "list");
@@ -1661,125 +1820,21 @@ window.aipkit_initUnifiedModelSelector = function () {
         )}`;
       }
       renderNotice(isAllView || isFavoritesView ? null : activeRecord);
+      renderSyncButton(
+        isAllView || isFavoritesView
+          ? providers.find((record) => sameProvider(record.provider, selection.provider)) || null
+          : activeRecord,
+        !isAllView && !isFavoritesView
+      );
     };
 
-    const positionPopover = () => {
-      if (!popover || popover.hidden) {
-        return;
-      }
-      const panelScrollPosition = {
-        providerTop: providersList?.scrollTop || 0,
-        providerLeft: providersList?.scrollLeft || 0,
-        listTop: list?.scrollTop || 0,
-        listLeft: list?.scrollLeft || 0,
-      };
-      const restorePanelScrollPosition = () => {
-        if (providersList) {
-          providersList.scrollTop = panelScrollPosition.providerTop;
-          providersList.scrollLeft = panelScrollPosition.providerLeft;
-        }
-        if (list) {
-          list.scrollTop = panelScrollPosition.listTop;
-          list.scrollLeft = panelScrollPosition.listLeft;
-        }
-      };
-      mountPopover();
-      const gutter = 12;
-      const gap = 8;
-      const viewportWidth = document.documentElement.clientWidth;
-      const viewportHeight = document.documentElement.clientHeight;
-      const triggerRect = trigger.getBoundingClientRect();
-      const nextBottomSheet = window.matchMedia("(max-width: 640px)").matches;
-
-      popover.style.position = "fixed";
-      popover.style.right = "auto";
-      popover.style.transform = "none";
-      ["height", "min-height"].forEach((property) =>
-        modelBody?.style.removeProperty(property)
-      );
-
-      if (nextBottomSheet) {
-        const layoutChanged = !compactPanel || !bottomSheet;
-        compactPanel = true;
-        bottomSheet = true;
-        popover.classList.add("is-compact", "is-bottom-sheet");
-        popover.classList.remove("opens-up");
-        popover.setAttribute("aria-modal", "true");
-        popover.style.top = "auto";
-        popover.style.bottom = "0px";
-        popover.style.left = "0px";
-        popover.style.width = `${Math.max(0, viewportWidth)}px`;
-        if (layoutChanged) {
-          render();
-        }
-        restorePanelScrollPosition();
-        return;
-      }
-
-      bottomSheet = false;
-      popover.classList.remove("is-bottom-sheet");
-      popover.removeAttribute("aria-modal");
-      popover.style.bottom = "auto";
-
-      let leftBoundary = gutter;
-      let rightBoundary = viewportWidth - gutter;
-      let topBoundary = gutter;
-      let bottomBoundary = viewportHeight - gutter;
-      const adminBar = document.getElementById("wpadminbar");
-      if (adminBar) {
-        const adminBarRect = adminBar.getBoundingClientRect();
-        if (adminBarRect.bottom > 0) {
-          topBoundary = Math.max(topBoundary, adminBarRect.bottom + gutter);
-        }
-      }
-      const panelWidth = Math.min(600, rightBoundary - leftBoundary);
-      const nextCompactPanel = panelWidth < 560;
-      const layoutChanged = compactPanel !== nextCompactPanel;
-      compactPanel = nextCompactPanel;
-      popover.classList.toggle("is-compact", compactPanel);
-      popover.style.width = `${Math.max(0, panelWidth)}px`;
-      if (layoutChanged) {
+    const positionPopover = () => positionUnifiedPopover({
+      selector, trigger, popover, modelBody, providersList, list, mountPopover,
+      onLayout: (compact) => {
+        compactPanel = compact;
         render();
-      }
-
-      let popoverRect = popover.getBoundingClientRect();
-      const spaceBelow = bottomBoundary - triggerRect.bottom - gap;
-      const spaceAbove = triggerRect.top - topBoundary - gap;
-      const prefersTop = selector.dataset.aipkitPopoverPlacement === "top";
-      const opensUp = prefersTop
-        ? spaceAbove >= Math.min(120, popoverRect.height)
-        : spaceBelow < popoverRect.height && spaceAbove > spaceBelow;
-      const availableHeight = opensUp ? spaceAbove : spaceBelow;
-      if (
-        modelBody &&
-        availableHeight > 0 &&
-        popoverRect.height > availableHeight
-      ) {
-        const modelBodyRect = modelBody.getBoundingClientRect();
-        const fixedHeight = popoverRect.height - modelBodyRect.height;
-        modelBody.style.height = `${Math.max(
-          120,
-          Math.floor(availableHeight - fixedHeight)
-        )}px`;
-        modelBody.style.minHeight = "0px";
-        popoverRect = popover.getBoundingClientRect();
-      }
-      const left = Math.min(
-        Math.max(triggerRect.left, leftBoundary),
-        Math.max(leftBoundary, rightBoundary - popoverRect.width)
-      );
-      const top = opensUp
-        ? Math.max(topBoundary, triggerRect.top - popoverRect.height - gap)
-        : Math.min(
-            triggerRect.bottom + gap,
-            Math.max(topBoundary, bottomBoundary - popoverRect.height)
-          );
-
-      popover.style.left = `${Math.round(left)}px`;
-      popover.style.top = `${Math.round(top)}px`;
-      popover.classList.toggle("opens-up", opensUp);
-      restorePanelScrollPosition();
-    };
+      },
+    });
 
     const setOpen = (isOpen) => {
       if (!trigger || !popover) {
@@ -1857,6 +1912,11 @@ window.aipkit_initUnifiedModelSelector = function () {
       if (name) {
         name.textContent = label;
         name.title = label;
+      }
+      if (providerName) {
+        providerName.textContent = selection.provider
+          ? getProviderLabel(selection.logoProvider || selection.provider)
+          : "";
       }
       if (trigger) {
         // Empty admin catalogs must still allow provider setup; busy populated pickers stay disabled.
@@ -2109,6 +2169,11 @@ window.aipkit_initUnifiedModelSelector = function () {
     manageLink?.addEventListener("click", () => {
       setOpen(false);
     });
+    syncButton?.addEventListener("click", () => {
+      if (syncButton.getAttribute("aria-disabled") !== "true") {
+        void runProviderSync(syncButton.dataset.provider || "");
+      }
+    });
     noticeAction?.addEventListener("click", () => {
       const action = noticeAction.dataset.action || "";
       const provider = noticeAction.dataset.provider || activeProvider;
@@ -2259,12 +2324,15 @@ window.aipkit_initUnifiedModelSelector = function () {
     }
     const audioPanel = select.closest?.('[data-cloud-audio-models]');
     const audioKind = /^(tts|stt)_[a-z]+_model_id$/.exec(select.name || '')?.[1];
-    const cloudAudioSelect = audioPanel && audioKind
-      ? audioPanel.querySelector(`[name="${audioKind}_cloud_model_id"]`) : null;
-    const getOptions = () => [
-      ...Array.from(select.options || []),
-      ...(cloudAudioSelect && cloudAudioSelect !== select ? Array.from(cloudAudioSelect.options || []) : []),
-    ];
+    const audioProvider = audioPanel && audioKind
+      ? audioPanel.querySelector(`[name="${audioKind}_provider"]`) : null;
+    const audioSelects = audioProvider ? Array.from(audioPanel.querySelectorAll(
+      `select[data-aipkit-universal-model-capability="${audioKind}"]`
+    )) : [];
+    const getOptions = () => (audioProvider ? audioSelects : [select]).flatMap(field => {
+      if (audioProvider) annotateNativeSelectOptions(field, field.dataset.aipkitUniversalModelProvider);
+      return Array.from(field.options || []);
+    });
     const getOptionPickerValue = (option) =>
       String(
         option?.dataset?.aipkitModelPickerValue ??
@@ -2276,7 +2344,7 @@ window.aipkit_initUnifiedModelSelector = function () {
       String(
         option?.dataset?.aipkitPickerProvider ??
           option?.dataset?.provider ??
-          (option?.parentElement === cloudAudioSelect ? "AIPufferCloud" : "")
+          ""
       );
     const getOptionPickerProviderLabel = (option) =>
       String(
@@ -2391,10 +2459,14 @@ window.aipkit_initUnifiedModelSelector = function () {
           const provider = getOptionPickerProvider(option).trim();
           addProvider(provider, getOptionPickerProviderLabel(option));
         });
+        if (audioProvider) Array.from(audioProvider.options).forEach(option =>
+          addProvider(option.value, option.textContent));
         return Array.from(providers.values());
       },
       getSelection() {
-        const option = select.selectedOptions?.[0] || null;
+        const activeSelect = audioProvider ? audioSelects.find(field =>
+          sameProvider(field.dataset.aipkitUniversalModelProvider, audioProvider.value)) : select;
+        const option = activeSelect?.selectedOptions?.[0] || null;
         return {
           provider: getOptionPickerProvider(option),
           providerLabel: getOptionPickerProviderLabel(option),
@@ -2415,15 +2487,13 @@ window.aipkit_initUnifiedModelSelector = function () {
         if (!option) {
           return;
         }
-        const target = audioPanel && audioKind && sameProvider(provider, "AIPufferCloud")
-          ? cloudAudioSelect : select;
+        const target = audioProvider ? audioSelects.find(field =>
+          sameProvider(field.dataset.aipkitUniversalModelProvider, provider)) : select;
+        if (!target) return;
         target.value = option.value;
-        if (target === cloudAudioSelect) {
-          const providerSelect = audioPanel.querySelector(`[name="${audioKind}_provider"]`);
-          if (providerSelect) {
-            providerSelect.value = "AIPufferCloud";
-            providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
-          }
+        if (audioProvider && audioProvider.value !== provider) {
+          audioProvider.value = provider;
+          audioProvider.dispatchEvent(new Event("change", { bubbles: true }));
         }
         target.dispatchEvent(new Event("change", { bubbles: true }));
       },
@@ -2525,6 +2595,13 @@ window.aipkit_initUnifiedModelSelector = function () {
     if (!select || select.dataset.aipkitNativeUniversalModelBound === "1") {
       return;
     }
+    const audioKind = /^(tts|stt)_openai_model_id$/.exec(select.name || '')?.[1];
+    const audioPanel = select.closest('[data-cloud-audio-models]');
+    const audioProvider = audioPanel && audioKind ? audioPanel.querySelector(`[name="${audioKind}_provider"]`) : null;
+    const audioFields = audioProvider ? Array.from(audioPanel.querySelectorAll(
+      `select[data-aipkit-universal-model-capability="${audioKind}"]`
+    )) : [];
+    if (audioPanel && /^(tts|stt)_[a-z]+_model_id$/.test(select.name || '') && !audioProvider) return;
     const declaredProvider = String(
       select.dataset.aipkitUniversalModelProvider || ""
     ).trim();
@@ -2549,10 +2626,22 @@ window.aipkit_initUnifiedModelSelector = function () {
     select.setAttribute("aria-hidden", "true");
     select.tabIndex = -1;
     select.insertAdjacentElement("afterend", selector);
+    if (audioProvider) {
+      const host = audioProvider.parentElement;
+      audioProvider.hidden = true;
+      host.append(selector);
+      host.classList.add('aipkit_audio_settings_field--wide');
+      const providerLabel = host.querySelector('label');
+      if (providerLabel) {
+        providerLabel.textContent = translate('Model', 'gpt3-ai-content-generator');
+        providerLabel.htmlFor = selector.querySelector('button').id;
+      }
+      audioFields.forEach(field => field.parentElement.classList.add('aipkit_audio_model_source'));
+    }
     const label = select.id
       ? select.parentElement?.querySelector(`label[for="${CSS.escape(select.id)}"]`)
       : null;
-    if (label) {
+    if (label && !audioProvider) {
       label.htmlFor = selector.querySelector("button")?.id || label.htmlFor;
     }
     const adapter = createSelectAdapter(select);
@@ -2597,22 +2686,29 @@ window.aipkit_initUnifiedModelSelector = function () {
       annotateNativeSelectOptions(select, getFixedProvider());
       controller.sync();
     });
-    observer.observe(select, { childList: true, subtree: true });
+    const observedFields = audioProvider ? [...audioFields, audioProvider] : [select];
+    observedFields.forEach(field => {
+      observer.observe(field, { childList: true, subtree: true });
+      if (field !== select) field.addEventListener('change', syncSelection);
+    });
     select._aipkitNativeUniversalModelObserver = observer;
     select._aipkitNativeUniversalModelCleanup = () => {
       observer.disconnect();
+      observedFields.forEach(field => field.removeEventListener('change', syncSelection));
       select.removeEventListener("change", syncSelection);
       providerSource?.removeEventListener("change", handleProviderChange);
       controller.destroy();
       delete select._aipkitUnifiedModelSync;
       delete select._aipkitNativeUniversalModelObserver;
       delete select._aipkitNativeUniversalModelCleanup;
+      delete select.dataset.aipkitNativeUniversalModelBound;
     };
     select.dataset.aipkitNativeUniversalModelBound = "1";
   };
 
   const cleanupNativeUniversalModelSelects = (root) => {
-    if (!(root instanceof Element)) {
+    // Reparenting controls into a sheet is not removal from the document.
+    if (!(root instanceof Element) || root.isConnected) {
       return;
     }
     const selects = root.matches(nativeSelectorQuery)
@@ -2721,6 +2817,7 @@ window.aipkit_initUnifiedModelSelector = function () {
     }
   );
 
+  window.aipkit_positionUnifiedPopover = positionUnifiedPopover;
   window.aipkit_createUnifiedModelSelector = createUnifiedModelSelector;
   window.aipkit_createUnifiedModelSelectAdapter = createSelectAdapter;
   window.aipkit_initNativeUniversalModelSelects =

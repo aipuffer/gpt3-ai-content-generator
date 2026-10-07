@@ -1,5 +1,3 @@
-import { createSourceEditor } from "../shared/source-editor.js";
-
 /** Chatbot Knowledge capabilities, source management and training presentation. */
 const NATIVE_KNOWLEDGE_PROVIDER_REQUIREMENTS = Object.freeze({
   google: "Google",
@@ -205,6 +203,7 @@ export const deriveChatbotCapabilityState = ({
 export function createChatbotTrainingStatus({
   builder, __, trainingMainAddButton, trainingSheetAddButton,
   getActiveTrainingTabKey, isOtherTrainingTab, getIsTraining, clearWebsiteTask,
+  _n = (single, plural, count) => (count === 1 ? single : plural),
 }) {
   const trainingState = builder.querySelector("[data-aipkit-training-state]");
   const trainingStateValue = builder.querySelector(
@@ -234,6 +233,7 @@ export function createChatbotTrainingStatus({
   const trainingStopButton = builder.querySelector(
     "[data-aipkit-stop-training]"
   );
+  let inventorySummary = { text: "", total: 0 };
   let durableTrainingStatusKey = "";
   let trainingStatusSnapshot = {
     count: 0,
@@ -244,6 +244,129 @@ export function createChatbotTrainingStatus({
       active: 0,
     },
     training_status: null,
+  };
+  // Filters first: changing them refreshes the list, which then opens already filtered.
+  const openSources = ({ type = "", status = "" } = {}) => {
+    [["aipkit_chatbot_sources_type", type], ["aipkit_chatbot_sources_status_filter", status]].forEach(([id, value]) => {
+      const field = document.getElementById(id);
+      if (field && field.value !== value) {
+        field.value = value;
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    builder.querySelector(".aipkit_training_sources_btn")?.click();
+  };
+  // Labels translate when shown, so building the status reads nothing early.
+  const knowledgeStripActions = {
+    stop: { label: () => __("Stop", "gpt3-ai-content-generator"), run: () => trainingStopButton?.click() },
+    review: { label: () => __("Review", "gpt3-ai-content-generator"), run: () => openSources({ status: "failed" }) },
+    "turn-on": {
+      label: () => __("Turn on", "gpt3-ai-content-generator"),
+      run: () => {
+        const toggle = builder.querySelector(".aipkit_vector_store_enable_select");
+        if (toggle && !toggle.checked) {
+          toggle.checked = true;
+          toggle.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      },
+    },
+    settings: {
+      label: () => __("Search settings", "gpt3-ai-content-generator"),
+      run: () => builder.querySelector('[data-aipkit-feature-open="search"]')?.click(),
+    },
+  };
+  /** One plain sentence on what answers use, from the durable status, the queue and the grouped sources. */
+  let knowledgeStrip = null;
+  const renderKnowledgeStrip = () => {
+    // Looked up when first drawn; the card renders after this status object is built.
+    knowledgeStrip = knowledgeStrip || builder.querySelector("[data-aipkit-knowledge-strip]") || null;
+    const knowledgeStripText = knowledgeStrip?.querySelector?.("[data-aipkit-knowledge-strip-text]");
+    if (!knowledgeStrip || !knowledgeStripText) {
+      return;
+    }
+    const knowledgeStripAction = knowledgeStrip.querySelector("[data-aipkit-knowledge-strip-action]");
+    if (knowledgeStripAction && !knowledgeStripAction.dataset.bound) {
+      knowledgeStripAction.dataset.bound = "1";
+      knowledgeStripAction.addEventListener("click", (event) => {
+        event.preventDefault();
+        knowledgeStripActions[knowledgeStripAction.dataset.action]?.run();
+      });
+    }
+    const queue = trainingStatusSnapshot.queue || {};
+    const failed = Math.max(Number(queue.failed || 0), inventorySummary.failed || 0);
+    const waiting = Number(queue.pending || 0) + Number(queue.processing || 0);
+    const hasSources = Number(inventorySummary.total) > 0;
+    const noKnowledge = __("No knowledge yet. It answers from the AI model only.", "gpt3-ai-content-generator");
+    let tone = "neutral";
+    let text = noKnowledge;
+    let action = "";
+    switch (durableTrainingStatusKey) {
+      case "":
+      case "checking":
+        // Refreshes check every few seconds; keep the last sentence instead of flickering.
+        if (!knowledgeStrip.hidden) {
+          return;
+        }
+        text = __("Checking knowledge...", "gpt3-ai-content-generator");
+        break;
+      case "training":
+        tone = "adding";
+        text = waiting > 0
+          ? _n("Adding knowledge. %d item left.", "Adding knowledge. %d items left.", waiting, "gpt3-ai-content-generator").replace("%d", String(waiting))
+          : __("Adding knowledge...", "gpt3-ai-content-generator");
+        action = trainingStopButton ? "stop" : "";
+        break;
+      case "trained":
+        if (failed > 0) {
+          tone = "warn";
+          text = _n("%d item couldn't be added.", "%d items couldn't be added.", failed, "gpt3-ai-content-generator").replace("%d", String(failed));
+          action = "review";
+        } else {
+          tone = "ready";
+          text = inventorySummary.text
+            ? __("Ready. It answers from %s.", "gpt3-ai-content-generator").replace("%s", inventorySummary.text)
+            : __("Ready.", "gpt3-ai-content-generator");
+        }
+        break;
+      case "failed":
+        tone = "warn";
+        text = __("Your sources couldn't be added.", "gpt3-ai-content-generator");
+        action = "review";
+        break;
+      case "off":
+        if (hasSources) {
+          text = __("Knowledge is off, so answers don't use it.", "gpt3-ai-content-generator");
+          action = "turn-on";
+        }
+        break;
+      case "incompatible":
+        text = __("Knowledge doesn't work with the chosen AI model.", "gpt3-ai-content-generator");
+        action = "settings";
+        break;
+      case "setup_required":
+        text = __("Knowledge needs setting up first.", "gpt3-ai-content-generator");
+        action = "settings";
+        break;
+      case "unavailable":
+        tone = "warn";
+        text = __("Couldn't check knowledge right now.", "gpt3-ai-content-generator");
+        break;
+      default:
+        break;
+    }
+    knowledgeStrip.hidden = false;
+    knowledgeStrip.dataset.tone = tone;
+    knowledgeStripText.textContent = text;
+    if (knowledgeStripAction) {
+      const config = knowledgeStripActions[action];
+      knowledgeStripAction.hidden = !config;
+      knowledgeStripAction.dataset.action = action;
+      knowledgeStripAction.textContent = config ? config.label() : "";
+    }
+  };
+  const setInventorySummary = (summary = {}) => {
+    inventorySummary = { text: String(summary.text || ""), total: Number(summary.total || 0), failed: Number(summary.failed || 0) };
+    renderKnowledgeStrip();
   };
   const closeTrainingStateMenu = () => {
     if (!trainingStateMenu || !trainingState) {
@@ -283,6 +406,7 @@ export function createChatbotTrainingStatus({
       training_status: response.training_status || null,
     };
     updateTrainingStateReport(trainingStatusSnapshot);
+    renderKnowledgeStrip();
   };
   const setReportCount = (field, count, display, metric = null) => {
     if (field) {
@@ -330,13 +454,13 @@ export function createChatbotTrainingStatus({
       case "qa":
       case "text":
         return {
-          idle: __("Add source", "gpt3-ai-content-generator"),
+          idle: __("Add", "gpt3-ai-content-generator"),
           loading: __("Adding", "gpt3-ai-content-generator"),
         };
       case "website":
         return {
-          idle: __("Sync", "gpt3-ai-content-generator"),
-          loading: __("Adding", "gpt3-ai-content-generator"),
+          idle: __("Start learning", "gpt3-ai-content-generator"),
+          loading: __("Learning", "gpt3-ai-content-generator"),
         };
       case "files":
         return {
@@ -426,6 +550,7 @@ export function createChatbotTrainingStatus({
     }
     updateTrainingStateReport();
     applyDurableTrainingActionState();
+    renderKnowledgeStrip();
   };
   const updateTrainingActionLabel = (
     tabKey,
@@ -483,26 +608,12 @@ export function createChatbotTrainingStatus({
     setTrainingActionButtonText, updateTrainingActionLabel, updateTrainingActionProgress,
     getSnapshot: () => trainingStatusSnapshot,
     getStatusKey: () => durableTrainingStatusKey,
+    setInventorySummary, openSources,
   };
 }
 
-/** Managed knowledge inventory, grouped summaries and status refresh. */
-export function bindChatbotSourceInventory({
-  trainingManagedSources, trainingSourceEmpty, trainingSourceEmptyTitle,
-  trainingSourceEmptyDescription, trainingAddSourceButton, trainingSourcesButton,
-  trainingCard, trainingPresentation, getChatbotCapabilityState,
-  getSelectedBuilderBotId, buildTrainingStatusPayload, __,
-  _n, sprintf,
-}) {
-  const { trainingStateReportTrained, setTrainingStatusSnapshot, setDurableTrainingStatus } = trainingPresentation;
-  const escapeTrainingSourceText = (value) =>
-    String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-
+/** Current source attempts, kept separate from successful, answerable sources. */
+export function groupChatbotSources(logs = []) {
   const getTrainingSourceGroupKey = (log = {}) => {
     const message = String(log.message || "").toLowerCase();
     const content = String(log.indexed_content || "").trim();
@@ -548,15 +659,80 @@ export function bindChatbotSourceInventory({
         .trim();
       return `file:${title || fileId || log.id || ""}`;
     }
-    return `${key}:${log.file_id || log.id || log.indexed_content || ""}`;
+    // Short complete text identifies a retry even if it received a new file ID.
+    // Truncated previews are not safe identifiers for different long documents.
+    const content = String(log.indexed_content || "").replace(/\r\n/g, "\n").trim();
+    return `${key}:${content && content.length < 997 && !content.endsWith("...")
+      ? content : log.file_id || log.id || content}`;
   };
 
+  const latest = new Map();
+  logs.forEach((log) => {
+    const kind = getTrainingSourceGroupKey(log);
+    const sourceKey = JSON.stringify([log.provider || "", log.vector_store_id || "", getTrainingSourceIdentity(log, kind)]);
+    // File chunks are independent: a successful chunk must not hide a failed one.
+    const chunk = kind === "files" ? String(log.file_id || "").match(/(?:[_-]chunk)[_-]?(\d+)(?:[_-]of[_-]\d+)?$/i)?.[1] || "" : "";
+    const key = JSON.stringify([sourceKey, chunk]);
+    const previous = latest.get(key);
+    const time = String(log.timestamp || "");
+    const previousTime = String(previous?.log.timestamp || "");
+    if (!previous || time > previousTime || (time === previousTime && Number(log.id || 0) > Number(previous.log.id || 0))) {
+      latest.set(key, { kind, sourceKey, log });
+    }
+  });
+  const groups = Object.fromEntries(["website", "qa", "text", "files"].map((key) => [key, {
+    count: 0, ready: 0, failed: 0, statuses: new Set(), latest: "",
+  }]));
+  const sources = new Map();
+  latest.forEach(({ kind, sourceKey, log }) => {
+    if (!sources.has(sourceKey)) sources.set(sourceKey, { kind, logs: [] });
+    sources.get(sourceKey).logs.push(log);
+  });
+  const readyStatuses = new Set(["indexed", "success", "ready", "completed", "skipped_already_indexed"]);
+  sources.forEach(({ kind, logs: attempts }) => {
+    const group = groups[kind];
+    const statuses = attempts.map((log) => String(log.status || "").toLowerCase());
+    group.count++;
+    statuses.forEach((status) => group.statuses.add(status));
+    if (statuses.every((status) => readyStatuses.has(status))) {
+      group.ready++;
+      attempts.forEach((log) => {
+        if (String(log.timestamp || "") > group.latest) group.latest = String(log.timestamp);
+      });
+    }
+    if (statuses.includes("failed")) group.failed++;
+  });
+  return groups;
+}
+
+/** Managed knowledge inventory, grouped summaries and status refresh. */
+export function bindChatbotSourceInventory({
+  trainingManagedSources, trainingSourceEmpty, trainingSourceEmptyTitle,
+  trainingSourceEmptyDescription, trainingAddSourceButton, trainingSourcesButton,
+  trainingCard, trainingPresentation, getChatbotCapabilityState,
+  getSelectedBuilderBotId, buildTrainingStatusPayload, __,
+  _n, sprintf,
+}) {
+  const { trainingStateReportTrained, setTrainingStatusSnapshot, setDurableTrainingStatus } = trainingPresentation;
+  const escapeTrainingSourceText = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  const trainingSourceEmptyAction = trainingSourceEmpty?.querySelector?.(
+    "[data-aipkit-training-source-add-again]"
+  ) || null;
+  // The empty state offers the website as a first source; loading and error copy do not.
   const setTrainingSourceEmptyCopy = (
-    title = __("No sources yet", "gpt3-ai-content-generator"),
+    title = __("Start with your website", "gpt3-ai-content-generator"),
     description = __(
-      "Add website content, a Q&A, text, or files.",
+      "Most sites are learned in about a minute.",
       "gpt3-ai-content-generator"
-    )
+    ),
+    showAction = true
   ) => {
     if (trainingSourceEmptyTitle) {
       trainingSourceEmptyTitle.textContent = title;
@@ -564,18 +740,43 @@ export function bindChatbotSourceInventory({
     if (trainingSourceEmptyDescription) {
       trainingSourceEmptyDescription.textContent = description;
     }
+    if (trainingSourceEmptyAction) {
+      trainingSourceEmptyAction.hidden = !showAction;
+    }
+  };
+
+  // The Add source menu's website choice: where to start before anything is added, then what it learned.
+  // A null total (loading, or the storage could not be read) shows neither.
+  const websiteChoice = trainingCard?.querySelector('[data-aipkit-training-source-picker] [data-aipkit-training-source-option="website"]');
+  const setWebsiteChoice = (pages, total) => {
+    const hint = websiteChoice?.querySelector("[data-aipkit-training-source-hint]");
+    const start = websiteChoice?.querySelector("[data-aipkit-training-source-start]");
+    if (hint) {
+      if (hint.dataset.defaultHint === undefined) {
+        hint.dataset.defaultHint = hint.textContent;
+      }
+      hint.textContent = pages
+        /* translators: %s: number of website pages it has learned. */
+        ? sprintf(_n("%s page learned · add more or learn again", "%s pages learned · add more or learn again", pages, "gpt3-ai-content-generator"), pages.toLocaleString())
+        : hint.dataset.defaultHint;
+    }
+    if (start) {
+      start.hidden = total !== 0;
+    }
   };
 
   const setTrainingInventoryLoading = () => {
     if (!trainingManagedSources || !trainingSourceEmpty) {
       return;
     }
+    setWebsiteChoice(0, null);
     managedTrainingSourceCount = null;
     trainingManagedSources.hidden = true;
     trainingManagedSources.innerHTML = "";
     setTrainingSourceEmptyCopy(
       __("Loading sources", "gpt3-ai-content-generator"),
-      __("Checking the selected knowledge storage.", "gpt3-ai-content-generator")
+      __("Checking the selected knowledge storage.", "gpt3-ai-content-generator"),
+      false
     );
     trainingSourceEmpty.hidden = false;
   };
@@ -588,128 +789,107 @@ export function bindChatbotSourceInventory({
       return;
     }
 
-    const groups = {
-      website: {
-        identities: new Set(),
-        statuses: new Set(),
-      },
-      content: {
-        textIdentities: new Set(),
-        qaIdentities: new Set(),
-        statuses: new Set(),
-      },
-      files: {
-        identities: new Set(),
-        statuses: new Set(),
-      },
-    };
-
-    logs.forEach((log) => {
-      const sourceKey = getTrainingSourceGroupKey(log);
-      const status = String(log.status || "").toLowerCase();
-      const identity = getTrainingSourceIdentity(log, sourceKey);
-
-      if (sourceKey === "website" || sourceKey === "files") {
-        const group = groups[sourceKey];
-        group.identities.add(identity);
-        group.statuses.add(status);
-        return;
-      }
-
-      const identities = sourceKey === "qa"
-        ? groups.content.qaIdentities
-        : groups.content.textIdentities;
-      identities.add(identity);
-      groups.content.statuses.add(status);
-    });
-
+    const groups = groupChatbotSources(logs);
+    const websiteCount = groups.website.count;
+    const qaCount = groups.qa.count;
+    const textCount = groups.text.count;
+    const fileCount = groups.files.count;
+    const syncedAgo = groups.website.latest && typeof window.aipkit_formatRelativeDateTime === "function"
+      ? window.aipkit_formatRelativeDateTime(groups.website.latest)
+      : "";
     const items = [];
-    if (groups.website.identities.size) {
-      const pageCount = groups.website.identities.size;
+    if (websiteCount) {
+      const pages = sprintf(_n("%d page", "%d pages", websiteCount, "gpt3-ai-content-generator"), websiteCount);
       items.push({
         key: "website",
-        label: __("My website", "gpt3-ai-content-generator"),
-        detail: sprintf(
-          _n(
-            "%d page",
-            "%d pages",
-            pageCount,
-            "gpt3-ai-content-generator"
-          ),
-          pageCount
-        ),
+        label: __("Your website", "gpt3-ai-content-generator"),
+        detail: syncedAgo && syncedAgo !== "N/A" && syncedAgo !== "Invalid Date"
+          /* translators: 1: number of pages, such as "14 pages", 2: when they were learned, such as "1 hour ago". */
+          ? sprintf(__("%1$s · learned %2$s", "gpt3-ai-content-generator"), pages, syncedAgo)
+          : pages,
+        summary: groups.website.ready ? sprintf(_n("%d page", "%d pages", groups.website.ready, "gpt3-ai-content-generator"), groups.website.ready) : "",
         icon: "dashicons-admin-site-alt3",
         statuses: groups.website.statuses,
+        view: "site",
         addKey: "website",
-        addLabel: __("Sync again", "gpt3-ai-content-generator"),
+        addIcon: "dashicons-update",
+        addLabel: __("Learn again", "gpt3-ai-content-generator"),
       });
     }
-
-    const textCount = groups.content.textIdentities.size;
-    const qaCount = groups.content.qaIdentities.size;
-    if (textCount || qaCount) {
-      const details = [];
-      if (textCount) {
-        details.push(
-          sprintf(__("%d text", "gpt3-ai-content-generator"), textCount)
-        );
-      }
-      if (qaCount) {
-        details.push(
-          sprintf(__("%d Q&A", "gpt3-ai-content-generator"), qaCount)
-        );
-      }
+    if (qaCount) {
       items.push({
-        key: "content",
-        label: __("Text & Q&A", "gpt3-ai-content-generator"),
-        detail: details.join(" · "),
+        key: "qa",
+        label: __("Questions and answers", "gpt3-ai-content-generator"),
+        detail: sprintf(_n("%d question", "%d questions", qaCount, "gpt3-ai-content-generator"), qaCount),
+        summary: groups.qa.ready ? sprintf(_n("%d Q&A", "%d Q&As", groups.qa.ready, "gpt3-ai-content-generator"), groups.qa.ready) : "",
         icon: "dashicons-format-chat",
-        statuses: groups.content.statuses,
-        addKey: "picker",
-        addLabel: __("Add source", "gpt3-ai-content-generator"),
+        statuses: groups.qa.statuses,
+        view: "text",
+        addKey: "qa",
+        addIcon: "dashicons-plus-alt2",
+        addLabel: __("Add", "gpt3-ai-content-generator"),
       });
     }
-
-    const fileCount = groups.files.identities.size;
+    if (textCount) {
+      items.push({
+        key: "text",
+        label: __("Text", "gpt3-ai-content-generator"),
+        detail: sprintf(_n("%d text", "%d texts", textCount, "gpt3-ai-content-generator"), textCount),
+        summary: groups.text.ready ? sprintf(_n("%d text", "%d texts", groups.text.ready, "gpt3-ai-content-generator"), groups.text.ready) : "",
+        icon: "dashicons-media-text",
+        statuses: groups.text.statuses,
+        view: "text",
+        addKey: "text",
+        addIcon: "dashicons-plus-alt2",
+        addLabel: __("Add", "gpt3-ai-content-generator"),
+      });
+    }
     if (fileCount) {
       items.push({
         key: "files",
         label: __("Files", "gpt3-ai-content-generator"),
-        detail: sprintf(
-          _n(
-            "%d file",
-            "%d files",
-            fileCount,
-            "gpt3-ai-content-generator"
-          ),
-          fileCount
-        ),
+        detail: sprintf(_n("%d file", "%d files", fileCount, "gpt3-ai-content-generator"), fileCount),
+        summary: groups.files.ready ? sprintf(_n("%d file", "%d files", groups.files.ready, "gpt3-ai-content-generator"), groups.files.ready) : "",
         icon: "dashicons-media-document",
         statuses: groups.files.statuses,
+        view: "file",
         addKey: "files",
-        addLabel: __("Upload files", "gpt3-ai-content-generator"),
+        addIcon: "dashicons-upload",
+        addLabel: __("Upload", "gpt3-ai-content-generator"),
       });
     }
 
     if (!items.length) {
       managedTrainingSourceCount = 0;
+      setWebsiteChoice(0, 0);
       trainingManagedSources.hidden = true;
       trainingManagedSources.innerHTML = "";
       setTrainingSourceEmptyCopy();
       trainingSourceEmpty.hidden = false;
+      trainingPresentation.setInventorySummary?.({ text: "", total: 0 });
       return;
     }
 
     managedTrainingSourceCount =
-      (groups.website.identities.size ? 1 : 0) +
-      textCount +
-      qaCount +
-      fileCount;
+      (websiteCount ? 1 : 0) + textCount + qaCount + fileCount;
+    setWebsiteChoice(websiteCount, managedTrainingSourceCount);
     if (trainingStateReportTrained) {
       trainingStateReportTrained.textContent = String(
         managedTrainingSourceCount
       );
     }
+    const summaries = items.map((item) => item.summary).filter(Boolean);
+    trainingPresentation.setInventorySummary?.({
+      text: summaries.length > 1
+        ? sprintf(
+          __("%1$s and %2$s", "gpt3-ai-content-generator"),
+          summaries.slice(0, -1).join(", "),
+          summaries[summaries.length - 1]
+        )
+        : summaries[0],
+      total: managedTrainingSourceCount,
+      failed: Object.values(groups).reduce((sum, group) => sum + group.failed, 0),
+    });
 
     trainingManagedSources.innerHTML = items
       .map((item) => {
@@ -719,29 +899,30 @@ export function bindChatbotSourceInventory({
           item.statuses.has("pending");
         const hasFailed = item.statuses.has("failed");
         const isRuntimeActive = capabilityState.knowledgeRuntimeActive;
+        // The status line explains an inactive knowledge base, so its rows only dim.
         const [stateClass, stateLabel] = !isRuntimeActive
-          ? ["is-inactive", __("Inactive", "gpt3-ai-content-generator")]
+          ? ["is-inactive", ""]
           : hasFailed
-            ? ["is-warning", __("Needs attention", "gpt3-ai-content-generator")]
+            ? ["is-warning", __("Needs a look", "gpt3-ai-content-generator")]
             : isProcessing
-              ? ["is-processing", __("Processing", "gpt3-ai-content-generator")]
-              : ["is-ready", __("Synced", "gpt3-ai-content-generator")];
-        return `<div class="aipkit_training_managed_source" data-aipkit-training-managed-source="${escapeTrainingSourceText(item.key)}">
+              // The website is learned; the other sources are added.
+              ? ["is-processing", item.key === "website" ? __("Learning...", "gpt3-ai-content-generator") : __("Adding...", "gpt3-ai-content-generator")]
+              : ["is-ready", ""];
+        const state = stateLabel
+          ? `<span class="aipkit_training_managed_source_state ${stateClass}">${escapeTrainingSourceText(stateLabel)}</span>`
+          : "";
+        return `<div class="aipkit_training_managed_source ${stateClass}" data-aipkit-training-managed-source="${escapeTrainingSourceText(item.key)}">
               <span class="aipkit_training_managed_source_icon dashicons ${escapeTrainingSourceText(item.icon)}" aria-hidden="true"></span>
-              <span class="aipkit_training_managed_source_copy">
+              <button type="button" class="aipkit_training_managed_source_view" data-aipkit-training-source-view="${escapeTrainingSourceText(item.view)}">
                 <strong>${escapeTrainingSourceText(item.label)}</strong>
                 <span>${escapeTrainingSourceText(item.detail)}</span>
-              </span>
-              <span class="aipkit_training_managed_source_state ${stateClass}">${escapeTrainingSourceText(stateLabel)}</span>
-              <span class="aipkit_training_managed_source_actions">
-                <button type="button" class="aipkit_training_managed_source_menu_trigger" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeTrainingSourceText(__("Source actions", "gpt3-ai-content-generator"))}">
-                  <span class="dashicons dashicons-ellipsis" aria-hidden="true"></span>
-                </button>
-                <span class="aipkit_training_managed_source_menu" role="menu" hidden>
-                  <button type="button" role="menuitem" data-aipkit-training-source-add-again="${escapeTrainingSourceText(item.addKey)}">${escapeTrainingSourceText(item.addLabel)}</button>
-                  <button type="button" role="menuitem" data-aipkit-training-source-manage>${escapeTrainingSourceText(__("Manage sources", "gpt3-ai-content-generator"))}</button>
-                </span>
-              </span>
+              </button>
+              ${state}
+              <button type="button" class="aipkit_training_managed_source_add" data-aipkit-training-source-add-again="${escapeTrainingSourceText(item.addKey)}">
+                <span class="dashicons ${escapeTrainingSourceText(item.addIcon)}" aria-hidden="true"></span>
+                <span>${escapeTrainingSourceText(item.addLabel)}</span>
+              </button>
+              <span class="aipkit_training_managed_source_chevron dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
             </div>`;
       })
       .join("");
@@ -843,89 +1024,50 @@ export function bindChatbotSourceInventory({
       managedTrainingSourcesSignature = "";
       managedTrainingSourceCount = null;
       renderManagedTrainingSources([], capabilityState);
+      setWebsiteChoice(0, null);
       setTrainingSourceEmptyCopy(
         __("Sources unavailable", "gpt3-ai-content-generator"),
-        __("Could not load the selected knowledge storage.", "gpt3-ai-content-generator")
+        __("Could not load the selected knowledge storage.", "gpt3-ai-content-generator"),
+        false
       );
     }
   };
 
-  const closeManagedSourceMenus = (except = null) => {
-    if (!trainingManagedSources) {
-      return;
+  const openTrainingSourceAgain = (sourceKey) => {
+    trainingAddSourceButton?.click();
+    if (sourceKey && sourceKey !== "picker") {
+      window.aipkit_selectTrainingSource?.(sourceKey);
     }
-    trainingManagedSources
-      .querySelectorAll(".aipkit_training_managed_source_actions")
-      .forEach((actions) => {
-        if (actions === except) {
-          return;
-        }
-        const trigger = actions.querySelector(
-          ".aipkit_training_managed_source_menu_trigger"
-        );
-        const menu = actions.querySelector(
-          ".aipkit_training_managed_source_menu"
-        );
-        if (trigger) {
-          trigger.setAttribute("aria-expanded", "false");
-        }
-        if (menu) {
-          menu.hidden = true;
-        }
-      });
   };
 
   if (trainingManagedSources) {
     trainingManagedSources.addEventListener("click", (event) => {
-      const trigger = event.target.closest(
-        ".aipkit_training_managed_source_menu_trigger"
-      );
-      if (trigger) {
-        event.preventDefault();
-        const actions = trigger.closest(
-          ".aipkit_training_managed_source_actions"
-        );
-        const menu = actions?.querySelector(
-          ".aipkit_training_managed_source_menu"
-        );
-        const shouldOpen = Boolean(menu?.hidden);
-        closeManagedSourceMenus(actions);
-        if (menu) {
-          menu.hidden = !shouldOpen;
-        }
-        trigger.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-        return;
-      }
-
       const addAgain = event.target.closest(
         "[data-aipkit-training-source-add-again]"
       );
       if (addAgain) {
         event.preventDefault();
         event.stopPropagation();
-        closeManagedSourceMenus();
-        trainingAddSourceButton?.click();
-        const sourceKey =
-          addAgain.dataset.aipkitTrainingSourceAddAgain || "picker";
-        if (sourceKey !== "picker") {
-          window.aipkit_selectTrainingSource?.(sourceKey);
-        }
+        openTrainingSourceAgain(addAgain.dataset.aipkitTrainingSourceAddAgain || "picker");
         return;
       }
 
-      const manage = event.target.closest(
-        "[data-aipkit-training-source-manage]"
-      );
-      if (manage) {
+      const view = event.target.closest("[data-aipkit-training-source-view]");
+      if (view) {
         event.preventDefault();
-        closeManagedSourceMenus();
-        trainingSourcesButton?.click();
+        if (typeof trainingPresentation.openSources === "function") {
+          trainingPresentation.openSources({ type: view.dataset.aipkitTrainingSourceView || "" });
+        } else {
+          trainingSourcesButton?.click();
+        }
       }
     });
-    document.addEventListener("click", (event) => {
-      if (!trainingManagedSources.contains(event.target)) {
-        closeManagedSourceMenus();
-      }
+  }
+  if (trainingSourceEmptyAction) {
+    trainingSourceEmptyAction.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openTrainingSourceAgain(trainingSourceEmptyAction.dataset.aipkitTrainingSourceAddAgain || "website");
     });
   }
 
@@ -1221,137 +1363,6 @@ export function createChatbotWebsiteSources({
   };
 }
 
-/** Chatbot source replacement and its row/status/training refresh behavior. */
-export function createChatbotSourceEditor({ sourcesEditor, __ }) {
-  const sourceEditor = createSourceEditor({ editorModal: sourcesEditor, __ });
-  const {
-    editorTextarea: sourcesEditorTextarea,
-    editorQuestion: sourcesEditorQuestion,
-    editorAnswer: sourcesEditorAnswer,
-    editorSave: sourcesEditorSave,
-  } = sourceEditor.fields;
-
-  const bind = ({
-    sourcesTableBody,
-    setSourcesStatus,
-    clearSourcesStatusSoon,
-    upsertEditedText,
-    refreshSourcesSheet,
-    sourcesState,
-    refreshTrainingSourcesAfterMutation,
-    getContextSettings,
-  }) => {
-    sourceEditor.bind();
-    if (sourcesEditorSave) {
-      sourcesEditorSave.addEventListener("click", async () => {
-        if (
-          !sourcesEditor ||
-          !sourcesEditorTextarea ||
-          !sourcesEditorQuestion ||
-          !sourcesEditorAnswer ||
-          sourcesEditorSave.disabled
-        ) {
-          return;
-        }
-        const sourceKind =
-          sourcesEditor.dataset.sourceKind === "qa" ? "qa" : "text";
-        const question = sourcesEditorQuestion.value.trim();
-        const answer = sourcesEditorAnswer.value.trim();
-        const newText =
-          sourceKind === "qa"
-            ? `Q: ${question}\nA: ${answer}`
-            : sourcesEditorTextarea.value.trim();
-        if (!newText) {
-          setSourcesStatus(
-            sourceKind === "qa"
-              ? "Question and answer cannot be empty."
-              : "Text cannot be empty.",
-            "error"
-          );
-          clearSourcesStatusSoon();
-          return;
-        }
-        const providerLabel = sourcesEditor.dataset.provider || "";
-        const storeId = sourcesEditor.dataset.storeId || "";
-        const vectorId = sourcesEditor.dataset.vectorId || "";
-        const logId = sourcesEditor.dataset.logId || "";
-        const embeddingProvider =
-          sourcesEditor.dataset.embeddingProvider || "";
-        const embeddingModel = sourcesEditor.dataset.embeddingModel || "";
-
-        if (!providerLabel || !storeId || !vectorId || !logId) {
-          setSourcesStatus("Missing content details.", "error");
-          clearSourcesStatusSoon();
-          return;
-        }
-        sourceEditor.close();
-        if (sourcesTableBody) {
-          const safeId =
-            typeof CSS !== "undefined" && CSS.escape
-              ? CSS.escape(String(logId))
-              : String(logId).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
-          const row = sourcesTableBody.querySelector(
-            `tr[data-log-id="${safeId}"]`
-          );
-          const editButton = row
-            ? row.querySelector(".aipkit_sources_action_edit")
-            : null;
-          const viewButton = row
-            ? row.querySelector(".aipkit_view_snippet_icon")
-            : null;
-          const deleteButton = row
-            ? row.querySelector(".aipkit_sources_action_delete")
-            : null;
-          if (editButton) {
-            editButton.disabled = true;
-            editButton.setAttribute("aria-disabled", "true");
-            editButton.textContent = "Updating...";
-          }
-          [viewButton, deleteButton].forEach((button) => {
-            if (button) {
-              button.disabled = true;
-              button.setAttribute("aria-disabled", "true");
-            }
-          });
-        }
-        setSourcesStatus("Updating...", "");
-        try {
-          await window.aipkit_apiRequest(
-            "aipkit_delete_vector_data_source_entry",
-            {
-              provider: providerLabel,
-              store_id: storeId,
-              vector_id: vectorId,
-              log_id: logId,
-            }
-          );
-          await upsertEditedText(
-            providerLabel,
-            storeId,
-            newText,
-            embeddingProvider,
-            embeddingModel,
-            sourceKind
-          );
-          setSourcesStatus("Knowledge updated", "success");
-          clearSourcesStatusSoon();
-          sourceEditor.close();
-          refreshSourcesSheet(sourcesState.page || 1);
-          refreshTrainingSourcesAfterMutation(getContextSettings());
-        } catch (error) {
-          setSourcesStatus(
-            `Error: ${error.message || "Failed to save."}`,
-            "error"
-          );
-        }
-      });
-    }
-
-  };
-
-  return { open: sourceEditor.open, bind };
-}
-
 /** Source picker, Q&A suggestions and draft confirmation. Requests stay with training. */
 export function bindChatbotSourcePicker({
   builder, __, trainingCommonQuestionsToggle,
@@ -1370,6 +1381,27 @@ export function bindChatbotSourcePicker({
 }) {
   let trainingWebsiteDismissBaseline = [];
   let finalizeTrainingSourceDiscard;
+  const sheetHeader = trainingSourceForm?.querySelector?.("[data-aipkit-training-source-sheet-header]") || null;
+  const sheetTitle = sheetHeader?.querySelector("[data-aipkit-training-source-sheet-title]") || null;
+  const sheetHint = sheetHeader?.querySelector("[data-aipkit-training-source-sheet-hint]") || null;
+  const sheetCloseButtons = Array.from(
+    trainingSourcePopover?.querySelectorAll?.("[data-aipkit-training-source-close], [data-aipkit-training-source-cancel]") || []
+  );
+  const addAnotherButton = trainingSourcePopover?.querySelector?.("[data-aipkit-training-add-another]") || null;
+  const websiteSummary = trainingWebsitePanel?.querySelector?.("[data-aipkit-training-website-summary]") || null;
+  // "Save and add another" keeps the panel open after the next successful save only.
+  let keepOpenAfterSave = false;
+  const updateWebsiteSummary = () => {
+    if (!websiteSummary) {
+      return;
+    }
+    const total = Array.from(
+      trainingWebsitePanel.querySelectorAll(".aipkit_wp_type_cb:checked")
+    ).reduce((sum, checkbox) => sum + Math.max(0, Number(checkbox.dataset.count) || 0), 0);
+    websiteSummary.textContent = total === 1
+      ? websiteSummary.dataset.one || ""
+      : (websiteSummary.dataset.many || "").replace("%s", total.toLocaleString());
+  };
   const setCommonQuestionsOpen = (isOpen) => {
     if (!trainingCommonQuestionsToggle || !trainingCommonQuestionsPanel) {
       return;
@@ -1443,6 +1475,13 @@ export function bindChatbotSourcePicker({
         trainingSourcePopover.hidden ||
         !trainingAddSourceButton
       ) {
+        return;
+      }
+      if (trainingSourcePopover.classList.contains("is-form-view")) {
+        ["top", "right", "bottom", "left", "maxHeight"].forEach((property) => {
+          trainingSourcePopover.style[property] = "";
+        });
+        delete trainingSourcePopover.dataset.placement;
         return;
       }
 
@@ -1739,6 +1778,7 @@ export function bindChatbotSourcePicker({
     };
 
     const showTrainingSourcePicker = () => {
+      keepOpenAfterSave = false;
       resetTrainingSourcePicker();
       setTrainingDiscardPromptOpen(false);
       setTrainingWebsiteDismissBaseline();
@@ -1761,6 +1801,20 @@ export function bindChatbotSourcePicker({
       }
       setActiveTrainingSourceKey(nextKey);
       trainingSourcePopover?.classList.add("is-form-view");
+      if (sheetHeader) {
+        if (sheetTitle) {
+          sheetTitle.textContent = sheetHeader.dataset[`title${nextKey.charAt(0).toUpperCase()}${nextKey.slice(1)}`] || "";
+        }
+        if (sheetHint) {
+          sheetHint.textContent = sheetHeader.dataset[`hint${nextKey.charAt(0).toUpperCase()}${nextKey.slice(1)}`] || "";
+        }
+      }
+      if (addAnotherButton) {
+        addAnotherButton.hidden = nextKey !== "qa";
+      }
+      if (nextKey === "website") {
+        updateWebsiteSummary();
+      }
 
       if (trainingSourcePicker) {
         trainingSourcePicker.hidden = true;
@@ -1807,16 +1861,34 @@ export function bindChatbotSourcePicker({
 
       window.requestAnimationFrame(() => {
         positionTrainingSourcePopover();
+        const activePanel = trainingOtherPanels.find(
+          (panel) => (panel.dataset.aipkitPanel || "") === nextKey
+        );
+        const firstField = nextKey === "website"
+          ? trainingWebsitePanel?.querySelector(".aipkit_wp_type_cb")
+          : activePanel?.querySelector("textarea, input") || activePanel?.querySelector("button");
         const activeTab = trainingSourceForm?.querySelector(
           `[role="tab"][data-aipkit-training-source-option="${nextKey}"]`
         );
-        activeTab?.focus();
+        (firstField || activeTab)?.focus();
       });
     };
 
     resetTrainingSourcePicker();
     window.aipkit_openTrainingSourcePicker = showTrainingSourcePicker;
-    window.aipkit_closeTrainingSourcePopover = requestTrainingSourcePopoverDismiss;
+    window.aipkit_closeTrainingSourcePopover = (options = {}) => {
+      if (keepOpenAfterSave) {
+        keepOpenAfterSave = false;
+        trainingQaQuestion?.focus();
+        return;
+      }
+      if (options.saved) {
+        setTrainingWebsiteDismissBaseline();
+        forceCloseTrainingSourcePopover(options);
+        return;
+      }
+      requestTrainingSourcePopoverDismiss(options);
+    };
     window.aipkit_selectTrainingSource = setActiveTrainingSource;
 
     if (
@@ -1922,6 +1994,44 @@ export function bindChatbotSourcePicker({
       trainingDiscardKeepButton?.addEventListener("click", () => {
         setTrainingDiscardPromptOpen(false);
         window.requestAnimationFrame(positionTrainingSourcePopover);
+      });
+
+      sheetCloseButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          keepOpenAfterSave = false;
+          requestTrainingSourcePopoverDismiss();
+          if (trainingSourcePopover.hidden) {
+            trainingAddSourceButton.focus();
+          }
+        });
+      });
+
+      const sheetAddButton = trainingOtherFooter?.querySelector?.("[data-aipkit-training-sheet-action]") || null;
+      if (addAnotherButton && sheetAddButton) {
+        let addAnotherPending = false;
+        // A plain Add (or Stop) cancels a keep-open request that never reached a save.
+        sheetAddButton.addEventListener("click", () => {
+          if (!addAnotherPending) {
+            keepOpenAfterSave = false;
+          }
+          addAnotherPending = false;
+        }, true);
+        addAnotherButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (getIsTraining()) {
+            return;
+          }
+          addAnotherPending = true;
+          keepOpenAfterSave = true;
+          sheetAddButton.click();
+        });
+      }
+
+      trainingWebsitePanel?.addEventListener?.("change", (event) => {
+        if (event.target?.matches?.(".aipkit_wp_type_cb")) {
+          updateWebsiteSummary();
+        }
       });
 
       trainingDiscardConfirmButton?.addEventListener("click", () => {

@@ -226,6 +226,9 @@
                 if (data?.newConfiguration && window.aipkit_dashboard) {
                     Object.assign(window.aipkit_dashboard, data.newConfiguration);
                 }
+                if (typeof data?.navStatusHtml === 'string') {
+                    window.aipkit_applyNavStatus?.(data.navStatusHtml);
+                }
                 if (typeof window.aipkit_invalidateModuleCache === 'function') {
                     const modulesToInvalidate = getModulesToInvalidateForAction(action);
                     modulesToInvalidate.forEach(moduleName => {

@@ -95,6 +95,10 @@ class AIPKit_Upload_Utils
             return new WP_Error('invalid_upload_source', __('Invalid uploaded file source.', 'gpt3-ai-content-generator'));
         }
 
+        if ((int) ($file_data['size'] ?? 0) === 0) {
+            return new WP_Error('file_empty', __('Uploaded file is empty.', 'gpt3-ai-content-generator'));
+        }
+
         if ($allowed_mime_types === null) {
             $allowed_mime_types = self::get_vector_upload_allowed_mime_types();
         }
@@ -106,6 +110,8 @@ class AIPKit_Upload_Utils
         $ext = strtolower(pathinfo($file_data['name'] ?? '', PATHINFO_EXTENSION));
         $allowed_exts_map = [
             'text/plain' => ['txt', 'text', 'log', 'md'],
+            'application/json' => ['json'],
+            'text/json' => ['json'],
             'application/pdf' => ['pdf'],
             'application/x-pdf' => ['pdf'],
             'text/html' => ['html', 'htm'],
@@ -114,6 +120,7 @@ class AIPKit_Upload_Utils
             // CSV-specific mappings (fix): allow common CSV MIME types to map to .csv
             'text/csv' => ['csv'],
             'application/csv' => ['csv'],
+            'text/comma-separated-values' => ['csv'],
             'application/vnd.ms-excel' => ['csv'],
         ];
         $allowed_exts = [];
@@ -186,11 +193,6 @@ class AIPKit_Upload_Utils
         if ($max_size_bytes === null) {
             $upload_limits = self::get_effective_upload_limit_summary();
             $max_size_bytes = $upload_limits['limit_bytes'];
-        }
-
-        // Reject empty files explicitly
-        if ((int) ($file_data['size'] ?? 0) === 0) {
-            return new WP_Error('file_empty', __('Uploaded file is empty.', 'gpt3-ai-content-generator'));
         }
 
         if ($file_data['size'] > $max_size_bytes) {

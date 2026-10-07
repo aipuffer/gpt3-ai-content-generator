@@ -29,17 +29,6 @@ function bindPresentation(builder, nodes, reset, cleanup,
   };
 }
 
-function aipkit_toggleCustomThemeSettingsVisibility(settingsArea) {
-  if (!settingsArea) return;
-
-  const themeSelect = settingsArea.querySelector('select[name="theme"]');
-
-  // Update visibility of the "Customize Theme" button
-  const customizeBtn = settingsArea.querySelector('.aipkit_theme_config_btn');
-  const isCustom = themeSelect?.value === "custom";
-  if (customizeBtn) customizeBtn.style.display = isCustom ? 'inline-flex' : 'none';
-}
-
 const themeDelegates = new WeakMap();
 function bindThemeEvents(builder, modal = builder?.querySelector('#aipkit_custom_theme_modal')) {
   if (!builder?.isConnected || themeDelegates.get(builder)?.alive()) return;
@@ -50,14 +39,10 @@ function bindThemeEvents(builder, modal = builder?.querySelector('#aipkit_custom
   });
   themeDelegates.set(builder, lifetime);
   const owns = target => target?.isConnected && roots.some(root => root.contains(target));
-  const syncVisibility = target => aipkit_toggleCustomThemeSettingsVisibility(
-    target.closest('.aipkit_model_settings_panel[data-aipkit-settings-panel="appearance"]') ||
-    target.closest('.aipkit_chatbot-settings-area') || builder);
   lifetime.listen(document, 'change', event => {
     const target = event.target;
     if (!owns(target)) return;
     if (target.matches('select[name="theme"]')) {
-      syncVisibility(target);
       applyPresetFromThemeSelect(target);
     } else if (target.matches('input[name^="custom_theme_settings["], select[name^="custom_theme_settings["]')) {
       clearPresetKeyForManualCustomThemeEdit(target);
@@ -67,7 +52,6 @@ function bindThemeEvents(builder, modal = builder?.querySelector('#aipkit_custom
     if (owns(event.target) && event.target.closest('.aipkit_reset_custom_theme_btn') &&
       typeof window.aipkit_handleResetCustomTheme === 'function') window.aipkit_handleResetCustomTheme(event);
   });
-  builder.querySelectorAll('select[name="theme"]').forEach(syncVisibility);
 }
 
 function aipkit_initChatThemeSettingsToggle() {
@@ -84,7 +68,8 @@ function aipkit_handleResetCustomTheme(event) {
   const resetButton = event.target.closest('.aipkit_reset_custom_theme_btn');
   if (!resetButton || resetButton.disabled || !resetButton.isConnected || resetButton.closest('[inert]')) return;
 
-  const botId = resetButton.dataset.botId;
+  // The form follows bot switches; the button's own bot ID is the one the page loaded with.
+  const botId = resetButton.closest('.aipkit_chatbot_settings_form')?.dataset.botId || resetButton.dataset.botId;
   const themeSettingsContainer = resetButton.closest('.aipkit_custom_theme_settings_container') ||
     findSettingsContainerByBotId(botId);
   const statusSpan = themeSettingsContainer?.querySelector('.aipkit_custom_theme_reset_status');
@@ -105,6 +90,7 @@ function aipkit_handleResetCustomTheme(event) {
 
   try {
     const defaults = JSON.parse(defaultsJson);
+    if (!defaults || typeof defaults !== 'object') throw new Error('Custom theme defaults are not an object.');
     const inputs = themeSettingsContainer.querySelectorAll('input[name^="custom_theme_settings["], select[name^="custom_theme_settings["]');
     const completed = applyThemeUpdate(themeSettingsContainer, resetButton.closest('.aipkit_chatbot_settings_form'),
       'aipkit:custom-theme-reset', botId, isCurrent => {
@@ -112,7 +98,8 @@ function aipkit_handleResetCustomTheme(event) {
           if (!isCurrent()) break;
           const nameAttr = input.getAttribute('name');
           const keyMatch = nameAttr.match(/custom_theme_settings\[(.*?)\]/);
-          if (keyMatch && keyMatch[1]) {
+          // Reset sits in Size and font, so it leaves the colors chosen under Brand.
+          if (keyMatch && keyMatch[1] && !keyMatch[1].endsWith('_color')) {
             const settingKey = keyMatch[1];
             const defaultKey = Object.prototype.hasOwnProperty.call(defaults, settingKey)
               ? settingKey
@@ -283,6 +270,19 @@ function applyPresetFromThemeSelect(themeSelect) {
   });
 }
 
+const THEME_DIMENSION_KEYS = ['container_max_width', 'popup_width', 'container_height', 'container_min_height', 'container_max_height'];
+function isThemeColorField(target) {
+  return /\[\w+_color\]$/.test(target?.getAttribute?.('name') || target?.name || '');
+}
+function markThemeDimensionEdit(builder, target) {
+  const key = (target?.getAttribute?.('name') || target?.name || '').match(/\[([^\]]+)\]$/)?.[1];
+  const field = builder.querySelector('[name="theme_dimension_overrides"]');
+  if (!field || !THEME_DIMENSION_KEYS.includes(key)) return;
+  const keys = new Set((field.value || '').split(','));
+  keys.add(key);
+  field.value = THEME_DIMENSION_KEYS.filter(key => keys.has(key)).join(',');
+}
+
 function clearPresetKeyForManualCustomThemeEdit(target) {
   if (!target || !target.closest) {
     return;
@@ -294,7 +294,7 @@ function clearPresetKeyForManualCustomThemeEdit(target) {
   if (!settingsForm) {
     return;
   }
-  setThemePresetKey(settingsForm, "");
+  if (isThemeColorField(target)) setThemePresetKey(settingsForm, "");
 }
 
 function aipkit_initCustomThemePresets() {
@@ -352,9 +352,9 @@ export function createChatbotAppearance({
         'input[name="custom_theme_settings[primary_color]"]'
       )
     : null;
-  const customThemeHexInput = customThemeModal
-    ? customThemeModal.querySelector("[data-aipkit-custom-theme-hex]")
-    : null;
+  // The custom color is set from the Brand color menu and saved through the hidden field above.
+  const customThemeHexInput = builder.querySelector("[data-aipkit-custom-theme-hex]");
+  const customColorPicker = builder.querySelector("[data-aipkit-custom-color-picker]");
   let activeCustomThemeTrigger = null;
   const themeDropdown = builder.querySelector("[data-aipkit-theme-dropdown]");
   const themeDropdownButton = themeDropdown
@@ -373,7 +373,6 @@ export function createChatbotAppearance({
   const themePresetKeyField = builder.querySelector(
     'input[name="theme_preset_key"]'
   );
-  const themeConfigButton = builder.querySelector(".aipkit_theme_config_btn");
   const hydration = createChatbotStateHydration({ syncUnifiedModelSelector: () => {} });
   const applyThemeSettings = settings => {
     const containers = new Set([builder, customThemeModal].filter(Boolean).flatMap(root =>
@@ -387,6 +386,8 @@ export function createChatbotAppearance({
       const fallback = options.findIndex(option => option.value === theme && !option.dataset.presetKey);
       if (exact >= 0 || fallback >= 0) themeSelectField.selectedIndex = exact >= 0 ? exact : fallback;
     }
+    const dimensionField = builder.querySelector('[name="theme_dimension_overrides"]');
+    if (dimensionField) dimensionField.value = settings.theme_dimension_overrides || '';
     if (settings.custom_theme_settings && typeof settings.custom_theme_settings === 'object') {
       for (const container of containers) {
         let defaults = {};
@@ -420,19 +421,19 @@ export function createChatbotAppearance({
     syncSettingsPanelOverflowState();
   };
 
-  const updateThemeConfigButtonVisibility = () => {
-    if (!themeConfigButton || !themeSelectField || !themeOptionRadios.length) {
+  // Light, Dark and ChatGPT keep their own font and size, so Size and font switches the theme fields off with a note.
+  const syncThemeFieldsAvailability = () => {
+    if (!customThemeModal || !themeSelectField) {
       return;
     }
-    const customRadio = getPlainCustomRadio();
-    const isAvailable = Boolean(customRadio && !customRadio.disabled);
-    themeConfigButton.hidden = !isAvailable;
-    themeConfigButton.disabled = !isAvailable;
-    themeConfigButton.setAttribute("aria-disabled", isAvailable ? "false" : "true");
-
-    if (!isAvailable && activeCustomThemeTrigger === themeConfigButton) {
-      closeCustomThemeModal({ restoreFocus: false });
+    const isBuiltIn = themeSelectField.value !== "custom";
+    const note = customThemeModal.querySelector("[data-aipkit-theme-builtin-note]");
+    if (note) {
+      note.hidden = !isBuiltIn;
     }
+    customThemeModal.querySelectorAll("[data-aipkit-theme-fields]").forEach((fields) => {
+      fields.disabled = isBuiltIn;
+    });
   };
 
   const updateThemeDropdownLabel = () => {
@@ -450,7 +451,7 @@ export function createChatbotAppearance({
       labelText ||
       themeDropdown.dataset.placeholder ||
       "Select theme";
-    updateThemeConfigButtonVisibility();
+    syncThemeFieldsAvailability();
   };
 
   const setThemePresetKeyValue = (presetKey) => {
@@ -668,16 +669,21 @@ export function createChatbotAppearance({
       : "";
   };
 
-  const syncCustomThemeHexInput = () => {
-    if (!customThemeColorInput || !customThemeHexInput) {
+  // Custom in the color menu shows the saved custom color: its swatch, the picker and the hex field.
+  const syncCustomThemeHexInput = ({ keepHex = false } = {}) => {
+    if (!customThemeColorInput) {
       return;
     }
-    const normalizedColor = normalizeCustomThemeHex(
-      customThemeColorInput.value,
-      false
-    );
-    customThemeHexInput.value = normalizedColor || "#0B5FFF";
-    customThemeHexInput.setAttribute("aria-invalid", "false");
+    const color = normalizeCustomThemeHex(customThemeColorInput.value, false) || "#0B5FFF";
+    if (customThemeHexInput && !keepHex) {
+      customThemeHexInput.value = color;
+      customThemeHexInput.setAttribute("aria-invalid", "false");
+    }
+    if (customColorPicker) {
+      customColorPicker.value = color.toLowerCase();
+    }
+    getPlainCustomRadio()?.parentElement?.querySelector(".aipkit_widget_color_swatch")
+      ?.style.setProperty("--aipkit-widget-color-primary", color);
   };
 
   const getCustomThemeModalFocusableElements = () => {
@@ -926,11 +932,6 @@ export function createChatbotAppearance({
       ? popupSettingsPanel.querySelector('[name="popup_icon_custom_url"]')
       : null;
 
-  const getPopupIconCustomUrlDisplay = () =>
-    popupSettingsPanel
-      ? popupSettingsPanel.querySelector("[data-aipkit-popup-icon-url-display]")
-      : null;
-
   const setQuickWidgetIconCustomFallback = () => {
     if (!quickWidgetIconCustomVisual) {
       return;
@@ -940,23 +941,6 @@ export function createChatbotAppearance({
     icon.className = "dashicons dashicons-plus-alt2";
     icon.setAttribute("aria-hidden", "true");
     quickWidgetIconCustomVisual.appendChild(icon);
-  };
-
-
-  const syncPopupIconCustomUrlDisplay = () => {
-    const source = getPopupIconCustomUrlInput();
-    const display = getPopupIconCustomUrlDisplay();
-    if (!source || !display) {
-      return;
-    }
-    const selectedPopupIcon = popupSettingsPanel.querySelector(
-      'input[name="popup_icon_default"]:checked'
-    );
-    const selectedValue = selectedPopupIcon ? selectedPopupIcon.value : "";
-    const displayValue = selectedValue === "__custom__" ? source.value || "" : "";
-    if (display.value !== displayValue) {
-      display.value = displayValue;
-    }
   };
 
   const syncQuickWidgetIconShortcut = () => {
@@ -982,7 +966,6 @@ export function createChatbotAppearance({
     } else {
       setQuickWidgetIconCustomFallback();
     }
-    syncPopupIconCustomUrlDisplay();
   };
 
   const syncQuickDesignShortcuts = () => {
@@ -1014,6 +997,7 @@ export function createChatbotAppearance({
       const value = field => field.type === 'checkbox' ? (field.checked ? '1' : '0') : field.value || '';
       const readSettings = () => {
         const settings = {};
+        settings.theme_dimension_overrides = builder.querySelector('[name="theme_dimension_overrides"]')?.value || '';
         const theme = styleSection.querySelector('select[name="theme"]');
         const activeTheme = theme && !theme.disabled ? theme : builder.querySelector('select[name="theme"]');
         if (activeTheme && !activeTheme.disabled) settings.theme = activeTheme.value || 'light';
@@ -1085,14 +1069,10 @@ export function createChatbotAppearance({
             if (!owns(target) || !target.matches(changeFields)) return;
             if (target.matches('[name="enable_conversation_starters"]')) updateConversationStartersControls();
             if (target.matches('[name="enable_consent_compliance"]')) updateConsentControls();
-            if (target.matches('select[name="theme"]') && styleSection.contains(target)) {
-              if (target.value !== 'custom' || isPreset(target)) closeCustomThemeModal({ restoreFocus: false });
-              else openCustomThemeModal(styleSection.querySelector('.aipkit_theme_config_btn:not([hidden])') ||
-                styleSection.querySelector('[data-aipkit-theme-dropdown] .aipkit_popover_multiselect_btn') || target);
-            }
             if (isThemeUpdating(event.target) || (target.matches('select[name="theme"]') && isPreset(target))) return;
             if (target.matches(themeFields)) {
-              if (themeSelectField?.value === 'custom') clearThemePresetSelection();
+              if (themeSelectField?.value === 'custom' && isThemeColorField(target)) clearThemePresetSelection();
+              markThemeDimensionEdit(builder, target);
               updateWidgetIconAccent();
             }
             save();
@@ -1107,7 +1087,11 @@ export function createChatbotAppearance({
             document.addEventListener(type, event => {
               const id = String(event.detail?.botId || '').trim();
               if (!owns(event.detail?.settingsContainer) || id !== String(persistence.getSelectedBuilderBotId()).trim()) return;
-              if (type === 'aipkit:custom-theme-reset') { clearThemePresetSelection(); updateWidgetIconAccent(); }
+              // Reset leaves the colors, so a named color such as Ocean stays chosen.
+              if (type === 'aipkit:custom-theme-reset') {
+                const field = builder.querySelector('[name="theme_dimension_overrides"]');
+                if (field) field.value = THEME_DIMENSION_KEYS.join(',');
+              }
               syncCustomThemeHexInput(); save();
             }, { signal });
           }
@@ -1407,7 +1391,6 @@ export function createChatbotAppearance({
       }), (url, isCurrent) => {
         const customRadio = findPopupRadioByValue("popup_icon_default", "__custom__");
         const iconUrlInput = getPopupIconCustomUrlInput();
-        const iconUrlDisplay = getPopupIconCustomUrlDisplay();
         if (!customRadio || !iconUrlInput) {
           return;
         }
@@ -1415,9 +1398,6 @@ export function createChatbotAppearance({
         updatePopupSettingsVisibility();
         if (!isCurrent()) return;
         iconUrlInput.value = url;
-        if (iconUrlDisplay) {
-          iconUrlDisplay.value = url;
-        }
         renderShortcutImage(quickWidgetIconCustomVisual, "aipkit_widget_icon_custom_img", url);
         syncQuickWidgetIconShortcut();
         iconUrlInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -1435,38 +1415,9 @@ export function createChatbotAppearance({
           targetRadio.dispatchEvent(new Event("change", { bubbles: true }));
         });
       });
-      const iconUrlDisplay = getPopupIconCustomUrlDisplay();
-      if (iconUrlDisplay) {
-        lifetime.listen(iconUrlDisplay, "input", () => {
-          const iconUrlInput = getPopupIconCustomUrlInput();
-          const customRadio = findPopupRadioByValue("popup_icon_default", "__custom__");
-          if (iconUrlInput) {
-            iconUrlInput.value = iconUrlDisplay.value || "";
-          }
-          if (customRadio) {
-            customRadio.checked = true;
-          }
-          updatePopupSettingsVisibility();
-          syncQuickWidgetIconShortcut();
-        });
-        lifetime.listen(iconUrlDisplay, "change", () => {
-          const iconUrlInput = getPopupIconCustomUrlInput();
-          const customRadio = findPopupRadioByValue("popup_icon_default", "__custom__");
-          if (!iconUrlInput) {
-            return;
-          }
-          if (customRadio) {
-            customRadio.checked = true;
-          }
-          iconUrlInput.value = iconUrlDisplay.value || "";
-          updatePopupSettingsVisibility();
-          iconUrlInput.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-      }
       syncQuickDesignShortcuts();
       builder.dataset.widgetDesignerShortcutsBound = "1";
     },
-    updateThemeConfigButtonVisibility,
     updateWidgetIconAccent,
     clearThemePresetSelection,
     syncThemeRadiosFromSelect,
@@ -1487,49 +1438,9 @@ export function createChatbotAppearance({
 
       if (customThemeModal) {
         modalLifetime.listen(customThemeModal, "click", (event) => {
-          if (event.target === customThemeModal) {
+          if (event.target === customThemeModal || event.target.closest("[data-aipkit-theme-panel-done]")) {
             closeCustomThemeModal();
           }
-        });
-      }
-
-      if (customThemeColorInput && customThemeHexInput) {
-        modalLifetime.listen(customThemeColorInput, "input", syncCustomThemeHexInput);
-        modalLifetime.listen(customThemeColorInput, "change", syncCustomThemeHexInput);
-
-        const applyCustomThemeHexInput = ({ restoreInvalid = false } = {}) => {
-          const normalizedColor = normalizeCustomThemeHex(
-            customThemeHexInput.value
-          );
-          if (!normalizedColor) {
-            customThemeHexInput.setAttribute("aria-invalid", "true");
-            if (restoreInvalid) {
-              syncCustomThemeHexInput();
-            }
-            return false;
-          }
-          customThemeHexInput.value = normalizedColor;
-          customThemeHexInput.setAttribute("aria-invalid", "false");
-          if (customThemeColorInput.value.toUpperCase() !== normalizedColor) {
-            customThemeColorInput.value = normalizedColor;
-            customThemeColorInput.dispatchEvent(
-              new Event("input", { bubbles: true })
-            );
-            customThemeColorInput.dispatchEvent(
-              new Event("change", { bubbles: true })
-            );
-          }
-          return true;
-        };
-
-        modalLifetime.listen(customThemeHexInput, "input", () => {
-          applyCustomThemeHexInput();
-        });
-        modalLifetime.listen(customThemeHexInput, "change", () => {
-          applyCustomThemeHexInput({ restoreInvalid: true });
-        });
-        modalLifetime.listen(customThemeHexInput, "blur", () => {
-          applyCustomThemeHexInput({ restoreInvalid: true });
         });
       }
 
@@ -1569,7 +1480,12 @@ export function createChatbotAppearance({
       if (!builder.isConnected || themeLifetime?.alive()) return;
       themeLifetime?.dispose();
       const markers = [];
-      themeLifetime = bindPresentation(builder, [themeDropdown, themeSelectField].filter(Boolean), closeThemeDropdown, () => {
+      // A typed custom color waits for its commit; another bot starts without one.
+      let colorDraft = false;
+      themeLifetime = bindPresentation(builder, [themeDropdown, themeSelectField].filter(Boolean), () => {
+        colorDraft = false;
+        closeThemeDropdown();
+      }, () => {
         markers.forEach(([node, key]) => { if (node.dataset[key] === '1') delete node.dataset[key]; });
       }, getSelectedBotId);
       if (
@@ -1631,29 +1547,59 @@ export function createChatbotAppearance({
       if (!builder.dataset.themeConfigButtonsBound) {
         themeLifetime.listen(builder, "click", (event) => {
           const clickTarget = event.target;
-          const clickedButton =
-            clickTarget && clickTarget.closest
-              ? clickTarget.closest(".aipkit_theme_config_btn")
-              : null;
-          if (!clickedButton || !builder.contains(clickedButton)) {
-            return;
+          // Size and font opens its panel and keeps the chosen color.
+          const settingsButton = clickTarget?.closest?.("[data-aipkit-theme-settings-open]");
+          if (settingsButton && builder.contains(settingsButton)) {
+            event.preventDefault();
+            closeThemeDropdown();
+            openCustomThemeModal(settingsButton);
           }
-          event.preventDefault();
-          if (clickedButton.hidden || clickedButton.disabled) {
-            return;
-          }
-          const customRadio = getPlainCustomRadio();
-          if (customRadio && !customRadio.disabled) {
-            if (!customRadio.checked) {
-              customRadio.checked = true;
-              syncThemeSelectFromRadio(customRadio);
-            }
-          }
-          closeThemeDropdown();
-          openCustomThemeModal(clickedButton);
         });
         builder.dataset.themeConfigButtonsBound = "1";
         markers.push([builder, "themeConfigButtonsBound"]);
+      }
+
+      // Custom color: setting one picks Custom (the menu stays open) and saves it with the custom theme.
+      const applyCustomColor = (color, commit, keepHex = false) => {
+        const customRadio = getPlainCustomRadio();
+        if (!customThemeColorInput || !customRadio || customRadio.disabled) {
+          syncCustomThemeHexInput();
+          return;
+        }
+        if (!customRadio.checked) {
+          customRadio.checked = true;
+          syncThemeSelectFromRadio(customRadio);
+        }
+        if (customThemeColorInput.value.toUpperCase() !== color) {
+          customThemeColorInput.value = color;
+          customThemeColorInput.dispatchEvent(new Event("input", { bubbles: true }));
+          colorDraft = true;
+        }
+        if (commit && colorDraft) {
+          colorDraft = false;
+          customThemeColorInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        syncCustomThemeHexInput({ keepHex });
+        updateWidgetIconAccent();
+      };
+      if (customColorPicker) {
+        themeLifetime.listen(customColorPicker, "input", () => applyCustomColor(customColorPicker.value.toUpperCase(), false));
+        themeLifetime.listen(customColorPicker, "change", () => applyCustomColor(customColorPicker.value.toUpperCase(), true));
+      }
+      if (customThemeHexInput) {
+        // While typing only a full six-digit color applies, and the text is left alone; leaving the
+        // field also accepts the short form and restores the saved color when the text is not a color.
+        themeLifetime.listen(customThemeHexInput, "input", () => {
+          const color = normalizeCustomThemeHex(customThemeHexInput.value, false);
+          if (color) applyCustomColor(color, false, true);
+        });
+        const commitHex = () => {
+          const color = normalizeCustomThemeHex(customThemeHexInput.value);
+          if (color) applyCustomColor(color, true);
+          else syncCustomThemeHexInput();
+        };
+        themeLifetime.listen(customThemeHexInput, "change", commitHex);
+        themeLifetime.listen(customThemeHexInput, "blur", commitHex);
       }
     },
   };

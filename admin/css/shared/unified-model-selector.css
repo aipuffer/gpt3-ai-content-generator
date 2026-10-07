@@ -967,6 +967,57 @@
   text-decoration: none;
 }
 
+/* Sits beside Manage providers. */
+.aipkit_unified_model_sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid #d4dce7;
+  border-radius: 7px;
+  background: #fff;
+  color: #344054;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.aipkit_unified_model_sync[hidden] {
+  display: none;
+}
+
+.aipkit_unified_model_sync:hover,
+.aipkit_unified_model_sync:focus-visible {
+  outline: none;
+  border-color: #aab8ca;
+  color: #172033;
+}
+
+.aipkit_unified_model_sync[aria-disabled="true"] {
+  cursor: wait;
+}
+
+.aipkit_unified_model_sync .dashicons {
+  width: 12px;
+  height: 12px;
+  font-size: 12px;
+  line-height: 12px;
+}
+
+.aipkit_unified_model_sync[aria-disabled="true"] .dashicons {
+  animation: aipkit-unified-model-sync-spin 0.8s linear infinite;
+}
+
+@keyframes aipkit-unified-model-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .aipkit_native_universal_model_selector .aipkit_unified_model_trigger {
   height: 34px;
   min-height: 34px;
@@ -1164,7 +1215,8 @@
     transition: none;
   }
 
-  .aipkit_unified_model_provider_notice.is-syncing .aipkit_unified_model_provider_notice_icon {
+  .aipkit_unified_model_provider_notice.is-syncing .aipkit_unified_model_provider_notice_icon,
+  .aipkit_unified_model_sync[aria-disabled="true"] .dashicons {
     animation-duration: 1.4s;
   }
 }

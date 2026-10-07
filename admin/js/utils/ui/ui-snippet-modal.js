@@ -423,5 +423,6 @@
   window.aipkit_showSnippetModalEnhanced = aipkit_showSnippetModalEnhanced;
   window.aipkit_attachSnippetModalListeners = aipkit_attachSnippetModalListeners;
   window.aipkit_renderSourcePreview = renderSourcePreview;
+  window.aipkit_parseSourcePreview = parseSourcePreview;
   window.aipkit_parseSourceEditorContent = parseSourceEditorContent;
 })();

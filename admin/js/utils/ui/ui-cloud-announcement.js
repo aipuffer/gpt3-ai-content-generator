@@ -7,7 +7,21 @@
 
     let dismissed = false;
     let connected = Boolean(window.aipkit_dashboard?.cloudConnected);
-    const updateVisibility = () => { notice.hidden = dismissed || connected; };
+    const updateVisibility = () => {
+      // A provider warning folded behind "n more" (ui-notice-stack.js) still counts as showing.
+      const setupVisible = Array.from(document.querySelectorAll('[data-aipkit-provider-notice]')).some(item =>
+        !item.hidden && !item.classList.contains('aipkit_provider_notice--hidden')
+        && (item.getClientRects().length > 0 || item.hasAttribute('data-aipkit-notice-folded')));
+      notice.hidden = dismissed || connected || setupVisible;
+    };
+    window.addEventListener('aipkit:provider-notice-visibility', updateVisibility);
+    const moduleContainer = document.getElementById('aipkit_module-container');
+    if (moduleContainer) {
+      // Only module replacement matters here; provider changes emit their own event.
+      const observer = new MutationObserver(updateVisibility);
+      observer.observe(moduleContainer, { childList: true });
+      window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
+    }
     const connect = notice.querySelector("[data-cloud-announcement-connect]");
     const dismiss = notice.querySelector("[data-cloud-announcement-dismiss]");
     const feedback = notice.querySelector("[data-cloud-announcement-feedback]");

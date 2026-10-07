@@ -163,10 +163,10 @@ export function bindChatbotActions({
       if (alive()) setBusy(false);
     }
   };
-  const openCreate = () => {
+  const openCreate = (returnFocusTo = null) => {
     if (!canRequest()) return;
     const scope = generation;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : newBotBtn;
+    const opener = returnFocusTo || (document.activeElement instanceof HTMLElement ? document.activeElement : newBotBtn);
     const restoreFocus = () => { if (alive() && generation === scope && opener?.isConnected) opener.focus(); };
     const create = name => {
       const value = String(name || '').trim();
@@ -215,7 +215,12 @@ export function bindChatbotActions({
     bindings.delete(builder);
   };
   const observer = new MutationObserver(() => { if (!builder.isConnected) dispose(); });
-  listen(newBotBtn, 'click', openCreate);
+  listen(newBotBtn, 'click', () => {
+    // From the chatbot menu, the name prompt replaces the menu and focus later returns to its trigger.
+    const inMenu = Boolean(botActionsMenu?.contains(newBotBtn));
+    openCreate(inMenu ? botActionsTrigger : null);
+    if (inMenu) closeMenu();
+  });
   if (botActions && botActionsTrigger && botActionsMenu) {
     listen(botActionsTrigger, 'click', event => {
       event.preventDefault();
@@ -547,4 +552,61 @@ export function createChatbotCatalog({builder, botSelect, __, switchToBotState, 
     applyDeleteBotInPlace,
     botStateCache
   };
+}
+
+/** Header bot switcher: the bot name opens a menu listing every chatbot; the hidden select stays the source of truth. */
+
+const isBotOption = (option) =>
+  Boolean(option && option.value && option.value !== "__new__" && !option.disabled);
+
+export function bindChatbotBotSwitcher(builder) {
+  const select = builder.querySelector("#aipkit_chatbot_builder_bot_select");
+  const name = builder.querySelector("[data-aipkit-bot-switcher-name]");
+  const list = builder.querySelector("[data-aipkit-bot-switcher-list]");
+  const trigger = builder.querySelector("[data-aipkit-bot-actions-toggle]");
+  if (!select || !name || !list || builder.dataset.botSwitcherBound) {
+    return null;
+  }
+  builder.dataset.botSwitcherBound = "1";
+
+  const render = () => {
+    const options = Array.from(select.options).filter(isBotOption);
+    const current = options.find((option) => option.value === select.value);
+    name.textContent = current ? current.textContent.trim() : name.dataset.emptyLabel || "";
+    list.replaceChildren(
+      ...options.map((option) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "aipkit_chatbot_identity_bot";
+        item.setAttribute("role", "menuitemradio");
+        item.setAttribute("aria-checked", option === current ? "true" : "false");
+        item.dataset.aipkitBotSwitchTo = option.value;
+        item.textContent = option.textContent.trim();
+        return item;
+      })
+    );
+  };
+
+  list.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-aipkit-bot-switch-to]");
+    if (!item) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (item.dataset.aipkitBotSwitchTo === select.value) {
+      // Choosing the open bot only closes the menu.
+      trigger?.click();
+      return;
+    }
+    select.value = item.dataset.aipkitBotSwitchTo;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  // Create, rename, duplicate and delete edit the select's options; mirror every change.
+  new MutationObserver(render).observe(select, { childList: true, subtree: true, characterData: true });
+  select.addEventListener("change", render);
+  builder.addEventListener("aipkit:bot-state-applied", render);
+  render();
+  return { render };
 }

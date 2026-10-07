@@ -257,7 +257,8 @@ abstract class AIPKit_Admin_Asset_Base
             'historyLoadingOlder'       => __('Loading older conversations...', 'gpt3-ai-content-generator'),
             'playActionLabel'           => __('Play audio', 'gpt3-ai-content-generator'),
             'pauseActionLabel'          => __('Pause audio', 'gpt3-ai-content-generator'),
-            'reasoningLabel'            => __('Reasoning', 'gpt3-ai-content-generator'),
+            // The chatbot's Answer style calls reasoning "Thinking" for every provider.
+            'reasoningLabel'            => __('Thinking', 'gpt3-ai-content-generator'),
             'thinkingLabel'             => __('Thinking', 'gpt3-ai-content-generator'),
             'offLabel'                  => __('off', 'gpt3-ai-content-generator'),
             'onLabel'                   => __('on', 'gpt3-ai-content-generator'),

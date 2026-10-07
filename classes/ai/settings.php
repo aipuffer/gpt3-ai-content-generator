@@ -1271,7 +1271,10 @@ class AIPKit_Providers
         ]) : ['provider' => '', 'provider_key' => '', 'model' => ''];
     }
 
-    /** Add source defaults for persistent knowledge, indexed by the chatbot's text provider. */
+    /**
+     * Add source defaults for persistent knowledge, indexed by the chatbot's text provider.
+     * OpenAI and Google use native stores; other providers use persistent Local knowledge.
+     */
     public static function get_chatbot_source_defaults(): array
     {
         $configs = self::get_all_providers();

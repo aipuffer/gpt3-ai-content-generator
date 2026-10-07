@@ -5,6 +5,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// The Features tab shows each skill in its own side panel, so it renders one part at a time.
+$aipkit_tools_part = isset($aipkit_tools_part) ? (string) $aipkit_tools_part : 'web';
+
 $bot_id = $initial_active_bot_id;
 $current_provider_for_this_bot = isset($current_provider_for_this_bot)
     ? (string) $current_provider_for_this_bot
@@ -15,7 +18,6 @@ $rt_disabled_by_plan = isset($rt_disabled_by_plan)
 $realtime_voice_toggle_value = (!$rt_disabled_by_plan && ($enable_realtime_voice ?? '0') === '1')
     ? '1'
     : '0';
-$stt_controls_hidden_for_tools = false;
 $xai_web_search_enabled_val = isset($xai_web_search_enabled_val) && in_array($xai_web_search_enabled_val, ['0', '1'], true)
     ? $xai_web_search_enabled_val
     : '0';
@@ -46,44 +48,44 @@ $is_current_provider_web_enabled = ($web_tool_providers[$current_provider_for_th
 
 $tools_master_options = [
     'file_upload'    => [
-        'label'    => __('File upload', 'gpt3-ai-content-generator'),
-        'hint'     => __('Allow users to upload documents.', 'gpt3-ai-content-generator'),
+        'label'    => __('Files and PDFs', 'gpt3-ai-content-generator'),
+        'hint'     => __('Visitors can share documents in the chat.', 'gpt3-ai-content-generator'),
         'enabled'  => ($file_upload_toggle_value ?? '0') === '1',
         'disabled' => !$can_enable_file_upload,
     ],
     'web_search'     => [
-        'label'    => __('Web search', 'gpt3-ai-content-generator'),
-        'hint'     => __('Use online sources in responses.', 'gpt3-ai-content-generator'),
+        'label'    => __('Search the web', 'gpt3-ai-content-generator'),
+        'hint'     => __('Used when your pages don\'t have the answer.', 'gpt3-ai-content-generator'),
         'enabled'  => $is_current_provider_web_enabled,
         'disabled' => false,
     ],
     'image_analysis' => [
-        'label'    => __('Image analysis', 'gpt3-ai-content-generator'),
-        'hint'     => __('Let users attach images in chat.', 'gpt3-ai-content-generator'),
+        'label'    => __('Photos', 'gpt3-ai-content-generator'),
+        'hint'     => __('Visitors can attach images for the chatbot to read.', 'gpt3-ai-content-generator'),
         'enabled'  => ($enable_image_upload ?? '0') === '1',
         'disabled' => false,
     ],
     'image_generation' => [
-        'label'    => __('Image generation', 'gpt3-ai-content-generator'),
-        'hint'     => __('Generate images using chat.', 'gpt3-ai-content-generator'),
+        'label'    => __('Create images', 'gpt3-ai-content-generator'),
+        'hint'     => __('When a visitor asks for a picture.', 'gpt3-ai-content-generator'),
         'enabled'  => ($enable_image_generation ?? '0') === '1',
         'disabled' => false,
     ],
     'speech_to_text' => [
-        'label'    => __('Speech to text', 'gpt3-ai-content-generator'),
-        'hint'     => __('Capture voice input from users.', 'gpt3-ai-content-generator'),
+        'label'    => __('Visitors can speak', 'gpt3-ai-content-generator'),
+        'hint'     => __('A microphone button turns speech into text.', 'gpt3-ai-content-generator'),
         'enabled'  => ($enable_voice_input ?? '0') === '1',
         'disabled' => false,
     ],
     'text_to_speech' => [
-        'label'    => __('Text to speech', 'gpt3-ai-content-generator'),
-        'hint'     => __('Read assistant replies aloud.', 'gpt3-ai-content-generator'),
+        'label'    => __('Read replies aloud', 'gpt3-ai-content-generator'),
+        'hint'     => __('It speaks each answer.', 'gpt3-ai-content-generator'),
         'enabled'  => ($tts_enabled ?? '0') === '1',
         'disabled' => false,
     ],
     'realtime_voice' => [
-        'label'    => __('Realtime voice', 'gpt3-ai-content-generator'),
-        'hint'     => __('Let users talk with the chatbot.', 'gpt3-ai-content-generator'),
+        'label'    => __('Live voice conversation', 'gpt3-ai-content-generator'),
+        'hint'     => __('Talk back and forth in real time. Uses more credits.', 'gpt3-ai-content-generator'),
         'enabled'  => $realtime_voice_toggle_value === '1',
         'disabled' => $rt_disabled_by_plan,
     ],
@@ -144,6 +146,9 @@ $render_tool_enable_control = static function (string $tool_key, array $tool_opt
             <span class="aipkit_tools_feature_text">
                 <span class="aipkit_tools_feature_label aipkit_popover_option_label">
                     <?php echo esc_html($tool_option['label']); ?>
+                    <?php if ($is_plan_locked) : ?>
+                        <span class="aipkit_paid_feature_badge aipkit_pro_badge"><?php esc_html_e('Pro', 'gpt3-ai-content-generator'); ?></span>
+                    <?php endif; ?>
                 </span>
                 <span class="aipkit_tools_feature_hint">
                     <?php echo esc_html($tool_option['hint']); ?>
@@ -159,50 +164,58 @@ $render_tool_enable_control = static function (string $tool_key, array $tool_opt
 };
 ?>
 
+<?php if ($aipkit_tools_part === 'web') : ?>
 <div class="aipkit_tools_feature_rows aipkit_display_settings_rows">
-    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_popover_option_row--file-upload<?php echo $can_enable_file_upload ? '' : ' aipkit_popover_option_row--disabled'; ?><?php echo $file_upload_locked_by_plan ? ' aipkit_tools_feature_row--upgrade' : ''; ?><?php echo !empty($tools_master_options['file_upload']['enabled']) ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="file_upload">
+    <?php foreach ($web_tool_providers as $web_tool_provider_name => $web_tool_provider) : ?>
+    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_web_search_toggle_<?php echo esc_attr($web_tool_provider['slug']); ?> aipkit_tools_feature_row--expandable<?php echo ($web_tool_provider['value'] === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="web_search" data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_web_settings_modal" style="<?php echo ($current_provider_for_this_bot === $web_tool_provider_name) ? '' : 'display:none;'; ?>">
         <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('file_upload', $tools_master_options['file_upload'], 'aipkit_bot_' . $bot_id . '_file_upload_tool_toggle'); ?>
+            <?php $render_tool_enable_control('web_search', $tools_master_options['web_search'], 'aipkit_bot_' . $bot_id . '_web_search_tool_toggle_' . $web_tool_provider['slug']); ?>
         </div>
         <div class="aipkit_tools_feature_right">
             <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_file_upload_tools"
-                name="enable_file_upload"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_file_upload_toggle_select aipkit_file_upload_toggle_switch"
-                data-is-pro-plan="<?php echo esc_attr($is_pro_plan ? 'true' : 'false'); ?>"
-                aria-hidden="true"
-                tabindex="-1"
-
-
-                <?php disabled(!$can_enable_file_upload); ?>
-            >
-                <option value="1" <?php selected($file_upload_toggle_value, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($file_upload_toggle_value, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
-            </select>
-            <?php if ($file_upload_locked_by_plan) : ?>
-                <?php $render_tool_upgrade_button(); ?>
-            <?php endif; ?>
-        </div>
-    </div>
-
-    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_image_analysis_popover_row<?php echo !empty($tools_master_options['image_analysis']['enabled']) ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="image_analysis" style="<?php echo \WPAICG\AIPKit_Providers::model_supports_image_input($current_provider_for_this_bot, (string) ($active_bot_settings['model'] ?? '')) ? '' : 'display:none;'; ?>">
-        <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('image_analysis', $tools_master_options['image_analysis'], 'aipkit_bot_' . $bot_id . '_image_analysis_tool_toggle'); ?>
-        </div>
-        <div class="aipkit_tools_feature_right">
-            <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_image_upload_tools"
-                name="enable_image_upload"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_image_analysis_select aipkit_image_analysis_checkbox"
+                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_<?php echo esc_attr($web_tool_provider['setting']); ?>_tools"
+                name="<?php echo esc_attr($web_tool_provider['setting']); ?>"
+                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field <?php echo esc_attr($web_tool_provider['toggle_class']); ?>"
                 aria-hidden="true"
                 tabindex="-1"
             >
-                <option value="1" <?php selected($enable_image_upload, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($enable_image_upload, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
+                <option value="1" <?php selected($web_tool_provider['value'], '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
+                <option value="0" <?php selected($web_tool_provider['value'], '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
             </select>
+            <button
+                type="button"
+                class="aipkit_web_search_config_btn"
+                data-aipkit-inline-settings-toggle
+                data-web-provider="<?php echo esc_attr($web_tool_provider['slug']); ?>"
+                aria-expanded="false"
+                aria-controls="aipkit_builder_web_settings_modal"
+                aria-hidden="true"
+                tabindex="-1"
+                aria-disabled="<?php echo ($web_tool_provider['value'] === '1') ? 'false' : 'true'; ?>"
+                <?php disabled($web_tool_provider['value'] !== '1'); ?>
+            ></button>
         </div>
     </div>
+    <?php endforeach; ?>
+</div>
 
+<div
+    id="aipkit_builder_web_settings_modal"
+    class="aipkit_builder_web_settings_modal"
+    aria-hidden="true"
+>
+    <div
+        class="aipkit-modal-content"
+        role="dialog"
+        aria-modal="false"
+    >
+        <div class="aipkit_inline_settings_body aipkit_settings_web_body">
+            <?php include __DIR__ . '/web-settings-panel.php'; ?>
+        </div>
+    </div>
+</div>
+<?php elseif ($aipkit_tools_part === 'image') : ?>
+<div class="aipkit_tools_feature_rows aipkit_display_settings_rows">
     <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_tools_feature_row--image-generation aipkit_tools_feature_row--expandable<?php echo (($enable_image_generation ?? '0') === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="image_generation" data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_image_generation_settings_modal">
         <div class="aipkit_tools_feature_left">
             <?php $render_tool_enable_control('image_generation', $tools_master_options['image_generation'], 'aipkit_bot_' . $bot_id . '_image_generation_tool_toggle'); ?>
@@ -210,17 +223,15 @@ $render_tool_enable_control = static function (string $tool_key, array $tool_opt
         <div class="aipkit_tools_feature_right aipkit_tools_feature_right--image-generation">
             <button
                 type="button"
-                class="aipkit_popover_option_btn aipkit_image_generation_config_btn aipkit_tools_options_btn aipkit_interface_feature_expand_btn"
+                class="aipkit_image_generation_config_btn"
                 data-aipkit-inline-settings-toggle
                 aria-expanded="false"
                 aria-controls="aipkit_builder_image_generation_settings_modal"
-                aria-label="<?php esc_attr_e('Image generation settings', 'gpt3-ai-content-generator'); ?>"
+                aria-hidden="true"
+                tabindex="-1"
                 aria-disabled="<?php echo (($enable_image_generation ?? '0') === '1') ? 'false' : 'true'; ?>"
-                title="<?php esc_attr_e('Settings', 'gpt3-ai-content-generator'); ?>"
                 <?php disabled(($enable_image_generation ?? '0') !== '1'); ?>
-            >
-                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-            </button>
+            ></button>
             <div
                 id="aipkit_builder_image_generation_settings_modal"
                 class="aipkit_builder_image_generation_settings_modal"
@@ -312,177 +323,53 @@ $render_tool_enable_control = static function (string $tool_key, array $tool_opt
             </div>
         </div>
     </div>
-
-    <?php foreach ($web_tool_providers as $web_tool_provider_name => $web_tool_provider) : ?>
-    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_web_search_toggle_<?php echo esc_attr($web_tool_provider['slug']); ?> aipkit_tools_feature_row--expandable<?php echo ($web_tool_provider['value'] === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="web_search" data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_web_settings_modal" style="<?php echo ($current_provider_for_this_bot === $web_tool_provider_name) ? '' : 'display:none;'; ?>">
+</div>
+<?php elseif ($aipkit_tools_part === 'uploads') : ?>
+<div class="aipkit_tools_feature_rows aipkit_display_settings_rows">
+    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_popover_option_row--file-upload<?php echo $can_enable_file_upload ? '' : ' aipkit_popover_option_row--disabled'; ?><?php echo $file_upload_locked_by_plan ? ' aipkit_tools_feature_row--upgrade' : ''; ?><?php echo !empty($tools_master_options['file_upload']['enabled']) ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="file_upload">
         <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('web_search', $tools_master_options['web_search'], 'aipkit_bot_' . $bot_id . '_web_search_tool_toggle_' . $web_tool_provider['slug']); ?>
+            <?php $render_tool_enable_control('file_upload', $tools_master_options['file_upload'], 'aipkit_bot_' . $bot_id . '_file_upload_tool_toggle'); ?>
         </div>
         <div class="aipkit_tools_feature_right">
             <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_<?php echo esc_attr($web_tool_provider['setting']); ?>_tools"
-                name="<?php echo esc_attr($web_tool_provider['setting']); ?>"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field <?php echo esc_attr($web_tool_provider['toggle_class']); ?>"
+                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_file_upload_tools"
+                name="enable_file_upload"
+                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_file_upload_toggle_select aipkit_file_upload_toggle_switch"
+                data-is-pro-plan="<?php echo esc_attr($is_pro_plan ? 'true' : 'false'); ?>"
                 aria-hidden="true"
                 tabindex="-1"
+                <?php disabled(!$can_enable_file_upload); ?>
             >
-                <option value="1" <?php selected($web_tool_provider['value'], '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($web_tool_provider['value'], '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
+                <option value="1" <?php selected($file_upload_toggle_value, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
+                <option value="0" <?php selected($file_upload_toggle_value, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
             </select>
-            <button
-                type="button"
-                class="aipkit_popover_option_btn aipkit_web_search_config_btn aipkit_tools_options_btn aipkit_interface_feature_expand_btn"
-                data-aipkit-inline-settings-toggle
-                data-web-provider="<?php echo esc_attr($web_tool_provider['slug']); ?>"
-                aria-expanded="false"
-                aria-controls="aipkit_builder_web_settings_modal"
-                aria-label="<?php esc_attr_e('Web search settings', 'gpt3-ai-content-generator'); ?>"
-                aria-disabled="<?php echo ($web_tool_provider['value'] === '1') ? 'false' : 'true'; ?>"
-                title="<?php esc_attr_e('Settings', 'gpt3-ai-content-generator'); ?>"
-                <?php disabled($web_tool_provider['value'] !== '1'); ?>
-            >
-                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-    <?php endforeach; ?>
-
-    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_audio_toggle_voice_input_row aipkit_tools_feature_row--expandable<?php echo ($enable_voice_input === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="speech_to_text" data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_audio_settings_modal">
-        <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('speech_to_text', $tools_master_options['speech_to_text'], 'aipkit_bot_' . $bot_id . '_speech_to_text_tool_toggle'); ?>
-        </div>
-        <div class="aipkit_tools_feature_right">
-            <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_voice_input_tools"
-                name="enable_voice_input"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_voice_input_toggle_switch"
-                aria-hidden="true"
-                tabindex="-1"
-            >
-                <option value="1" <?php selected($enable_voice_input, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($enable_voice_input, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
-            </select>
-            <button
-                type="button"
-                class="aipkit_popover_option_btn aipkit_audio_settings_config_btn aipkit_tools_options_btn aipkit_interface_feature_expand_btn"
-                data-aipkit-inline-settings-toggle
-                data-audio-feature="stt"
-                aria-expanded="false"
-                aria-controls="aipkit_builder_audio_settings_modal"
-                aria-label="<?php esc_attr_e('Speech to text settings', 'gpt3-ai-content-generator'); ?>"
-                aria-disabled="<?php echo ($enable_voice_input === '1' && !$stt_controls_hidden_for_tools) ? 'false' : 'true'; ?>"
-                title="<?php esc_attr_e('Settings', 'gpt3-ai-content-generator'); ?>"
-                style="<?php echo $stt_controls_hidden_for_tools ? 'display:none;' : ''; ?>"
-                <?php disabled($enable_voice_input !== '1' || $stt_controls_hidden_for_tools); ?>
-            >
-                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-
-    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_audio_toggle_tts_row aipkit_tools_feature_row--expandable<?php echo ($tts_enabled === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="text_to_speech" data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_audio_settings_modal">
-        <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('text_to_speech', $tools_master_options['text_to_speech'], 'aipkit_bot_' . $bot_id . '_text_to_speech_tool_toggle'); ?>
-        </div>
-        <div class="aipkit_tools_feature_right">
-            <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_tts_enabled_tools"
-                name="tts_enabled"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_tts_toggle_switch"
-                aria-hidden="true"
-                tabindex="-1"
-            >
-                <option value="1" <?php selected($tts_enabled, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($tts_enabled, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
-            </select>
-            <button
-                type="button"
-                class="aipkit_popover_option_btn aipkit_audio_settings_config_btn aipkit_tools_options_btn aipkit_interface_feature_expand_btn"
-                data-aipkit-inline-settings-toggle
-                data-audio-feature="tts"
-                aria-expanded="false"
-                aria-controls="aipkit_builder_audio_settings_modal"
-                aria-label="<?php esc_attr_e('Text to speech settings', 'gpt3-ai-content-generator'); ?>"
-                aria-disabled="<?php echo ($tts_enabled === '1') ? 'false' : 'true'; ?>"
-                title="<?php esc_attr_e('Settings', 'gpt3-ai-content-generator'); ?>"
-                <?php disabled($tts_enabled !== '1'); ?>
-            >
-                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-            </button>
-        </div>
-    </div>
-
-    <div
-        class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_audio_toggle_realtime_row<?php echo $realtime_voice_locked_by_plan ? ' aipkit_popover_option_row--disabled aipkit_tools_feature_row--upgrade' : ' aipkit_tools_feature_row--expandable'; ?><?php echo ($realtime_voice_toggle_value === '1') ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>"
-        data-aipkit-tool-key="realtime_voice"
-        <?php echo $realtime_voice_locked_by_plan ? '' : 'data-aipkit-inline-settings-row data-aipkit-inline-settings-target="aipkit_builder_audio_settings_modal"'; ?>
-    >
-        <div class="aipkit_tools_feature_left">
-            <?php $render_tool_enable_control('realtime_voice', $tools_master_options['realtime_voice'], 'aipkit_bot_' . $bot_id . '_realtime_voice_tool_toggle'); ?>
-        </div>
-        <div class="aipkit_tools_feature_right">
-            <select
-                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_realtime_voice_tools"
-                name="enable_realtime_voice"
-                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_enable_realtime_voice_toggle"
-                aria-hidden="true"
-                tabindex="-1"
-                <?php echo $rt_disabled_by_plan ? 'disabled' : ''; ?>
-            >
-                <option value="1" <?php selected($realtime_voice_toggle_value, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
-                <option value="0" <?php selected($realtime_voice_toggle_value, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
-            </select>
-            <?php if ($realtime_voice_locked_by_plan) : ?>
+            <?php if ($file_upload_locked_by_plan) : ?>
                 <?php $render_tool_upgrade_button(); ?>
-            <?php else : ?>
-                <button
-                    type="button"
-                    class="aipkit_popover_option_btn aipkit_audio_settings_config_btn aipkit_tools_options_btn aipkit_interface_feature_expand_btn"
-                    data-aipkit-inline-settings-toggle
-                    data-audio-feature="realtime"
-                    aria-expanded="false"
-                    aria-controls="aipkit_builder_audio_settings_modal"
-                    aria-label="<?php esc_attr_e('Realtime voice settings', 'gpt3-ai-content-generator'); ?>"
-                    aria-disabled="<?php echo ($realtime_voice_toggle_value === '1') ? 'false' : 'true'; ?>"
-                    title="<?php esc_attr_e('Settings', 'gpt3-ai-content-generator'); ?>"
-                    <?php disabled($realtime_voice_toggle_value !== '1'); ?>
-                >
-                    <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-                </button>
             <?php endif; ?>
         </div>
     </div>
-</div>
 
-<div
-    id="aipkit_builder_web_settings_modal"
-    class="aipkit_builder_web_settings_modal"
-    aria-hidden="true"
->
-    <div
-        class="aipkit-modal-content"
-        role="dialog"
-        aria-modal="false"
-    >
-        <div class="aipkit_inline_settings_body aipkit_settings_web_body">
-            <?php include __DIR__ . '/web-settings-panel.php'; ?>
+    <div class="aipkit_tools_feature_row aipkit_popover_option_row aipkit_image_analysis_popover_row<?php echo !empty($tools_master_options['image_analysis']['enabled']) ? ' aipkit_tools_feature_row--is-enabled' : ''; ?>" data-aipkit-tool-key="image_analysis" style="<?php echo \WPAICG\AIPKit_Providers::model_supports_image_input($current_provider_for_this_bot, (string) ($active_bot_settings['model'] ?? '')) ? '' : 'display:none;'; ?>">
+        <div class="aipkit_tools_feature_left">
+            <?php $render_tool_enable_control('image_analysis', $tools_master_options['image_analysis'], 'aipkit_bot_' . $bot_id . '_image_analysis_tool_toggle'); ?>
+        </div>
+        <div class="aipkit_tools_feature_right">
+            <select
+                id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_enable_image_upload_tools"
+                name="enable_image_upload"
+                class="aipkit_popover_option_select aipkit_tools_toggle_select aipkit_tools_state_field aipkit_image_analysis_select aipkit_image_analysis_checkbox"
+                aria-hidden="true"
+                tabindex="-1"
+            >
+                <option value="1" <?php selected($enable_image_upload, '1'); ?>><?php esc_html_e('Yes', 'gpt3-ai-content-generator'); ?></option>
+                <option value="0" <?php selected($enable_image_upload, '0'); ?>><?php esc_html_e('No', 'gpt3-ai-content-generator'); ?></option>
+            </select>
         </div>
     </div>
 </div>
-
-<div
-    id="aipkit_builder_audio_settings_modal"
-    class="aipkit_builder_audio_settings_modal"
-    aria-hidden="true"
->
-    <div
-        class="aipkit-modal-content"
-        role="dialog"
-        aria-modal="false"
-    >
-        <div class="aipkit_inline_settings_body aipkit_settings_audio_body">
-            <span class="aipkit_popover_status_inline aipkit_tts_sync_status" aria-live="polite"></span>
-            <?php include __DIR__ . '/audio-settings-panel.php'; ?>
-        </div>
-    </div>
+<?php elseif ($aipkit_tools_part === 'voice') : ?>
+<?php // One card per voice option: its switch, a line about it, and its settings when opened. One opens at a time. ?>
+<div id="aipkit_builder_audio_settings_modal" class="aipkit_voice_options" data-aipkit-voice-options>
+    <?php include __DIR__ . '/audio-settings-panel.php'; ?>
 </div>
+<?php endif; ?>

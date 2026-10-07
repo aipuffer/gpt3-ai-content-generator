@@ -1,3 +1,4 @@
+import { bindKnowledgePicker, splitStoreLabel } from "../shared/knowledge-picker.js";
 import { createChatbotProviderConfig } from "./providers.js";
 import { deriveChatbotCapabilityState } from "./knowledge.js";
 import { createChatbotUploadAvailability } from "./tools.js";
@@ -27,10 +28,6 @@ import { isKnowledgeProviderCompatible, getKnowledgeProviderCompatibilityMessage
   function updateRetrievalFields(advancedField, topKField, confidenceField, enabled, hideConfidence = false) {
     setVisible(advancedField, enabled);
     if (advancedField) {
-      if (!enabled) {
-        const disclosure = advancedField.querySelector(".aipkit_vector_store_advanced_disclosure");
-        if (disclosure) disclosure.open = false;
-      }
       if (topKField) topKField.style.display = "";
       if (confidenceField) confidenceField.style.display = hideConfidence ? "none" : "";
     } else {
@@ -554,7 +551,7 @@ export function bindChatbotContextSettings({
       hydrated = true;
       refreshVectorProviderNotice();
     },
-    interactionNodes: () => [getContextSettingsContainer(), ...builder.querySelectorAll('.aipkit_context_use_trained_label, .aipkit_content_aware_enable_select')],
+    interactionNodes: () => [getContextSettingsContainer()],
     bindEvents: ({ signal, isEditable, save, draft, saveAndWait: saveSnapshot }) => {
       bindingSignal = signal; editable = isEditable; saveCurrentSettings = save; saveAndWait = saveSnapshot;
       setCapabilitySave(save);
@@ -576,8 +573,6 @@ export function createChatbotKnowledgeSettings({
   builder,
   contextSettingsPanel,
   modelPopoverPanel,
-  registerAdvancedDetailPanelCloser,
-  closeOtherAdvancedDetailPanels,
   isToggleFieldOn,
   __,
   openaiApiKeySet,
@@ -605,69 +600,6 @@ export function createChatbotKnowledgeSettings({
     }
     return field.checked ? "1" : "0";
   };
-  const knowledgeConfigureButton = contextSettingsPanel ? contextSettingsPanel.querySelector("[data-aipkit-knowledge-configure]") : null;
-  const knowledgeConfigurePanel = contextSettingsPanel ? contextSettingsPanel.querySelector("[data-aipkit-knowledge-config-panel]") : null;
-  const knowledgeConfigureRow = knowledgeConfigureButton ? knowledgeConfigureButton.closest(".aipkit_context_source_choice_row") : null;
-  if (knowledgeConfigureRow && knowledgeConfigurePanel && knowledgeConfigurePanel.parentElement !== knowledgeConfigureRow) {
-    knowledgeConfigureRow.appendChild(knowledgeConfigurePanel);
-    knowledgeConfigurePanel.hidden = false;
-  }
-  const setKnowledgeConfigureOpen = isOpen => {
-    if (!knowledgeConfigureButton || !knowledgeConfigurePanel) {
-      return;
-    }
-    const shouldOpen = Boolean(isOpen);
-    if (shouldOpen) {
-      closeOtherAdvancedDetailPanels(knowledgeConfigurePanel);
-    }
-    knowledgeConfigurePanel.hidden = false;
-    knowledgeConfigurePanel.classList.toggle("is-open", shouldOpen);
-    if (knowledgeConfigureRow) {
-      knowledgeConfigureRow.classList.toggle("is-open", shouldOpen);
-    }
-    knowledgeConfigureButton.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
-    if (shouldOpen) {
-      updateVectorStoreVisibility();
-      refreshVectorProviderNotice();
-    }
-  };
-  registerAdvancedDetailPanelCloser(knowledgeConfigurePanel, () => setKnowledgeConfigureOpen(false));
-  const syncKnowledgeConfigureControls = () => {
-    if (!knowledgeConfigureButton || !knowledgeConfigurePanel) {
-      return;
-    }
-    const isAvailable = getVectorStoreToggleValue() === "1";
-    knowledgeConfigureButton.hidden = false;
-    knowledgeConfigureButton.disabled = !isAvailable;
-    knowledgeConfigureButton.setAttribute("aria-disabled", isAvailable ? "false" : "true");
-    if (knowledgeConfigureRow) {
-      knowledgeConfigureRow.classList.add("is-configurable");
-    }
-    if (!isAvailable) {
-      setKnowledgeConfigureOpen(false);
-    }
-  };
-  if (knowledgeConfigureButton && knowledgeConfigurePanel && knowledgeConfigureButton.dataset.aipkitKnowledgeConfigureBound !== "1") {
-    knowledgeConfigureButton.addEventListener("click", event => {
-      event.preventDefault();
-      setKnowledgeConfigureOpen(!knowledgeConfigurePanel.classList.contains("is-open"));
-    });
-    knowledgeConfigureButton.dataset.aipkitKnowledgeConfigureBound = "1";
-  }
-  if (knowledgeConfigureRow && knowledgeConfigureButton && knowledgeConfigureRow.dataset.aipkitKnowledgeRowBound !== "1") {
-    knowledgeConfigureRow.addEventListener("click", event => {
-      if (event.target.closest("button, a, input, select, textarea, label, .aipkit_settings_big_checkbox_box")) {
-        return;
-      }
-      if (knowledgeConfigureButton.hidden || knowledgeConfigureButton.disabled) {
-        return;
-      }
-      event.preventDefault();
-      knowledgeConfigureButton.click();
-    });
-    knowledgeConfigureRow.dataset.aipkitKnowledgeRowBound = "1";
-  }
-  syncKnowledgeConfigureControls();
   const getFileUploadToggleValue = () => {
     if (!modelPopoverPanel) {
       return "0";
@@ -848,7 +780,6 @@ export function createChatbotKnowledgeSettings({
       return;
     }
     updateVectorStoreVisibility();
-    syncKnowledgeConfigureControls();
     updateFileUploadAvailability();
     refreshVectorProviderNotice();
     updateTrainingCardVisibility();
@@ -868,4 +799,135 @@ export function createChatbotKnowledgeSettings({
     updateVectorStoreVisibility,
     updateFileUploadAvailability
   };
+}
+
+/**
+ * Search settings, a side panel from the Knowledge card: the knowledge picker, and one line on the
+ * card's row saying which knowledge answers read and how much. Adding the first source sets up the
+ * storage, so the panel only shows what a storage uses.
+ */
+
+const STORE_SELECTS = {
+  local: 'select[name="local_store_ids[]"]',
+  openai: 'select[name="openai_vector_store_ids[]"]',
+  google: 'select[name="google_file_search_store_names[]"]',
+  pinecone: 'select[name="pinecone_index_name"]',
+  qdrant: 'select[name="qdrant_collection_names[]"]',
+  chroma: 'select[name="chroma_collection_names[]"]',
+};
+
+// Builder flags that say a provider's key or URL is saved.
+const CONFIGURED_FLAGS = {
+  openai: "openaiApiKeySet",
+  google: "googleApiKeySet",
+  pinecone: "pineconeApiKeySet",
+  qdrant: "qdrantUrlSet",
+  chroma: "chromaUrlSet",
+  claude_files: "claudeApiKeySet",
+};
+
+export function bindChatbotSearchSettings(builder, { __ = (text) => text, _n = (single, plural, count) => (count === 1 ? single : plural), sprintf = (text) => text } = {}) {
+  const settingsArea = builder.querySelector('[data-aipkit-feature-drawer="search"] [data-aipkit-settings-panel="context"]');
+  if (!settingsArea || settingsArea.dataset.searchSettingsBound) {
+    return;
+  }
+  settingsArea.dataset.searchSettingsBound = "1";
+  const controller = new AbortController();
+  const listen = (target, type, handler) => target?.addEventListener(type, handler, { signal: controller.signal });
+  const field = (name) => settingsArea.querySelector(`[name="${name}"]`);
+
+  const providerNames = {
+    local: __("built-in", "gpt3-ai-content-generator"),
+    openai: "OpenAI",
+    google: "Google",
+    pinecone: "Pinecone",
+    qdrant: "Qdrant",
+    chroma: "Chroma",
+    claude_files: "Anthropic Files",
+  };
+
+  const picker = bindKnowledgePicker(settingsArea.querySelector("[data-aipkit-knowledge-picker]"), {
+    settingsArea,
+    stateTarget: builder,
+    __,
+    isConfigured: (key) => !CONFIGURED_FLAGS[key] || builder.dataset[CONFIGURED_FLAGS[key]] === "true",
+    lockedReason: (key) => ({
+      google: __("Needs a Gemini model", "gpt3-ai-content-generator"),
+      claude_files: __("Needs a Claude model", "gpt3-ai-content-generator"),
+    }[key] || ""),
+  });
+
+  // The knowledge in use, as [words, whether answers search it].
+  const describeKnowledge = () => {
+    const enabled = Boolean(settingsArea.querySelector(".aipkit_vector_store_enable_select")?.checked);
+    const key = field("vector_store_provider")?.value || "";
+    const select = STORE_SELECTS[key] ? settingsArea.querySelector(STORE_SELECTS[key]) : null;
+    const names = select
+      ? Array.from(select.selectedOptions).filter((option) => option.value && !option.disabled).map((option) => splitStoreLabel(option.textContent).name)
+      : [];
+    if (!enabled) {
+      return [names.length
+        ? __("Off. Answers don't use your knowledge.", "gpt3-ai-content-generator")
+        : __("Set up when you add your first source.", "gpt3-ai-content-generator"), false];
+    }
+    if (select && !names.length) {
+      return [__("Set up when you add your first source.", "gpt3-ai-content-generator"), false];
+    }
+    /* translators: 1: knowledge base names, 2: where they are stored, such as built-in or Pinecone. */
+    const where = select ? sprintf(__("%1$s (%2$s)", "gpt3-ai-content-generator"), names.join(", "), providerNames[key] || key) : providerNames[key] || key;
+    // Storages that search on their own side (Anthropic Files) have no number to show.
+    const topKRow = settingsArea.querySelector(".aipkit_vector_store_top_k_field");
+    const topK = Number(field("vector_store_top_k")?.value);
+    if (!topKRow || topKRow.closest('[style*="none"]') || !Number.isFinite(topK) || topK < 1) {
+      return [where, true];
+    }
+    /* translators: 1: where answers search, 2: number of matches read. */
+    return [sprintf(_n("%1$s · reads the closest match", "%1$s · reads the %2$s closest matches", topK, "gpt3-ai-content-generator"), where, String(topK)), true];
+  };
+  // Knowledge first, then the page the visitor is on when answers use it.
+  const describe = () => {
+    const [knowledge, searched] = describeKnowledge();
+    if (!settingsArea.querySelector(".aipkit_content_aware_enable_select")?.checked) {
+      return knowledge;
+    }
+    /* translators: %s: the knowledge answers search, such as Support (built-in) · reads the 3 closest matches. */
+    return searched ? sprintf(__("%s · plus the page they're on", "gpt3-ai-content-generator"), knowledge) : __("Uses the page they're on", "gpt3-ai-content-generator");
+  };
+
+  let frame = null;
+  const render = () => {
+    frame = null;
+    const hint = builder.querySelector('[data-aipkit-feature-row="search"] [data-aipkit-feature-hint]');
+    if (hint) {
+      hint.textContent = describe();
+    }
+  };
+  const refresh = () => {
+    if (frame === null) {
+      frame = window.requestAnimationFrame(render);
+    }
+  };
+
+  listen(builder, "change", refresh);
+  listen(builder, "input", refresh);
+  listen(builder, "aipkit:bot-state-applied", refresh);
+  // Store lists fill in late, and switching providers or turning knowledge off (sometimes without a
+  // change event) shows and hides the rows.
+  const changes = new MutationObserver(refresh);
+  changes.observe(settingsArea, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "data-vector-provider"] });
+
+  const removal = new MutationObserver(() => {
+    if (settingsArea.isConnected) return;
+    controller.abort();
+    changes.disconnect();
+    if (frame !== null) {
+      window.cancelAnimationFrame(frame);
+      frame = null;
+    }
+    picker?.dispose();
+    removal.disconnect();
+    delete settingsArea.dataset.searchSettingsBound;
+  });
+  removal.observe(settingsArea.ownerDocument.documentElement, { childList: true, subtree: true });
+  render();
 }

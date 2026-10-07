@@ -164,18 +164,19 @@
 
     copySettings(DIRECT_KEYS);
 
-    if (!options.skipDimensionSync) {
-      copySettings(DIMENSION_KEYS);
+    const dimensions = options.skipDimensionSync
+      ? [...DIMENSION_KEYS].filter(key => (options.dimensionOverrides || []).includes(key))
+      : DIMENSION_KEYS;
+    copySettings(dimensions);
 
-      if (finalSettings.container_height !== undefined) {
-        finalSettings.popup_height = finalSettings.container_height;
-      }
-      if (finalSettings.container_min_height !== undefined) {
-        finalSettings.popup_min_height = finalSettings.container_min_height;
-      }
-      if (finalSettings.container_max_height !== undefined) {
-        finalSettings.popup_max_height = finalSettings.container_max_height;
-      }
+    if (finalSettings.container_height !== undefined) {
+      finalSettings.popup_height = finalSettings.container_height;
+    }
+    if (finalSettings.container_min_height !== undefined) {
+      finalSettings.popup_min_height = finalSettings.container_min_height;
+    }
+    if (finalSettings.container_max_height !== undefined) {
+      finalSettings.popup_max_height = finalSettings.container_max_height;
     }
 
     return finalSettings;

@@ -366,6 +366,7 @@ function build_config_array_logic(int $bot_id, \WP_Post $bot_post, array $settin
             return in_array($val, ['small','medium','large','xlarge'], true) ? $val : 'medium';
         })(),
         'customThemePresetKey' => $custom_theme_preset_key,
+        'themeDimensionOverrides' => explode(',', $settings['theme_dimension_overrides'] ?? ''),
         'popupLabelEnabled' => ($settings['popup_label_enabled'] ?? '0') === '1',
         'popupLabelText' => (function() use ($settings) {
             $fallback = class_exists(BotSettingsManager::class)

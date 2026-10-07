@@ -251,6 +251,10 @@ function do_ajax_list_vector_stores_openai_logic(AIPKit_OpenAI_Vector_Stores_Aja
 
     // Filter out expired stores.
     $stores_from_api = $response['data'] ?? [];
+    $is_full_sync_attempt = (empty($after) && empty($before) && $limit >= 100);
+    if ($is_full_sync_attempt && is_array($stores_from_api)) {
+        $stores_from_api = $vector_store_registry->reconcile_openai_store_list($stores_from_api);
+    }
     $active_stores_data = [];
     if (is_array($stores_from_api)) {
         foreach ($stores_from_api as $store_item) {
@@ -267,7 +271,6 @@ function do_ajax_list_vector_stores_openai_logic(AIPKit_OpenAI_Vector_Stores_Aja
 
 
     // Only update the full registry if it's a likely full sync attempt
-    $is_full_sync_attempt = (empty($after) && empty($before) && $limit >= 100);
     if (isset($response['data']) && is_array($response['data']) && $is_full_sync_attempt) {
         $response['data'] = $vector_store_registry->replace_provider_cache('OpenAI', $response['data']);
     }

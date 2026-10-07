@@ -99,9 +99,14 @@
       "pattern": "\\.aipkit_ce_(?:filter_row|queue_switch|queue_card--inline|source_grid--primary|multi_select)"
     },
     {
-      "module": "chatbot",
+      "module": "chatbot live voice settings",
       "kind": "css",
-      "pattern": "\\.aipkit_audio_settings_grid--realtime"
+      "pattern": "\\.aipkit_voice_(?:more|live_note|speed)\\w*"
+    },
+    {
+      "module": "chatbot live voice settings",
+      "kind": "js",
+      "pattern": "window\\.(?:aipkit_describeLiveVoice|aipkit_syncLiveVoicePicker)\\s*=(?!=)"
     },
     {
       "module": "Content Writer paid source panels",
@@ -166,12 +171,17 @@
     {
       "module": "chatbot rule autosave",
       "kind": "js",
-      "pattern": "[\"']aipkit_update_chatbot_triggers[\"']|window\\.(?:aipkit_bindTriggerAutosave|aipkit_syncTriggerBuilderScope|aipkit_bindChatbotRuleSummary)\\s*=(?!=)"
+      "pattern": "[\"']aipkit_update_chatbot_triggers[\"']|window\\.(?:aipkit_bindTriggerAutosave|aipkit_syncTriggerBuilderScope|aipkit_bindChatbotRuleSummary|aipkit_initTriggerBuilderUI|aipkit_getTriggerBuilderState)\\s*=(?!=)|data-aipkit-rule-template|aipkit_rule_editor_bar"
     },
     {
       "kind": "js",
       "module": "Chatbot connected apps summary",
       "pattern": "window\\.aipkit_bindChatbotConnectedAppsSummary\\s*=(?!=)"
+    },
+    {
+      "kind": "css",
+      "module": "chatbot rules and connected app panels",
+      "pattern": "\\.aipkit_rule_(?:editor|row|open|field|remove|switch|chevron|on)\\w*|\\.aipkit_condition_row|\\.aipkit_app_(?:status|row_open|row_note)|\\.aipkit_panel_(?:top|count|link|empty|add)|\\.aipkit_apps_strip"
     }
   ]
 }

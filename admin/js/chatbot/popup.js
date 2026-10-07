@@ -1,5 +1,5 @@
 /** Popup and welcome-hint controls, visibility and saved settings. */
-import { bindChatbotSettingsAutosave } from "./state.js";
+import { bindChatbotSettingsAutosave, preservePopupDelayOption } from "./state.js";
 const POPUP_LABEL_FIELDS = [
   "popup_label_text",
   "popup_label_mode",
@@ -17,7 +17,6 @@ export function createChatbotPopup({
   builder,
   popupSettingsPanel,
   appearance,
-  closeStaticInlineSettingsRow,
 }) {
   const { syncQuickDesignShortcuts } = appearance;
 
@@ -36,12 +35,12 @@ export function createChatbotPopup({
         ? hintToggle.value === "1"
         : hintToggle.checked
       : false;
-    builder
+    popupSettingsPanel
       .querySelectorAll(".aipkit_popup_hint_toggle_checkbox")
       .forEach((hintCheckbox) => {
         hintCheckbox.checked = showHint;
       });
-    builder
+    popupSettingsPanel
       .querySelectorAll(".aipkit_widget_launcher_message")
       .forEach((messageControl) => {
         const messageInput = messageControl.querySelector(
@@ -52,37 +51,12 @@ export function createChatbotPopup({
           messageInput.disabled = !showHint;
         }
       });
-    const hintConfigButtons = builder.querySelectorAll(
-      ".aipkit_display_settings_row--welcome [data-aipkit-static-inline-settings-toggle]"
-    );
-    hintConfigButtons.forEach((hintConfigBtn) => {
-      hintConfigBtn.hidden = false;
-      hintConfigBtn.disabled = !showHint;
-      if (!showHint) {
-        hintConfigBtn.setAttribute("aria-expanded", "false");
-      }
-    });
-    if (!showHint) {
-      popupSettingsPanel
-        .querySelectorAll(".aipkit_display_settings_row--welcome")
-        .forEach((row) => closeStaticInlineSettingsRow(row));
+    // A bot switch starts the Show again line from its plain wording.
+    const showAgainStatus = popupSettingsPanel.querySelector("[data-aipkit-popup-hint-again-status]");
+    if (showAgainStatus) {
+      showAgainStatus.dataset.defaultText ??= showAgainStatus.textContent;
+      showAgainStatus.textContent = showAgainStatus.dataset.defaultText;
     }
-    popupSettingsPanel
-      .querySelectorAll(".aipkit_popup_hint_behavior_row")
-      .forEach((row) => {
-        row.removeAttribute("hidden");
-        row.classList.toggle("is-disabled", !showHint);
-        row
-          .querySelectorAll(".aipkit_popup_hint_enabled_copy")
-          .forEach((element) => {
-            element.hidden = !showHint;
-          });
-        row
-          .querySelectorAll(".aipkit_popup_hint_disabled_copy")
-          .forEach((element) => {
-            element.hidden = showHint;
-          });
-      });
     const hintRow = popupSettingsPanel.querySelector(".aipkit_popup_hint_conditional_row");
     if (hintRow) {
       if (showHint) {
@@ -95,8 +69,7 @@ export function createChatbotPopup({
 
   const bindPersistence = (persistence) => {
     if (!popupSettingsPanel) return;
-    const findPopupField = (selector) =>
-      popupSettingsPanel.querySelector(selector) || builder.querySelector(selector);
+    const findPopupField = (selector) => popupSettingsPanel.querySelector(selector);
     const media = [
       ["popup_icon", "popup_icon_custom_url"],
       ["header_avatar", "header_avatar_url"],
@@ -158,10 +131,12 @@ export function createChatbotPopup({
         const selector = `[name="${name}"]`, field = findPopupField(selector);
         if (!field) continue;
         if (field.type === "radio") {
-          const scope = popupSettingsPanel.querySelector(selector) ? popupSettingsPanel : builder;
-          scope.querySelectorAll(selector).forEach(radio => { radio.checked = radio.value === value; });
+          popupSettingsPanel.querySelectorAll(selector).forEach(radio => { radio.checked = radio.value === value; });
         } else if (field.type === "checkbox") field.checked = value === "1";
-        else field.value = value;
+        else {
+          preservePopupDelayOption(field, value);
+          field.value = value;
+        }
       }
     };
     const resetSettings = (settings, response) => {
@@ -178,11 +153,6 @@ export function createChatbotPopup({
       }
       return next;
     };
-    const popupLabelSettingsSelector = POPUP_LABEL_FIELDS
-      .map((name) => `[name="${name}"]`)
-      .join(", ");
-    const isPopupLabelSettingsTarget = (target) =>
-      Boolean(target && target.matches(popupLabelSettingsSelector));
     const syncPopupHintSelectFromCheckbox = (target) => {
       const hintSelect = popupSettingsPanel.querySelector(
         'select[name="popup_label_enabled"]'
@@ -202,8 +172,7 @@ export function createChatbotPopup({
     const panelFields = ["popup_position", "popup_delay", "popup_icon_style", "popup_icon_size",
       "popup_icon_default", "popup_icon_custom_url", "header_avatar_default", "header_avatar_url",
       "header_online_text", "popup_label_enabled", ...POPUP_LABEL_FIELDS];
-    const isSettingsTarget = target => target && (popupSettingsPanel.contains(target)
-      ? panelFields.includes(target.name) : isPopupLabelSettingsTarget(target));
+    const isSettingsTarget = target => Boolean(target && panelFields.includes(target.name));
     const syncPopupSettingsUiState = () => {
       updatePopupSettingsVisibility();
       syncQuickDesignShortcuts();
@@ -214,9 +183,7 @@ export function createChatbotPopup({
       isUnchanged: (a, b) => JSON.stringify(a) === JSON.stringify(b),
       canSave: settings => Object.keys(settings).length > 0,
       savedSettings, restoreSettings, resetSettings, afterHydrate: syncPopupSettingsUiState,
-      interactionNodes: () => [popupSettingsPanel,
-        ...builder.querySelectorAll('.aipkit_popup_hint_toggle_checkbox, .aipkit_widget_launcher_message, [data-aipkit-avatar-quick-upload], [data-aipkit-avatar-use-widget], [data-aipkit-widget-icon-upload], input[name="aipkit_widget_icon_quick"]'),
-        ...POPUP_LABEL_FIELDS.map(name => findPopupField(`[name="${name}"]`))],
+      interactionNodes: () => [popupSettingsPanel],
       bindEvents: ({ signal, isEditable, draft, save }) => {
         const onChange = (event) => {
           const target = event.target;
@@ -226,23 +193,31 @@ export function createChatbotPopup({
             return;
           }
           if (!isSettingsTarget(target)) return;
-          if (popupSettingsPanel.contains(target)) {
-            if (target.matches('[name="popup_icon_default"], select[name="popup_icon_style"], [name="header_avatar_default"], .aipkit_popup_hint_toggle_switch')) {
-              syncPopupSettingsUiState();
-            } else if (target.matches('[name="popup_icon_custom_url"], [name="header_avatar_url"]')) {
-              syncQuickDesignShortcuts();
-            }
+          if (target.matches('[name="popup_icon_default"], select[name="popup_icon_style"], [name="header_avatar_default"], .aipkit_popup_hint_toggle_switch')) {
+            syncPopupSettingsUiState();
+          } else if (target.matches('[name="popup_icon_custom_url"], [name="header_avatar_url"]')) {
+            syncQuickDesignShortcuts();
           }
           save();
         };
         popupSettingsPanel.addEventListener("change", onChange, { signal });
-        builder.addEventListener("change", event => {
-          if (!popupSettingsPanel.contains(event.target)) onChange(event);
+        // Show again: a new version name makes visitors who saw or closed the bubble see it again.
+        popupSettingsPanel.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-aipkit-popup-hint-show-again]");
+          const field = button && findPopupField('[name="popup_label_version"]');
+          if (!field || !isEditable()) return;
+          const current = String(field.value || "").trim() || "v1";
+          const numbered = current.match(/^(.*?)(\d+)$/);
+          field.value = numbered ? `${numbered[1]}${Number(numbered[2]) + 1}` : `${current}-2`;
+          field.dispatchEvent(new Event("change", { bubbles: true }));
+          const status = popupSettingsPanel.querySelector("[data-aipkit-popup-hint-again-status]");
+          if (status && button.dataset.doneText) {
+            status.dataset.defaultText ??= status.textContent;
+            status.textContent = button.dataset.doneText;
+          }
         }, { signal });
-        const onInput = event => { if (isEditable() && isSettingsTarget(event.target)) draft(); };
-        popupSettingsPanel.addEventListener("input", onInput, { signal });
-        builder.addEventListener("input", event => {
-          if (!popupSettingsPanel.contains(event.target)) onInput(event);
+        popupSettingsPanel.addEventListener("input", (event) => {
+          if (isEditable() && isSettingsTarget(event.target)) draft();
         }, { signal });
       },
     });

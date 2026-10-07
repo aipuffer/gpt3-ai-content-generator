@@ -26,11 +26,16 @@ export function bindChatbotDeployment({
   const embedAllowedDomainsField = builder.querySelector(
     'textarea[name="embed_allowed_domains"]'
   );
+  // Allowed websites: a warning while any website may use the code, a short all-clear once one is listed.
+  const embedDomainsNotes = Array.from(builder.querySelectorAll("[data-aipkit-embed-domains-note]"));
+  const syncEmbedDomainsNote = () => {
+    const listed = Boolean(embedAllowedDomainsField?.value.trim());
+    embedDomainsNotes.forEach((note) => {
+      note.hidden = note.dataset.aipkitEmbedDomainsNote !== (listed ? "listed" : "open");
+    });
+  };
   const popupScopeSelect = builder.querySelector(
     'select[name="aipkit_deploy_popup_scope"]'
-  );
-  const popupOptionSections = Array.from(
-    builder.querySelectorAll("[data-aipkit-popup-options]")
   );
   const popupScopeRows = Array.from(
     builder.querySelectorAll(
@@ -38,7 +43,7 @@ export function bindChatbotDeployment({
     )
   );
 
-  if (!topModeSelect && !popupToggle && !siteWideToggle && !popupScopeSelect && !popupOptionSections.length) return null;
+  if (!topModeSelect && !popupToggle && !siteWideToggle && !popupScopeSelect) return null;
 
   const normalizeTopDeployMode = (value) => {
     if (value === "popup" || value === "external") {
@@ -73,9 +78,9 @@ export function bindChatbotDeployment({
     if (topModeSelect) {
       return normalizeTopDeployMode(topModeSelect.value);
     }
-    return popupOptionSections.some((section) => !section.hidden)
-      ? "popup"
-      : "inline";
+    // Without the mode field, the saved chat-button setting decides.
+    const popupEnabled = popupToggle ? popupToggle.checked : popupEnabledInput?.value === "1";
+    return popupEnabled ? "popup" : "inline";
   };
 
   const getPopupScope = () => {
@@ -172,6 +177,7 @@ export function bindChatbotDeployment({
   };
 
   const updateDeployUI = (syncSections = true) => {
+    syncEmbedDomainsNote();
     const deployMode = getDeployMode();
     const isExternalMode = deployMode === "external";
     const isPopupEnabled = deployMode === "popup" || isExternalMode;
@@ -184,9 +190,6 @@ export function bindChatbotDeployment({
       siteWideEnabledInput.value = getPopupScope() === "sitewide" ? "1" : "0";
     }
 
-    popupOptionSections.forEach((section) => {
-      section.hidden = !isPopupEnabled;
-    });
     popupScopeRows.forEach((row) => {
       row.hidden = row.classList.contains("aipkit_builder_popup_scope_row")
         ? false
@@ -194,6 +197,10 @@ export function bindChatbotDeployment({
     });
     popupOnlyControls.forEach((control) => {
       control.hidden = !isPopupEnabled;
+    });
+    // Settings only for a chat inside a page (its width in Size and font) show only then.
+    builder.querySelectorAll("[data-aipkit-inline-only-control]").forEach((control) => {
+      control.hidden = isPopupEnabled;
     });
 
     if (syncSections && typeof syncSettingsSectionsUiState === "function") {
@@ -243,7 +250,6 @@ export function bindChatbotDeployment({
     setExternalPopupEnabledPreference(settings.popup_enabled);
     setPopupEnabledValue(settings.popup_enabled === "1");
     setSiteWideEnabledValue(settings.site_wide_enabled === "1");
-    if (!topModeSelect) popupOptionSections.forEach(section => { section.hidden = settings.deploy_mode === "inline"; });
     if (embedAllowedDomainsField) embedAllowedDomainsField.value = settings.embed_allowed_domains || "";
   };
   const syncDeployUiState = () => {
@@ -293,6 +299,7 @@ export function bindChatbotDeployment({
         const flush = () => { cancelDomainsSave(); if (!embedAllowedDomainsField.disabled) save(); };
         embedAllowedDomainsField.addEventListener("input", () => {
           if (!isEditable() || embedAllowedDomainsField.disabled) return;
+          syncEmbedDomainsNote();
           draft();
           cancelDomainsSave();
           domainsSaveTimeout = setTimeout(flush, 350);
@@ -310,7 +317,8 @@ export function bindChatbotDeployment({
 export function bindChatbotShortcodeCopy(builder) {
   if (!builder.dataset.shortcodeCopyBound) {
     builder.addEventListener("click", event => {
-      const pill = event.target.closest(".aipkit_shortcode_pill");
+      // Pills in Publish, plus Copy shortcode in the chatbot menu.
+      const pill = event.target.closest(".aipkit_shortcode_pill, [data-aipkit-shortcode-copy]");
       if (!pill) {
         return;
       }
@@ -353,7 +361,7 @@ export function applyChatbotDeploymentState(builder, normalizedBotId, botState, 
     siteWideEnabledField.value = siteWideToggleField && siteWideToggleField.checked ? "1" : "0";
   }
   if (botState.shortcode) {
-    const shortcodePills = builder.querySelectorAll(".aipkit_builder_shortcode_pill");
+    const shortcodePills = builder.querySelectorAll(".aipkit_builder_shortcode_pill, [data-aipkit-shortcode-copy]");
     shortcodePills.forEach(pill => {
       pill.setAttribute("data-shortcode", botState.shortcode);
       const textNode = pill.querySelector(".aipkit_shortcode_text");
@@ -368,4 +376,65 @@ export function applyChatbotDeploymentState(builder, normalizedBotId, botState, 
   if (embedCodeField && typeof botState.embed_code === "string") {
     embedCodeField.value = botState.embed_code;
   }
+}
+
+/** Publish placement: one choice that sets the Popup and Every page fields deployment saves. */
+
+export const placementFor = (popupOn, siteWideOn) => (!popupOn ? "inline" : siteWideOn ? "everywhere" : "chosen");
+
+export function bindChatbotPlacement(builder) {
+  const root = builder.querySelector("[data-aipkit-placement]");
+  const popup = builder.querySelector("[data-aipkit-popup-toggle]");
+  const siteWide = builder.querySelector("[data-aipkit-site-wide-toggle]");
+  if (!root || !popup || !siteWide || root.dataset.placementBound) {
+    return null;
+  }
+  root.dataset.placementBound = "1";
+  const radios = Array.from(root.querySelectorAll(".aipkit_placement_radio"));
+  const notes = Array.from(root.querySelectorAll("[data-aipkit-placement-note]"));
+
+  const sync = () => {
+    const value = placementFor(popup.checked, siteWide.checked);
+    radios.forEach((radio) => {
+      radio.checked = radio.value === value;
+    });
+    notes.forEach((note) => {
+      note.hidden = !note.dataset.aipkitPlacementNote.split(" ").includes(value);
+    });
+  };
+
+  // Deployment saves on these fields' change events, exactly as when the switches were clicked.
+  const set = (field, checked, force = false) => {
+    if (field.checked === checked && !force) {
+      return;
+    }
+    field.checked = checked;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  root.addEventListener("change", (event) => {
+    const radio = event.target.closest(".aipkit_placement_radio");
+    if (!radio) {
+      return;
+    }
+    if (radio.value === "inline") {
+      set(popup, false);
+    } else {
+      // An external-embed bot keeps its popup but cannot be site-wide; bring it back to a site popup first.
+      const mode = builder.querySelector("[data-aipkit-top-mode-select]");
+      const fromExternal = mode?.value === "external";
+      if (fromExternal) {
+        mode.value = "popup";
+      }
+      set(popup, true, fromExternal);
+      set(siteWide, radio.value === "everywhere");
+    }
+    sync();
+  });
+
+  popup.addEventListener("change", sync);
+  siteWide.addEventListener("change", sync);
+  builder.addEventListener("aipkit:bot-state-applied", sync);
+  sync();
+  return { sync };
 }

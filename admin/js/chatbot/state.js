@@ -1,5 +1,14 @@
 import { applyConfiguredVectorStoreValues } from "../utils/vector-store-selection-state.js";
 
+/** Preserve non-preset auto-open delays when an existing bot hydrates or a save is restored. */
+export function preservePopupDelayOption(field, value) {
+  if (field?.tagName !== "SELECT" || field.name !== "popup_delay") return;
+  const saved = String(value ?? "");
+  if (!/^\d+$/.test(saved) || Array.from(field.options).some(option => option.value === saved)) return;
+  const label = (field.dataset.savedValueLabel || "%d sec").replace("%d", saved);
+  field.appendChild(new Option(label, saved));
+}
+
 /** Coordinates record actions with feature-owned saves across live editors. */
 export function createChatbotRecordActions() {
   const bindings = new Set(), locks = new Map(), pending = new Map();
@@ -350,8 +359,10 @@ export function createChatbotStateCache({ builder, getSelectableBotIds }) {
                 ? payload.connected_apps.recipes.map((recipe) => ({
                     id: String(recipe?.id || ""),
                     name: String(recipe?.name || ""),
+                    app_slug: String(recipe?.app_slug || ""),
                     app_label: String(recipe?.app_label || ""),
                     connection_label: String(recipe?.connection_label || ""),
+                    event_name: String(recipe?.event_name || ""),
                     event_label: String(recipe?.event_label || ""),
                     action_label: String(recipe?.action_label || ""),
                     status_key: String(recipe?.status_key || "warning"),
@@ -361,6 +372,7 @@ export function createChatbotStateCache({ builder, getSelectableBotIds }) {
                     ),
                     is_enabled: Boolean(recipe?.is_enabled),
                     scope_label: String(recipe?.scope_label || ""),
+                    scope_key: String(recipe?.scope_key || ""),
                   }))
                 : [],
             }
@@ -550,11 +562,13 @@ export function createChatbotStateHydration({ syncUnifiedModelSelector }) {
     }
     const fieldValue = value === null || value === undefined ? "" : String(value);
     if (tagName === "SELECT" && fieldValue &&
-        ["tts_elevenlabs_voice_id", "tts_elevenlabs_model_id"].includes(element.name) &&
+        ["tts_elevenlabs_voice_id", "tts_elevenlabs_model_id", "vector_embedding_provider", "vector_embedding_model"].includes(element.name) &&
         !Array.from(element.options).some(option => option.value === fieldValue)) {
-      // Keep saved catalog IDs available until the provider list is refreshed.
+      // Keep saved catalog IDs available until the provider list is refreshed. The embedding lists hold
+      // the first chatbot's provider, so another chatbot's model would otherwise be blanked and saved empty.
       element.appendChild(new Option(fieldValue, fieldValue));
     }
+    preservePopupDelayOption(element, fieldValue);
     element.value = fieldValue;
   };
   const applyField = (scope, fieldName, value) => {
@@ -665,7 +679,7 @@ export function createChatbotStateHydration({ syncUnifiedModelSelector }) {
     const escapedId = fromId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // IDs may share a numeric prefix (6 and 60); only retarget the complete ID.
     const pattern = new RegExp(`(${tokens.join("|")})${escapedId}(?!\\d)`, "g");
-    const attributes = ["id", "for", "aria-controls", "aria-labelledby", "data-target"];
+    const attributes = ["id", "for", "aria-controls", "aria-labelledby", "data-target", "data-aipkit-segmented-for"];
     const selector = attributes.map((name) => `[${name}]`).join(",");
     const visited = new Set();
     roots.filter(Boolean).forEach((root) => {
@@ -818,7 +832,7 @@ export function createChatbotSession({
     }
     stateHydration.applyField(builder, "conversation_starters", botState.conversation_starters_text);
     stateHydration.applyField(builder, "triggers_json", triggersJson);
-    window.aipkit_syncTriggerBuilderScope?.(sheetOverlay, normalizedBotId, triggersJson);
+    window.aipkit_syncTriggerBuilderScope?.(builder, normalizedBotId, triggersJson);
     stateHydration.applyField(builder, "embed_allowed_domains", botState.embed_allowed_domains);
     applyDeploymentSettings(normalizedBotId, botState, settings);
     syncDeleteActionsState(normalizedBotId);
@@ -852,12 +866,6 @@ export function createChatbotSession({
         window.aipkit_showChatPreview(normalizedBotId, previewOptions || {});
       } else if (typeof window.aipkit_refreshChatPreview === "function") {
         window.aipkit_refreshChatPreview(normalizedBotId, previewOptions || {});
-      }
-    }
-    if (sheetOverlay && sheetOverlay.classList.contains("aipkit-active") && typeof window.aipkit_initTriggerBuilderUI === "function") {
-      const triggersSection = sheetOverlay.querySelector('.aipkit_builder_sheet_section[data-sheet="triggers"]');
-      if (triggersSection && !triggersSection.hidden) {
-        window.aipkit_initTriggerBuilderUI(normalizedBotId);
       }
     }
     return true;

@@ -694,7 +694,6 @@ final class Connection
             <summary><?php esc_html_e('What information do we collect?', 'gpt3-ai-content-generator'); ?></summary>
             <?php if ($diagnostics) : ?>
                 <p><?php esc_html_e('When you connect to AI Puffer Cloud, we collect non-sensitive diagnostic data to help fix setup problems and improve the plugin. This includes connection results, error codes, response times, and your AI Puffer, WordPress and PHP versions. Reports are kept for 30 days.', 'gpt3-ai-content-generator'); ?></p>
-                <br>
             <?php endif; ?>
             <p><?php esc_html_e('To create and manage your account, AI Puffer uses Freemius for registration, email verification and licensing. This sends your name, email address and site URL. General usage tracking stays off, and marketing emails are optional.', 'gpt3-ai-content-generator'); ?></p>
             <p><a href="https://freemius.com/terms/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Freemius terms', 'gpt3-ai-content-generator'); ?></a> · <a href="https://freemius.com/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Freemius privacy policy', 'gpt3-ai-content-generator'); ?></a></p>
@@ -1118,6 +1117,7 @@ final class Connection
         return [
             'usageHtml' => $usage_html,
             'creditNoticeHtml' => $credit_notice_html,
+            'navStatusHtml' => StatusChip::html(),
             'connected' => self::display()['connected'],
             'checkedAt' => (int) (self::credit_state()['checkedAt'] ?? 0),
         ];

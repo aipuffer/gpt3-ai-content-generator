@@ -1,21 +1,22 @@
-import { applyChatbotDeploymentState, bindChatbotShortcodeCopy, bindChatbotDeployment } from "./deployment.js";
+import { applyChatbotDeploymentState, bindChatbotShortcodeCopy, bindChatbotDeployment, bindChatbotPlacement } from "./deployment.js";
 import { isToggleFieldOn, updatePopoverToggleAvailability, bindChatbotImagePanel, createChatbotImageWarning, bindChatbotTools, bindChatbotImageSettings, bindChatbotFileUploadSettings } from "./tools.js";
-import { startChatbotEditorPreview } from "./preview.js";
-import { bindChatbotSettingsRows, createChatbotInlinePanels, createChatbotSaveFeedback, createChatbotPanels, bindChatbotDetailPanels } from "./panels.js";
+import { startChatbotEditorPreview, bindChatbotPreviewDevice } from "./preview.js";
+import { bindChatbotSettingsRows, createChatbotInlinePanels, createChatbotSaveFeedback, createChatbotPanels, bindChatbotDetailPanels, bindChatbotTabs, bindChatbotFeatureDrawers } from "./panels.js";
+import { bindChatbotSegmented } from "./segmented.js";
 import { createChatbotSession, createChatbotRecordActions } from "./state.js";
-import { createChatbotCatalog, bindChatbotName } from "./actions.js";
-import { createChatbotKnowledgeSettings } from "./knowledge-settings.js";
+import { createChatbotCatalog, bindChatbotName, bindChatbotBotSwitcher } from "./actions.js";
+import { createChatbotKnowledgeSettings, bindChatbotSearchSettings } from "./knowledge-settings.js";
 import { createChatbotTraining } from "./knowledge-training.js";
 import { createChatbotAudio } from "./audio.js";
 import { createChatbotProviderNotices, isMissingProviderCredentialMessage } from "./providers.js";
 import { createChatbotWebSearch } from "./web-search.js";
-import { createChatbotModelSettings, createChatbotModelCapabilities, createChatbotModelPicker, bindChatbotModelSync } from "./model-config.js";
+import { createChatbotModelSettings, createChatbotModelCapabilities, createChatbotModelPicker } from "./model-config.js";
 import { createChatbotConversation } from "./conversation.js";
 import { createChatbotPopup } from "./popup.js";
 import { createChatbotAppearance } from "./appearance.js";
 import { bindChatbotNavigation } from "./navigation.js";
 import { bindChatbotInstructions } from "./instructions.js";
-import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary } from "./limits.js";
+import { bindChatbotLimits, syncChatbotLimitVisibility } from "./limits.js";
 
 (function() {
   "use strict";
@@ -99,17 +100,14 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     const sheetOverlay = document.getElementById("aipkit_builder_sheet");
     const settingsPanel = document.getElementById("aipkit_chatbot_settings_panel");
     const modelPopoverPanel = settingsPanel;
-    const advancedDrawer = document.getElementById("aipkit_chatbot_advanced_drawer");
     const chatbotPanels = createChatbotPanels({
       builder,
       sheetOverlay,
-      advancedDrawer,
       // The theme dialog is declared later in this initializer.
       isCustomThemeOpen: () => Boolean(customThemeModal && customThemeModal.classList.contains("aipkit-active"))
     });
     const {updateBuilderSheetScrollLock} = chatbotPanels;
     const botNameField = builder.querySelector(".aipkit_bot_name_input");
-    const limitsSectionSummary = builder.querySelector("[data-aipkit-limits-section-summary]");
     const instructionsField = builder.querySelector('textarea[name="instructions"]');
     const instructionsExpandBtn = builder.querySelector(".aipkit_builder_instructions_expand");
     const instructionsModal = document.getElementById("aipkit_builder_instructions_modal");
@@ -130,25 +128,10 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       __
     });
     window.aipkit_syncUnifiedChatModelSelector = () => syncUnifiedModelSelector(builder);
-    bindChatbotModelSync({
-      builder,
-      __,
-      syncUnifiedModelSelector,
-      showChatbotRequestErrorNotice: message => showChatbotRequestErrorNotice(message),
-      clearChatbotRequestErrorNotice: () => clearChatbotRequestErrorNotice()
-    });
     const updateRulesSectionSummary = window.aipkit_bindChatbotRuleSummary?.({
-      builder,
-      _n
+      builder
     });
     const renderConnectedAppsList = window.aipkit_bindChatbotConnectedAppsSummary?.(builder);
-    const updateLimitsSectionSummary = bindChatbotLimitSummary({
-      builder,
-      limitsSectionSummary,
-      __,
-      sprintf
-    });
-    updateLimitsSectionSummary();
     bindUnifiedModelSelector(builder);
     syncUnifiedModelSelector(builder);
     const {
@@ -179,7 +162,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
         updateVectorStoreVisibility();
         updateTrainingCardVisibility();
         updateTokenLimitVisibility();
-        updateThemeConfigButtonVisibility();
         updateToolsFeatureRowsVisibility();
         updateContextPopoverControls();
         syncDeployUiState?.();
@@ -194,7 +176,7 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
         if (typeof window.aipkit_attachRangeValueHandlers === "function") {
           window.aipkit_attachRangeValueHandlers("#aipkit_chatbot_settings_panel");
         }
-        updateLimitsSectionSummary();
+
         updateRulesSectionSummary?.();
         renderConnectedAppsList?.(botState && typeof botState.connected_apps === "object" ? botState.connected_apps : null);
       }
@@ -261,8 +243,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     });
     const {saveStatus, setSaveStatus, setSavedStatus, setSaveErrorStatus, handleActiveSaveError} = createChatbotSaveFeedback({
       builder,
-      settingsPanel,
-      advancedDrawer,
       isBotCurrentlyActive
     });
     window.aipkit_showChatbotRequestErrorNotice = message => {
@@ -271,7 +251,7 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     window.aipkit_clearChatbotRequestErrorNotice = () => {
       clearChatbotRequestErrorNotice();
     };
-    const {registerAdvancedDetailPanelCloser, closeOtherAdvancedDetailPanels, closeStaticInlineSettingsRow} = bindChatbotDetailPanels(builder);
+    const {registerAdvancedDetailPanelCloser, closeOtherAdvancedDetailPanels} = bindChatbotDetailPanels();
     const webSearch = createChatbotWebSearch({
       builder,
       modelPopoverPanel,
@@ -307,8 +287,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       builder,
       contextSettingsPanel,
       modelPopoverPanel,
-      registerAdvancedDetailPanelCloser,
-      closeOtherAdvancedDetailPanels,
       isToggleFieldOn,
       __,
       openaiApiKeySet,
@@ -331,14 +309,10 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       builder,
       audioSettingsModal,
       isToggleFieldOn,
-      syncInlineSettingsPanelState,
-      syncToolsEnabledOptionsFromFields,
-      closeOtherAdvancedDetailPanels,
-      mountInlineSettingsPanelForTrigger,
-      registerAdvancedDetailPanelCloser
+      syncToolsEnabledOptionsFromFields
     });
     const {updateAudioVisibility} = audio;
-    const {updateThemeConfigButtonVisibility, syncThemeRadiosFromSelect} = appearance;
+    const {syncThemeRadiosFromSelect} = appearance;
     const {updateImageProviderWarning} = createChatbotImageWarning({
       imageModelSelectField,
       hideImageProviderWarning,
@@ -347,8 +321,7 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     const popup = createChatbotPopup({
       builder,
       popupSettingsPanel,
-      appearance,
-      closeStaticInlineSettingsRow
+      appearance
     });
     const {updatePopupSettingsVisibility} = popup;
     appearance.bindMedia({
@@ -362,9 +335,12 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       consentPanel,
       syncInlineSettingsPanelState,
       registerAdvancedDetailPanelCloser,
-      closeOtherAdvancedDetailPanels
+      closeOtherAdvancedDetailPanels,
+      __,
+      sprintf
     });
     const {closeStartersPanel, updateConsentControls} = conversation;
+    const syncStarterList = conversation.bindStarterList();
     const modelSettings = createChatbotModelSettings({
       builder,
       modelPopoverPanel,
@@ -378,12 +354,26 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     });
     const {updateVisibility: updateConversationVisibility} = modelSettings;
     bindChatbotShortcodeCopy(builder);
-    chatbotPanels.bindDrawer({
-      updateWebGroundingVisibility,
-      updateAudioVisibility,
-      updateConversationVisibility,
-      updatePopupSettingsVisibility,
-      updateContextPopoverControls
+    // Controls in a newly shown tab need their visibility rules and range readouts refreshed.
+    bindChatbotBotSwitcher(builder);
+    bindChatbotSegmented(builder);
+    bindChatbotPlacement(builder);
+    bindChatbotPreviewDevice(builder);
+    bindChatbotSearchSettings(builder, { __, _n, sprintf });
+    let featureDrawers = null;
+    bindChatbotTabs(builder, {
+      onShow: () => {
+        featureDrawers?.close({ restoreFocus: false });
+        featureDrawers?.refresh();
+        if (typeof window.aipkit_attachRangeValueHandlers === "function") {
+          window.aipkit_attachRangeValueHandlers("#aipkit_chatbot_settings_panel");
+        }
+        updateWebGroundingVisibility();
+        updateAudioVisibility();
+        updateConversationVisibility();
+        updatePopupSettingsVisibility();
+        updateContextPopoverControls();
+      }
     });
     // --- Chatbot Settings Panel ---
         if (settingsPanel && !builder.dataset.settingsPanelBound) {
@@ -429,9 +419,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       storageKey: LAST_CHATBOT_STORAGE_KEY
     });
     chatbotPanels.bindSheet({
-      // The rules status node is initialized later.
-      getTriggersStatus: () => triggersStatus,
-      getSelectedBuilderBotId,
       updateWebGroundingVisibility,
       updateAudioVisibility,
       updateConversationVisibility,
@@ -463,10 +450,12 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       instructionsModalTextarea,
       instructionsModalCount,
       saveStatus,
-      persistence: builderPersistence
+      persistence: builderPersistence,
+      __,
+      _n,
+      sprintf
     });
     training.bindSourcePicker();
-    const triggersStatus = builder.querySelector(".aipkit_triggers_status");
     triggerAutosave = window.aipkit_bindTriggerAutosave?.({
       builder,
       saveStatus,
@@ -494,6 +483,7 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       isToggleFieldOn
     });
     audio.bindPanel();
+    featureDrawers = bindChatbotFeatureDrawers(builder, { closeOtherAdvancedDetailPanels, __, _n, sprintf });
     bindChatbotName({
       builder,
       botNameField,
@@ -583,7 +573,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
       limitsSettingsContainer: limitsSettingsPanel,
       saveStatus,
       updateTokenLimitVisibility,
-      updateLimitsSectionSummary,
       persistence: builderPersistence
     });
     const appearancePanel = settingsPanel ? settingsPanel.querySelector('[data-aipkit-settings-panel="appearance"]') : null;
@@ -595,7 +584,12 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
         closeStartersPanel
       });
       appearance.bindTheme();
-      syncConversationStartersUiState = updateConversationStartersControls;
+      // Loading, restoring or resetting a bot sets the starters field directly, so redraw its list too.
+      const syncConversationStarters = () => {
+        updateConversationStartersControls();
+        syncStarterList();
+      };
+      syncConversationStartersUiState = syncConversationStarters;
       syncInterfaceControlsUiState = syncInterfaceControls;
       syncThemeUiState = syncThemeRadiosFromSelect;
       appearance.bindPersistence({
@@ -606,7 +600,7 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
         consentPanel,
         persistence: builderPersistence,
         updateConsentControls,
-        updateConversationStartersControls,
+        updateConversationStartersControls: syncConversationStarters,
         syncInterfaceControls
       });
     }
@@ -721,17 +715,6 @@ import { bindChatbotLimits, syncChatbotLimitVisibility, bindChatbotLimitSummary 
     }
     if (typeof window.aipkit_initChatbotBuilder === "function") {
       window.aipkit_initChatbotBuilder();
-    }
-    // Find the active bot settings form and its bot ID
-        const activeBotForm = document.querySelector("#aipkit_chatbot_main_tab_content_container .aipkit_tab-content.aipkit_active form.aipkit_chatbot_settings_form");
-    if (activeBotForm) {
-      const botIdForTriggers = activeBotForm.dataset.botId;
-      const triggerBuilderContainer = document.getElementById(`aipkit_trigger_builder_${botIdForTriggers}`);
-      if (botIdForTriggers && triggerBuilderContainer && typeof window.aipkit_initTriggerBuilderUI === "function") {
-        window.aipkit_initTriggerBuilderUI(botIdForTriggers);
-      } else if (botIdForTriggers && triggerBuilderContainer) {
-        console.error(`AIPKit Chat Admin Main: aipkit_initTriggerBuilderUI function not found, cannot init Triggers for bot ${botIdForTriggers}.`);
-      }
     }
     if (typeof window.aipkit_initEmbedCodeCopy === 'function') {
       window.aipkit_initEmbedCodeCopy();

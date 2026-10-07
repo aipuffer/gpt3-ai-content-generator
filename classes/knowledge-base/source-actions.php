@@ -160,7 +160,7 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
         }
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Custom table lookup for admin delete action; table identifier is plugin-owned, validated, and backticked above.
-        $log_entry = $wpdb->get_row($wpdb->prepare("SELECT id, provider, vector_store_id, file_id, post_id, status FROM {$data_source_table_identifier} WHERE id = %d LIMIT 1", $log_entry_id), ARRAY_A);
+        $log_entry = $wpdb->get_row($wpdb->prepare("SELECT id, provider, vector_store_id, file_id, post_id, status, batch_id, post_title, message FROM {$data_source_table_identifier} WHERE id = %d LIMIT 1", $log_entry_id), ARRAY_A);
 
         if (!$log_entry) {
             do_action('aipkit_vector_source_log_deleted', $log_entry_id);
@@ -185,6 +185,9 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
             ));
             return;
         }
+
+        require_once WPAICG_PLUGIN_DIR . 'classes/knowledge-base/file-source-groups.php';
+        $file_chunks = !empty($post_data['remove_file']) ? FileSourceGroups::chunks($log_entry) : [];
 
         $post_chunk_delete_selector = self::build_post_chunk_delete_selector($provider, absint($log_entry['post_id'] ?? 0));
         $can_delete_post_chunks = $post_chunk_delete_selector !== null;
@@ -235,14 +238,26 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
             }
 
             // 1. Delete from external vector store
-            $delete_selector = $post_chunk_delete_selector ?: (self::build_parent_chunk_delete_selector($provider, $vector_id) ?: [$vector_id]);
+            $delete_selector = $file_chunks ? array_column($file_chunks, 'file_id') : ($post_chunk_delete_selector ?: (self::build_parent_chunk_delete_selector($provider, $vector_id) ?: [$vector_id]));
             $delete_result = $vector_store_manager->delete_vectors($provider, $store_id, $delete_selector, $provider_config);
 
-            // We proceed even if the external deletion fails, as the vector might not exist there anymore but the log does.
-            // We will log the error if one occurs.
             if (is_wp_error($delete_result)) {
-                // This is not a fatal error for the process, so we just log it and continue to delete from local DB.
+                $this->send_wp_error($delete_result);
+                return; // Preserve the source and its chunk IDs so removal can be retried.
             }
+        }
+
+        if ($file_chunks) {
+            foreach ($file_chunks as $chunk) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Remove only this upload's acknowledged vector records.
+                if ($wpdb->delete($data_source_table_name, ['id' => (int) $chunk['id']], ['%d']) === false) {
+                    $this->send_wp_error(new WP_Error('db_delete_failed_vector_log', __('Failed to remove the source record. Please retry.', 'gpt3-ai-content-generator')));
+                    return;
+                }
+                do_action('aipkit_vector_source_log_deleted', (int) $chunk['id']);
+            }
+            wp_send_json_success(['message' => __('File and all its chunks removed.', 'gpt3-ai-content-generator')]);
+            return;
         }
 
         // 2. Delete from local database log

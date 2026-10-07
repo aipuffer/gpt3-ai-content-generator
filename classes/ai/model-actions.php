@@ -436,6 +436,10 @@ class ModelsAjaxHandler extends BaseDashboardAjaxHandler
                 $stores_payload = $stores_payload['data'];
             }
 
+            if (is_array($stores_payload) && $this->vector_store_registry) {
+                $stores_payload = $this->vector_store_registry->reconcile_openai_store_list($stores_payload);
+            }
+
             $active_stores = [];
             if (is_array($stores_payload)) {
                 foreach ($stores_payload as $store_item) {
@@ -765,6 +769,7 @@ class ModelsAjaxHandler extends BaseDashboardAjaxHandler
                     'catalog_revision' => $catalog_revision,
                     'provider_state' => $provider_state,
                     'providerStatus' => AIPKit_Providers::get_provider_status_map(),
+                    'navStatusHtml' => \WPAICG\Cloud\StatusChip::html(),
                     'newConfiguration' => AIPKit_Providers::get_new_configuration_payload(),
                     'warnings' => $sync_warnings,
                 ],

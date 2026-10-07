@@ -10,6 +10,21 @@
   const LINK_SELECTOR = "a[data-aipkit-provider-action]";
   const noticeOverrides = new Map();
   const dismissedNotices = new Map();
+  const dismissalStorageKey = notice => `aipkit_provider_notice_${window.aipkit_dashboard?.currentUserId || 0}_${notice.id}`;
+  const readDismissal = notice => {
+    try { return window.localStorage.getItem(dismissalStorageKey(notice)) || dismissedNotices.get(notice.id); }
+    catch { return dismissedNotices.get(notice.id); }
+  };
+  const writeDismissal = (notice, value) => {
+    if (value) dismissedNotices.set(notice.id, value);
+    else dismissedNotices.delete(notice.id);
+    try {
+      if (value) window.localStorage.setItem(dismissalStorageKey(notice), value);
+      else window.localStorage.removeItem(dismissalStorageKey(notice));
+    } catch { /* Retain the current-view dismissal without browser storage. */ }
+  };
+  const notifyVisibility = () => window.dispatchEvent(new CustomEvent('aipkit:provider-notice-visibility'));
+
   const PROVIDER_STATUS_REQUIREMENTS = {
     aipuffercloud: [],
     openai: ["openai_api_key"],
@@ -239,12 +254,13 @@
     showNotice(noticeEl);
   }
 
-  function hideNotice(noticeEl) {
+  function hideNotice(noticeEl, resolved = false) {
     if (!noticeEl) {
       return;
     }
-    dismissedNotices.delete(noticeEl.id);
+    if (resolved) writeDismissal(noticeEl, null);
     noticeEl.classList.add("aipkit_provider_notice--hidden");
+    notifyVisibility();
   }
 
   function noticeDismissalKey(noticeEl) {
@@ -255,12 +271,14 @@
     if (!noticeEl) {
       return;
     }
-    if (dismissedNotices.get(noticeEl.id) === noticeDismissalKey(noticeEl)) {
+    if (readDismissal(noticeEl) === noticeDismissalKey(noticeEl)) {
       noticeEl.classList.add("aipkit_provider_notice--hidden");
+      notifyVisibility();
       return;
     }
-    dismissedNotices.delete(noticeEl.id);
+    writeDismissal(noticeEl, null);
     noticeEl.classList.remove("aipkit_provider_notice--hidden");
+    notifyVisibility();
   }
 
   function updateNoticeForSelect(selectEl, statusMap) {
@@ -306,7 +324,7 @@
     }
 
     if (configured) {
-      hideNotice(noticeEl);
+      hideNotice(noticeEl, true);
       return;
     }
 
@@ -473,8 +491,8 @@
       if (!dismiss || dismiss.dataset.aipkitDismissBound === "true") return;
       dismiss.addEventListener("click", () => {
         const dismissalKey = noticeDismissalKey(notice);
+        writeDismissal(notice, dismissalKey);
         hideNotice(notice);
-        dismissedNotices.set(notice.id, dismissalKey);
       });
       dismiss.dataset.aipkitDismissBound = "true";
     });
@@ -554,7 +572,7 @@
     if (visible) {
       showNotice(noticeEl);
     } else {
-      hideNotice(noticeEl);
+      hideNotice(noticeEl, true);
     }
   };
   window.aipkit_clearProviderNoticeOverride = function (targetId) {

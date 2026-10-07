@@ -56,7 +56,7 @@
         moduleContainer.classList.toggle('aipkit_main-content--with-notices', notices.length > 0);
         if (!notices.length) return;
 
-        // Keep module notices edge to edge while the workspace retains its gutters.
+        // Module notices stay above the workspace, in the same gutters (shared/base.css), as one stack.
         const workspace = document.createElement('div');
         workspace.className = 'aipkit_module-workspace';
         Array.from(moduleContainer.childNodes).forEach(node => {

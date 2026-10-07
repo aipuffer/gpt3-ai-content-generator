@@ -242,7 +242,6 @@ $render_widget_color_radio = static function (array $option, string $variant) us
 ?>
 
 <div class="aipkit_widget_color_block">
-    <span class="aipkit_widget_designer_label"><?php esc_html_e('Widget color', 'gpt3-ai-content-generator'); ?></span>
     <div
         class="aipkit_popover_multiselect aipkit_interface_theme_dropdown aipkit_widget_color_picker"
         data-aipkit-theme-dropdown
@@ -279,26 +278,34 @@ $render_widget_color_radio = static function (array $option, string $variant) us
                         <div class="aipkit_popover_multiselect_options aipkit_popover_multiselect_options--unbounded aipkit_interface_theme_options aipkit_widget_color_menu_options">
                             <?php foreach ($more_widget_color_options as $option) : ?>
                                 <?php if (!empty($option['is_custom_editor'])) : ?>
-                                    <div class="aipkit_popover_multiselect_item aipkit_interface_theme_item aipkit_interface_theme_item--custom aipkit_widget_color_menu_item aipkit_widget_color_menu_item--custom">
-                                        <label class="aipkit_widget_color_menu_item_main">
+                                    <?php // Custom: pick it, or set any color below; changing the color picks Custom. ?>
+                                    <div class="aipkit_widget_color_custom">
+                                        <label class="aipkit_popover_multiselect_item aipkit_interface_theme_item aipkit_widget_color_menu_item">
                                             <?php $render_widget_color_radio($option, 'menu'); ?>
-                                        </label>
-                                        <span class="aipkit_widget_color_menu_trailing">
                                             <span class="aipkit_widget_color_menu_check dashicons dashicons-yes" aria-hidden="true"></span>
-                                            <button
-                                                type="button"
-                                                class="aipkit_popover_option_btn aipkit_theme_config_btn aipkit_theme_config_btn--inline"
-                                                aria-expanded="false"
-                                                aria-controls="aipkit_custom_theme_modal"
-                                                aria-label="<?php esc_attr_e('Edit custom theme', 'gpt3-ai-content-generator'); ?>"
-                                                data-aipkit-theme-custom-edit
-                                                title="<?php esc_attr_e('Edit custom theme', 'gpt3-ai-content-generator'); ?>"
-                                                <?php echo $custom_theme_disabled ? 'hidden' : ''; ?>
-                                                <?php disabled($custom_theme_disabled); ?>
-                                            >
-                                                <span class="dashicons dashicons-edit" aria-hidden="true"></span>
-                                            </button>
-                                        </span>
+                                        </label>
+                                        <?php if (!$custom_theme_disabled) : ?>
+                                            <div class="aipkit_widget_color_custom_editor">
+                                                <input
+                                                    type="color"
+                                                    class="aipkit_widget_color_custom_picker"
+                                                    value="<?php echo esc_attr($option['primary']); ?>"
+                                                    aria-label="<?php esc_attr_e('Custom color', 'gpt3-ai-content-generator'); ?>"
+                                                    data-aipkit-custom-color-picker
+                                                />
+                                                <input
+                                                    type="text"
+                                                    class="aipkit_widget_color_custom_hex"
+                                                    value="<?php echo esc_attr(strtoupper($option['primary'])); ?>"
+                                                    maxlength="7"
+                                                    pattern="#[0-9A-Fa-f]{6}"
+                                                    aria-label="<?php esc_attr_e('Custom color hex value', 'gpt3-ai-content-generator'); ?>"
+                                                    autocomplete="off"
+                                                    spellcheck="false"
+                                                    data-aipkit-custom-theme-hex
+                                                />
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 <?php else : ?>
                                     <label class="aipkit_popover_multiselect_item aipkit_interface_theme_item aipkit_widget_color_menu_item">
@@ -331,6 +338,7 @@ $render_widget_color_radio = static function (array $option, string $variant) us
                 </option>
             <?php endforeach; ?>
         </select>
+        <input type="hidden" name="theme_dimension_overrides" value="<?php echo esc_attr($active_bot_settings['theme_dimension_overrides'] ?? ''); ?>" />
         <input
             type="hidden"
             id="aipkit_bot_<?php echo esc_attr($bot_id); ?>_theme_preset_key"

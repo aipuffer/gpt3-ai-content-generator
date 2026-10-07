@@ -135,10 +135,20 @@ function createSourceRecords({ __, normalizeProviderKey }, chatbotView) {
       };
     }
     if (safeStatus === "failed") {
-      return { label: safeStatus.replace(/_/g, " "), className: "aipkit_status-warning" };
+      return {
+        label: chatbotView ? __("Couldn't add", "gpt3-ai-content-generator") : safeStatus.replace(/_/g, " "),
+        className: "aipkit_status-warning",
+      };
     }
     if (safeStatus) {
-      return { label: safeStatus.replace(/_/g, " "), className: "aipkit_status-info" };
+      // The chatbot list names work still in progress plainly; other statuses keep their own words.
+      const isAdding = ["processing", "queued", "pending", "in_progress"].includes(safeStatus);
+      return {
+        label: chatbotView && isAdding
+          ? __("Adding...", "gpt3-ai-content-generator")
+          : safeStatus.replace(/_/g, " "),
+        className: "aipkit_status-info",
+      };
     }
     return { label: "—", className: "aipkit_status-info" };
   }
