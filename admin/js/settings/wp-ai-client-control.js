@@ -39,15 +39,37 @@
     }
   }
 
+  // The row and the panel header follow the switch: On, or Off.
   function updateControl(control, mode) {
     const managed = mode === "managed";
     const toggle = control.querySelector("[data-aipkit-wpai-toggle]");
 
     control.dataset.mode = managed ? "managed" : "observe";
+    control.dataset.aipkitProviderConnected = managed ? "true" : "false";
 
     if (toggle) {
       toggle.checked = managed;
     }
+    const summary = control.querySelector("[data-aipkit-developer-summary]");
+    if (summary) {
+      summary.textContent = (managed ? summary.dataset.on : summary.dataset.off) || summary.textContent;
+    }
+  }
+
+  // A failure shows in the panel, by the switch; the page's message area is the fallback.
+  function showError(control, message) {
+    const box = control.querySelector("[data-aipkit-developer-error]");
+    if (!box) {
+      if (message) {
+        showMessage("error", message);
+      }
+      return;
+    }
+    const text = box.querySelector("[data-aipkit-developer-error-text]");
+    if (text) {
+      text.textContent = message;
+    }
+    box.hidden = !message;
   }
 
   function extractErrorMessage(payload) {
@@ -91,19 +113,13 @@
   async function applyMode(control, mode, previousMode) {
     setBusy(control, true);
     setAutosaveBusy(true, control);
+    showError(control, "");
     try {
       const data = await submitMode(control, mode);
-      const nextMode = data.mode === "managed" ? "managed" : "observe";
-      updateControl(control, nextMode);
-      showMessage(
-        "success",
-        nextMode === "managed"
-          ? __("AI Puffer is now managing WordPress AI connector requests.", "gpt3-ai-content-generator")
-          : __("AI Puffer stopped managing WordPress AI connector requests.", "gpt3-ai-content-generator")
-      );
+      updateControl(control, data.mode === "managed" ? "managed" : "observe");
     } catch (error) {
       updateControl(control, previousMode);
-      showMessage("error", error.message || __("Unable to update WordPress AI connector management.", "gpt3-ai-content-generator"));
+      showError(control, error.message || __("Unable to update WordPress AI connector management.", "gpt3-ai-content-generator"));
     } finally {
       setAutosaveBusy(false, control);
       setBusy(control, false);

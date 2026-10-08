@@ -40,6 +40,7 @@
       : __("Email (optional)", "gpt3-ai-content-generator"),
     placeholder: __("you@example.com", "gpt3-ai-content-generator"),
     fieldId: "email",
+    inputType: "email",
     required,
   }];
 

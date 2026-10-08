@@ -644,6 +644,9 @@ class Ajax_Hooks_Registrar
             if (method_exists($event_webhook_delivery_issues_ajax_handler, 'ajax_clear_event_webhook_delivery_issue')) {
                 add_action('wp_ajax_aipkit_clear_event_webhook_delivery_issue', [$event_webhook_delivery_issues_ajax_handler, 'ajax_clear_event_webhook_delivery_issue']);
             }
+            if (method_exists($event_webhook_delivery_issues_ajax_handler, 'ajax_send_event_webhook_test')) {
+                add_action('wp_ajax_aipkit_send_event_webhook_test', [$event_webhook_delivery_issues_ajax_handler, 'ajax_send_event_webhook_test']);
+            }
         }
 
         if ($models_ajax_handler) {

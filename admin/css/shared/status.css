@@ -80,6 +80,9 @@
     box-sizing: border-box;
 }
 
-#aipkit_settings_container .aipkit_settings_page_section > .aipkit_settings_autosave_overlay {
-    border-radius: inherit;
+#aipkit_settings_container .aipkit_settings_scope > .aipkit_settings_autosave_overlay {
+    border-radius: 0;
+}
+#aipkit_settings_container .aipkit_settings_scope:last-child > .aipkit_settings_autosave_overlay {
+    border-radius: 0 0 14px 14px;
 }

@@ -135,6 +135,11 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
             return $state;
         }
 
+        if (AIPKit_Global_Security_Settings::is_logged_ip_anonymized($log_row)) {
+            $state['reason'] = 'ip_anonymized';
+            return $state;
+        }
+
         $ip_address = isset($log_row['ip_address']) ? trim((string) $log_row['ip_address']) : '';
         if (filter_var($ip_address, FILTER_VALIDATE_IP) === false) {
             $state['reason'] = 'ip_unavailable';
@@ -299,6 +304,11 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         $log_row = $log_storage->get_log_by_id($log_id);
         if (!$log_row) {
             $this->send_wp_error(new WP_Error('log_not_found', __('Log entry not found.', 'gpt3-ai-content-generator')));
+            return;
+        }
+
+        if (AIPKit_Global_Security_Settings::is_logged_ip_anonymized($log_row)) {
+            $this->send_wp_error(new WP_Error('ip_anonymized', __('This conversation contains a shortened IP address and cannot be used to block an exact visitor.', 'gpt3-ai-content-generator')));
             return;
         }
 

@@ -1922,8 +1922,24 @@ class Shortcode {
         if (is_wp_error($validation_result)) {
             return $this->handle_render_error($validation_result);
         }
-        $bot_id = $validation_result; // Validated Bot ID
+        return $this->render_bot($validation_result);
+    }
 
+    /**
+     * The chat in its own space, even for a bot that runs as the site's popup. First-run setup
+     * shows the real chatbot this way; the bot's saved settings are unchanged.
+     *
+     * @return string|WP_Error
+     */
+    public function render_inline(int $bot_id) {
+        $validation_result = Validator::validate_atts(['id' => $bot_id], self::$rendered_bot_ids);
+        if (is_wp_error($validation_result)) {
+            return $validation_result;
+        }
+        return $this->render_bot($validation_result, true);
+    }
+
+    private function render_bot(int $bot_id, bool $inline = false) {
         // 2. Get Bot Data
         $bot_data = DataProvider::get_bot_data($bot_id);
         if (is_wp_error($bot_data)) {
@@ -1931,6 +1947,9 @@ class Shortcode {
         }
         $bot_post = $bot_data['post'];
         $bot_settings = $bot_data['settings'];
+        if ($inline) {
+            $bot_settings['popup_enabled'] = '0';
+        }
 
         // 3. Determine Feature Flags
         $feature_flags = FeatureManager::determine_flags($bot_settings);

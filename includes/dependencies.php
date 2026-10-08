@@ -189,10 +189,12 @@ class Core_Services_Loader {
         require_once WPAICG_PLUGIN_DIR . 'classes/integrations/events.php';
         require_once WPAICG_PLUGIN_DIR . 'classes/integrations/webhooks.php';
         require_once WPAICG_PLUGIN_DIR . 'classes/integrations/event-delivery.php';
+        require_once WPAICG_PLUGIN_DIR . 'classes/integrations/webhook-status.php';
 
         \WPAICG\Core\AIPKit_Event_Webhooks_Settings::init();
         \WPAICG\Core\AIPKit_Event_Delivery_Policy::register_hooks();
         \WPAICG\Core\AIPKit_Event_Queue_Worker::register_hooks();
+        \WPAICG\Core\AIPKit_Event_Webhook_Status::register_hooks();
 
         $sse_classes_to_load = [
             WPAICG_PLUGIN_DIR . 'classes/streaming/formatter.php',

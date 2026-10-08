@@ -54,8 +54,9 @@ import { applyCloudConnectionResponse } from './cloud-connection.js';
       GoogleFileSearchStores: "Google",
     };
     const settingsCardProvider = settingsCardProviderMap[provider] || provider;
+    // A Settings panel shows its own sync errors; Connections panels list the syncs they show.
     const settingsProviderCard = document.querySelector(
-      `#aipkit_settings_container [data-aipkit-provider-card="${CSS.escape(settingsCardProvider)}"]`
+      `#aipkit_settings_container [data-aipkit-provider-card="${CSS.escape(settingsCardProvider)}"], #aipkit_settings_container [data-aipkit-integration-sync~="${CSS.escape(provider)}"]`
     );
 
     const updateOpenAIVectorStores = (stores) => {
@@ -452,6 +453,7 @@ import { applyCloudConnectionResponse } from './cloud-connection.js';
                 provider,
                 syncedAt:
                   Number(response?.synced_at) || Math.floor(Date.now() / 1000),
+                items: Array.isArray(responseItems) ? responseItems : [],
               },
             })
           );

@@ -1,9 +1,36 @@
 /**
  * AIPKit Settings - Section Navigation
- * Handles tab navigation between settings sections.
+ * The side menu shows one section at a time.
  */
 (function () {
   "use strict";
+
+  // Older links name a settings tab; each now lives inside one of the sections.
+  const PAGE_SECTIONS = {
+    ai: "ai",
+    modules: "tools",
+    integrations: "connections",
+    apps: "connections",
+    "stock-photos": "connections",
+    security: "safety",
+    others: "safety",
+    backups: "safety",
+    api: "developers",
+  };
+  let hashChangeHandler = null;
+
+  const getScrollOffset = () => {
+    const adminBar = document.getElementById("wpadminbar");
+    const fixedBar = adminBar && window.getComputedStyle(adminBar).position === "fixed";
+    return (fixedBar ? adminBar.offsetHeight : 0) + 16;
+  };
+
+  const scrollToTop = (target, onlyIfAbove) => {
+    const top = target.getBoundingClientRect().top + window.scrollY - getScrollOffset();
+    if (!onlyIfAbove || window.scrollY > top) {
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    }
+  };
 
   function aipkit_initSettingsPageNav() {
     const settingsContainer = document.getElementById("aipkit_settings_container");
@@ -11,129 +38,93 @@
       return;
     }
 
-    const navLinks = settingsContainer.querySelectorAll(
-      "[data-aipkit-settings-page-link]"
-    );
-    const sections = settingsContainer.querySelectorAll("[data-aipkit-settings-page]");
-    if (!navLinks.length || !sections.length) {
+    const links = Array.from(settingsContainer.querySelectorAll("[data-aipkit-settings-jump]"));
+    const sections = Array.from(settingsContainer.querySelectorAll("[data-aipkit-settings-section]"));
+    if (!links.length || !sections.length) {
       return;
     }
 
-    const availablePages = new Set(
-      Array.from(sections).map((section) => section.dataset.aipkitSettingsPage || "")
-    );
-    const defaultPage = availablePages.has("ai")
-      ? "ai"
-      : Array.from(availablePages)[0] || "";
+    const showSection = (key) => {
+      const section = sections.find((candidate) => candidate.dataset.aipkitSettingsSection === key) || sections[0];
+      const sectionKey = section.dataset.aipkitSettingsSection;
+      sections.forEach((candidate) => {
+        candidate.hidden = candidate !== section;
+      });
+      links.forEach((link) => {
+        const isActive = link.dataset.aipkitSettingsJump === sectionKey;
+        link.classList.toggle("is-active", isActive);
+        if (isActive) {
+          link.setAttribute("aria-current", "page");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+      if (typeof window.aipkit_refreshSettingsSelectPickers === "function") {
+        window.aipkit_refreshSettingsSelectPickers();
+      }
+      return section;
+    };
+
+    links.forEach((link) => {
+      if (link.dataset.aipkitSettingsJumpBound === "true") {
+        return;
+      }
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        showSection(link.dataset.aipkitSettingsJump || "");
+        scrollToTop(settingsContainer, true);
+      });
+      link.dataset.aipkitSettingsJumpBound = "true";
+    });
+
     const requestedPage = (() => {
       if (window.__aipkitRequestedSettingsPage) {
         return String(window.__aipkitRequestedSettingsPage || "").trim();
       }
-
       try {
-        const searchParams = new URLSearchParams(window.location.search || "");
-        return String(searchParams.get("aipkit_settings_page") || "").trim();
+        return String(new URLSearchParams(window.location.search || "").get("aipkit_settings_page") || "").trim();
       } catch (error) {
         return "";
       }
     })();
-
-    const setActivePage = (page) => {
-      const pageKey = availablePages.has(page) ? page : defaultPage;
-      if (!pageKey) {
-        return;
-      }
-
-      navLinks.forEach((link) => {
-        const isActive = link.dataset.aipkitSettingsPageLink === pageKey;
-        link.classList.toggle("is-active", isActive);
-        link.classList.toggle("aipkit_active", isActive);
-        link.setAttribute("aria-selected", isActive ? "true" : "false");
-        link.setAttribute("tabindex", isActive ? "0" : "-1");
-      });
-
-      sections.forEach((section) => {
-        const isActive = section.dataset.aipkitSettingsPage === pageKey;
-        section.hidden = !isActive;
-      });
-
-      if (
-        (pageKey === "ai" ||
-          pageKey === "integrations" ||
-          pageKey === "apps") &&
-        typeof window.aipkit_refreshSettingsSelectPickers === "function"
-      ) {
-        window.aipkit_refreshSettingsSelectPickers();
-      }
-
-      if (typeof window.aipkit_updateLastSavedData === "function") {
-        window.aipkit_updateLastSavedData(true);
-      }
-    };
-
-    navLinks.forEach((link) => {
-      if (link.dataset.aipkitSettingsPageNavBound === "true") {
-        return;
-      }
-
-      link.addEventListener("click", (event) => {
-        event.preventDefault();
-        setActivePage(link.dataset.aipkitSettingsPageLink || defaultPage);
-      });
-
-      link.addEventListener("keydown", (event) => {
-        const keys = [
-          "ArrowRight",
-          "ArrowDown",
-          "ArrowLeft",
-          "ArrowUp",
-          "Home",
-          "End",
-        ];
-        if (!keys.includes(event.key)) {
-          return;
-        }
-
-        event.preventDefault();
-
-        const tabs = Array.from(navLinks);
-        const currentIndex = tabs.indexOf(link);
-        let nextIndex = currentIndex;
-
-        if (event.key === "Home") {
-          nextIndex = 0;
-        } else if (event.key === "End") {
-          nextIndex = tabs.length - 1;
-        } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-          nextIndex = currentIndex <= 0 ? tabs.length - 1 : currentIndex - 1;
-        } else {
-          nextIndex = currentIndex >= tabs.length - 1 ? 0 : currentIndex + 1;
-        }
-
-        const nextTab = tabs[nextIndex];
-        if (!nextTab) {
-          return;
-        }
-
-        setActivePage(nextTab.dataset.aipkitSettingsPageLink || defaultPage);
-        nextTab.focus();
-      });
-
-      link.dataset.aipkitSettingsPageNavBound = "true";
-    });
-
-    setActivePage(requestedPage || defaultPage);
     window.__aipkitRequestedSettingsPage = "";
 
-    const hash = String(window.location.hash || "").trim();
-    if (hash) {
-      const hashTarget = document.querySelector(hash);
-      if (hashTarget) {
-        window.requestAnimationFrame(() => {
-          hashTarget.scrollIntoView({ block: "start" });
-        });
+    const navigateToRequestedSection = () => {
+      const hashTarget = (() => {
+        const hash = String(window.location.hash || "").trim();
+        try {
+          const selector = hash === "#aipkit_settings_section_backups" ? "#aipkit_settings_backups" : hash;
+          return selector ? settingsContainer.querySelector(selector) : null;
+        } catch (error) {
+          return null;
+        }
+      })();
+      const requestedScope = requestedPage
+        ? settingsContainer.querySelector(`.aipkit_settings_scope[data-aipkit-settings-page="${CSS.escape(requestedPage === "backups" ? "others" : requestedPage)}"]`)
+        : null;
+      const target = hashTarget || requestedScope;
+      const section = showSection(
+        target?.closest("[data-aipkit-settings-section]")?.dataset.aipkitSettingsSection
+          || PAGE_SECTIONS[requestedPage]
+          || requestedPage
+          || "ai"
+      );
+
+      if (typeof window.aipkit_initSettingsSavedData === "function") {
+        window.aipkit_initSettingsSavedData();
       }
+
+      // Links to groups such as Apps and Backups land on the group within its section.
+      if (target && target !== section && section.querySelector(".aipkit_settings_scope") !== target) {
+        window.requestAnimationFrame(() => scrollToTop(target, false));
+      }
+    };
+    navigateToRequestedSection();
+    if (hashChangeHandler) {
+      window.removeEventListener("hashchange", hashChangeHandler);
     }
+    hashChangeHandler = navigateToRequestedSection;
+    window.addEventListener("hashchange", hashChangeHandler);
   }
 
   window.aipkit_initSettingsPageNav = aipkit_initSettingsPageNav;

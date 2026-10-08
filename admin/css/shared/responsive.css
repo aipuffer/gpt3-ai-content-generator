@@ -159,23 +159,6 @@
     padding: var(--aipkit-settings-row-padding);
   }
 
-  #aipkit_settings_container .aipkit_settings_page_nav_row {
-    overflow-x: auto;
-    overflow-y: hidden;
-    min-height: 0;
-    scrollbar-width: thin;
-  }
-
-  #aipkit_settings_container .aipkit_settings_page_nav {
-    flex-wrap: nowrap;
-    width: max-content;
-    min-width: 100%;
-  }
-
-  #aipkit_settings_container .aipkit_settings_page_nav_link {
-    flex: 0 0 auto;
-  }
-
   #aipkit_settings_container #aipkit_settings_global_messages,
   #aipkit_settings_container #aipkit_settings_messages,
   #aipkit_settings_container #aipkit_settings_others_messages {

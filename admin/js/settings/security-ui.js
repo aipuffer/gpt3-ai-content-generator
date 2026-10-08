@@ -50,10 +50,25 @@
     });
   }
 
+  function normalizeIpAddress(value) {
+    if (!isValidIpAddress(value)) return value;
+    return value.includes(":") ? new URL("http://[" + value + "]/").hostname.slice(1, -1) : value;
+  }
+
   function formatTemplate(template, value) {
     return String(template || "").replace("%s", function () {
       return String(value);
     });
+  }
+
+  var i18n = (window.wp && window.wp.i18n) || {};
+  var __ = i18n.__ || function (text) { return text; };
+  var _n = i18n._n || function (single, plural, count) { return count === 1 ? single : plural; };
+
+  function formatSummary(count) {
+    return count > 0
+      ? formatTemplate(_n("%s blocked", "%s blocked", count, "gpt3-ai-content-generator"), count.toLocaleString())
+      : __("None yet", "gpt3-ai-content-generator");
   }
 
   function requestAutosave() {
@@ -77,6 +92,8 @@
     var errorMessage = field
       ? field.querySelector(".aipkit_settings_security_error")
       : null;
+    var group = field ? field.closest("[data-aipkit-security-group]") : null;
+    var summary = group ? group.querySelector("[data-aipkit-security-summary]") : null;
 
     if (!field || !source || !chipList || !input || !type) {
       return;
@@ -85,7 +102,7 @@
     var isIpEditor = type === "ips";
     var validItems = uniqueEntries(
       parseEntries(source.value).map(function (entry) {
-        return isIpEditor ? entry : entry.toLowerCase();
+        return isIpEditor ? normalizeIpAddress(entry) : entry.toLowerCase();
       }),
       !isIpEditor
     );
@@ -169,6 +186,9 @@
         "aipkit_settings_security_chip_editor--empty",
         validItems.length === 0 && invalidItems.length === 0
       );
+      if (summary) {
+        summary.textContent = formatSummary(validItems.length);
+      }
       updateValidationMessage();
     }
 
@@ -182,7 +202,7 @@
       var previousValidValue = validItems.join(",");
 
       candidates.forEach(function (candidate) {
-        var normalized = isIpEditor ? candidate : candidate.toLowerCase();
+        var normalized = isIpEditor ? normalizeIpAddress(candidate) : candidate.toLowerCase();
         if (isIpEditor && !isValidIpAddress(normalized)) {
           if (!invalidItems.includes(normalized)) {
             invalidItems.push(normalized);

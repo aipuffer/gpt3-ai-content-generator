@@ -5,6 +5,10 @@
 (function () {
   "use strict";
 
+  // Each scope saves its own fields, as the old tabs did; the one last used is the one saved.
+  const SCOPE_SELECTOR = ".aipkit_settings_scope[data-aipkit-settings-page]";
+  let activeScope = null;
+
   function getSettingsContainer() {
     return document.getElementById("aipkit_settings_container");
   }
@@ -13,12 +17,27 @@
     if (!settingsContainer) {
       return null;
     }
-
-    return (
-      settingsContainer.querySelector("[data-aipkit-settings-page]:not([hidden])") ||
-      null
-    );
+    if (activeScope && activeScope.isConnected && settingsContainer.contains(activeScope)) {
+      return activeScope;
+    }
+    return settingsContainer.querySelector(SCOPE_SELECTOR);
   }
+
+  // Not pointerdown: a blur save from the previous field must still see its own scope.
+  // Moving to another scope switches the saved-state reference, as switching tabs did.
+  function trackScope(event) {
+    const scope = event.target && event.target.closest ? event.target.closest(SCOPE_SELECTOR) : null;
+    if (!scope || scope === activeScope) {
+      return;
+    }
+    activeScope = scope;
+    if (typeof window.aipkit_updateLastSavedData === "function") {
+      window.aipkit_updateLastSavedData(true);
+    }
+  }
+  ["focusin", "click", "keydown", "paste", "input", "change"].forEach(function (name) {
+    document.addEventListener(name, trackScope, true);
+  });
 
   function getNamedInputs(root) {
     if (!root) {
@@ -33,6 +52,11 @@
   function shouldIncludeInput(input, context) {
     const { root, scope } = context;
     if (!input?.name || !root || !root.contains(input)) {
+      return false;
+    }
+
+    // Independent forms must never override the AJAX routing or authentication fields.
+    if (["action", "_wpnonce", "_ajax_nonce", "_wp_http_referer"].includes(input.name)) {
       return false;
     }
 
@@ -65,10 +89,11 @@
 
   /**
    * Gathers settings form data.
-   * Defaults to the active settings page.
+   * Defaults to the settings scope last used.
    *
    * @param {Object} options
    * @param {"active"|"all"} [options.scope]
+   * @param {Element} [options.root] One settings scope to read instead of the active one.
    * @returns {Object} The current form data.
    */
   function aipkit_getCurrentFormData(options = {}) {
@@ -83,10 +108,14 @@
     const normalizedOptions =
       options && typeof options === "object" ? options : {};
     const scope = normalizedOptions.scope === "all" ? "all" : "active";
+    const requestedRoot =
+      normalizedOptions.root && settingsContainer.contains(normalizedOptions.root)
+        ? normalizedOptions.root
+        : null;
     const root =
       scope === "all"
         ? settingsContainer
-        : getActiveSettingsPage(settingsContainer) || settingsContainer;
+        : requestedRoot || getActiveSettingsPage(settingsContainer) || settingsContainer;
     const context = {
       root,
       scope,
@@ -102,4 +131,11 @@
   }
 
   window.aipkit_getCurrentFormData = aipkit_getCurrentFormData;
+  window.aipkit_getSettingsDataScope = function () {
+    return getActiveSettingsPage(getSettingsContainer());
+  };
+  window.aipkit_getSettingsDataScopes = function () {
+    const settingsContainer = getSettingsContainer();
+    return settingsContainer ? Array.from(settingsContainer.querySelectorAll(SCOPE_SELECTOR)) : [];
+  };
 })();

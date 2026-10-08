@@ -119,7 +119,17 @@ interface AIPKit_Vector_Provider_Strategy_Interface {
 abstract class AIPKit_Vector_Base_Provider_Strategy implements AIPKit_Vector_Provider_Strategy_Interface {
 
     protected $client; // Stores the initialized client for the provider
-    protected $is_connected = false;
+    protected $is_connected = false; // Credentials initialized; each remote request still authenticates.
+
+    /** Initialize an operation; remote providers override this to avoid a separate probe. */
+    public function configure(array $config) {
+        return $this->connect($config);
+    }
+
+    /** Dimension discovery does not require live point counts or usage statistics. */
+    public function describe_index_for_embeddings(string $index_name) {
+        return $this->describe_index($index_name);
+    }
 
     /**
      * Common helper to parse JSON, returning a WP_Error on failure.

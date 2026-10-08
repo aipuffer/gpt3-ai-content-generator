@@ -223,6 +223,11 @@
                 return json.data;
             })
             .then(data => {
+                // A superseded read must not restore old navigation or provider configuration.
+                if (options.isCurrent && !options.isCurrent()) {
+                    resolve(data);
+                    return;
+                }
                 if (data?.newConfiguration && window.aipkit_dashboard) {
                     Object.assign(window.aipkit_dashboard, data.newConfiguration);
                 }

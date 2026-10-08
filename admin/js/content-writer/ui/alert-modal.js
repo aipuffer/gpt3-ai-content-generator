@@ -226,8 +226,10 @@
     icon.setAttribute("aria-hidden", "true");
 
     const iconGlyph = document.createElement("span");
-    iconGlyph.className =
-      variant === "default"
+    // A caller may name its own dashicon, e.g. "upload"; otherwise the variant's.
+    iconGlyph.className = /^[a-z0-9-]+$/.test(String(options.icon || ""))
+      ? `dashicons dashicons-${options.icon}`
+      : variant === "default"
         ? "dashicons dashicons-info-outline"
         : "dashicons dashicons-warning";
     icon.appendChild(iconGlyph);
@@ -298,6 +300,10 @@
       actions.appendChild(confirmBtn);
     }
     body.appendChild(messageEl);
+    // More than a sentence, when the caller built it: e.g. which backup file, and what it replaces.
+    if (typeof Node !== "undefined" && options.content instanceof Node) {
+      body.appendChild(options.content);
+    }
     if (emphasisText) {
       body.appendChild(emphasisEl);
     }

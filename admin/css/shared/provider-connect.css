@@ -74,24 +74,24 @@
 .aipkit_connect_skeleton span:first-child { grid-column: 1 / -1; height: 76px; }
 @keyframes aipkit-connect-shimmer { to { background-position: -200% 0; } }
 
-/* Connection forms */
-.aipkit_connect_dialog label { display: block; margin: 18px 0 6px; color: var(--aipkit-connect-text); font-size: 14px; font-weight: 600; }
+/* Connection forms: the same sizes as the Settings provider panels. */
+.aipkit_connect_dialog label { display: block; margin: 16px 0 6px; color: var(--aipkit-connect-text); font-size: 13px; font-weight: 600; }
 .aipkit_connect_dialog form > label:first-child { margin-top: 0; }
-.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { width: 100%; max-width: none; min-height: 44px; margin: 0; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 10px; background-color: #fff; color: var(--aipkit-connect-text); font: inherit; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
-.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus { border-color: var(--aipkit-connect-accent); box-shadow: 0 0 0 3px #3f5fe826; outline: none; }
+.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { width: 100%; max-width: none; height: 40px; min-height: 40px; margin: 0; padding: 0 12px; border: 1px solid #d4dde8; border-radius: 9px; background-color: #fff; color: var(--aipkit-connect-text); font-family: inherit; font-size: 13.5px; line-height: 1.4; box-shadow: none; transition: border-color .15s, box-shadow .15s; }
+.aipkit_connect_dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus { border-color: var(--aipkit-connect-accent); box-shadow: 0 0 0 3px #e8edff; outline: none; }
 .aipkit_connect_dialog input::placeholder { color: #9aa4b5; }
 .aipkit_connect_input_wrap { position: relative; }
-.aipkit_connect_dialog .aipkit_connect_input_wrap:has(.aipkit_connect_reveal) input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { padding-right: 68px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
-.aipkit_connect_reveal { position: absolute; top: 50%; right: 6px; min-width: 52px; height: 32px; padding: 0 10px; transform: translateY(-50%); border: 0; border-radius: 8px; background: transparent; color: var(--aipkit-connect-muted); font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
+.aipkit_connect_dialog .aipkit_connect_input_wrap:has(.aipkit_connect_reveal) input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]) { padding-right: 64px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.aipkit_connect_reveal { position: absolute; top: 50%; right: 6px; min-width: 48px; height: 28px; padding: 0 8px; transform: translateY(-50%); border: 0; border-radius: 7px; background: transparent; color: var(--aipkit-connect-muted); font: 600 12.5px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: pointer; }
 .aipkit_connect_reveal:hover:not(:disabled) { background: #f1f4f9; color: var(--aipkit-connect-text); }
-.aipkit_connect_key_link { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; color: var(--aipkit-connect-accent); font-size: 13px; font-weight: 500; text-decoration: none; }
-.aipkit_connect_key_link:hover { color: #3450d1; text-decoration: underline; }
-.aipkit_connect_dialog details { margin-top: 18px; padding: 10px 14px; border: 1px solid var(--aipkit-connect-line); border-radius: 10px; background: #fafbfc; }
-.aipkit_connect_dialog summary { color: var(--aipkit-connect-muted); font-size: 14px; font-weight: 600; cursor: pointer; }
+.aipkit_connect_key_link { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; color: #2f49c9; font-size: 12.5px; font-weight: 650; text-decoration: none; }
+.aipkit_connect_key_link:hover { color: #2f49c9; text-decoration: underline; text-underline-offset: 2px; }
+.aipkit_connect_dialog details { margin-top: 16px; padding: 0; border: 0; background: none; }
+.aipkit_connect_dialog summary { color: #5f6b7d; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .aipkit_connect_dialog details[open] summary { margin-bottom: 4px; }
 .aipkit_connect_dialog details label { margin-top: 12px; }
-.aipkit_connect_actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
-.aipkit_connect_feedback { padding: 10px 14px; border: 1px solid #f6cfcb; border-radius: 10px; background: #fef3f2; color: #b42318; font-size: 14px; overflow-wrap: anywhere; }
+.aipkit_connect_actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.aipkit_connect_feedback { padding: 10px 14px; border: 1px solid #f6cfcb; border-radius: 10px; background: #fef3f2; color: #b42318; font-size: 13px; overflow-wrap: anywhere; }
 .aipkit_connect_feedback:empty { display: none; }
 .aipkit_connect_dialog form[aria-busy="true"] { opacity: .7; }
 .aipkit_connect_dialog :focus-visible { outline: 2px solid var(--aipkit-connect-accent); outline-offset: 2px; }
@@ -111,20 +111,20 @@
   .aipkit_connect_dialog * { transition: none !important; }
 }
 
-/* Match the onboarding Continue and Back controls in this connection flow. */
+/* Buttons match the Settings provider panels and the Cloud button. */
 .aipkit_connect_dialog .aipkit_btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 46px;
-  height: auto;
-  padding: 0 22px;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 16px;
   border: 1px solid #d5dbe6;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
   color: #33415c;
-  font: 600 15px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 600 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   cursor: pointer;
   text-decoration: none;
   box-shadow: none;
@@ -159,10 +159,8 @@
   box-shadow: none;
 }
 .aipkit_connect_dialog .aipkit_btn:disabled {
-  background: #c9d1e6;
-  border-color: #c9d1e6;
   cursor: not-allowed;
-  opacity: 1;
+  opacity: .7;
 }
 .aipkit_connect_dialog .aipkit_btn[aria-busy="true"] { cursor: progress; opacity: .8; }
 

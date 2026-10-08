@@ -194,7 +194,7 @@ final class Connection
     {
         $state = self::state();
         if (isset($state['token'], $state['identity']) && $state['identity'] !== self::freemius_identity()) {
-            self::forget_connection();
+            self::forget_changed_account();
             return [];
         }
         if (!empty($state['token']) && isset($state['email'])) {
@@ -216,7 +216,7 @@ final class Connection
     {
         try {
             $state = self::state();
-            if (!empty($state['token']) && (!isset($state['identity']) || $state['identity'] !== self::freemius_identity())) { self::forget_connection(); }
+            if (!empty($state['token']) && (!isset($state['identity']) || $state['identity'] !== self::freemius_identity())) { self::forget_changed_account(); }
         } catch (\Throwable $error) { /* An unreadable connection already fails closed. */ }
     }
 
@@ -237,6 +237,23 @@ final class Connection
             }
         } catch (\Throwable $error) { /* Cloud independently rechecks ownership on the next request. */ }
         foreach ([self::OPTION, self::CREDITS, self::REFUSAL_REFRESH, 'aipkit_cloud_credit_packs'] as $option) { delete_option($option); }
+    }
+
+    private static function forget_changed_account(): void
+    {
+        $before = self::state()['identity']['user'] ?? null;
+        $after = self::freemius_identity()['user'] ?? null;
+        self::forget_connection();
+        if ($before !== null && $after !== null && $before !== $after) {
+            update_option(self::CREDITS, ['accountChanged' => true], false);
+        }
+    }
+
+    public static function account_change_message(): string
+    {
+        return !empty(self::credit_state()['accountChanged'])
+            ? __('This site’s account changed, so Cloud was disconnected. Connect with the account shown above to continue. Credits stay with their original account.', 'gpt3-ai-content-generator')
+            : '';
     }
 
     public static function generation_ready(): bool
@@ -415,6 +432,7 @@ final class Connection
         $state['checkedAt'] = time();
         $state['emailVerified'] = $email_verified;
         $state['revoked'] = false;
+        unset($state['accountChanged']);
         $problem = $state['problem'] ?? '';
         if (($problem === 'insufficient_funds' && (int) $credits['available'] > 0)
             || ($problem === 'credit_deficit' && empty($credits['restricted']))
@@ -565,7 +583,11 @@ final class Connection
     }
 
     /** The same account editor in setup, provider dialogs and Usage. */
-    public static function account_email_html(bool $onboarding = false): string
+    /**
+     * @param bool $panel The Settings panel layout: avatar, a caption or verified line, "Change email", and
+     *                    Disconnect below the card. Every hook the email editor uses stays the same.
+     */
+    public static function account_email_html(bool $onboarding = false, bool $panel = false): string
     {
         $display = self::display();
         $button = $onboarding ? 'aipkit-setup__btn' : 'aipkit_btn aipkit_btn-primary';
@@ -574,12 +596,25 @@ final class Connection
         ?>
         <div class="aipkit_cloud_account_controls" data-cloud-account-controls data-aipkit-settings-autosave-exclude="true" <?php echo !$display['registered'] ? 'hidden' : ''; ?>>
             <div class="aipkit_cloud_account_row" data-cloud-account>
-                <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
-                <button type="button" class="<?php echo $onboarding ? 'aipkit-setup__link' : 'button-link'; ?>" data-action="edit-email" aria-expanded="false" <?php echo !$display['email_update'] ? 'hidden' : ''; ?>><?php esc_html_e('Edit', 'gpt3-ai-content-generator'); ?></button>
+                <?php if ($panel) : ?>
+                    <span class="aipkit_cloud_account_avatar" aria-hidden="true"><?php echo esc_html(function_exists('mb_strtoupper') ? mb_strtoupper(mb_substr($display['email'], 0, 1)) : strtoupper(substr($display['email'], 0, 1))); ?></span>
+                    <span class="aipkit_cloud_account_who">
+                        <?php if ($onboarding || !$display['connected']) : ?>
+                            <span class="aipkit_cloud_account_caption" <?php echo $display['connected'] ? 'hidden' : ''; ?>><?php esc_html_e('Connect as', 'gpt3-ai-content-generator'); ?></span>
+                        <?php endif; ?>
+                        <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
+                        <?php if ($onboarding || ($display['connected'] && $display['email_verified'] === true)) : ?>
+                            <span class="aipkit_cloud_account_verified" <?php echo !$display['connected'] || $display['email_verified'] !== true ? 'hidden' : ''; ?>><?php esc_html_e('Email verified', 'gpt3-ai-content-generator'); ?></span>
+                        <?php endif; ?>
+                    </span>
+                <?php else : ?>
+                    <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
+                <?php endif; ?>
+                <button type="button" class="<?php echo $onboarding ? 'aipkit-setup__link' : 'button-link'; ?>" data-action="edit-email" aria-expanded="false" <?php echo !$display['email_update'] ? 'hidden' : ''; ?>><?php echo esc_html($panel ? __('Change email', 'gpt3-ai-content-generator') : __('Edit', 'gpt3-ai-content-generator')); ?></button>
                 <a data-cloud-manage-email href="<?php echo esc_url($display['manage_email_url']); ?>" target="_blank" rel="noopener noreferrer" <?php echo $display['email_update'] || !$display['manage_email_url'] ? 'hidden' : ''; ?>><?php esc_html_e('Manage email', 'gpt3-ai-content-generator'); ?></a>
                 <?php if ($onboarding) : ?>
                     <button type="button" class="aipkit-setup__link" data-action="disconnect-cloud" <?php echo !$display['connected'] ? 'hidden' : ''; ?>><?php esc_html_e('Disconnect', 'gpt3-ai-content-generator'); ?></button>
-                <?php elseif ($display['connected']) : ?>
+                <?php elseif ($display['connected'] && !$panel) : ?>
                     <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_account_disconnect" id="aipkit_cloud_account_form">
                         <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
                         <input type="hidden" name="action" value="aipkit_cloud_connection">
@@ -615,14 +650,23 @@ final class Connection
                     <label><input type="radio" name="email_transfer" value="all"><span><?php esc_html_e('Yes - move all my data and assets from', 'gpt3-ai-content-generator'); ?> <strong><?php echo esc_html($display['email']); ?></strong> <?php esc_html_e('to', 'gpt3-ai-content-generator'); ?> <strong data-new-email></strong></span></label>
                     <label><input type="radio" name="email_transfer" value="plugin"><span><?php esc_html_e('No - only move this site’s data to', 'gpt3-ai-content-generator'); ?> <strong data-new-email></strong></span></label>
                 </fieldset>
+                <p><?php esc_html_e('Cloud credits stay with their original account. If this site moves to another account, you will need to reconnect Cloud.', 'gpt3-ai-content-generator'); ?></p>
                 <p data-email-error role="alert" hidden></p>
                 <div class="aipkit_cloud_email_actions">
                     <button type="submit" class="<?php echo esc_attr($button); ?>"><?php esc_html_e('Save', 'gpt3-ai-content-generator'); ?></button>
                     <button type="button" class="<?php echo esc_attr($cancel); ?>" data-action="cancel-email"><?php esc_html_e('Cancel', 'gpt3-ai-content-generator'); ?></button>
                 </div>
             </form>
-            <p class="aipkit_cloud_muted" data-email-message role="status" hidden></p>
+            <p class="aipkit_cloud_email_message" data-email-message role="status" hidden></p>
+            <p class="aipkit_cloud_email_message" data-cloud-account-change role="status" <?php echo self::account_change_message() === '' ? 'hidden' : ''; ?>><?php echo esc_html(self::account_change_message()); ?></p>
         </div>
+        <?php // The panel's model sync and its footer Disconnect submit this form; setup keeps its own Disconnect in the account row. ?>
+        <?php if ($panel && !$onboarding && $display['connected']) : ?>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_panel_disconnect" id="aipkit_cloud_account_form" hidden>
+                <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
+                <input type="hidden" name="action" value="aipkit_cloud_connection">
+            </form>
+        <?php endif; ?>
         <?php
         return (string) ob_get_clean();
     }
@@ -755,7 +799,10 @@ final class Connection
             $result = self::post('/api/cloud', ['operation' => 'status', 'site' => self::site(), 'verifyEmail' => $verify_email], self::generation_headers(), 20);
             $identity = $result['identity'] ?? null;
             if (is_array($identity)) {
-                if ($identity !== self::freemius_identity()) { self::forget_connection(); throw new RuntimeException('credential_unavailable'); }
+                if ($identity !== self::freemius_identity()) {
+                    self::forget_changed_account();
+                    return ['credits' => null, 'emailVerified' => null, 'revoked' => true];
+                }
                 $state = self::state();
                 if (!empty($state['token'])) { $state['identity'] = $identity; $state['email'] = self::freemius_display()['email']; self::state($state); }
             }
@@ -893,6 +940,20 @@ final class Connection
     }
 
     /**
+     * Custom registration consents to the service, not optional SDK telemetry. Set these before
+     * opt_in() so both its request and a later email-confirmation callback retain that choice.
+     * Premium licensing's essential permissions and the separate marketing choice are unchanged.
+     */
+    public static function disable_optional_registration_tracking(): void
+    {
+        \FS_Permission_Manager::instance(\wpaicg_gacg_fs())->update_permissions_tracking_flag([
+            'site' => false,
+            'diagnostic' => false,
+            'extensions' => false,
+        ]);
+    }
+
+    /**
      * One click: prove this installation to Cloud with the Freemius install secret. Sites that are not
      * registered with Freemius are registered first (explicit consent, usage tracking off).
      */
@@ -907,7 +968,10 @@ final class Connection
             if (!is_email($email)) { return 'invalid_email'; }
             if (!self::lock(self::REGISTRATION_COOLDOWN, 60)) { return 'registration_wait'; }
             update_option(self::REGISTRATION, ['email' => $email], false);
-            try { ConnectionDiagnostics::sdk_result($fs->opt_in($email, false, false, false, false, false, true, $marketing, [], false)); }
+            try {
+                self::disable_optional_registration_tracking();
+                ConnectionDiagnostics::sdk_result($fs->opt_in($email, false, false, false, false, false, true, $marketing, [], false));
+            }
             catch (\Throwable $error) { ConnectionDiagnostics::error($error->getMessage()); return 'freemius_failed'; }
             if (!$fs->is_registered(true)) { return $fs->is_pending_activation() ? 'confirm_email' : 'freemius_failed'; }
         }

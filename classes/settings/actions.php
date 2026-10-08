@@ -19,6 +19,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once __DIR__ . '/restore-point.php';
+
 /**
  * Handles AJAX requests for saving core AI Settings and related options.
  * Refactored for better modularity and clarity in saving different settings groups.
@@ -49,8 +51,6 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
         update_option('aipkit_visitor_billing_enabled', $enabled === '1' ? 'yes' : 'no', false);
         wp_send_json_success(['enabled' => $enabled === '1']);
     }
-
-    private const SETTINGS_RESTORE_POINT_OPTION = 'aipkit_settings_restore_point';
 
     /**
      * Model-list options that can be exported/imported by Settings Backup.
@@ -879,14 +879,14 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             return;
         }
 
-        $apply_result = $this->apply_imported_settings_payload($decoded_payload);
+        $apply_result = $this->apply_imported_settings_payload($decoded_payload, 'before_file');
         if (is_wp_error($apply_result)) {
             $this->send_wp_error($apply_result);
             return;
         }
 
         wp_send_json_success([
-            'message' => __('Global settings imported successfully. Chatbots and knowledge base data were not changed.', 'gpt3-ai-content-generator'),
+            'message' => __('Restored from the file. Your settings from before are the restore point.', 'gpt3-ai-content-generator'),
         ]);
     }
 
@@ -901,10 +901,14 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             return;
         }
 
-        update_option(self::SETTINGS_RESTORE_POINT_OPTION, $this->build_settings_backup_payload(), 'no');
+        if (!AIPKit_Settings_Restore_Point::save($this->build_settings_backup_payload(), 'manual')) {
+            $this->send_wp_error(new WP_Error('restore_point_save_failed', __('The restore point could not be saved. Your settings have not been changed.', 'gpt3-ai-content-generator'), ['status' => 500]));
+            return;
+        }
 
         wp_send_json_success([
-            'message' => __('Restore point created.', 'gpt3-ai-content-generator'),
+            'message' => __('Restore point saved.', 'gpt3-ai-content-generator'),
+            'restore_point' => AIPKit_Settings_Restore_Point::summary(),
         ]);
     }
 
@@ -919,8 +923,8 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             return;
         }
 
-        $restore_payload = get_option(self::SETTINGS_RESTORE_POINT_OPTION, []);
-        if (!is_array($restore_payload) || empty($restore_payload)) {
+        $restore_payload = AIPKit_Settings_Restore_Point::get();
+        if ($restore_payload === []) {
             $this->send_wp_error(new WP_Error(
                 'restore_point_missing',
                 __('No restore point found.', 'gpt3-ai-content-generator'),
@@ -929,14 +933,14 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             return;
         }
 
-        $apply_result = $this->apply_imported_settings_payload($restore_payload);
+        $apply_result = $this->apply_imported_settings_payload($restore_payload, 'before_restore');
         if (is_wp_error($apply_result)) {
             $this->send_wp_error($apply_result);
             return;
         }
 
         wp_send_json_success([
-            'message' => __('Restore point applied successfully.', 'gpt3-ai-content-generator'),
+            'message' => __('Went back to the restore point. Your settings from before are the restore point now.', 'gpt3-ai-content-generator'),
         ]);
     }
 
@@ -994,9 +998,7 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
         $model_lists = [];
         foreach (self::BACKUP_MODEL_LIST_OPTIONS as $option_name) {
             $value = get_option($option_name, []);
-            if (is_array($value) && !empty($value)) {
-                $model_lists[$option_name] = $this->sanitize_recursive_value($value);
-            }
+            $model_lists[$option_name] = is_array($value) ? $this->sanitize_recursive_value($value) : [];
         }
 
         return $model_lists;
@@ -1008,7 +1010,7 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
      * @param array $payload Decoded JSON backup payload.
      * @return true|WP_Error
      */
-    private function apply_imported_settings_payload(array $payload)
+    private function apply_imported_settings_payload(array $payload, string $save_point_reason = '')
     {
         $imported_options = null;
         if (isset($payload['aipkit_options']) && is_array($payload['aipkit_options'])) {
@@ -1018,7 +1020,7 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             $imported_options = $payload;
         }
 
-        if (!is_array($imported_options)) {
+        if (!is_array($imported_options) || !isset($imported_options['providers']) || !is_array($imported_options['providers'])) {
             return new WP_Error(
                 'invalid_import_format',
                 __('Backup payload is missing the settings block.', 'gpt3-ai-content-generator'),
@@ -1110,6 +1112,12 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
 
         if (($normalized_additional_options['aipkit_visitor_billing_enabled'] ?? '') === 'yes') {
             $sanitized_options['module_settings']['stats_viewer'] = true;
+        }
+        // Everything checked out, so keep today's settings before the first write: a restore can always be undone.
+        if ($save_point_reason !== '') {
+            if (!AIPKit_Settings_Restore_Point::save($this->build_settings_backup_payload(), $save_point_reason)) {
+                return new WP_Error('restore_point_save_failed', __('The restore point could not be saved. Your settings have not been changed.', 'gpt3-ai-content-generator'), ['status' => 500]);
+            }
         }
         update_option('aipkit_options', $sanitized_options, 'no');
         foreach ($normalized_additional_options as $option_name => $value) {

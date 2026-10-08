@@ -2,7 +2,7 @@
  * Notices: one calm strip per message, coloured by how serious it is. A tinted icon, the message (what
  * happened in bold, what it means after it), one action and a close button.
  * Tones: critical (work is stopped), warning (it may fail or run late), setup (connect something),
- * info (good to know) and promo (a tip). Also loaded on other AI Puffer screens for Cloud credit alerts,
+ * info (good to know) and promo (a tip); setup and promo share one white strip. Also loaded on other AI Puffer screens for Cloud credit alerts,
  * so colours are spelled out rather than taken from the dashboard's tokens.
  */
 .aipkit_notification_bar {
@@ -44,13 +44,7 @@
     --aipkit-notice-ink: #8a5300;
 }
 
-.aipkit_notification_bar--setup {
-    --aipkit-notice-bg: #f3f5ff;
-    --aipkit-notice-line: #dbe2ff;
-    --aipkit-notice-tile: #e3e9ff;
-    --aipkit-notice-ink: #2f49c9;
-}
-
+.aipkit_notification_bar--setup,
 .aipkit_notification_bar--promo {
     --aipkit-notice-bg: #ffffff;
     --aipkit-notice-line: #dbe2ff;

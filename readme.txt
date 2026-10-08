@@ -4,7 +4,7 @@ Tags: chatbot, chatgpt, ai writer, openai, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.96
+Stable tag: 2.4.97
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -205,6 +205,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.4.97 =
+Redesigned Settings, improved app connections and delivery logs, safer backups and visitor blocking, and fixes for AI Forms and Qdrant knowledge bases.
+
 = 2.4.96 =
 Redesigned chatbot settings and navigation, with improved knowledge-source management, audio controls and settings reliability.
 
@@ -215,6 +218,22 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.4.97 =
+
+- Redesigned Settings into AI, Tools, Connections, Security, For developers and Help, with shared provider setup and clearer connection status.
+- Moved backups into Security, preserved existing links, and added clearer restore warnings, automatic restore points and a Go back action.
+- Improved app connection checks, credential updates, chatbot and AI Form rules, and delivery logs and retry feedback.
+- Improved WordPress AI, REST API and webhook settings, including endpoint test sends and delivery status.
+- Fixed shortened IPv6 logging and prevented conversation actions from blocking an exact visitor using an anonymized address.
+- Improved AI Form email validation and upload protection, and corrected access checks for published Image Generator shortcodes.
+- Added support for Qdrant collections with a single named dense vector and clearer vector configuration and dimension errors.
+- Reduced repeated Qdrant search requests with cached collection metadata and automatic refresh when collection settings change.
+- Removed redundant connection probes during Qdrant, Pinecone, Chroma, and OpenAI vector-store operations, and unnecessary count requests during embedding dimension preparation.
+- Clearly label unsupported legacy HubSpot note mappings so contact rules show which fields are sent.
+- Improved Cloud account-change handling, registration privacy choices and default model selection.
+- Fixed Cloud connection status staying stale between the setup wizard, provider dialog, Settings sidebar and Usage, including other open admin tabs; reconnecting preserves your chosen model.
+- Improved onboarding, model selectors, notifications and Help links.
 
 = 2.4.96 =
 

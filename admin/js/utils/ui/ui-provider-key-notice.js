@@ -62,8 +62,8 @@
     xai: { page: "ai", card: "xAI", kind: "provider" },
     ollama: { page: "ai", card: "Ollama", kind: "provider" },
     replicate: { page: "integrations", card: "replicate", kind: "integration" },
-    pexels: { page: "integrations", card: "pexels", kind: "integration" },
-    pixabay: { page: "integrations", card: "pixabay", kind: "integration" },
+    pexels: { page: "stock-photos", card: "pexels", kind: "integration" },
+    pixabay: { page: "stock-photos", card: "pixabay", kind: "integration" },
     pinecone: { page: "integrations", card: "pinecone", kind: "integration" },
     qdrant: { page: "integrations", card: "qdrant", kind: "integration" },
     chroma: { page: "integrations", card: "chroma", kind: "integration" },
@@ -518,6 +518,7 @@
   }
 
   window.aipkit_initProviderKeyNotices = initProviderKeyNotices;
+  window.aipkit_refreshProviderNotices = refreshNotices;
   window.aipkit_applyProviderStatus = applyProviderStatusMap;
   window.aipkit_syncProviderStatusFromSettings = function () {
     const updated = updateProviderStatusFromSettings();

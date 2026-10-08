@@ -77,8 +77,12 @@ window.aipkit_initUnifiedModelSelector = function () {
         topBoundary = Math.max(topBoundary, adminBarRect.bottom + gutter);
       }
     }
-    const panelWidth = Math.min(600, rightBoundary - leftBoundary);
-    const nextCompactPanel = panelWidth < 560;
+    // A simple picker (one provider, in Settings) opens as wide as its field.
+    const simple = selector.dataset.aipkitModelPicker === "simple";
+    const panelWidth = simple
+      ? Math.min(Math.max(triggerRect.width, 320), rightBoundary - leftBoundary)
+      : Math.min(600, rightBoundary - leftBoundary);
+    const nextCompactPanel = !simple && panelWidth < 560;
     const layoutChanged = compactPanel !== nextCompactPanel;
     compactPanel = nextCompactPanel;
     popover.classList.toggle("is-compact", compactPanel);
@@ -1305,6 +1309,11 @@ window.aipkit_initUnifiedModelSelector = function () {
     const search = selector.querySelector(
       "[data-aipkit-unified-model-search]"
     );
+    const searchBar = popover?.querySelector(".aipkit_unified_model_search_bar");
+    // Settings pickers list one provider's models: no provider rail, no favorites, search only for long lists.
+    const simplePicker = selector.dataset.aipkitModelPicker === "simple";
+    const simpleListSize = 12;
+    popover?.classList.toggle("is-simple", simplePicker);
     const providersList = selector.querySelector(
       "[data-aipkit-unified-model-providers]"
     );
@@ -1426,7 +1435,7 @@ window.aipkit_initUnifiedModelSelector = function () {
         providerDiagnosticsEnabled
       );
       const modelFavoritesEnabled =
-        selector.dataset.aipkitShowModelFavorites !== "0";
+        !simplePicker && selector.dataset.aipkitShowModelFavorites !== "0";
       if (!modelFavoritesEnabled && activeProvider === favoritesProviderKey) {
         activeProvider = selection.provider || providers[0]?.provider || "";
       }
@@ -1530,14 +1539,15 @@ window.aipkit_initUnifiedModelSelector = function () {
     };
 
     const render = () => {
-      if (!list || !providersList) {
+      // The list is built only while open (opening renders it), so closed pickers stay cheap.
+      if (!list || !providersList || !selector.classList.contains("is-open")) {
         return;
       }
       const providerScrollTop = providersList.scrollTop;
       const providerScrollLeft = providersList.scrollLeft;
       const { selection, entries, providers } = getViewData();
       const modelFavoritesEnabled =
-        selector.dataset.aipkitShowModelFavorites !== "0";
+        !simplePicker && selector.dataset.aipkitShowModelFavorites !== "0";
       const searchTerm = String(search?.value || "").trim().toLowerCase();
       const selectionExists = entries.some(
         (entry) =>
@@ -1639,6 +1649,11 @@ window.aipkit_initUnifiedModelSelector = function () {
       }
       list.setAttribute("role", "list");
       list.removeAttribute("aria-label");
+      if (simplePicker && searchBar) {
+        searchBar.hidden =
+          !searchTerm &&
+          entries.filter((entry) => sameProvider(entry.provider, activeProvider)).length <= simpleListSize;
+      }
       let activeEntries = isAllView
         ? searchTerm
           ? entries.filter((entry) =>
@@ -1723,7 +1738,8 @@ window.aipkit_initUnifiedModelSelector = function () {
         });
       }
 
-      if (familyGroups.size > 1) {
+      // A simple picker's short list needs no family headings, like it needs no search.
+      if (familyGroups.size > 1 && !(simplePicker && activeEntries.length <= simpleListSize)) {
         Array.from(familyGroups.values())
           .sort(
             (first, second) =>
@@ -1742,6 +1758,7 @@ window.aipkit_initUnifiedModelSelector = function () {
               ? familyCollapseOverrides.get(collapseKey)
               : family.collapsed;
             if (
+              simplePicker ||
               searchTerm ||
               (containsSelection && !familyCollapseOverrides.has(collapseKey))
             ) {
@@ -1751,17 +1768,19 @@ window.aipkit_initUnifiedModelSelector = function () {
             const section = document.createElement("section");
             section.className = "aipkit_unified_model_family";
             section.classList.toggle("is-collapsed", isCollapsed);
-            const header = document.createElement("button");
-            header.type = "button";
+            const header = document.createElement(simplePicker ? "div" : "button");
             header.className = "aipkit_unified_model_family_header";
-            header.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
-            header.setAttribute(
-              "aria-label",
-              `${family.label}, ${family.entries.length} ${translate(
-                "models",
-                "gpt3-ai-content-generator"
-              )}`
-            );
+            if (!simplePicker) {
+              header.type = "button";
+              header.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+              header.setAttribute(
+                "aria-label",
+                `${family.label}, ${family.entries.length} ${translate(
+                  "models",
+                  "gpt3-ai-content-generator"
+                )}`
+              );
+            }
             const label = document.createElement("span");
             label.className = "aipkit_unified_model_family_label";
             label.textContent = family.label;
@@ -1772,20 +1791,23 @@ window.aipkit_initUnifiedModelSelector = function () {
             chevron.className =
               "aipkit_unified_model_family_chevron dashicons dashicons-arrow-down-alt2";
             chevron.setAttribute("aria-hidden", "true");
-            header.append(label, count, chevron);
+            header.append(label, count);
 
             const body = document.createElement("div");
             body.className = "aipkit_unified_model_family_models";
             body.hidden = isCollapsed;
             appendEntries(family.entries, body);
-            header.addEventListener("click", () => {
-              const scrollTop = list?.scrollTop || 0;
-              familyCollapseOverrides.set(collapseKey, !isCollapsed);
-              render();
-              if (list) {
-                list.scrollTop = scrollTop;
-              }
-            });
+            if (!simplePicker) {
+              header.append(chevron);
+              header.addEventListener("click", () => {
+                const scrollTop = list?.scrollTop || 0;
+                familyCollapseOverrides.set(collapseKey, !isCollapsed);
+                render();
+                if (list) {
+                  list.scrollTop = scrollTop;
+                }
+              });
+            }
             section.append(header, body);
             fragment.appendChild(section);
           });
@@ -1860,7 +1882,7 @@ window.aipkit_initUnifiedModelSelector = function () {
       if (isOpen) {
         const selection = getSelection();
         positionPopover();
-        activeProvider = compactPanel
+        activeProvider = compactPanel && !simplePicker
           ? allProviderKey
           : selection.provider || activeProvider;
         setActiveFilter(selection.category || activeFilter || "all", false);
@@ -1877,11 +1899,14 @@ window.aipkit_initUnifiedModelSelector = function () {
         }
         window.requestAnimationFrame(() => {
           positionPopover();
-          search?.focus();
-          search?.select();
-          list
-            ?.querySelector(".aipkit_unified_model_item.is-selected")
-            ?.scrollIntoView({ block: "nearest" });
+          const selectedItem = list?.querySelector(".aipkit_unified_model_item.is-selected");
+          if (searchBar?.hidden) {
+            (selectedItem || list?.querySelector(".aipkit_unified_model_item:not([disabled])"))?.focus();
+          } else {
+            search?.focus();
+            search?.select();
+          }
+          selectedItem?.scrollIntoView({ block: "nearest" });
         });
       } else {
         if (search) {
@@ -1987,10 +2012,11 @@ window.aipkit_initUnifiedModelSelector = function () {
     });
     const handleSearchInput = () => {
       const hasSearch = Boolean(String(search?.value || "").trim());
-      if (hasSearch && !searchHadValue) {
+      // Searching spans every provider; a simple picker narrows its one provider's list in place.
+      if (!simplePicker && hasSearch && !searchHadValue) {
         providerBeforeSearch = activeProvider;
         activeProvider = allProviderKey;
-      } else if (!hasSearch && searchHadValue) {
+      } else if (!simplePicker && !hasSearch && searchHadValue) {
         activeProvider = compactPanel
           ? allProviderKey
           : providerBeforeSearch || getSelection().provider || allProviderKey;
@@ -2218,7 +2244,12 @@ window.aipkit_initUnifiedModelSelector = function () {
             providerTarget,
             modelTarget || upgradeTarget || notice?.querySelector("button"),
             manageLink,
-          ].filter((element) => element && !element.hidden);
+          ].filter((element) =>
+            element &&
+            !element.hidden &&
+            element.getClientRects().length > 0 &&
+            window.getComputedStyle(element).visibility === "visible"
+          );
           if (!focusGroups.length) {
             return;
           }

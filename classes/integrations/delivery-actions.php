@@ -2,8 +2,12 @@
 
 namespace WPAICG\Dashboard\Ajax;
 
+use WPAICG\Core\AIPKit_Event_Delivery_Manager;
+use WPAICG\Core\AIPKit_Event_Payload_Builder;
 use WPAICG\Core\AIPKit_Event_Queue_Store;
 use WPAICG\Core\AIPKit_Event_Queue_Worker;
+use WPAICG\Core\AIPKit_Event_Webhook_Status;
+use WPAICG\Core\AIPKit_Event_Webhooks_Settings;
 use WP_Error;
 
 if (!defined('ABSPATH')) {
@@ -43,8 +47,6 @@ class AIPKit_Event_Webhook_Delivery_Issues_Ajax_Handler extends BaseDashboardAja
 
         $targets = isset($job['targets']) && is_array($job['targets']) ? $job['targets'] : [];
         $context = isset($job['context']) && is_array($job['context']) ? $job['context'] : [];
-        $event_name = sanitize_text_field((string) ($job['event_name'] ?? ''));
-        $envelope = isset($job['envelope']) && is_array($job['envelope']) ? $job['envelope'] : [];
 
         $updated = AIPKit_Event_Queue_Store::update_job_state($job_uuid, [
             'status' => 'pending',
@@ -88,10 +90,11 @@ class AIPKit_Event_Webhook_Delivery_Issues_Ajax_Handler extends BaseDashboardAja
         }
 
         if ($this->is_retryable_webhook_issue($refreshed_job)) {
+            // The endpoint's panel shows the new answer in place of the old one, in the same plain words.
             wp_send_json_success([
                 'status' => 'failed',
                 'message' => __('Webhook delivery retry failed again.', 'gpt3-ai-content-generator'),
-                'replacement_html' => $this->render_issue_html($refreshed_job),
+                'issue' => $this->describe_issue($refreshed_job),
             ]);
             return;
         }
@@ -156,47 +159,97 @@ class AIPKit_Event_Webhook_Delivery_Issues_Ajax_Handler extends BaseDashboardAja
     }
 
     /**
-     * @param array<string, mixed> $issue
+     * The failure in plain words, named after the endpoint the panel belongs to.
+     *
+     * @param array<string, mixed> $job
+     * @return array<string, string>
      */
-    private function render_issue_html(array $issue): string
+    private function describe_issue(array $job): array
     {
-        $job_uuid = sanitize_text_field((string) ($issue['job_uuid'] ?? ''));
-        $event_name = sanitize_text_field((string) ($issue['event_name'] ?? ''));
-        $target_summary = sanitize_text_field((string) ($issue['target_summary'] ?? __('Webhook endpoint', 'gpt3-ai-content-generator')));
-        $error_message = sanitize_text_field((string) (($issue['error_message'] ?? '') ?: __('Webhook delivery failed.', 'gpt3-ai-content-generator')));
-        $displayed_at = sanitize_text_field((string) ($issue['displayed_at'] ?? ''));
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified in check_module_access_permissions().
+        $endpoint_id = sanitize_key((string) wp_unslash($_POST['endpoint_id'] ?? ''));
+        $host = '';
+        foreach ((array) ($job['targets'] ?? []) as $target) {
+            if (!is_array($target)) {
+                continue;
+            }
+            $target_host = (string) wp_parse_url((string) ($target['url'] ?? ''), PHP_URL_HOST);
+            if ($host === '' || sanitize_key((string) ($target['id'] ?? '')) === $endpoint_id) {
+                $host = $target_host;
+            }
+        }
+        if (!class_exists(AIPKit_Event_Webhook_Status::class)) {
+            require_once __DIR__ . '/webhook-status.php';
+        }
 
-        ob_start();
-        ?>
-        <article class="aipkit_settings_app_delivery_issue" data-aipkit-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-            <div class="aipkit_settings_app_delivery_issue_header">
-                <div class="aipkit_settings_app_delivery_issue_heading">
-                    <strong><?php echo esc_html($target_summary); ?></strong>
-                    <span class="aipkit_settings_app_delivery_issue_meta">
-                        <?php echo esc_html($event_name); ?>
-                    </span>
-                </div>
-                <span class="aipkit_settings_app_delivery_issue_status aipkit_settings_app_delivery_issue_status--failed">
-                    <?php esc_html_e('Failed', 'gpt3-ai-content-generator'); ?>
-                </span>
-            </div>
-            <p class="aipkit_settings_app_delivery_issue_message"><?php echo esc_html($error_message); ?></p>
-            <div class="aipkit_settings_app_delivery_issue_footer">
-                <span class="aipkit_settings_app_delivery_issue_time"><?php echo esc_html($displayed_at); ?></span>
-                <div class="aipkit_settings_app_delivery_issue_actions">
-                    <button type="button" class="button button-secondary aipkit_btn aipkit_btn-danger" data-aipkit-clear-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-                        <span class="aipkit_btn-text"><?php esc_html_e('Clear', 'gpt3-ai-content-generator'); ?></span>
-                        <span class="aipkit_spinner"></span>
-                    </button>
-                    <button type="button" class="button button-secondary aipkit_btn" data-aipkit-retry-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-                        <span class="aipkit_btn-text"><?php esc_html_e('Retry', 'gpt3-ai-content-generator'); ?></span>
-                        <span class="aipkit_spinner"></span>
-                    </button>
-                </div>
-            </div>
-        </article>
-        <?php
+        return AIPKit_Event_Webhook_Status::describe($job, $host);
+    }
 
-        return (string) ob_get_clean();
+    /**
+     * Sends one sample event to a saved endpoint, now, and says what it answered.
+     */
+    public function ajax_send_event_webhook_test(): void
+    {
+        $permission_check = $this->check_module_access_permissions('settings');
+        if (is_wp_error($permission_check)) {
+            $this->send_wp_error($permission_check);
+            return;
+        }
+
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Verified in check_module_access_permissions().
+        $endpoint_id = sanitize_key((string) wp_unslash($_POST['endpoint_id'] ?? ''));
+        $endpoint = null;
+        foreach ((array) (AIPKit_Event_Webhooks_Settings::get_settings()['endpoints'] ?? []) as $candidate) {
+            if (is_array($candidate) && $endpoint_id !== '' && sanitize_key((string) ($candidate['id'] ?? '')) === $endpoint_id) {
+                $endpoint = $candidate;
+                break;
+            }
+        }
+        $url = is_array($endpoint) ? esc_url_raw((string) ($endpoint['url'] ?? '')) : '';
+        if ($url === '') {
+            $this->send_wp_error(new WP_Error(
+                'aipkit_webhook_test_no_url',
+                __('Add the endpoint’s URL first.', 'gpt3-ai-content-generator'),
+                ['status' => 400]
+            ));
+            return;
+        }
+
+        $events = array_values(array_filter(array_map('strval', (array) ($endpoint['events'] ?? []))));
+        $event_name = sanitize_text_field($events[0] ?? 'chatbot.response_generated');
+        $envelope = AIPKit_Event_Payload_Builder::build_envelope(
+            $event_name,
+            ['test' => true, 'message' => __('A test event from AI Puffer. You can ignore it.', 'gpt3-ai-content-generator')],
+            ['origin' => 'test', 'meta' => ['test' => true]]
+        );
+        $results = AIPKit_Event_Delivery_Manager::deliver(
+            $event_name,
+            $envelope,
+            [['id' => $endpoint_id, 'name' => sanitize_text_field((string) ($endpoint['name'] ?? '')), 'url' => $url]],
+            ['retry_delays' => [0.0]]
+        );
+        $result = is_array($results[0] ?? null) ? $results[0] : [];
+        $host = (string) wp_parse_url($url, PHP_URL_HOST);
+        if (!class_exists(AIPKit_Event_Webhook_Status::class)) {
+            require_once __DIR__ . '/webhook-status.php';
+        }
+        $event_label = (string) (AIPKit_Event_Webhook_Status::event_labels()[$event_name] ?? $event_name);
+
+        if (($result['status'] ?? '') === 'delivered') {
+            wp_send_json_success([
+                'status' => 'delivered',
+                /* translators: 1: the event, e.g. "The chatbot replies", 2: the endpoint's host, 3: HTTP status code. */
+                'message' => sprintf(__('Sent “%1$s”. %2$s answered %3$d.', 'gpt3-ai-content-generator'), $event_label, $host, (int) ($result['http_status'] ?? 200)),
+            ]);
+            return;
+        }
+
+        wp_send_json_success([
+            'status' => 'failed',
+            'issue' => AIPKit_Event_Webhook_Status::describe([
+                'error_message' => (string) ($result['error_message'] ?? ''),
+                'event_name' => $event_name,
+            ], $host),
+        ]);
     }
 }

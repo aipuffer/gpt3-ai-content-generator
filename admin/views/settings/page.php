@@ -95,246 +95,128 @@ $xai_defaults        = AIPKit_Providers::get_provider_defaults('xAI');
 $ollama_defaults     = AIPKit_Providers::get_provider_defaults('Ollama');
 $chroma_defaults     = AIPKit_Providers::get_provider_defaults('Chroma');
 
+$aipkit_settings_sections = [
+    'ai' => [
+        'label' => __('AI', 'gpt3-ai-content-generator'),
+        'hint' => __('How this site talks to AI. Every tool uses it.', 'gpt3-ai-content-generator'),
+        'icon' => 'lightbulb',
+    ],
+    'tools' => [
+        'label' => __('Tools', 'gpt3-ai-content-generator'),
+        'hint' => __('What shows in the AI Puffer menu, and in WordPress.', 'gpt3-ai-content-generator'),
+        'icon' => 'screenoptions',
+    ],
+    'connections' => [
+        'label' => __('Connections', 'gpt3-ai-content-generator'),
+        'hint' => __('Other services AI Puffer uses, and the apps it sends things to.', 'gpt3-ai-content-generator'),
+        'icon' => 'admin-links',
+    ],
+    'safety' => [
+        'label' => __('Security', 'gpt3-ai-content-generator'),
+        'hint' => __('Who can use AI Puffer, what visitors can’t send, and a copy of your settings.', 'gpt3-ai-content-generator'),
+        'icon' => 'shield',
+    ],
+    'developers' => [
+        'label' => __('For developers', 'gpt3-ai-content-generator'),
+        'hint' => __('APIs and webhooks. Most sites never need these.', 'gpt3-ai-content-generator'),
+        'icon' => 'editor-code',
+    ],
+    'help' => [
+        'label' => __('Help', 'gpt3-ai-content-generator'),
+        'hint' => __('Guides, support, and more from the team behind AI Puffer.', 'gpt3-ai-content-generator'),
+        'icon' => 'sos',
+    ],
+];
+
+$aipkit_render_section_start = static function (string $key) use ($aipkit_settings_sections): void {
+    $section = $aipkit_settings_sections[$key];
+    ?>
+    <section class="aipkit_settings_section" id="aipkit_settings_section_<?php echo esc_attr($key); ?>" data-aipkit-settings-section="<?php echo esc_attr($key); ?>" aria-labelledby="aipkit_settings_section_<?php echo esc_attr($key); ?>_title" <?php echo $key === 'ai' ? '' : 'hidden'; ?>>
+        <header class="aipkit_settings_section_header">
+            <h3 class="aipkit_settings_section_title" id="aipkit_settings_section_<?php echo esc_attr($key); ?>_title"><?php echo esc_html($section['label']); ?></h3>
+            <p class="aipkit_settings_section_hint"><?php echo esc_html($section['hint']); ?></p>
+        </header>
+    <?php
+};
 ?>
 <div class="aipkit_settings_main_container aipkit_admin_ui" id="aipkit_settings_container">
-    <header class="aipkit_settings_module_header">
-        <div class="aipkit_settings_header_copy">
-            <div class="aipkit_settings_header_title_row">
+    <div class="aipkit_settings_layout">
+        <aside class="aipkit_settings_menu_card">
+            <div class="aipkit_settings_menu_head">
                 <h2 class="aipkit_container-title"><?php esc_html_e('Settings', 'gpt3-ai-content-generator'); ?></h2>
                 <div
                     id="aipkit_settings_global_messages"
-                    class="aipkit_settings_messages aipkit_global_status_area aipkit_settings_header_status"
+                    class="aipkit_settings_messages aipkit_global_status_area"
                     role="status"
                     aria-live="polite"
                 ></div>
             </div>
-            <p class="aipkit_settings_header_hint"><?php esc_html_e('Configure AI defaults, integrations, apps, security, developer tools, and maintenance.', 'gpt3-ai-content-generator'); ?></p>
-        </div>
-    </header>
-    <section class="aipkit_settings_pages_shell">
-        <div class="aipkit_settings_page_nav_row">
-            <nav
-                class="aipkit_settings_page_nav"
-                role="tablist"
-                aria-label="<?php esc_attr_e('Settings sections', 'gpt3-ai-content-generator'); ?>"
-            >
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link is-active aipkit_active"
-                    id="aipkit_settings_page_tab_ai"
-                    role="tab"
-                    aria-selected="true"
-                    aria-controls="aipkit_settings_page_panel_ai"
-                    data-aipkit-settings-page-link="ai"
-                >
-                    <span class="dashicons dashicons-lightbulb" aria-hidden="true"></span>
-                    <?php esc_html_e('AI', 'gpt3-ai-content-generator'); ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_modules"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_modules"
-                    data-aipkit-settings-page-link="modules"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-screenoptions" aria-hidden="true"></span>
-                    <?php esc_html_e('Modules', 'gpt3-ai-content-generator'); ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_integrations"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_integrations"
-                    data-aipkit-settings-page-link="integrations"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-admin-links" aria-hidden="true"></span>
-                    <?php esc_html_e('Integrations', 'gpt3-ai-content-generator'); ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_apps"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_apps"
-                    data-aipkit-settings-page-link="apps"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-admin-plugins" aria-hidden="true"></span>
-                    <span class="aipkit_settings_page_nav_link_label"><?php esc_html_e('Apps', 'gpt3-ai-content-generator'); ?></span>
-                    <?php if (!$is_pro) : ?>
-                        <span class="aipkit_settings_apps_upsell_badge aipkit_pro_badge"><?php esc_html_e('Pro', 'gpt3-ai-content-generator'); ?></span>
+            <nav class="aipkit_settings_jump" aria-label="<?php esc_attr_e('Settings sections', 'gpt3-ai-content-generator'); ?>">
+                <?php foreach ($aipkit_settings_sections as $aipkit_section_key => $aipkit_section) : ?>
+                    <?php if ($aipkit_section_key === 'help') : ?>
+                        <span class="aipkit_settings_jump_divider" aria-hidden="true"></span>
                     <?php endif; ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_security"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_security"
-                    data-aipkit-settings-page-link="security"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-shield" aria-hidden="true"></span>
-                    <?php esc_html_e('Security', 'gpt3-ai-content-generator'); ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_api"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_api"
-                    data-aipkit-settings-page-link="api"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-editor-code" aria-hidden="true"></span>
-                    <?php esc_html_e('Developers', 'gpt3-ai-content-generator'); ?>
-                </button>
-                <button
-                    type="button"
-                    class="aipkit_settings_page_nav_link"
-                    id="aipkit_settings_page_tab_others"
-                    role="tab"
-                    aria-selected="false"
-                    aria-controls="aipkit_settings_page_panel_others"
-                    data-aipkit-settings-page-link="others"
-                    tabindex="-1"
-                >
-                    <span class="dashicons dashicons-admin-settings" aria-hidden="true"></span>
-                    <?php esc_html_e('Others', 'gpt3-ai-content-generator'); ?>
-                </button>
+                    <a
+                        class="aipkit_settings_jump_link<?php echo $aipkit_section_key === 'ai' ? ' is-active' : ''; ?>"
+                        href="#aipkit_settings_section_<?php echo esc_attr($aipkit_section_key); ?>"
+                        data-aipkit-settings-jump="<?php echo esc_attr($aipkit_section_key); ?>"
+                        <?php echo $aipkit_section_key === 'ai' ? 'aria-current="page"' : ''; ?>
+                    >
+                        <span class="dashicons dashicons-<?php echo esc_attr($aipkit_section['icon']); ?>" aria-hidden="true"></span>
+                        <span><?php echo esc_html($aipkit_section['label']); ?></span>
+                    </a>
+                <?php endforeach; ?>
             </nav>
-        </div>
+        </aside>
 
-        <div class="aipkit_settings_pages">
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_ai"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_ai"
-                    data-aipkit-settings-page="ai"
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('AI Settings', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Connect AI providers and configure their models and advanced options.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
-
+        <div class="aipkit_settings_sections">
+            <?php $aipkit_render_section_start('ai'); ?>
+                <div class="aipkit_settings_scope" data-aipkit-settings-page="ai">
                     <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/providers.php'; ?>
-                </section>
+                </div>
+            </section>
 
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_integrations"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_integrations"
-                    data-aipkit-settings-page="integrations"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Integrations', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Manage provider credentials and sync controls for connected services.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
+            <?php $aipkit_render_section_start('tools'); ?>
+                <div class="aipkit_settings_scope aipkit_settings_simple_form aipkit_settings_simple_form--modules" data-aipkit-settings-page="modules">
+                    <?php include __DIR__ . '/modules.php'; ?>
+                </div>
+            </section>
 
-                    <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/integrations.php'; ?>
-                </section>
+            <?php $aipkit_render_section_start('connections'); ?>
+                <div class="aipkit_settings_scope" data-aipkit-settings-page="integrations">
+                    <?php $aipkit_integration_part = 'services'; include WPAICG_PLUGIN_DIR . 'admin/views/settings/integrations.php'; ?>
+                </div>
+                <div class="aipkit_settings_scope aipkit_settings_part aipkit_settings_simple_form aipkit_settings_simple_form--apps" data-aipkit-settings-page="apps">
+                    <h4 class="aipkit_settings_group_title"><?php esc_html_e('Apps', 'gpt3-ai-content-generator'); ?></h4>
+                    <?php include __DIR__ . '/apps.php'; ?>
+                </div>
+                <?php // Stock photos stay for the sites that use them, after the services and apps worth reaching for first. ?>
+                <div class="aipkit_settings_scope" data-aipkit-settings-page="stock-photos">
+                    <?php $aipkit_integration_part = 'stock-photos'; include WPAICG_PLUGIN_DIR . 'admin/views/settings/integrations.php'; ?>
+                </div>
+                <?php unset($aipkit_integration_part); ?>
+            </section>
 
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_security"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_security"
-                    data-aipkit-settings-page="security"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Security settings', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Manage global word and IP blocklists shared across supported modules.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
+            <?php $aipkit_render_section_start('safety'); ?>
+                <div class="aipkit_settings_scope aipkit_settings_part aipkit_settings_simple_form aipkit_settings_simple_form--security" data-aipkit-settings-page="security">
+                    <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/security.php'; ?>
+                </div>
+                <?php // Backups keep the site safe from a bad change, so they close Security; old links to them land here. ?>
+                <div class="aipkit_settings_scope aipkit_settings_part aipkit_settings_simple_form aipkit_settings_simple_form--others" id="aipkit_settings_backups" data-aipkit-settings-page="others">
+                    <h4 class="aipkit_settings_group_title"><?php esc_html_e('Backups', 'gpt3-ai-content-generator'); ?></h4>
+                    <?php include __DIR__ . '/maintenance.php'; ?>
+                </div>
+            </section>
 
-                    <div class="aipkit_settings_simple_form aipkit_settings_simple_form--security">
-                        <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/security.php'; ?>
-                    </div>
-                </section>
+            <?php $aipkit_render_section_start('developers'); ?>
+                <div class="aipkit_settings_scope aipkit_settings_part aipkit_settings_simple_form aipkit_settings_simple_form--api" data-aipkit-settings-page="api">
+                    <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/developer.php'; ?>
+                </div>
+            </section>
 
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_api"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_api"
-                    data-aipkit-settings-page="api"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Developer settings', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Manage REST API access and outbound event webhook endpoints for developer workflows.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
-
-                    <div class="aipkit_settings_simple_form aipkit_settings_simple_form--api">
-                        <?php include WPAICG_PLUGIN_DIR . 'admin/views/settings/developer.php'; ?>
-                    </div>
-                </section>
-
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_apps"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_apps"
-                    data-aipkit-settings-page="apps"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Apps', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Manage reusable app connections and event-driven recipe automations.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
-
-                    <div class="aipkit_settings_simple_form aipkit_settings_simple_form--apps">
-                        <?php include __DIR__ . '/apps.php'; ?>
-                    </div>
-                </section>
-
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_modules"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_modules"
-                    data-aipkit-settings-page="modules"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Modules', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Choose which tools appear in navigation and enable optional features.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
-
-                    <div class="aipkit_settings_simple_form aipkit_settings_simple_form--modules">
-                        <?php include __DIR__ . '/modules.php'; ?>
-                    </div>
-                </section>
-
-                <section
-                    class="aipkit_settings_page_section"
-                    id="aipkit_settings_page_panel_others"
-                    role="tabpanel"
-                    aria-labelledby="aipkit_settings_page_tab_others"
-                    data-aipkit-settings-page="others"
-                    hidden
-                >
-                    <header class="aipkit_settings_page_header">
-                        <h3 class="aipkit_settings_page_title"><?php esc_html_e('Other settings', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_page_helper"><?php esc_html_e('Manage backups and maintenance actions.', 'gpt3-ai-content-generator'); ?></p>
-                    </header>
-
-                    <div class="aipkit_settings_simple_form aipkit_settings_simple_form--others">
-                        <?php include __DIR__ . '/maintenance.php'; ?>
-                    </div>
-                </section>
+            <?php $aipkit_render_section_start('help'); ?>
+                <?php include __DIR__ . '/help.php'; ?>
+            </section>
         </div>
-    </section>
+    </div>
 </div>

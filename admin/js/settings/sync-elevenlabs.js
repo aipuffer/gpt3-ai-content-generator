@@ -50,7 +50,7 @@
         select.innerHTML = ''; // Clear existing options
 
         // Add a default blank option
-        select.appendChild(new Option('-- Select a Voice (Optional) --', ''));
+        select.appendChild(new Option(select.dataset.aipkitEmptyLabel || '-- Select a Voice (Optional) --', ''));
 
         if (!normalizedVoices.length) {
             if (oldValue && oldValue !== '') {
@@ -113,7 +113,7 @@
         select.innerHTML = ''; // Clear existing options
 
         // Add a default blank option
-        select.appendChild(new Option('-- Select a Model (Optional) --', ''));
+        select.appendChild(new Option(select.dataset.aipkitEmptyLabel || '-- Select a Model (Optional) --', ''));
 
         if (!normalizedModels.length) {
             if (oldValue && oldValue !== '') {

@@ -166,7 +166,7 @@ html.aipkit-chatbot-builder-page {
 
 /* The workspace keeps a readable width on wide screens; the name and tabs head the settings frame. */
 .aipkit_chatbot_builder {
-  --aipkit-chatbot-workspace-width: 1240px;
+  --aipkit-chatbot-workspace-width: var(--aipkit_workspace-width, 1240px);
 }
 
 .aipkit_chatbot_builder .aipkit_chatbot_workspace_header,
@@ -3521,16 +3521,11 @@ html.aipkit-chatbot-builder-page {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   padding: 14px 24px;
   border-top: 1px solid var(--aipkit-ui-line);
   background: var(--aipkit-ui-surface);
-}
-
-.aipkit_custom_theme_modal_note {
-  flex: 1 1 auto;
-  color: var(--aipkit-ui-muted);
-  font-size: 12.5px;
 }
 
 @media (max-width: 640px) {
@@ -11968,13 +11963,19 @@ body.admin-bar
   line-height: 1.4;
 }
 
-/* Rows in titled cards: 20px sides, a divider above each row, as in the mockup. */
+/* Rows in titled cards: 20px sides, and a divider between rows. The list's frame is the first row's top line. */
 #aipkit_chatbot_settings_panel .aipkit_settings_card :is(
   .aipkit_interface_feature_row,
   .aipkit_tools_feature_row
 ) {
   min-height: 60px;
   padding: 12px 20px !important;
+}
+
+#aipkit_chatbot_settings_panel .aipkit_settings_card :is(
+  .aipkit_interface_feature_row,
+  .aipkit_tools_feature_row
+):not(:first-child) {
   border-top: 1px solid var(--aipkit-ui-line) !important;
 }
 
@@ -17462,16 +17463,6 @@ body.aipkit-sources-training-modal-open {
       --aipkit-chatbot-preview-frame-height: max(420px, calc(100dvh - var(--aipkit-preview-chrome)));
     }
   }
-}
-
-/*
- * The plugin page hides sideways overflow on WordPress's wrappers, which stops the preview from
- * staying in view; clip instead would also cut off the dimmed backdrop of side panels. The chatbot
- * screen has nothing wider than the window, so it leaves overflow visible.
- */
-body.toplevel_page_wpaicg:has(.aipkit_chatbot_builder) #wpbody-content,
-body.toplevel_page_wpaicg:has(.aipkit_chatbot_builder) #wpcontent {
-  overflow-x: visible;
 }
 
 /* Native audio model fields remain the persistence source for the combined picker. */

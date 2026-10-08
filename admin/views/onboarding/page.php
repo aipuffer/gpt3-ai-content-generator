@@ -54,6 +54,11 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
             <img class="aipkit-setup__logo aipkit-setup__logo--welcome" src="<?php echo esc_url(WPAICG_LOGO_URL); ?>" width="72" height="72" alt="">
             <h1><?php esc_html_e('Welcome to AI Puffer', 'gpt3-ai-content-generator'); ?></h1>
             <p class="aipkit-setup__lead"><?php esc_html_e('Answer two quick questions and we will set up only what you need. It takes less than a minute.', 'gpt3-ai-content-generator'); ?></p>
+            <p class="aipkit-setup__offer-pill" data-cloud-show="none">
+                <span class="aipkit-setup__offer-eyebrow"><?php esc_html_e('Free every month', 'gpt3-ai-content-generator'); ?></span>
+                <span class="aipkit-setup__offer-dot" aria-hidden="true"></span>
+                <span><?php esc_html_e('25 credits, no API key', 'gpt3-ai-content-generator'); ?></span>
+            </p>
             <button type="button" class="aipkit-setup__btn aipkit-setup__btn--lg" data-action="start"><?php esc_html_e('Get started', 'gpt3-ai-content-generator'); ?> <?php $aipkit_setup_icon($aipkit_setup_arrow, 18, 'currentColor', '2'); ?></button>
         </section>
 
@@ -88,19 +93,28 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
             <div class="aipkit-setup__head">
                 <h1><?php esc_html_e('How should AI Puffer connect to AI?', 'gpt3-ai-content-generator'); ?></h1>
                 <p><?php esc_html_e('You can change this later in Settings.', 'gpt3-ai-content-generator'); ?></p>
+                <?php if ($aipkit_setup['account_change_pending']) : ?>
+                    <p role="status"><?php esc_html_e('Check the new email address for final approval of the account change. After approving it, return here and reload to see the current account.', 'gpt3-ai-content-generator'); ?></p>
+                <?php endif; ?>
             </div>
             <div class="aipkit-setup__options">
                 <div class="aipkit-setup__option" data-power-option="cloud">
+                    <?php // The free offer, as in Settings › AI and the connect window. ?>
                     <button type="button" class="aipkit-setup__option-head" data-action="power" data-power="cloud">
                         <span class="aipkit-setup__radio"></span>
                         <span class="aipkit-setup__option-text">
-                            <span class="aipkit-setup__option-title"><?php esc_html_e('AI Puffer Cloud', 'gpt3-ai-content-generator'); ?></span>
-                            <span class="aipkit-setup__muted"><?php esc_html_e('No API key needed. Access a range of AI models with free credits every month.', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit-setup__offer-eyebrow"><?php esc_html_e('Free every month', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit-setup__offer-title"><?php esc_html_e('25 credits, no API key', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit-setup__muted"><?php printf(
+                                /* translators: %s: AI Puffer Cloud, in bold. */
+                                esc_html__('%s gives you leading models from OpenAI, Anthropic, Google and more, in Chatbots, Content Writer, AI Forms and Automations.', 'gpt3-ai-content-generator'),
+                                '<strong>' . esc_html__('AI Puffer Cloud', 'gpt3-ai-content-generator') . '</strong>'
+                            ); ?></span>
                         </span>
                     </button>
                     <div class="aipkit-setup__option-body">
                         <p class="aipkit-setup__cloud-message" data-cloud-message role="status" <?php echo $aipkit_setup['cloud']['message'] === '' ? 'hidden' : ''; ?>><?php echo esc_html($aipkit_setup['cloud']['message']); ?></p>
-                        <?php echo \WPAICG\Cloud\Connection::account_email_html(true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?>
+                        <?php echo \WPAICG\Cloud\Connection::account_email_html(true, true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?>
                         <div data-cloud-show="none">
                             <label class="aipkit-setup__field" data-cloud-email-field <?php echo $aipkit_setup['registered'] ? 'hidden' : ''; ?>><?php esc_html_e('Email', 'gpt3-ai-content-generator'); ?>
                                 <input class="aipkit-setup__input" type="email" data-field="cloud_email" autocomplete="email" value="<?php echo esc_attr($aipkit_setup['cloud']['email']); ?>" required>
@@ -115,7 +129,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                             <label class="aipkit-setup__consent aipkit-setup__consent--minor" data-cloud-marketing <?php echo $aipkit_setup['registered'] ? 'hidden' : ''; ?>><input type="checkbox" data-field="marketing"> <?php esc_html_e('Email me product news and tips (optional).', 'gpt3-ai-content-generator'); ?></label>
                             <div class="aipkit-setup__cloud-actions">
                                 <button type="button" class="aipkit-setup__btn" data-action="check-email" <?php echo !$aipkit_setup['cloud']['pendingEmail'] ? 'hidden' : ''; ?> disabled><?php esc_html_e('Check again', 'gpt3-ai-content-generator'); ?></button>
-                                <button type="button" class="aipkit-setup__btn<?php echo $aipkit_setup['cloud']['pendingEmail'] ? ' aipkit-setup__btn--ghost' : ''; ?>" data-action="cloud" disabled><?php echo esc_html($aipkit_setup['cloud']['pendingEmail'] ? __('Resend email', 'gpt3-ai-content-generator') : __('Connect', 'gpt3-ai-content-generator')); ?></button>
+                                <button type="button" class="aipkit-setup__btn<?php echo $aipkit_setup['cloud']['pendingEmail'] ? ' aipkit-setup__btn--ghost' : ''; ?>" data-action="cloud" disabled><?php echo esc_html($aipkit_setup['cloud']['pendingEmail'] ? __('Resend email', 'gpt3-ai-content-generator') : __('Get 25 free credits', 'gpt3-ai-content-generator')); ?></button>
                             </div>
                         </div>
                         <div data-cloud-recovery><?php echo $aipkit_setup['cloud']['emailRecoveryHtml']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?></div>
@@ -173,7 +187,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
             <div class="aipkit-setup__chat-copy">
                 <span class="aipkit-setup__eyebrow"><?php esc_html_e('Your first chatbot', 'gpt3-ai-content-generator'); ?></span>
                 <h1><?php esc_html_e('We made a chatbot for your site. Try it.', 'gpt3-ai-content-generator'); ?></h1>
-                <p class="aipkit-setup__lead"><?php esc_html_e('It answers in a friendly tone. You can change its look, instructions and model anytime.', 'gpt3-ai-content-generator'); ?></p>
+                <p class="aipkit-setup__lead"><?php esc_html_e('Ask it anything. It’s the same chatbot your visitors will get, and you can change its look, instructions and model anytime in Chatbots.', 'gpt3-ai-content-generator'); ?></p>
                 <ul class="aipkit-setup__ticks">
                     <li><?php $aipkit_setup_icon($aipkit_setup_check, 18, '#1d7a45', '2.4'); ?><span data-connection-label></span></li>
                     <li data-bot-visibility><?php $aipkit_setup_icon($aipkit_setup_check, 18, '#1d7a45', '2.4'); ?><span><?php esc_html_e('Not visible to visitors until you add it', 'gpt3-ai-content-generator'); ?></span></li>
@@ -183,21 +197,13 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                     <button type="button" class="aipkit-setup__btn aipkit-setup__btn--ghost" data-action="done"><?php esc_html_e('I’ll do it later', 'gpt3-ai-content-generator'); ?></button>
                 </div>
             </div>
+            <?php // The real chatbot, loaded when this step opens so it uses the connection chosen above. ?>
             <div class="aipkit-setup__chat">
-                <div class="aipkit-setup__chat-head">
-                    <span class="aipkit-setup__chat-avatar"><?php $aipkit_setup_icon($aipkit_setup_icons['chatbot'], 18, '#ffffff', '2'); ?></span>
-                    <span><strong><?php
-                        /* translators: %s: site name. */
-                        echo esc_html(sprintf(__('%s assistant', 'gpt3-ai-content-generator'), $aipkit_setup['site_name'] ?: __('Site', 'gpt3-ai-content-generator')));
-                    ?></strong><small><?php esc_html_e('Preview', 'gpt3-ai-content-generator'); ?></small></span>
+                <div class="aipkit-setup__chat-status" data-chat-status>
+                    <p data-chat-message role="status"><?php esc_html_e('Loading your chatbot…', 'gpt3-ai-content-generator'); ?></p>
+                    <button type="button" class="aipkit-setup__btn aipkit-setup__btn--ghost" data-action="load-chat" hidden><?php esc_html_e('Try again', 'gpt3-ai-content-generator'); ?></button>
                 </div>
-                <div class="aipkit-setup__chat-log" data-chat-log aria-live="polite">
-                    <div class="aipkit-setup__msg aipkit-setup__msg--bot"><?php esc_html_e('Hi! How can I help you today?', 'gpt3-ai-content-generator'); ?></div>
-                </div>
-                <form class="aipkit-setup__chat-form" data-chat-form>
-                    <input class="aipkit-setup__input" data-field="message" maxlength="500" placeholder="<?php esc_attr_e('Ask your chatbot something…', 'gpt3-ai-content-generator'); ?>" aria-label="<?php esc_attr_e('Message', 'gpt3-ai-content-generator'); ?>">
-                    <button type="submit" class="aipkit-setup__btn aipkit-setup__btn--icon" aria-label="<?php esc_attr_e('Send', 'gpt3-ai-content-generator'); ?>"><?php $aipkit_setup_icon($aipkit_setup_arrow, 18, 'currentColor', '2'); ?></button>
-                </form>
+                <div class="aipkit-setup__chat-widget" data-chat-widget></div>
             </div>
         </section>
 

@@ -307,7 +307,12 @@ export function createChatbotCatalog({builder, botSelect, __, switchToBotState, 
       title: (option.textContent || "").trim()
     })).filter(entry => Number.isFinite(entry.id) && entry.id > 0);
     if (availableBotsNode) {
-      availableBotsNode.dataset.bots = JSON.stringify(botList);
+      const serializedBots = JSON.stringify(botList);
+      if (availableBotsNode.dataset.bots !== serializedBots) {
+        // Settings contains app-rule scope options rendered from this catalog.
+        window.aipkit_invalidateModuleCache?.('settings');
+      }
+      availableBotsNode.dataset.bots = serializedBots;
     }
     syncBotSwitcherVisibility();
   };

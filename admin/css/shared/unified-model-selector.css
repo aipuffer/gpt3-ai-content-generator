@@ -294,6 +294,23 @@
   overflow: hidden;
 }
 
+/* Simple pickers (Settings): one provider's models in one column, only as tall as the list. */
+.aipkit_unified_model_popover.is-simple .aipkit_unified_model_body {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  max-height: min(430px, calc(100vh - 190px));
+}
+
+.aipkit_unified_model_popover.is-simple :is(.aipkit_unified_model_providers, .aipkit_unified_model_footer, .aipkit_unified_model_search kbd) {
+  display: none;
+}
+
+.aipkit_unified_model_popover.is-simple .aipkit_unified_model_family_header {
+  cursor: default;
+}
+
 .aipkit_unified_model_providers {
   min-width: 0;
   min-height: 0;

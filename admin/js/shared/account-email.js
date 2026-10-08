@@ -1,12 +1,66 @@
 const __ = window.wp?.i18n?.__ || ((text) => text);
+const sprintf = window.wp?.i18n?.sprintf || ((format, ...args) => args.reduce((text, arg) => text.replace('%s', arg), format));
 
 /** Freemius email editing shared by onboarding, Usage and provider dialogs. */
 export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
     let active = null, saving = false, paused = [];
+    // An ownership change needs two emails approved; it reaches this site only when the final link opens it.
+    let pending = null;
     const find = (selector) => active?.querySelector(selector);
     const clear = () => {
         find('[data-email-error]').hidden = true;
     };
+    const span = (text) => Object.assign(document.createElement('span'), { textContent: text });
+    const title = (text) => Object.assign(document.createElement('strong'), { textContent: text });
+    function pendingMessage() {
+        // Settings and Usage replace the account section when they refresh; follow it to the new one.
+        if (!pending.controls.isConnected) pending.controls = root.querySelector('[data-cloud-account-controls]') || pending.controls;
+        return pending.controls.querySelector('[data-email-message]');
+    }
+    function showOwnershipChange(note = '') {
+        const message = pendingMessage();
+        if (!message) return null;
+        const check = Object.assign(document.createElement('button'), { type: 'button', className: pending.buttonClass, textContent: __('Check again', 'gpt3-ai-content-generator') });
+        check.dataset.action = 'check-email-change';
+        const actions = document.createElement('span');
+        actions.className = 'aipkit_cloud_email_message_actions';
+        actions.append(check);
+        if (note) actions.append(span(note));
+        message.classList.remove('is-done');
+        message.replaceChildren(
+            title(__('Waiting for confirmation', 'gpt3-ai-content-generator')),
+            span(pending.notice), ' ',
+            /* translators: %s: the new email address. */
+            span(sprintf(__('Then %s gets an email for final approval. Once it is approved, check again.', 'gpt3-ai-content-generator'), pending.email)),
+            actions
+        );
+        message.hidden = false;
+        return check;
+    }
+    async function checkOwnershipChange(button) {
+        let outcome = '';
+        await busy(button, async () => {
+            try { await refresh(); outcome = 'checked'; }
+            catch (_) { outcome = 'failed'; }
+        });
+        if (!pending || !outcome) return;
+        const message = pendingMessage();
+        const current = pending.controls.querySelector('[data-cloud-email]')?.textContent.trim().toLowerCase();
+        if (outcome === 'checked' && message && current === pending.email.toLowerCase()) {
+            message.classList.add('is-done');
+            message.replaceChildren(
+                title(__('Email changed', 'gpt3-ai-content-generator')),
+                /* translators: %s: the new email address. */
+                span(sprintf(__('This site’s account now uses %s.', 'gpt3-ai-content-generator'), pending.email))
+            );
+            message.hidden = false;
+            pending = null;
+            return;
+        }
+        showOwnershipChange(outcome === 'failed'
+            ? __('Could not check right now. Try again in a moment.', 'gpt3-ai-content-generator')
+            : __('Not changed yet. Approve both emails, then check again.', 'gpt3-ai-content-generator'))?.focus();
+    }
     function updateOwnership() {
         if (!active) return;
         const form = find('[data-cloud-email-editor]');
@@ -31,6 +85,8 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
         const prior = active;
         active = null;
         onEdit(false);
+        // Opening the editor hid a change still waiting for approval; bring it back.
+        if (pending) showOwnershipChange();
         prior.querySelector('[data-action="edit-email"]')?.focus();
     }
     async function save(button) {
@@ -99,18 +155,24 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
         });
         saving = false;
         if (ownershipNotice) {
+            // Closing the editor shows it, titled apart from the explanations read before saving: nothing has changed yet.
+            pending = { email, notice: ownershipNotice, controls: active, buttonClass: find('[data-action="cancel-email"]')?.className || '' };
             cancel();
-            const message = root.querySelector('[data-cloud-account-controls] [data-email-message]');
-            message.textContent = ownershipNotice;
-            message.hidden = false;
             return;
         }
         if (accepted) {
+            pending = null;
             cancel();
             root.querySelector('[data-cloud-account-controls] [data-action="edit-email"]')?.focus();
         }
     }
     root.addEventListener('click', event => {
+        const check = event.target.closest('[data-action="check-email-change"]');
+        if (check && root.contains(check)) {
+            event.preventDefault();
+            if (!check.disabled) checkOwnershipChange(check);
+            return;
+        }
         const resend = event.target.closest('[data-cloud-resend]');
         if (resend && root.contains(resend)) {
             event.preventDefault();

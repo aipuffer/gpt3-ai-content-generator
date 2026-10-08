@@ -37,6 +37,7 @@ final class Onboarding
         add_action('wp_ajax_aipkit_onboarding', [self::class, 'handle']);
         add_filter('admin_body_class', [self::class, 'body_class']);
         add_filter('admin_title', [self::class, 'admin_title']);
+        wpaicg_gacg_fs()->add_action('account_page_load_before_departure', [self::class, 'return_from_account_change']);
     }
 
     /** Called on activation: only a site that never had AI Puffer settings gets the setup flow. */
@@ -61,6 +62,22 @@ final class Onboarding
     public static function url(): string
     {
         return admin_url('admin.php?page=' . self::PAGE);
+    }
+
+    /** Let the SDK finish validating the email callback before returning an unfinished setup to AI connection. */
+    public static function return_from_account_change(): void
+    {
+        if (!AIPKit_Role_Manager::user_can_manage_settings() || wp_doing_ajax()
+            || (self::state()['status'] ?? '') !== 'pending' || empty(self::state()['goals'])) { return; }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only, after the SDK handles the account action.
+        $action = sanitize_key(wp_unslash($_GET['fs_action'] ?? ''));
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only, after the SDK handles the account action.
+        $state = sanitize_key(wp_unslash($_GET['state'] ?? ''));
+        if ($action !== 'change_owner' || !in_array($state, ['owner_confirmed', 'candidate_confirmed'], true)) { return; }
+        // This is an informational hint, not proof of a completed transfer.
+        $pending = $state === 'owner_confirmed';
+        wp_safe_redirect(($pending ? add_query_arg('aipkit_account_change', 'pending', self::url()) : self::url()) . '#connect');
+        exit;
     }
 
     public static function add_page(): void
@@ -114,12 +131,25 @@ final class Onboarding
         wp_enqueue_style('aipkit-onboarding', WPAICG_PLUGIN_URL . 'dist/css/admin-onboarding.bundle.css', [], file_exists($css) ? (string) filemtime($css) : WPAICG_VERSION);
         wp_enqueue_script('aipkit-onboarding', WPAICG_PLUGIN_URL . 'dist/js/admin-onboarding.bundle.js', ['wp-i18n'], file_exists($js) ? (string) filemtime($js) : WPAICG_VERSION, true);
         wp_set_script_translations('aipkit-onboarding', 'gpt3-ai-content-generator', WPAICG_PLUGIN_DIR . 'languages');
+        // The chatbot step shows the real chatbot, with the same public bundle as the Chatbot module's preview.
+        if (class_exists(\WPAICG\Includes\AIPKit_Shared_Assets_Manager::class)) {
+            \WPAICG\Includes\AIPKit_Shared_Assets_Manager::register(WPAICG_VERSION);
+        }
+        $chat_css = WPAICG_PLUGIN_DIR . 'dist/css/public-main.bundle.css';
+        $chat_js = WPAICG_PLUGIN_DIR . 'dist/js/public-main.bundle.js';
+        wp_enqueue_style('aipkit-public-main-css', WPAICG_PLUGIN_URL . 'dist/css/public-main.bundle.css', ['dashicons'], file_exists($chat_css) ? (string) filemtime($chat_css) : WPAICG_VERSION);
+        wp_enqueue_script('aipkit-public-main', WPAICG_PLUGIN_URL . 'dist/js/public-main.bundle.js', ['wp-i18n', 'aipkit_markdown-it'], file_exists($chat_js) ? (string) filemtime($chat_js) : WPAICG_VERSION, true);
+        wp_set_script_translations('aipkit-public-main', 'gpt3-ai-content-generator', WPAICG_PLUGIN_DIR . 'languages');
+        if (class_exists(\WPAICG\Includes\AIPKit_Shared_Assets_Manager::class)) {
+            \WPAICG\Includes\AIPKit_Shared_Assets_Manager::attach_public_asset_urls('aipkit-public-main');
+        }
         wp_localize_script('aipkit-onboarding', 'aipkitSetup', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce(self::NONCE),
             'syncNonce' => wp_create_nonce('aipkit_nonce'),
             'dashboardUrl' => admin_url('admin.php?page=wpaicg'),
             'cloudConnected' => !empty(Connection::display()['connected']),
+            'goals' => array_values(array_intersect((array) (self::state()['goals'] ?? []), array_merge(array_keys(self::GOALS), ['explore']))),
         ]);
         include WPAICG_PLUGIN_DIR . 'admin/views/onboarding/page.php';
     }
@@ -133,10 +163,11 @@ final class Onboarding
             $provider_keys[$provider] = trim((string) (AIPKit_Providers::get_provider_data($provider)['api_key'] ?? '')) !== '';
         }
         return [
+            // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Display-only hint after the SDK's ownership callback.
+            'account_change_pending' => sanitize_key(wp_unslash($_GET['aipkit_account_change'] ?? '')) === 'pending',
             'woocommerce' => class_exists('WooCommerce'),
             'cloud' => $cloud,
             'registered' => $cloud['registered'],
-            'site_name' => get_bloginfo('name'),
             'providers' => self::KEY_PROVIDERS,
             'has_provider_key' => $provider_keys,
             'products' => self::products(),
@@ -175,6 +206,8 @@ final class Onboarding
         return [
             'connected' => $connected, 'registered' => !empty($display['registered']), 'pendingEmail' => $pending,
             'email' => (string) ($display['email'] ?? ''), 'manageEmailUrl' => (string) ($display['manage_email_url'] ?? ''),
+            'emailVerified' => $display['email_verified'] === true,
+            'accountChangeMessage' => Connection::account_change_message(),
             'emailUpdate' => $display['email_update'] ?? null,
             'connectionDiagnostic' => \WPAICG\Cloud\ConnectionDiagnostics::report(),
             'emailRecoveryHtml' => Connection::email_recovery_html(), 'ready' => $ready, 'message' => $message,
@@ -211,7 +244,8 @@ final class Onboarding
                 wp_send_json_success(self::cloud_view_data());
                 break;
             case 'use_key': self::op_use_key(); break;
-            case 'chat': self::op_chat(); break;
+            case 'chat_widget': self::op_chat_widget(); break;
+            case 'chat_result': self::record_result('chatbot'); wp_send_json_success(); break;
             case 'publish_bot': self::op_publish_bot(); break;
             case 'draft': self::op_draft(); break;
             case 'template': self::op_template(); break;
@@ -346,35 +380,18 @@ final class Onboarding
         self::save($changes);
     }
 
-    /** Try the default chatbot: one real reply with its instructions. */
-    private static function op_chat(): void
+    /** Try the default chatbot: the real one, inline, with the provider and model chosen during setup. */
+    private static function op_chat_widget(): void
     {
-        $chosen = self::chosen();
-        $message = mb_substr(self::post('message'), 0, 500);
-        if (!$chosen || $message === '') { wp_send_json_error(['message' => __('Connect AI first, then ask a question.', 'gpt3-ai-content-generator')], 400); }
         $bot = self::default_bot_id();
-        $instructions = $bot ? (string) get_post_meta($bot, '_aipkit_instructions', true) : '';
-        if ($instructions === '') {
-            /* translators: %s: site name. */
-            $instructions = sprintf(__('You are a friendly, concise assistant for the website "%s". Answer helpfully in a few sentences.', 'gpt3-ai-content-generator'), get_bloginfo('name'));
+        if (!self::chosen() || !$bot) { wp_send_json_error(['message' => __('Connect AI first, then try your chatbot.', 'gpt3-ai-content-generator')], 400); }
+        $html = (new \WPAICG\Chat\Frontend\Shortcode())->render_inline($bot);
+        if (!is_string($html) || strpos($html, 'aipkit_chat_container') === false) {
+            wp_send_json_error(['message' => __('Your chatbot could not be shown. Open it in Chatbots instead.', 'gpt3-ai-content-generator')], 500);
         }
-        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Decode JSON first; the loop below validates roles and sanitizes and bounds every content string.
-        $history = isset($_POST['history']) && is_string($_POST['history']) ? json_decode(wp_unslash($_POST['history']), true) : [];
-        $messages = [];
-        foreach (array_slice(is_array($history) ? $history : [], -10) as $entry) {
-            if (!is_array($entry) || !in_array($entry['role'] ?? '', ['user', 'assistant'], true) || !is_string($entry['content'] ?? null)) { continue; }
-            $messages[] = ['role' => $entry['role'], 'content' => mb_substr(sanitize_textarea_field($entry['content']), 0, 4000)];
-        }
-        $messages[] = ['role' => 'user', 'content' => $message];
-        $result = (new AIPKit_AI_Caller(false, 'chat'))->make_standard_call($chosen[0], $chosen[1], $messages, ['max_completion_tokens' => 1500], $instructions);
-        if (is_wp_error($result)) { wp_send_json_error(['message' => $result->get_error_message()], 400); }
-        $reply = wp_kses_post((string) ($result['content'] ?? ''));
-        if (trim(wp_strip_all_tags($reply)) === '') { wp_send_json_error(['message' => __('The reply came back empty. Please try again.', 'gpt3-ai-content-generator')], 400); }
-        self::record_result('chatbot');
-        wp_send_json_success(['reply' => $reply]);
+        wp_send_json_success(['html' => $html]);
     }
 
-    /** "Add it to my site": the default chatbot becomes the site-wide popup. */
     private static function op_publish_bot(): void
     {
         $bot = self::default_bot_id();
@@ -646,7 +663,10 @@ final class Onboarding
         if (!function_exists('wpaicg_gacg_fs')) { wp_send_json_error(['message' => __('Updates sign-up is not available.', 'gpt3-ai-content-generator')], 400); }
         $fs = wpaicg_gacg_fs();
         if (!$fs->is_registered()) {
-            try { $fs->opt_in(false, false, false, false, false, false, true, true, [], false); }
+            try {
+                \WPAICG\Cloud\Connection::disable_optional_registration_tracking();
+                $fs->opt_in(false, false, false, false, false, false, true, true, [], false);
+            }
             catch (\Throwable $error) { wp_send_json_error(['message' => __('Signing up for updates failed. You can do it later from the AI Puffer menu.', 'gpt3-ai-content-generator')], 400); }
         }
         self::save(['updates' => true]);

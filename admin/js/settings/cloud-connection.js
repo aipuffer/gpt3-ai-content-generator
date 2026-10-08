@@ -1,11 +1,11 @@
 import { bindAccountEmail } from '../shared/account-email.js';
 import { reportConnectionDiagnostic } from '../shared/connection-diagnostics.js';
 import { updateProviderModelSelects } from './sync-provider-model-selects.js';
+import { cloudConnectionRevision, advanceCloudConnectionRevision, beginCloudConnectionChange, publishCloudConnectionChange, watchCloudConnection } from '../shared/cloud-connection-sync.js';
 
 const __ = window.wp?.i18n?.__ || ((text) => text);
 let creditRequest = null;
 let creditRequestGeneration = 0;
-let connectionGeneration = 0;
 
 function readCreditNotice(html) {
     const template = document.createElement('template');
@@ -34,9 +34,9 @@ export async function refreshCloudCredits(root) {
     const section = root?.querySelector('#aipkit_cloud_connection');
     if (!root?.isConnected || !section || section.getAttribute('aria-busy') === 'true'
         || window.aipkit_dashboard?.cloudConnected === false) return;
-    const generation = connectionGeneration;
+    const generation = cloudConnectionRevision();
     const apply = (response) => {
-        if (!root.isConnected || !section.isConnected || generation !== connectionGeneration) return;
+        if (!root.isConnected || !section.isConnected || generation !== cloudConnectionRevision()) return;
         if (!response.connected && Array.isArray(response.models)) {
             applyCloudConnectionResponse(response, 'balance', root);
             return;
@@ -57,7 +57,7 @@ export async function refreshCloudCredits(root) {
     try {
         if (!creditRequest) {
             creditRequestGeneration = generation;
-            creditRequest = window.aipkit_apiRequest('aipkit_cloud_connection', { _wpnonce: nonce, cloud_action: 'balance' })
+            creditRequest = window.aipkit_apiRequest('aipkit_cloud_connection', { _wpnonce: nonce, cloud_action: 'balance' }, { isCurrent: () => generation === cloudConnectionRevision() })
                 .then((response) => {
                     if (typeof response.connected !== 'boolean' || typeof response.usageHtml !== 'string'
                         || typeof response.creditNoticeHtml !== 'string' || !Number.isFinite(response.checkedAt)
@@ -71,9 +71,9 @@ export async function refreshCloudCredits(root) {
         }
         const requestedGeneration = creditRequestGeneration;
         const response = await creditRequest;
-        if (requestedGeneration === connectionGeneration) apply(response);
+        if (requestedGeneration === cloudConnectionRevision()) apply(response);
     } catch (error) {
-        if (!root.isConnected || !section.isConnected || generation !== connectionGeneration) return;
+        if (!root.isConnected || !section.isConnected || generation !== cloudConnectionRevision()) return;
         const label = section.querySelector('[data-cloud-checked-label]');
         if (label) {
             label.dataset.cloudCheckedText ||= label.textContent;
@@ -140,16 +140,22 @@ export function applyCloudConnectionResponse(response, action, root = null) {
         throw new Error(__('Cloud returned an unexpected response. Try again.', 'gpt3-ai-content-generator'));
     }
     const nextNotice = readCreditNotice(response.creditNoticeHtml);
-    let nextSection = null;
-    if (root?.id === 'aipkit_settings_container' || root?.matches('[data-aipkit-connect-dialog]')) {
+    const accountRoots = new Set(document.querySelectorAll('#aipkit_settings_container, [data-aipkit-connect-dialog]'));
+    if (root?.id === 'aipkit_settings_container' || root?.matches('[data-aipkit-connect-dialog]')) accountRoots.add(root);
+    const replacements = [];
+    for (const accountRoot of accountRoots) {
+        const section = accountRoot.querySelector('#aipkit_cloud_connection');
+        if (!section) continue;
         const template = document.createElement('template');
         template.innerHTML = response.html;
-        nextSection = template.content.querySelector('#aipkit_cloud_connection');
+        const nextSection = template.content.querySelector('#aipkit_cloud_connection');
         if (!nextSection) {
             throw new Error(__('Cloud returned an unexpected response. Try again.', 'gpt3-ai-content-generator'));
         }
+        replacements.push({ section, nextSection, focus: accountRoot === root && section.contains(document.activeElement) });
     }
-    connectionGeneration++;
+    // Every bundle shares the revision, so a late Usage balance cannot undo a disconnect.
+    advanceCloudConnectionRevision();
     window.aipkit_cloudAudioModels = response.mediaModels;
     const dashboard = window.aipkit_dashboard;
     if (dashboard) {
@@ -188,10 +194,10 @@ export function applyCloudConnectionResponse(response, action, root = null) {
         selectId: 'aipkit_aipuffercloud_model',
         chatSelectSuffix: '_aipuffercloud_model',
         warningLabel: 'AI Puffer Cloud',
-        preserveMissingOldValue: response.connected,
+        preserveMissingOldValue: true,
         suppressMissingSelectWarning: true,
-        afterUpdateOne: (select) => {
-            if (['connect', 'check_email'].includes(action) && select.id === 'aipkit_aipuffercloud_model' && typeof response.selectedModel === 'string') {
+        afterUpdateOne: (select, oldValue) => {
+            if (!oldValue && response.connected && select.id === 'aipkit_aipuffercloud_model' && typeof response.selectedModel === 'string') {
                 select.value = response.selectedModel;
             }
         },
@@ -202,11 +208,11 @@ export function applyCloudConnectionResponse(response, action, root = null) {
     window.aipkit_applyProviderStatus?.(response.providerStatus, { invalidateCaches: false });
     syncCloudPickerSources(response);
     window.aipkit_updateModelRegistryStates?.(response.provider_states);
-    if (nextSection) {
-        root.querySelector('#aipkit_cloud_connection')?.replaceWith(nextSection);
-        window.aipkit_initAiProviderCards?.();
-        nextSection.querySelector(`[name="cloud_action"][value="${action === 'sync' ? 'sync' : response.connected ? 'disconnect' : 'connect'}"]`)?.focus({ preventScroll: true });
+    for (const { section, nextSection, focus } of replacements) {
+        section.replaceWith(nextSection);
+        if (focus) nextSection.querySelector(`[name="cloud_action"][value="${action === 'sync' ? 'sync' : response.connected ? 'disconnect' : 'connect'}"]`)?.focus({ preventScroll: true });
     }
+    window.aipkit_initAiProviderCards?.();
     window.dispatchEvent(new CustomEvent('aipkit:model-sync-complete', {
         detail: { provider: 'AIPufferCloud', connected: response.connected, syncedAt: Math.floor(Date.now() / 1000) },
     }));
@@ -214,6 +220,7 @@ export function applyCloudConnectionResponse(response, action, root = null) {
     window.dispatchEvent(new CustomEvent('aipkit:cloud-connection-changed', {
         detail: { connected: Boolean(response.connected), usageHtml: response.usageHtml, action, emailVerified: response.emailVerified, hasCredits: response.hasCredits },
     }));
+    if (action !== 'view') publishCloudConnectionChange();
 }
 
 /** Handles Cloud connection in Settings and account actions in Usage. */
@@ -276,6 +283,7 @@ export function bindCloudConnection(root) {
             cloud_consent: form.elements.cloud_consent?.checked ? 'yes' : '',
             cloud_marketing: form.elements.cloud_marketing?.checked ? 'yes' : '',
         };
+        const finishChange = action === 'checkout' ? () => {} : beginCloudConnectionChange();
         const checkoutWindow = action === 'checkout' ? window.open('', '_blank') : null;
         if (checkoutWindow) checkoutWindow.opener = null;
         const feedback = section.querySelector('[data-aipkit-cloud-feedback]');
@@ -323,6 +331,7 @@ export function bindCloudConnection(root) {
             button?.classList.remove('aipkit_loading');
             button?.removeAttribute('aria-busy');
             updateConsent();
+            finishChange();
         }
     }
     root.addEventListener('submit', (event) => {
@@ -331,9 +340,27 @@ export function bindCloudConnection(root) {
         event.preventDefault();
         const button = event.submitter;
         if (!button?.matches('[name="cloud_action"]') || !form.reportValidity()) return;
+        // The panel footer's Disconnect asks first, as every provider's does.
+        if (button.dataset?.confirmText && typeof window.aipkit_showConfirmModal === 'function') {
+            window.aipkit_showConfirmModal(button.dataset.confirmText, {
+                title: button.dataset.confirmTitle || '',
+                confirmText: button.dataset.confirmButton || '',
+                cancelText: button.dataset.cancelButton || '',
+                variant: 'danger',
+                onConfirm: () => update(button.value, form, button),
+                onCancel: () => button.isConnected && button.focus(),
+            });
+            return;
+        }
         return update(button.value, form, button);
     });
     return accountEmail;
 }
 
 window.aipkit_initCloudConnection = () => bindCloudConnection(document.getElementById('aipkit_settings_container'));
+
+if (window.aipkit_dashboard?.cloudNonce) {
+    watchCloudConnection('dashboard', (isCurrent) => window.aipkit_apiRequest('aipkit_cloud_connection', {
+        _wpnonce: window.aipkit_dashboard.cloudNonce, cloud_action: 'view',
+    }, { isCurrent }), (response) => applyCloudConnectionResponse(response, 'view'));
+}

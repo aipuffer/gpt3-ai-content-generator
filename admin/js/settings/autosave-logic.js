@@ -13,7 +13,7 @@
     window.aipkit_lastSavedData = null;
 
     function getDataScope() {
-        return document.querySelector('#aipkit_settings_container [data-aipkit-settings-page]:not([hidden])')
+        return (typeof window.aipkit_getSettingsDataScope === 'function' && window.aipkit_getSettingsDataScope())
             || document.getElementById('aipkit_settings_container');
     }
 
@@ -26,6 +26,32 @@
         window.aipkit_lastSavedData = savedByPage.get(page);
     }
 
+    // A saved key loaded into its field is already saved: it joins the page's saved state, so looking at it saves nothing.
+    function aipkit_markSettingsFieldSaved(input) {
+        const page = input && input.closest ? input.closest('.aipkit_settings_scope[data-aipkit-settings-page]') : null;
+        if (!page || !input.name || !savedByPage.has(page) || typeof window.aipkit_getCurrentFormData !== 'function') return;
+        const previous = savedByPage.get(page);
+        const current = window.aipkit_getCurrentFormData({ root: page });
+        const next = {};
+        // Field order follows the form, as each save's data does, so the two still compare equal.
+        Object.keys(current).forEach((key) => {
+            next[key] = key === input.name || !Object.prototype.hasOwnProperty.call(previous, key) ? current[key] : previous[key];
+        });
+        savedByPage.set(page, next);
+        if (getDataScope() === page) window.aipkit_lastSavedData = next;
+    }
+
+    // Every section is on screen at once, so each one gets its starting point when the page opens.
+    function aipkit_initSettingsSavedData() {
+        const scopes = typeof window.aipkit_getSettingsDataScopes === 'function' ? window.aipkit_getSettingsDataScopes() : [];
+        scopes.forEach((scope) => {
+            if (!savedByPage.has(scope) && typeof window.aipkit_getCurrentFormData === 'function') {
+                savedByPage.set(scope, window.aipkit_getCurrentFormData({ root: scope }));
+            }
+        });
+        aipkit_updateLastSavedData(true);
+    }
+
     function getDefaultAutosaveScope() {
         const activeModalContent = document.querySelector(
             '#aipkit_settings_container .aipkit-modal-overlay.aipkit-active .aipkit-modal-content'
@@ -34,14 +60,7 @@
             return activeModalContent;
         }
 
-        const activeSettingsPage = document.querySelector(
-            '#aipkit_settings_container .aipkit_settings_page_section:not([hidden])'
-        );
-        if (activeSettingsPage) {
-            return activeSettingsPage;
-        }
-
-        return document.querySelector('#aipkit_settings_container .aipkit_settings_pages_shell');
+        return getDataScope();
     }
 
     function createAutosaveOverlay(scope) {
@@ -113,20 +132,21 @@
         if (typeof window.aipkit_showMessage !== 'function' ||
             typeof window.aipkit_apiRequest !== 'function' ||
             typeof window.aipkit_getCurrentFormData !== 'function') {
-            return Promise.resolve();
+            return Promise.resolve(false);
         }
         const page = getDataScope();
-        if (!page) return Promise.resolve();
+        if (!page) return Promise.resolve(false);
         const data = window.aipkit_getCurrentFormData();
         if (inFlightPage !== page && JSON.stringify(data) === JSON.stringify(savedByPage.get(page))) {
             pendingByPage.delete(page);
-            return window.aipkit_currentSavePromise || Promise.resolve();
+            return window.aipkit_currentSavePromise || Promise.resolve(true);
         }
         pendingByPage.set(page, { page, data, scope: getDefaultAutosaveScope() });
         if (window.aipkit_currentSavePromise) return window.aipkit_currentSavePromise;
 
         window.aipkit_isSaving = true;
         window.aipkit_currentSavePromise = Promise.resolve().then(async () => {
+            let saved = true;
             const messageContainerId = 'aipkit_settings_global_messages';
             clearSettingsAutosaveMessages(messageContainerId);
             try {
@@ -152,6 +172,7 @@
                             window.aipkit_queueProviderAutoSync(previousData, data);
                         }
                     } catch (error) {
+                        saved = false;
                         window.aipkit_showMessage(messageContainerId, 'error', getSaveErrorMessage(error));
                         console.error('AIPKit Auto-Save Error:', error);
                     } finally {
@@ -163,12 +184,15 @@
                 window.aipkit_isSaving = false;
                 window.aipkit_currentSavePromise = null;
             }
+            return saved;
         });
         return window.aipkit_currentSavePromise;
     }
 
     // Expose the handler globally
     window.aipkit_updateLastSavedData = aipkit_updateLastSavedData;
+    window.aipkit_initSettingsSavedData = aipkit_initSettingsSavedData;
+    window.aipkit_markSettingsFieldSaved = aipkit_markSettingsFieldSaved;
     window.aipkit_handleAutoSave = aipkit_handleAutoSave;
     window.aipkit_setSettingsAutosaveBusy = aipkit_setSettingsAutosaveBusy;
 

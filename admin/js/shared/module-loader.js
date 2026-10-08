@@ -8,8 +8,9 @@
 (function() {
     'use strict';
 
-    const MODULE_SKELETON_DELAY_MS = 300;
-    const MODULE_SKELETON_MIN_VISIBLE_MS = 220;
+    // Pages usually load well under a second, so loading feedback waits a second; a quicker indicator only flashes.
+    const MODULE_LOADING_DELAY_MS = 1000;
+    const MODULE_REFRESH_DELAY_MS = 300;
     const MODULE_CACHE_TTL_MS = 5 * 60 * 1000;
     const moduleHtmlCache = new Map();
     const modulePrefetchPromises = new Map();
@@ -195,137 +196,12 @@
         schedule(() => runPrefetch(0));
     };
 
-    const skeletonLine = (width = '100%', extraClass = '') => (
-        `<span class="aipkit_module-skeleton-line ${extraClass}" style="--aipkit-skeleton-line-width:${width}"></span>`
-    );
-
-    const skeletonRows = (widths) => (
-        `<div class="aipkit_module-skeleton-rows">${widths.map(width => skeletonLine(width)).join('')}</div>`
-    );
-
-    const skeletonPanel = (content, extraClass = '') => (
-        `<div class="aipkit_module-skeleton-panel ${extraClass}">${content}</div>`
-    );
-
-    const skeletonTable = (rowCount = 5) => {
-        const rows = Array.from({ length: rowCount }, (_, index) => (
-            `<div class="aipkit_module-skeleton-table-row">
-                ${skeletonLine(index % 2 === 0 ? '32%' : '39%')}
-                ${skeletonLine('20%')}
-                ${skeletonLine(index % 2 === 0 ? '13%' : '17%')}
-                ${skeletonLine('9%')}
-            </div>`
-        )).join('');
-
-        return `
-            <div class="aipkit_module-skeleton-table">
-                <div class="aipkit_module-skeleton-table-head">
-                    ${skeletonLine('24%')}
-                    ${skeletonLine('15%')}
-                    ${skeletonLine('11%')}
-                    ${skeletonLine('8%')}
-                </div>
-                ${rows}
-            </div>
-        `;
-    };
-
-    const getModuleSkeletonMarkup = (moduleName) => {
-        const skeletons = {
-            'content-writer': `
-                <div class="aipkit_module-skeleton-grid aipkit_module-skeleton-grid--content-writer">
-                    ${skeletonPanel(`${skeletonLine('48%', 'aipkit_module-skeleton-line--heading')}${skeletonRows(['76%', '62%', '70%', '57%', '68%', '52%', '72%', '59%'])}`, 'aipkit_module-skeleton-panel--rail')}
-                    ${skeletonPanel(`
-                        ${skeletonLine('25%', 'aipkit_module-skeleton-line--heading')}
-                        <div class="aipkit_module-skeleton-pills">${skeletonLine('18%')}${skeletonLine('23%')}${skeletonLine('20%')}</div>
-                        ${skeletonLine('52%')}
-                        <div class="aipkit_module-skeleton-block aipkit_module-skeleton-block--topic"></div>
-                        ${skeletonLine('20%')}
-                        <div class="aipkit_module-skeleton-block aipkit_module-skeleton-block--input"></div>
-                        <div class="aipkit_module-skeleton-action">${skeletonLine('24%')}</div>
-                    `, 'aipkit_module-skeleton-panel--main')}
-                    ${skeletonPanel(`${skeletonRows(['88%', '82%', '76%', '84%', '54%', '62%', '73%', '66%'])}`, 'aipkit_module-skeleton-panel--rail')}
-                </div>
-            `,
-            'chatbot': `
-                <div class="aipkit_module-skeleton-grid aipkit_module-skeleton-grid--chatbot">
-                    ${skeletonPanel(`
-                        <div class="aipkit_module-skeleton-toolbar">${skeletonLine('28%', 'aipkit_module-skeleton-line--heading')}${skeletonLine('34%')}${skeletonLine('7%')}</div>
-                        ${skeletonRows(['23%', '100%', '18%', '100%', '27%', '100%', '16%', '100%', '34%', '100%'])}
-                    `, 'aipkit_module-skeleton-panel--builder')}
-                    <div class="aipkit_module-skeleton-stack">
-                        ${skeletonPanel(`<div class="aipkit_module-skeleton-toolbar">${skeletonLine('31%')}${skeletonLine('18%')}${skeletonLine('18%')}</div>`, 'aipkit_module-skeleton-panel--compact')}
-                        ${skeletonPanel(`${skeletonLine('20%', 'aipkit_module-skeleton-line--heading')}<div class="aipkit_module-skeleton-block aipkit_module-skeleton-block--preview"></div>`, 'aipkit_module-skeleton-panel--preview')}
-                    </div>
-                </div>
-            `,
-            'ai-forms': `
-                <div class="aipkit_module-skeleton-flow">
-                    <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['18%', '32%'])}${skeletonLine('12%')}</div>
-                    <div class="aipkit_module-skeleton-card-row">
-                        ${Array.from({ length: 5 }, () => skeletonPanel(`${skeletonLine('22%', 'aipkit_module-skeleton-line--tile')}${skeletonRows(['68%', '88%', '60%'])}`, 'aipkit_module-skeleton-panel--template')).join('')}
-                    </div>
-                    <div class="aipkit_module-skeleton-toolbar">${skeletonLine('18%', 'aipkit_module-skeleton-line--heading')}${skeletonLine('24%')}${skeletonLine('4%')}</div>
-                    ${skeletonTable(5)}
-                </div>
-            `,
-            'autogpt': `
-                <div class="aipkit_module-skeleton-flow aipkit_module-skeleton-flow--narrow">
-                    <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['22%', '38%'])}${skeletonLine('14%')}</div>
-                    <div class="aipkit_module-skeleton-card-row aipkit_module-skeleton-card-row--three">
-                        ${Array.from({ length: 3 }, () => skeletonPanel(`${skeletonLine('18%', 'aipkit_module-skeleton-line--tile')}${skeletonRows(['58%', '86%', '72%'])}`, 'aipkit_module-skeleton-panel--template')).join('')}
-                    </div>
-                    <div class="aipkit_module-skeleton-toolbar">${skeletonLine('20%', 'aipkit_module-skeleton-line--heading')}${skeletonLine('28%')}${skeletonLine('5%')}</div>
-                    ${skeletonTable(6)}
-                </div>
-            `,
-            'sources': `
-                <div class="aipkit_module-skeleton-flow">
-                    <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['24%', '36%'])}${skeletonLine('13%')}</div>
-                    <div class="aipkit_module-skeleton-tabs">${skeletonLine('10%')}${skeletonLine('12%')}${skeletonLine('10%')}${skeletonLine('11%')}</div>
-                    <div class="aipkit_module-skeleton-toolbar">${skeletonLine('19%', 'aipkit_module-skeleton-line--heading')}${skeletonLine('25%')}${skeletonLine('5%')}</div>
-                    ${skeletonTable(6)}
-                </div>
-            `,
-            'stats': `
-                <div class="aipkit_module-skeleton-flow">
-                    <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['14%', '31%'])}${skeletonLine('18%')}</div>
-                    <div class="aipkit_module-skeleton-card-row aipkit_module-skeleton-card-row--four">
-                        ${Array.from({ length: 4 }, () => skeletonPanel(`${skeletonLine('36%')}${skeletonLine('24%', 'aipkit_module-skeleton-line--metric')}${skeletonLine('52%')}`, 'aipkit_module-skeleton-panel--metric')).join('')}
-                    </div>
-                    ${skeletonPanel(`${skeletonLine('21%', 'aipkit_module-skeleton-line--heading')}<div class="aipkit_module-skeleton-block aipkit_module-skeleton-block--chart"></div>`, 'aipkit_module-skeleton-panel--chart')}
-                </div>
-            `,
-            'settings': `
-                <div class="aipkit_module-skeleton-flow">
-                    <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['15%', '42%'])}</div>
-                    <div class="aipkit_module-skeleton-tabs">${skeletonLine('7%')}${skeletonLine('10%')}${skeletonLine('12%')}${skeletonLine('8%')}${skeletonLine('9%')}${skeletonLine('11%')}</div>
-                    ${skeletonPanel(`${skeletonRows(['19%', '44%'])}${skeletonPanel(skeletonRows(['24%', '100%', '35%']), 'aipkit_module-skeleton-panel--nested')}${skeletonPanel(skeletonRows(['20%', '100%', '31%']), 'aipkit_module-skeleton-panel--nested')}`, 'aipkit_module-skeleton-panel--settings')}
-                </div>
-            `,
-            'image-generator': `
-                <div class="aipkit_module-skeleton-grid aipkit_module-skeleton-grid--image-generator">
-                    ${skeletonPanel(`${skeletonLine('28%', 'aipkit_module-skeleton-line--heading')}${skeletonRows(['22%', '100%', '31%', '100%', '25%', '100%', '18%'])}`, 'aipkit_module-skeleton-panel--builder')}
-                    ${skeletonPanel(`${skeletonLine('24%', 'aipkit_module-skeleton-line--heading')}<div class="aipkit_module-skeleton-block aipkit_module-skeleton-block--image"></div>`, 'aipkit_module-skeleton-panel--preview')}
-                </div>
-            `,
-        };
-
-        const fallback = `
-            <div class="aipkit_module-skeleton-flow">
-                <div class="aipkit_module-skeleton-heading-row">${skeletonRows(['18%', '34%'])}${skeletonLine('13%')}</div>
-                <div class="aipkit_module-skeleton-card-row aipkit_module-skeleton-card-row--three">
-                    ${Array.from({ length: 3 }, () => skeletonPanel(skeletonRows(['38%', '66%', '48%']), 'aipkit_module-skeleton-panel--metric')).join('')}
-                </div>
-                ${skeletonTable(5)}
-            </div>
-        `;
-
-        return `
-            <div class="aipkit_module-skeleton aipkit_module-skeleton--${moduleName}" role="status" aria-live="polite">
-                ${skeletons[moduleName] || fallback}
-            </div>
-        `;
+    const createModuleLoading = () => {
+        const loading = document.createElement('div');
+        loading.className = 'aipkit_module-loading';
+        loading.setAttribute('role', 'status');
+        loading.textContent = window.aipkit_dashboard?.text?.loading || 'Loading…';
+        return loading;
     };
 
     const rememberLastVisitedModule = (moduleName) => {
@@ -542,8 +418,6 @@
 
         const loadingStartedAt = Date.now();
         let loadingFeedbackTimer = null;
-        let loadingFeedbackShownAt = 0;
-        let transitionPreparedForRender = false;
 
         const applyLoadingMinHeight = () => {
             const currentHeight = aipkit_moduleContainer.offsetHeight || 0;
@@ -564,25 +438,12 @@
             loadingFeedbackTimer = null;
         };
 
-        const applySkeletonAccessibilityLabel = (skeleton) => {
-            if (!skeleton) {
-                return;
-            }
-            const loadingText = window.aipkit_dashboard?.text?.loading
-                ? window.aipkit_dashboard.text.loading.replace('%s', aipkit_moduleName)
-                : `Loading ${aipkit_moduleName}`;
-            skeleton.setAttribute('aria-label', loadingText);
-        };
-
-        const showModuleSkeleton = () => {
+        const showModuleLoading = () => {
             loadingFeedbackTimer = null;
-            loadingFeedbackShownAt = Date.now();
-            renderModuleMarkup(aipkit_moduleContainer, getModuleSkeletonMarkup(aipkit_moduleName));
-            applySkeletonAccessibilityLabel(
-                aipkit_moduleContainer.querySelector('.aipkit_module-skeleton')
-            );
+            aipkit_moduleContainer.replaceChildren(createModuleLoading());
         };
 
+        // Automations checks its workspace after rendering: keep it hidden until ready, with the same late indicator.
         const deferAutogptContentUntilReady = () => {
             if (isSilentLoad || aipkit_moduleName !== 'autogpt') {
                 return null;
@@ -593,63 +454,28 @@
                 return null;
             }
 
-            const skeletonTemplate = document.createElement('template');
-            skeletonTemplate.innerHTML = getModuleSkeletonMarkup(aipkit_moduleName).trim();
-            const skeleton = skeletonTemplate.content.firstElementChild;
-            if (!skeleton) {
-                return null;
-            }
-
+            const loading = createModuleLoading();
             const contentWasHidden = moduleContent.hidden;
-            let deferredSkeletonTimer = null;
-            let deferredSkeletonShownAt = 0;
             moduleContent.hidden = true;
-            skeleton.hidden = true;
-            moduleContent.before(skeleton);
-            applySkeletonAccessibilityLabel(skeleton);
+            loading.hidden = true;
+            moduleContent.before(loading);
+            const loadingTimer = setTimeout(() => {
+                loading.hidden = false;
+            }, Math.max(0, MODULE_LOADING_DELAY_MS - (Date.now() - loadingStartedAt)));
 
-            const showDeferredSkeleton = () => {
-                deferredSkeletonTimer = null;
-                deferredSkeletonShownAt = Date.now();
-                skeleton.hidden = false;
-            };
-
-            if (loadingFeedbackShownAt) {
-                deferredSkeletonShownAt = loadingFeedbackShownAt;
-                skeleton.hidden = false;
-            } else {
-                const elapsed = Date.now() - loadingStartedAt;
-                const delay = Math.max(0, MODULE_SKELETON_DELAY_MS - elapsed);
-                deferredSkeletonTimer = setTimeout(showDeferredSkeleton, delay);
-            }
-
-            const clearDeferredSkeletonTimer = () => {
-                if (!deferredSkeletonTimer) {
-                    return;
-                }
-                clearTimeout(deferredSkeletonTimer);
-                deferredSkeletonTimer = null;
+            const removeLoading = () => {
+                clearTimeout(loadingTimer);
+                loading.remove();
             };
 
             return {
-                complete: async () => {
-                    clearDeferredSkeletonTimer();
-                    if (deferredSkeletonShownAt) {
-                        const elapsed = Date.now() - deferredSkeletonShownAt;
-                        const remaining = MODULE_SKELETON_MIN_VISIBLE_MS - elapsed;
-                        if (remaining > 0) {
-                            await new Promise(resolve => setTimeout(resolve, remaining));
-                        }
-                    }
-                    skeleton.remove();
+                complete: () => {
+                    removeLoading();
                     if (moduleContent.isConnected) {
                         moduleContent.hidden = contentWasHidden;
                     }
                 },
-                cancel: () => {
-                    clearDeferredSkeletonTimer();
-                    skeleton.remove();
-                },
+                cancel: removeLoading,
             };
         };
 
@@ -657,34 +483,15 @@
             if (isSilentLoad) {
                 loadingFeedbackTimer = setTimeout(() => {
                     loadingFeedbackTimer = null;
-                    loadingFeedbackShownAt = Date.now();
                     aipkit_moduleContainer.classList.add('aipkit_module-container--refreshing');
-                }, MODULE_SKELETON_DELAY_MS);
+                }, MODULE_REFRESH_DELAY_MS);
                 return;
             }
 
             applyLoadingMinHeight();
             aipkit_moduleContainer.classList.add('aipkit_module-container--loading');
             aipkit_moduleContainer.innerHTML = '';
-            loadingFeedbackTimer = setTimeout(showModuleSkeleton, MODULE_SKELETON_DELAY_MS);
-        };
-
-        const prepareLoadTransitionForRender = async () => {
-            if (transitionPreparedForRender) {
-                return;
-            }
-            transitionPreparedForRender = true;
-            clearLoadingFeedbackTimer();
-
-            if (!loadingFeedbackShownAt || isSilentLoad) {
-                return;
-            }
-
-            const elapsed = Date.now() - loadingFeedbackShownAt;
-            const remaining = MODULE_SKELETON_MIN_VISIBLE_MS - elapsed;
-            if (remaining > 0) {
-                await new Promise(resolve => setTimeout(resolve, remaining));
-            }
+            loadingFeedbackTimer = setTimeout(showModuleLoading, MODULE_LOADING_DELAY_MS);
         };
 
         const finalizeLoadTransition = () => {
@@ -699,7 +506,7 @@
         if (typeof window.aipkit_apiRequest !== 'function') {
             const apiErrorMsg = 'Core API function missing. Cannot load module.';
             console.error(`AIPKit Loader: aipkit_apiRequest function not found for module '${aipkit_moduleName}'.`);
-            await prepareLoadTransitionForRender();
+            clearLoadingFeedbackTimer();
             if (typeof window.aipkit_renderModuleError === 'function') {
                 window.aipkit_renderModuleError(aipkit_moduleContainer, aipkit_moduleName, apiErrorMsg);
             }
@@ -717,7 +524,7 @@
                 throw new Error('Missing or invalid "html" in response data');
             }
 
-            await prepareLoadTransitionForRender();
+            clearLoadingFeedbackTimer();
 
             if (
                 responseData.providerStatus &&
@@ -730,6 +537,12 @@
             }
 
             renderModuleMarkup(aipkit_moduleContainer, responseData.html);
+            // Settle the module's setup notice with its markup, so the shell's Cloud invitation
+            // (ui-cloud-announcement.js) shows or stays hidden in the same frame as the content.
+            if (typeof window.aipkit_refreshProviderNotices === 'function') {
+                window.aipkit_refreshProviderNotices(aipkit_moduleContainer);
+            }
+            window.dispatchEvent(new CustomEvent('aipkit:module-rendered', { detail: { module: aipkit_moduleName } }));
             const deferredAutogptTransition = deferAutogptContentUntilReady();
 
             try {
@@ -767,9 +580,7 @@
                     window.aipkit_initDismissibleNotices(aipkit_moduleContainer);
                 }
 
-                if (deferredAutogptTransition) {
-                    await deferredAutogptTransition.complete();
-                }
+                deferredAutogptTransition?.complete();
 
                 rememberLastVisitedModule(aipkit_moduleName);
             } catch (error) {
@@ -811,7 +622,7 @@
             return Promise.resolve();
 
         } catch (error) {
-            await prepareLoadTransitionForRender();
+            clearLoadingFeedbackTimer();
             if (error && error.debug) {
                 console.error(`AIPKit Loader: Module loading error for '${aipkit_moduleName}':`, error.message, '\nServer debug:', error.debug);
             } else {

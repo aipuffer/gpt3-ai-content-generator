@@ -18,6 +18,11 @@ class AIPKit_Vector_Chroma_Strategy extends AIPKit_Vector_Base_Provider_Strategy
     protected $tenant = 'default_tenant';
     protected $database = 'default_database';
 
+    /** Apply credentials locally; the next operation authenticates with the provider. */
+    public function configure(array $config) {
+        return \WPAICG\Vector\Providers\Chroma\Methods\configure_logic($this, $config);
+    }
+
     /**
      * @return bool|\WP_Error
      */
@@ -80,6 +85,11 @@ class AIPKit_Vector_Chroma_Strategy extends AIPKit_Vector_Base_Provider_Strategy
     public function describe_index(string $index_name)
     {
         return \WPAICG\Vector\Providers\Chroma\Methods\describe_index_logic($this, $index_name);
+    }
+
+    /** A collection's dimensions are available without counting its records. */
+    public function describe_index_for_embeddings(string $index_name) {
+        return \WPAICG\Vector\Providers\Chroma\Methods\describe_index_logic($this, $index_name, false);
     }
 
     /**
@@ -447,7 +457,7 @@ function normalize_chroma_score_logic($distance): ?float
 /**
  * @return bool|\WP_Error
  */
-function connect_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, array $config)
+function configure_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, array $config)
 {
     if (empty($config['url'])) {
         return new WP_Error('missing_chroma_url', __('Chroma URL is required for connection.', 'gpt3-ai-content-generator'));
@@ -457,6 +467,15 @@ function connect_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, array $c
     $strategyInstance->set_api_key($config['api_key'] ?? null);
     $strategyInstance->set_tenant($config['tenant'] ?? null);
     $strategyInstance->set_database($config['database'] ?? null);
+    $strategyInstance->set_is_connected_status(true);
+    return true;
+}
+
+/** Validate a connection explicitly, outside normal operations. */
+function connect_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, array $config)
+{
+    $configured = configure_logic($strategyInstance, $config);
+    if (is_wp_error($configured)) { return $configured; }
     $strategyInstance->set_is_connected_status(false);
 
     $path = '/api/v2/tenants/' . rawurlencode($strategyInstance->get_tenant()) . '/databases/' . rawurlencode($strategyInstance->get_database());
@@ -591,7 +610,7 @@ function delete_vectors_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, s
 /**
  * @return mixed[]|\WP_Error
  */
-function describe_index_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, string $index_name)
+function describe_index_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, string $index_name, bool $include_count = true)
 {
     $collection = resolve_collection_logic($strategyInstance, $index_name);
     if (is_wp_error($collection)) {
@@ -620,13 +639,15 @@ function describe_index_logic(AIPKit_Vector_Chroma_Strategy $strategyInstance, s
         return $description;
     }
 
-    $count_response = _request_logic($strategyInstance, 'GET', collection_records_path_logic($strategyInstance, $collection_id, 'count'));
-    $count_value = !is_wp_error($count_response)
-        ? ($count_response['value'] ?? ($count_response['count'] ?? null))
-        : null;
-    if ($count_value !== null && is_numeric($count_value)) {
-        $description['total_vector_count'] = (int) $count_value;
-        $description['vectors_count'] = (int) $count_value;
+    if ($include_count) {
+        $count_response = _request_logic($strategyInstance, 'GET', collection_records_path_logic($strategyInstance, $collection_id, 'count'));
+        $count_value = !is_wp_error($count_response)
+            ? ($count_response['value'] ?? ($count_response['count'] ?? null))
+            : null;
+        if ($count_value !== null && is_numeric($count_value)) {
+            $description['total_vector_count'] = (int) $count_value;
+            $description['vectors_count'] = (int) $count_value;
+        }
     }
 
     $description['id'] = $description['id'] ?? $collection_id;

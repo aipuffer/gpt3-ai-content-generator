@@ -89,10 +89,10 @@
     input.readOnly = shouldMask;
   };
 
+  // While the field has focus it shows the saved key; leaving it masks the key again.
   const setCredentialRevealed = (card, revealed) => {
     const input = card?.querySelector("[data-aipkit-provider-credential]");
-    const revealButton = card?.querySelector("[data-aipkit-provider-reveal]");
-    if (!input?.classList.contains("is-secret") || !revealButton) {
+    if (!input?.classList.contains("is-secret")) {
       return;
     }
 
@@ -102,17 +102,10 @@
       card,
       card?.dataset.aipkitProviderConnected === "true"
     );
-
-    const label = revealed
-      ? revealButton.dataset.hideLabel || "Hide API key"
-      : revealButton.dataset.revealLabel || "Reveal API key";
-    revealButton.setAttribute("aria-label", label);
-    revealButton.setAttribute("title", label);
-
-    const icon = revealButton.querySelector(".dashicons");
-    icon?.classList.toggle("dashicons-visibility", !revealed);
-    icon?.classList.toggle("dashicons-hidden", revealed);
   };
+
+  // The saved key as loaded, so peeking at it and clicking away doesn't save it again. Kept in memory only.
+  const savedCredentials = new WeakMap();
 
   const loadStoredCredential = async (card) => {
     const input = card?.querySelector("[data-aipkit-provider-credential]");
@@ -143,6 +136,10 @@
       input.value = String(response?.credential || "");
       input.name = input.dataset.aipkitCredentialName || "";
       input.dataset.aipkitCredentialLoaded = "true";
+      savedCredentials.set(input, input.value);
+      // Enabled first: the saved state is read from the form, which leaves out disabled fields.
+      input.disabled = false;
+      window.aipkit_markSettingsFieldSaved?.(input);
       return input.value !== "";
     } catch (error) {
       if (typeof window.aipkit_showMessage === "function") {
@@ -167,37 +164,14 @@
     }
   };
 
-  const syncGlobalSettingControls = (container, source) => {
-    const settingName =
-      source?.dataset.aipkitGlobalSetting ||
-      source?.dataset.aipkitGlobalSettingSource ||
-      "";
-    if (!settingName) {
-      return;
-    }
-
-    const canonical = container.querySelector(
-      `[data-aipkit-global-setting-source="${CSS.escape(settingName)}"]`
+  // A switch can stand for two words (e.g. "deny"/"allow"); a hidden field keeps the saved value.
+  const syncToggleValue = (toggle) => {
+    const source = toggle?.closest("[data-aipkit-provider-field-id]")?.querySelector(
+      `[data-aipkit-toggle-value-source="${CSS.escape(toggle.id)}"]`
     );
-    const value = String(source?.value ?? canonical?.value ?? "");
-    if (canonical) {
-      canonical.value = value;
+    if (source) {
+      source.value = toggle.checked ? toggle.dataset.aipkitToggleValueOn || "" : toggle.dataset.aipkitToggleValueOff || "";
     }
-    container
-      .querySelectorAll(
-        `[data-aipkit-global-setting="${CSS.escape(settingName)}"]`
-      )
-      .forEach((input) => {
-        if (input !== source) {
-          input.value = value;
-        }
-      });
-  };
-
-  const syncAllGlobalSettingControls = (container) => {
-    container
-      .querySelectorAll("[data-aipkit-global-setting-source]")
-      .forEach((source) => syncGlobalSettingControls(container, source));
   };
 
   const clearCardSyncError = (card) => {
@@ -265,7 +239,7 @@
     const card = container?.querySelector(
       `[data-aipkit-provider-card="${CSS.escape(provider)}"]`
     );
-    if (!card || card.classList.contains("is-locked")) {
+    if (!card) {
       return;
     }
 
@@ -324,17 +298,26 @@
     summary.textContent = select?.value
       ? select.selectedOptions[0]?.textContent || select.value
       : summary.dataset.emptyLabel;
-    const manage = card.querySelector("[data-aipkit-provider-settings-open]");
-    if (manage) {
-      manage.textContent = connected ? manage.dataset.manageLabel : manage.dataset.connectLabel;
+    summary.classList.toggle("is-empty", !select?.value);
+    updateAiOverview(card.closest("#aipkit_settings_container"));
+  };
+
+  // The page state follows the cards' connection state.
+  const updateAiOverview = (container) => {
+    const ai = container?.querySelector("[data-aipkit-settings-ai]");
+    if (!ai) {
+      return;
     }
+
+    const connected = ai.querySelector('[data-aipkit-provider-card][data-aipkit-provider-connected="true"]');
+    ai.dataset.state = connected ? "ready" : "empty";
   };
 
   const setCardConnectedState = (container, provider, connected) => {
     const card = container?.querySelector(
       `[data-aipkit-provider-card="${CSS.escape(provider)}"]`
     );
-    if (!card || card.classList.contains("is-locked")) {
+    if (!card) {
       return;
     }
 
@@ -344,9 +327,6 @@
     );
     const disconnectedStatus = card.querySelector(
       ".aipkit_settings_provider_status--disconnected"
-    );
-    const connectedActions = card.querySelector(
-      ".aipkit_settings_provider_connected_actions"
     );
     const connectButton = card.querySelector(
       "[data-aipkit-provider-connect]"
@@ -358,9 +338,14 @@
     clearCardSyncError(card);
     if (connectedStatus) connectedStatus.hidden = !connected;
     if (disconnectedStatus) disconnectedStatus.hidden = connected;
-    if (connectedActions) connectedActions.hidden = !connected;
     if (connectButton) connectButton.hidden = connected;
     if (modelBlock) modelBlock.hidden = !connected;
+    card.querySelectorAll("[data-aipkit-provider-connected-only]").forEach((part) => {
+      part.hidden = !connected;
+    });
+    card.querySelectorAll("[data-aipkit-provider-disconnected-only]").forEach((part) => {
+      part.hidden = connected;
+    });
     const credential = card.querySelector("[data-aipkit-provider-credential]");
     if (credential && connected && credential.value.trim() !== "") {
       credential.dataset.aipkitHasCredential = "true";
@@ -373,10 +358,15 @@
     const cards = container?.querySelectorAll("[data-aipkit-provider-card]") || [];
     cards.forEach((card) => {
       const isDefault = card.dataset.aipkitProviderCard === provider;
+      card.dataset.aipkitProviderDefault = isDefault ? "true" : "false";
       const status = card.querySelector("[data-aipkit-provider-default-status]");
       const action = card.querySelector("[data-aipkit-provider-set-default]");
+      const note = card.querySelector("[data-aipkit-provider-default-note]");
       if (status) {
         status.hidden = !isDefault;
+      }
+      if (note) {
+        note.hidden = !isDefault;
       }
       if (action) {
         action.hidden = isDefault;
@@ -389,6 +379,7 @@
     if (cardsContainer) {
       cardsContainer.dataset.aipkitCurrentProvider = provider;
     }
+    updateAiOverview(container);
   };
 
   const saveDefaultProvider = async (container, button) => {
@@ -439,17 +430,25 @@
 
     try {
       await window.aipkit_handleAutoSave();
-      const savedValue = String(window.aipkit_lastSavedData?.[input.name] ?? "");
+      // Only a save that carried this field counts; a failed save leaves the old record without it.
+      const saved = window.aipkit_lastSavedData || {};
       const card = input.closest("[data-aipkit-provider-card]");
       if (
-        savedValue === input.value &&
+        Object.prototype.hasOwnProperty.call(saved, input.name) &&
+        String(saved[input.name] ?? "") === input.value &&
         !card?.classList.contains("has-provider-error")
       ) {
-        setCardConnectedState(
-          container,
-          input.dataset.aipkitProviderCredential || "",
-          input.value.trim() !== ""
-        );
+        if (input.classList.contains("is-secret")) {
+          savedCredentials.set(input, input.value);
+        }
+        // A saved server address still has to answer: the model sync that follows the save decides.
+        if (input.value.trim() === "" || !input.dataset.aipkitProviderConnectionField) {
+          setCardConnectedState(
+            container,
+            input.dataset.aipkitProviderCredential || "",
+            input.value.trim() !== ""
+          );
+        }
         if (button && input.value.trim() !== "") {
           card
             ?.querySelector(
@@ -467,6 +466,83 @@
     }
   };
 
+  // Tries a server address before saving it; the sync events then mark the card connected or show why not.
+  const verifyConnection = async (input, button) => {
+    if (typeof window.aipkit_syncModels !== "function") {
+      return;
+    }
+
+    button.classList.add("aipkit_loading");
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    try {
+      await window.aipkit_syncModels(null, input.dataset.aipkitProviderCredential || "", {
+        connectionFields: { [input.dataset.aipkitProviderConnectionField]: input.value.trim() },
+        silent: true,
+        showLocalStatus: false,
+        propagateError: true,
+      });
+      input
+        .closest("[data-aipkit-provider-card]")
+        ?.querySelector("[data-aipkit-provider-model-block] .aipkit_unified_model_trigger")
+        ?.focus();
+    } catch (error) {
+      // The sync error event has already put the reason in the panel.
+    } finally {
+      button.classList.remove("aipkit_loading");
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+  };
+
+  // Clears the saved key or address; the provider then shows as not connected.
+  const removeCredential = (container, button) => {
+    const card = button.closest("[data-aipkit-provider-card]");
+    const input = card?.querySelector("[data-aipkit-provider-credential]");
+    if (!input) {
+      return;
+    }
+    const remove = async () => {
+      const before = {
+        name: input.name,
+        value: input.value,
+        hasCredential: input.dataset.aipkitHasCredential || "",
+        loaded: input.dataset.aipkitCredentialLoaded || "",
+      };
+      if (input.classList.contains("is-secret")) {
+        input.type = "password";
+      }
+      input.name = input.dataset.aipkitCredentialName || "";
+      input.value = "";
+      input.readOnly = false;
+      input.dataset.aipkitHasCredential = "false";
+      input.dataset.aipkitCredentialLoaded = "";
+      card.querySelector("[data-aipkit-provider-credential-mask]")?.setAttribute("hidden", "");
+      input.classList.remove("is-visually-masked");
+      await autosaveCredential(container, input);
+      // If the save didn't go through, the key is still stored: show it as before.
+      if (card.dataset.aipkitProviderConnected === "true") {
+        input.name = before.name;
+        input.value = before.value;
+        input.dataset.aipkitHasCredential = before.hasCredential;
+        input.dataset.aipkitCredentialLoaded = before.loaded;
+        syncCredentialMask(card, true);
+      }
+    };
+    if (typeof window.aipkit_showConfirmModal !== "function") {
+      remove();
+      return;
+    }
+    window.aipkit_showConfirmModal(button.dataset.confirmText || "", {
+      title: button.dataset.confirmTitle || "",
+      confirmText: button.dataset.confirmButton || "",
+      cancelText: button.dataset.cancelButton || "",
+      variant: "danger",
+      onConfirm: remove,
+      onCancel: () => button.isConnected && button.focus(),
+    });
+  };
+
   const updateModerationVisibility = (modal) => {
     const toggle = modal?.querySelector(
       'input[name="security[openai_moderation_enabled]"]'
@@ -475,7 +551,7 @@
       "#aipkit_settings_openai_moderation_message_row"
     );
     if (toggle && row) {
-      row.hidden = !toggle.checked;
+      row.hidden = !toggle.checked || toggle.disabled;
     }
   };
 
@@ -486,38 +562,61 @@
     const modal = container?.querySelector(
       '[data-aipkit-provider-modal="OpenAI"]'
     );
-    const modeSelect = modal?.querySelector('select[name="openai_api_mode"]');
-    if (!modeSelect) {
+    const modeSource = modal?.querySelector('input[name="openai_api_mode"]');
+    if (!modeSource) {
       return;
     }
 
-    const mode = normalizeOpenAIApiMode(modeSelect.value);
+    const mode = normalizeOpenAIApiMode(modeSource.value);
     const isCompatibilityMode = mode === "chat_completions";
-    const notice = modal.querySelector("[data-aipkit-openai-api-mode-notice]");
-    const storageRow = modal.querySelector(
-      '[data-aipkit-provider-field-id="store_conversation"]'
-    );
-    const storageToggle = storageRow?.querySelector(
-      'input[name="openai_store_conversation"]'
-    );
-
-    modeSelect.value = mode;
-    if (notice) {
-      notice.hidden = !isCompatibilityMode;
-    }
-    if (storageRow) {
-      storageRow.classList.toggle("is-api-mode-disabled", isCompatibilityMode);
-      storageRow.setAttribute(
-        "aria-disabled",
-        isCompatibilityMode ? "true" : "false"
-      );
-    }
-    if (storageToggle) {
-      storageToggle.disabled = isCompatibilityMode;
-    }
+    modeSource.value = mode;
+    // Compatibility mode skips moderation and saved chats: they read as off, with the reason.
+    modal.querySelectorAll("[data-aipkit-off-in-compatibility-mode]").forEach((row) => {
+      row.classList.toggle("is-api-mode-disabled", isCompatibilityMode);
+      row.setAttribute("aria-disabled", isCompatibilityMode ? "true" : "false");
+      row.querySelectorAll('.aipkit_switch input[type="checkbox"]').forEach((toggle) => {
+        toggle.disabled = isCompatibilityMode;
+      });
+      const note = row.querySelector("[data-aipkit-compatibility-note]");
+      if (note) {
+        note.hidden = !isCompatibilityMode;
+      }
+    });
+    updateModerationVisibility(modal);
 
     window.aipkit_dashboard = window.aipkit_dashboard || {};
     window.aipkit_dashboard.openaiApiMode = mode;
+  };
+
+  // A folded group's one-line summary follows its settings, worded as the server words it.
+  const updateFoldSummary = (fold) => {
+    const help = fold.querySelector(":scope > summary .aipkit_settings_provider_option_help");
+    if (!help) {
+      return;
+    }
+    const switches = [];
+    const values = [];
+    fold.querySelectorAll(".aipkit_settings_provider_fold_body .aipkit_settings_provider_option").forEach((row) => {
+      const label = row.querySelector(".aipkit_settings_provider_option_label")?.textContent.trim() || "";
+      const toggle = row.querySelector('.aipkit_switch input[type="checkbox"]');
+      if (toggle) {
+        switches.push((toggle.checked ? fold.dataset.onTemplate : fold.dataset.offTemplate || "").replace("%s", label));
+        return;
+      }
+      const field = row.querySelector("input.aipkit_form-input, select.aipkit_form-input");
+      const value = String(field?.value || row.querySelector("[data-default-value]")?.dataset.defaultValue || "").trim();
+      if (value === "") {
+        return;
+      }
+      let host = "";
+      try {
+        host = new URL(value).hostname;
+      } catch {
+        host = "";
+      }
+      values.push(host || value);
+    });
+    help.textContent = [...switches, ...values].join(" · ");
   };
 
   const getFocusableElements = (modal) =>
@@ -549,6 +648,10 @@
       returnFocusTarget.focus();
     }
     returnFocusTarget = null;
+    // Panels opened over another (a rule over its app) use this to go back to the one below.
+    if (typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+      window.dispatchEvent(new CustomEvent("aipkit:provider-modal-closed", { detail: { modal: modalToClose } }));
+    }
   };
 
   const openModal = (container, provider, trigger) => {
@@ -572,12 +675,12 @@
     }
 
     window.setTimeout(() => {
-      const card = modal.closest("[data-aipkit-provider-card]");
-      const credential =
+      const card = modal.closest("[data-aipkit-provider-connected]");
+      const firstField =
         card?.dataset.aipkitProviderConnected === "false"
-          ? modal.querySelector("[data-aipkit-provider-credential]")
+          ? modal.querySelector(".aipkit_settings_provider_connection_fields input:not([type='hidden']):not([readonly])")
           : null;
-      (credential || getFocusableElements(modal)[0])?.focus();
+      (firstField || getFocusableElements(modal)[0])?.focus();
     }, 0);
   };
 
@@ -698,13 +801,13 @@
           );
         }
       }
-
-      if (event.target.matches("[data-aipkit-global-setting]")) {
-        syncGlobalSettingControls(container, event.target);
-      }
     });
 
+    // Registered before autosave, so a switch's saved word is in place when the save reads the form.
     container.addEventListener("change", (event) => {
+      if (event.target.matches("[data-aipkit-toggle-value-on]")) {
+        syncToggleValue(event.target);
+      }
       if (!activeModal || !activeModal.contains(event.target)) {
         return;
       }
@@ -715,12 +818,13 @@
         updateModerationVisibility(activeModal);
       }
 
-      if (event.target.matches('select[name="openai_api_mode"]')) {
+      if (event.target.matches('[data-aipkit-toggle-value-on][id="aipkit_openai_api_mode"]')) {
         syncOpenAIApiModeControls(container);
       }
 
-      if (event.target.matches("[data-aipkit-global-setting]")) {
-        syncGlobalSettingControls(container, event.target);
+      const fold = event.target.closest(".aipkit_settings_provider_fold");
+      if (fold) {
+        updateFoldSummary(fold);
       }
     });
 
@@ -729,11 +833,16 @@
       (event) => {
         if (event.target.matches("[data-aipkit-provider-credential]")) {
           const card = event.target.closest("[data-aipkit-provider-card]");
-          const revealButton = card?.querySelector(
-            "[data-aipkit-provider-reveal]"
-          );
-          if (event.relatedTarget !== revealButton) {
-            setCredentialRevealed(card, false);
+          setCredentialRevealed(card, false);
+          if (savedCredentials.has(event.target) && savedCredentials.get(event.target) === event.target.value) {
+            return;
+          }
+          // An address that isn't connected yet is saved by Connect, once it answers.
+          if (
+            event.target.dataset.aipkitProviderConnectionField &&
+            card?.dataset.aipkitProviderConnected !== "true"
+          ) {
+            return;
           }
           autosaveCredential(container, event.target);
         }
@@ -742,20 +851,10 @@
     );
 
     container.addEventListener("click", (event) => {
-      const revealButton = event.target.closest("[data-aipkit-provider-reveal]");
-      if (revealButton) {
+      const removeButton = event.target.closest("[data-aipkit-provider-remove]");
+      if (removeButton) {
         event.preventDefault();
-        const card = revealButton.closest("[data-aipkit-provider-card]");
-        const input = card?.querySelector("[data-aipkit-provider-credential]");
-        if (!input) {
-          return;
-        }
-
-        if (input.type === "password") {
-          void revealStoredCredential(card);
-        } else {
-          setCredentialRevealed(card, false);
-        }
+        removeCredential(container, removeButton);
         return;
       }
 
@@ -763,6 +862,14 @@
       if (connectButton) {
         event.preventDefault();
         const provider = connectButton.dataset.aipkitProviderConnect || "";
+        const missing = Array.from(
+          connectButton.closest(".aipkit_settings_provider_connection_fields")?.querySelectorAll("input[required]") || []
+        ).find((field) => field.value.trim() === "");
+        if (missing) {
+          missing.reportValidity();
+          missing.focus();
+          return;
+        }
         const input = container.querySelector(
           `[data-aipkit-provider-credential="${CSS.escape(provider)}"]`
         );
@@ -773,7 +880,11 @@
           window.setTimeout(() => input?.setCustomValidity(""), 0);
           return;
         }
-        autosaveCredential(container, input, connectButton);
+        if (input.dataset.aipkitProviderConnectionField) {
+          verifyConnection(input, connectButton);
+        } else {
+          autosaveCredential(container, input, connectButton);
+        }
         return;
       }
 
@@ -826,6 +937,10 @@
     });
 
     document.addEventListener("keydown", (event) => {
+      // The confirmation owns keyboard handling while it sits above the provider panel.
+      if (event.defaultPrevented || document.querySelector(".aipkit-alert-modal-overlay.aipkit-active")) {
+        return;
+      }
       if (!activeModal) {
         return;
       }
@@ -907,8 +1022,8 @@
           card.dataset.aipkitProviderConnected === "true"
         );
       });
+      updateAiOverview(container);
       updateLastSyncedLabels(container);
-      syncAllGlobalSettingControls(container);
       syncOpenAIApiModeControls(container);
       bindContainerEvents(container);
       container.dataset.aipkitAiProviderCardsBound = "true";
@@ -920,4 +1035,5 @@
 
   window.aipkit_initAiProviderCards = aipkit_initAiProviderCards;
   window.aipkit_closeProviderModal = closeModal;
+  window.aipkit_openProviderModal = (key, trigger) => openModal(getContainer(), key, trigger);
 })();

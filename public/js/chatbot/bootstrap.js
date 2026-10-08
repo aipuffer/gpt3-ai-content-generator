@@ -266,6 +266,7 @@
       elements: setupResult.internalElements,
       actions: setupResult.internalActions,
       state: setupResult.internalState || null,
+      lifecycle: owner.lifecycle,
       config,
     };
 

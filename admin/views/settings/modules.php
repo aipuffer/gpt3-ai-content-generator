@@ -14,43 +14,43 @@ if (!defined('ABSPATH')) {
 $aipkit_settings_modules = array(
     'chat_bot' => array(
         'label'       => __('Chatbots', 'gpt3-ai-content-generator'),
-        'description' => __('Create and manage site chatbots.', 'gpt3-ai-content-generator'),
+        'description' => __('Chat with visitors on your site.', 'gpt3-ai-content-generator'),
         'icon'        => 'format-chat',
         'data_module' => 'chatbot',
     ),
     'content_writer' => array(
         'label'       => __('Content Writer', 'gpt3-ai-content-generator'),
-        'description' => __('Generate posts, pages, and product content.', 'gpt3-ai-content-generator'),
+        'description' => __('Posts, pages and products.', 'gpt3-ai-content-generator'),
         'icon'        => 'edit',
         'data_module' => 'content-writer',
     ),
     'autogpt' => array(
         'label'       => __('Automations', 'gpt3-ai-content-generator'),
-        'description' => __('Schedule recurring AI workflows.', 'gpt3-ai-content-generator'),
+        'description' => __('Tasks that run on a schedule.', 'gpt3-ai-content-generator'),
         'icon_text'   => '⚡︎',
         'data_module' => 'autogpt',
     ),
     'ai_forms' => array(
         'label'       => __('AI Forms', 'gpt3-ai-content-generator'),
-        'description' => __('Build AI-powered forms and responses.', 'gpt3-ai-content-generator'),
+        'description' => __('Forms that answer with AI.', 'gpt3-ai-content-generator'),
         'icon'        => 'feedback',
         'data_module' => 'ai-forms',
     ),
     'sources' => array(
         'label'       => __('Knowledge Base', 'gpt3-ai-content-generator'),
-        'description' => __('Manage sources, embeddings, and retrieval.', 'gpt3-ai-content-generator'),
+        'description' => __('What your chatbots know.', 'gpt3-ai-content-generator'),
         'icon'        => 'media-document',
         'data_module' => 'sources',
     ),
     'image_generator' => array(
         'label'       => __('Images', 'gpt3-ai-content-generator'),
-        'description' => __('Generate images when this tool is enabled.', 'gpt3-ai-content-generator'),
+        'description' => __('Make and edit images.', 'gpt3-ai-content-generator'),
         'icon'        => 'format-image',
         'data_module' => 'image-generator',
     ),
     'stats_viewer' => array(
         'label'       => __('Usage', 'gpt3-ai-content-generator'),
-        'description' => __('Show Usage in navigation. Turning this off also hides Visitor billing controls.', 'gpt3-ai-content-generator'),
+        'description' => __('Costs and limits.', 'gpt3-ai-content-generator'),
         'icon'        => 'chart-bar',
         'data_module' => 'stats',
     ),
@@ -78,7 +78,7 @@ $aipkit_visitor_billing_enabled = class_exists(\WPAICG\Stats\AIPKit_Stats::class
 $aipkit_editor_tools = array(
     'index_button' => array(
         'label'       => __('Add to knowledge base', 'gpt3-ai-content-generator'),
-        'description' => __('Let editors add posts and pages to your knowledge base from content lists.', 'gpt3-ai-content-generator'),
+        'description' => __('A button on the Posts and Pages lists.', 'gpt3-ai-content-generator'),
         'icon'        => 'list-view',
         'field_id'    => 'aipkit_settings_index_button',
         'name'        => 'show_index_button',
@@ -88,7 +88,7 @@ $aipkit_editor_tools = array(
     ),
     'content_assistant' => array(
         'label'       => __('Content Assistant', 'gpt3-ai-content-generator'),
-        'description' => __('Show Content Assistant on content lists.', 'gpt3-ai-content-generator'),
+        'description' => __('Improve several posts at once, from the Posts and Pages lists.', 'gpt3-ai-content-generator'),
         'icon'        => 'lightbulb',
         'field_id'    => 'aipkit_enhancer_list_button',
         'name'        => 'enhancer_list_button',
@@ -98,7 +98,7 @@ $aipkit_editor_tools = array(
     ),
     'editor_assistant' => array(
         'label'       => __('Editor assistant', 'gpt3-ai-content-generator'),
-        'description' => __('Show the assistant in Classic and Block editors.', 'gpt3-ai-content-generator'),
+        'description' => __('Help while writing, in the Classic and Block editors.', 'gpt3-ai-content-generator'),
         'icon'        => 'edit-page',
         'field_id'    => 'aipkit_enhancer_editor_integration',
         'name'        => 'enhancer_editor_integration',
@@ -108,22 +108,24 @@ $aipkit_editor_tools = array(
     ),
 );
 ?>
+<?php
+$aipkit_menu_modules = array_filter($aipkit_settings_modules, static fn($module) => AIPKit_Role_Manager::user_can_access_module($module['data_module']));
+?>
 <div
     class="aipkit_settings_modules"
     id="aipkit_settings_modules"
     data-indexing-nonce="<?php echo esc_attr($aipkit_indexing_nonce); ?>"
     data-visitor-billing-nonce="<?php echo esc_attr(wp_create_nonce('aipkit_visitor_billing')); ?>"
 >
-    <section class="aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_navigation_title">
+    <section class="aipkit_settings_part aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_navigation_title">
         <h4 class="aipkit_settings_modules_section_title" id="aipkit_settings_modules_navigation_title">
-            <?php esc_html_e('Navigation', 'gpt3-ai-content-generator'); ?>
+            <?php esc_html_e('In the AI Puffer menu', 'gpt3-ai-content-generator'); ?>
         </h4>
+        <p class="aipkit_settings_modules_section_hint"><?php esc_html_e('Turn a tool off to hide it from the menu. Nothing is deleted.', 'gpt3-ai-content-generator'); ?></p>
+        <?php // One list, like the AI page's providers. ?>
         <div class="aipkit_settings_modules_list">
-            <?php foreach ($aipkit_settings_modules as $aipkit_option_key => $aipkit_module): ?>
+            <?php foreach ($aipkit_menu_modules as $aipkit_option_key => $aipkit_module): ?>
                 <?php
-                if (!AIPKit_Role_Manager::user_can_access_module($aipkit_module['data_module'])) {
-                    continue;
-                }
                 $aipkit_is_enabled = !isset($module_settings[$aipkit_option_key]) || !empty($module_settings[$aipkit_option_key]);
                 $aipkit_field_id = 'aipkit_settings_module_' . $aipkit_option_key;
                 ?>
@@ -161,10 +163,11 @@ $aipkit_editor_tools = array(
         </div>
     </section>
 
-    <section class="aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_editor_tools_title">
+    <section class="aipkit_settings_part aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_editor_tools_title">
         <h4 class="aipkit_settings_modules_section_title" id="aipkit_settings_modules_editor_tools_title">
-            <?php esc_html_e('Editor and content tools', 'gpt3-ai-content-generator'); ?>
+            <?php esc_html_e('In WordPress', 'gpt3-ai-content-generator'); ?>
         </h4>
+        <p class="aipkit_settings_modules_section_hint"><?php esc_html_e('Extras on your posts, pages and editor.', 'gpt3-ai-content-generator'); ?></p>
         <div class="aipkit_settings_modules_list">
             <?php foreach ($aipkit_editor_tools as $aipkit_tool): ?>
                 <div
@@ -202,18 +205,20 @@ $aipkit_editor_tools = array(
         </div>
     </section>
 
-    <?php if ($can_manage_modules) : ?>
-        <section class="aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_optional_title">
-            <h4 class="aipkit_settings_modules_section_title" id="aipkit_settings_modules_optional_title">
-                <?php esc_html_e('Optional features', 'gpt3-ai-content-generator'); ?>
+    <?php // Visitor billing adds to the Usage page, not the menu, so it has its own group, last. ?>
+    <?php if ($can_manage_modules && isset($aipkit_menu_modules['stats_viewer'])) : ?>
+        <section class="aipkit_settings_part aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_usage_title">
+            <h4 class="aipkit_settings_modules_section_title" id="aipkit_settings_modules_usage_title">
+                <?php esc_html_e('In Usage', 'gpt3-ai-content-generator'); ?>
             </h4>
+            <p class="aipkit_settings_modules_section_hint"><?php esc_html_e('Extras on the Usage page.', 'gpt3-ai-content-generator'); ?></p>
             <div class="aipkit_settings_modules_list">
                 <div class="aipkit_form-group aipkit_settings_simple_row aipkit_settings_module_row" data-aipkit-settings-autosave-exclude="true">
                     <div class="aipkit_settings_module_identity">
                         <span class="aipkit_settings_module_icon dashicons dashicons-groups" aria-hidden="true"></span>
                         <label class="aipkit_form-label aipkit_settings_module_copy" for="aipkit_settings_visitor_billing_toggle">
                             <span class="aipkit_settings_module_title"><?php esc_html_e('Visitor billing', 'gpt3-ai-content-generator'); ?></span>
-                            <span class="aipkit_form-label-helper"><?php esc_html_e('Show visitor credit controls in Usage. Turning this on also shows Usage; turning it off does not stop existing sales.', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit_form-label-helper"><?php esc_html_e('Sell credits to visitors. Turning it on also turns on Usage; turning it off doesn’t stop existing sales.', 'gpt3-ai-content-generator'); ?></span>
                         </label>
                     </div>
                     <label class="aipkit_switch aipkit_settings_module_control" for="aipkit_settings_visitor_billing_toggle">

@@ -247,7 +247,6 @@ $render_size_preset_row = static function (string $key, array $row) use ($bot_id
         </div>
 
         <div class="aipkit_custom_theme_modal_footer">
-            <span class="aipkit_custom_theme_modal_note"><?php esc_html_e('Changes save automatically.', 'gpt3-ai-content-generator'); ?></span>
             <button type="button" class="aipkit_btn aipkit_btn-primary" data-aipkit-theme-panel-done><?php esc_html_e('Done', 'gpt3-ai-content-generator'); ?></button>
         </div>
     </div>

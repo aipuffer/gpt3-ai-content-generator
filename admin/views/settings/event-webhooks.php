@@ -1,6 +1,7 @@
 <?php
 /**
- * Partial: Event Webhooks Settings Section
+ * Partial: Webhooks in For developers. A row opens its panel: the switch, the endpoints as rows, and the signing
+ * secret. Each endpoint opens its own panel over it, with what it receives, a test send, and any send that failed.
  */
 if (!defined('ABSPATH')) {
     exit;
@@ -8,470 +9,408 @@ if (!defined('ABSPATH')) {
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- This file only uses local helper/template variables and does not define public globals.
 
+if (!class_exists('\WPAICG\Core\AIPKit_Event_Webhook_Status')) {
+    require_once WPAICG_PLUGIN_DIR . 'classes/integrations/webhook-status.php';
+}
+$event_webhook_status = \WPAICG\Core\AIPKit_Event_Webhook_Status::class;
 $event_webhook_settings = \WPAICG\Core\AIPKit_Event_Webhooks_Settings::get_settings();
-$event_webhooks_enabled = (string) ($event_webhook_settings['enabled'] ?? '0') === '1' ? '1' : '0';
+$event_webhooks_enabled = (string) ($event_webhook_settings['enabled'] ?? '0') === '1';
 $event_webhook_signing_secret = (string) ($event_webhook_settings['signing_secret'] ?? '');
 $event_webhook_secret_mask = isset($aipkit_format_developer_credential_mask) && is_callable($aipkit_format_developer_credential_mask)
     ? $aipkit_format_developer_credential_mask($event_webhook_signing_secret)
     : '';
 $event_webhook_endpoints = isset($event_webhook_settings['endpoints']) && is_array($event_webhook_settings['endpoints'])
-    ? array_values($event_webhook_settings['endpoints'])
+    ? array_values(array_filter($event_webhook_settings['endpoints'], 'is_array'))
     : [];
 $event_webhook_definitions = \WPAICG\Core\AIPKit_Event_Registry::get_definitions();
-$event_webhook_queue_store_class = \WPAICG\Core\AIPKit_Event_Queue_Store::class;
 $event_webhook_field_key_map = \WPAICG\Core\AIPKit_Event_Webhooks_Settings::get_event_field_key_map();
-$event_webhook_delivery_issues = class_exists($event_webhook_queue_store_class) && method_exists($event_webhook_queue_store_class, 'get_recent_failed_webhook_jobs')
-    ? $event_webhook_queue_store_class::get_recent_failed_webhook_jobs(5)
-    : [];
+$event_webhook_plain_labels = $event_webhook_status::event_labels();
 $event_webhook_field_key_by_event_name = [];
 foreach ($event_webhook_field_key_map as $field_key => $event_name) {
     $event_webhook_field_key_by_event_name[(string) $event_name] = (string) $field_key;
 }
 $event_webhook_module_labels = [
     'chatbot' => __('Chatbot', 'gpt3-ai-content-generator'),
-    'ai_forms' => __('AI Forms', 'gpt3-ai-content-generator'),
     'content_writer' => __('Content Writer', 'gpt3-ai-content-generator'),
-    'automated_tasks' => __('Automated Tasks', 'gpt3-ai-content-generator'),
-    'image_generator' => __('Image Generator', 'gpt3-ai-content-generator'),
+    'ai_forms' => __('AI Forms', 'gpt3-ai-content-generator'),
+    'image_generator' => __('Images', 'gpt3-ai-content-generator'),
+    'automated_tasks' => __('Automations', 'gpt3-ai-content-generator'),
     'knowledge_base' => __('Knowledge Base', 'gpt3-ai-content-generator'),
 ];
 $event_webhook_groups = [];
+foreach (array_keys($event_webhook_module_labels) as $module_key) {
+    $event_webhook_groups[$module_key] = ['label' => $event_webhook_module_labels[$module_key], 'events' => []];
+}
 foreach ($event_webhook_definitions as $event_name => $definition) {
     $field_key = $event_webhook_field_key_by_event_name[$event_name] ?? '';
     if ($field_key === '') {
         continue;
     }
-
     $module_key = sanitize_key((string) ($definition['module'] ?? 'other'));
     if (!isset($event_webhook_groups[$module_key])) {
         $event_webhook_groups[$module_key] = [
-            'label' => $event_webhook_module_labels[$module_key]
-                ?? ucwords(str_replace('_', ' ', $module_key !== '' ? $module_key : 'other')),
+            'label' => ucwords(str_replace('_', ' ', $module_key !== '' ? $module_key : 'other')),
             'events' => [],
         ];
     }
-
     $event_webhook_groups[$module_key]['events'][] = [
-        'name' => $event_name,
+        'name' => (string) $event_name,
         'field_key' => $field_key,
-        'definition' => $definition,
+        'label' => (string) ($event_webhook_plain_labels[$event_name] ?? ($definition['label'] ?? $event_name)),
     ];
 }
-
-$event_webhook_group_order = [
-    'chatbot',
-    'content_writer',
-    'ai_forms',
-    'image_generator',
-    'automated_tasks',
-    'knowledge_base',
-];
-
-$ordered_event_webhook_groups = [];
-foreach ($event_webhook_group_order as $module_key) {
-    if (isset($event_webhook_groups[$module_key])) {
-        $ordered_event_webhook_groups[$module_key] = $event_webhook_groups[$module_key];
-        unset($event_webhook_groups[$module_key]);
+$event_webhook_groups = array_filter($event_webhook_groups, static fn (array $group): bool => !empty($group['events']));
+$event_webhook_event_names = [];
+foreach ($event_webhook_groups as $group) {
+    foreach ($group['events'] as $event_item) {
+        $event_webhook_event_names[] = $event_item['name'];
     }
 }
+$event_webhook_event_total = count($event_webhook_event_names);
 
-if (!empty($event_webhook_groups)) {
-    $ordered_event_webhook_groups = array_merge($ordered_event_webhook_groups, $event_webhook_groups);
+$event_webhook_host = static function (string $url): string {
+    $host = $url !== '' ? (string) wp_parse_url($url, PHP_URL_HOST) : '';
+    return $host !== '' ? $host : $url;
+};
+$event_webhook_hosts = [];
+foreach ($event_webhook_endpoints as $endpoint) {
+    $event_webhook_hosts[sanitize_key((string) ($endpoint['id'] ?? ''))] = $event_webhook_host((string) ($endpoint['url'] ?? ''));
 }
+$event_webhook_failures = $event_webhook_status::failures_by_endpoint($event_webhook_hosts);
+$event_webhook_sent = $event_webhook_status::sent_times();
+$event_webhook_failed_uuids = [];
 
-$event_webhook_groups = $ordered_event_webhook_groups;
+// What a row and its panel say about an endpoint: failed, paused, sent, or not sent yet.
+$event_webhook_state = static function (array $endpoint) use ($event_webhook_failures, $event_webhook_sent, $event_webhook_status): array {
+    $id = sanitize_key((string) ($endpoint['id'] ?? ''));
+    $failures = $id !== '' ? (array) ($event_webhook_failures[$id] ?? []) : [];
+    if ($failures) {
+        /* translators: %s: how long ago, e.g. "2 hours ago". */
+        return ['kind' => 'failed', 'label' => sprintf(__('Failed %s', 'gpt3-ai-content-generator'), (string) $failures[0]['when']), 'failures' => $failures];
+    }
+    if ((string) ($endpoint['enabled'] ?? '0') !== '1') {
+        return ['kind' => 'paused', 'label' => __('Paused', 'gpt3-ai-content-generator'), 'failures' => []];
+    }
+    if (!empty($event_webhook_sent[$id])) {
+        /* translators: %s: how long ago, e.g. "5 min ago". */
+        return ['kind' => 'sent', 'label' => sprintf(__('Sent %s', 'gpt3-ai-content-generator'), $event_webhook_status::ago((int) $event_webhook_sent[$id])), 'failures' => []];
+    }
+    return ['kind' => 'none', 'label' => __('Not sent yet', 'gpt3-ai-content-generator'), 'failures' => []];
+};
 
-$render_event_webhook_endpoint = static function ($index, array $endpoint = []) use ($event_webhook_groups): void {
+$event_webhook_events_label = static function (int $selected) use ($event_webhook_event_total): string {
+    if ($selected === 0) {
+        return __('No events yet', 'gpt3-ai-content-generator');
+    }
+    if ($selected === $event_webhook_event_total) {
+        return __('All events', 'gpt3-ai-content-generator');
+    }
+    /* translators: %d: number of events. */
+    return sprintf(_n('%d event', '%d events', $selected, 'gpt3-ai-content-generator'), $selected);
+};
+
+$render_event_webhook_row = static function (array $endpoint, array $state, int $selected) use ($event_webhook_host, $event_webhook_events_label): void {
+    $id = sanitize_key((string) ($endpoint['id'] ?? ''));
+    $url = (string) ($endpoint['url'] ?? '');
+    $name = trim((string) ($endpoint['name'] ?? ''));
+    $host = $event_webhook_host($url);
+    ?>
+    <li>
+        <button type="button" class="aipkit_settings_developer_endpoint_row" data-aipkit-event-webhook-row="<?php echo esc_attr($id); ?>" data-aipkit-provider-settings-open="dev-endpoint-<?php echo esc_attr($id); ?>" aria-haspopup="dialog">
+            <span class="aipkit_settings_developer_endpoint_copy">
+                <span class="aipkit_settings_developer_endpoint_name" data-aipkit-event-webhook-row-name><?php echo esc_html($name !== '' ? $name : ($host !== '' ? $host : __('New endpoint', 'gpt3-ai-content-generator'))); ?></span>
+                <span class="aipkit_settings_developer_endpoint_meta" data-aipkit-event-webhook-row-meta><?php echo esc_html(implode(' · ', array_filter([$host, $event_webhook_events_label($selected)]))); ?></span>
+            </span>
+            <span class="aipkit_settings_developer_status" data-aipkit-webhook-status="<?php echo esc_attr($state['kind']); ?>"><?php echo esc_html($state['label']); ?></span>
+            <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
+        </button>
+    </li>
+    <?php
+};
+
+$render_event_webhook_endpoint = static function ($index, array $endpoint = []) use ($event_webhook_groups, $event_webhook_event_names, $event_webhook_state, $event_webhook_events_label, $event_webhook_host, $event_webhook_sent, $event_webhook_status): void {
     $endpoint_index = (string) $index;
     $endpoint_dom_index = sanitize_key($endpoint_index);
     $endpoint_id = sanitize_key((string) ($endpoint['id'] ?? ''));
     $endpoint_name = (string) ($endpoint['name'] ?? '');
     $endpoint_url = (string) ($endpoint['url'] ?? '');
-    $endpoint_enabled = isset($endpoint['enabled']) && (string) $endpoint['enabled'] === '1';
+    $endpoint_enabled = $endpoint === [] || (isset($endpoint['enabled']) && (string) $endpoint['enabled'] === '1');
     $endpoint_events = isset($endpoint['events']) && is_array($endpoint['events']) ? $endpoint['events'] : [];
-    $endpoint_event_count = 0;
-    $endpoint_selected_event_count = 0;
-    foreach ($event_webhook_groups as $group) {
-        if (empty($group['events']) || !is_array($group['events'])) {
-            continue;
-        }
-        foreach ($group['events'] as $event_item) {
-            $event_name = (string) ($event_item['name'] ?? '');
-            $field_key = (string) ($event_item['field_key'] ?? '');
-            if ($event_name === '' || $field_key === '') {
-                continue;
-            }
-            $endpoint_event_count++;
-            if (in_array($event_name, $endpoint_events, true)) {
-                $endpoint_selected_event_count++;
-            }
-        }
-    }
-    if ($endpoint_selected_event_count === 0) {
-        $endpoint_events_label = __('Select events', 'gpt3-ai-content-generator');
-    } elseif ($endpoint_event_count > 0 && $endpoint_selected_event_count === $endpoint_event_count) {
-        $endpoint_events_label = __('All events selected', 'gpt3-ai-content-generator');
-    } else {
-        $endpoint_events_label = sprintf(
-            /* translators: %d: number of selected webhook events. */
-            _n('%d event selected', '%d events selected', $endpoint_selected_event_count, 'gpt3-ai-content-generator'),
-            number_format_i18n($endpoint_selected_event_count)
-        );
-    }
-    $endpoint_events_modal_id = 'aipkit_event_webhook_endpoint_' . $endpoint_dom_index . '_events_modal';
-    $endpoint_events_modal_title_id = $endpoint_events_modal_id . '_title';
-    $endpoint_events_count_label = sprintf(
-        /* translators: %d: number of selected webhook events. */
-        _n('%d selected', '%d selected', $endpoint_selected_event_count, 'gpt3-ai-content-generator'),
-        number_format_i18n($endpoint_selected_event_count)
-    );
+    $state = $endpoint === [] ? ['kind' => 'none', 'label' => __('Not sent yet', 'gpt3-ai-content-generator'), 'failures' => []] : $event_webhook_state($endpoint);
+    $selected = count(array_intersect(array_map('strval', $endpoint_events), $event_webhook_event_names));
+    $title_id = 'aipkit_event_webhook_endpoint_' . $endpoint_dom_index . '_title';
+    $host = $event_webhook_host($endpoint_url);
+    $failures = $state['failures'];
+    /* translators: %s: how long ago, e.g. "5 min ago". */
+    $sent_label = $endpoint_id !== '' && !empty($event_webhook_sent[$endpoint_id]) ? sprintf(__('Sent %s', 'gpt3-ai-content-generator'), $event_webhook_status::ago((int) $event_webhook_sent[$endpoint_id])) : '';
     ?>
-    <article class="aipkit_settings_event_webhook_endpoint" data-aipkit-event-webhook-endpoint data-endpoint-index="<?php echo esc_attr($endpoint_index); ?>">
-        <input
-            type="hidden"
-            name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][id]"
-            value="<?php echo esc_attr($endpoint_id); ?>"
-            class="aipkit_autosave_trigger"
-            data-aipkit-endpoint-field="id"
-        />
-        <div class="aipkit_settings_event_webhook_endpoint_header">
-            <div class="aipkit_settings_event_webhook_endpoint_heading">
-                <strong class="aipkit_settings_event_webhook_endpoint_title" data-aipkit-event-webhook-endpoint-title>
-                    <?php esc_html_e('Endpoint', 'gpt3-ai-content-generator'); ?>
-                </strong>
-                <span class="aipkit_settings_event_webhook_endpoint_index" data-aipkit-event-webhook-endpoint-number></span>
+    <div
+        class="aipkit-modal-overlay aipkit_settings_provider_modal"
+        data-aipkit-provider-modal="dev-endpoint-<?php echo esc_attr($endpoint_id !== '' ? $endpoint_id : '__ID__'); ?>"
+        data-aipkit-event-webhook-endpoint
+        data-aipkit-developer-parent="dev-webhooks"
+        data-endpoint-index="<?php echo esc_attr($endpoint_index); ?>"
+        data-sent-label="<?php echo esc_attr($sent_label); ?>"
+        aria-hidden="true"
+    >
+        <div class="aipkit-modal-content aipkit_settings_provider_panel" role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr($title_id); ?>">
+            <div class="aipkit_settings_provider_panel_header">
+                <button type="button" class="aipkit_settings_provider_panel_close aipkit_settings_developer_back" data-aipkit-developer-back aria-label="<?php esc_attr_e('Back', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-arrow-left-alt2" aria-hidden="true"></span></button>
+                <span class="aipkit_settings_provider_logo aipkit_settings_developer_logo" aria-hidden="true"><span class="dashicons dashicons-randomize"></span></span>
+                <div class="aipkit_settings_provider_panel_heading">
+                    <div class="aipkit_settings_provider_panel_title_row">
+                        <h2 class="aipkit_settings_provider_panel_title" id="<?php echo esc_attr($title_id); ?>" data-aipkit-event-webhook-endpoint-title data-untitled="<?php esc_attr_e('New endpoint', 'gpt3-ai-content-generator'); ?>"><?php echo esc_html($endpoint_name !== '' ? $endpoint_name : ($host !== '' ? $host : __('New endpoint', 'gpt3-ai-content-generator'))); ?></h2>
+                        <span class="aipkit_settings_developer_status" data-aipkit-webhook-status="<?php echo esc_attr($state['kind']); ?>"><?php echo esc_html($state['label']); ?></span>
+                    </div>
+                    <p class="aipkit_settings_provider_panel_hint" data-aipkit-event-webhook-endpoint-hint><?php echo esc_html(implode(' · ', [__('Webhooks', 'gpt3-ai-content-generator'), $event_webhook_events_label($selected)])); ?></p>
+                </div>
             </div>
-            <div class="aipkit_settings_event_webhook_endpoint_actions">
-                <label class="aipkit_settings_event_webhook_toggle" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_enabled">
-                    <span><?php esc_html_e('Enabled', 'gpt3-ai-content-generator'); ?></span>
+            <div class="aipkit_settings_provider_panel_body">
+                <input type="hidden" name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][id]" value="<?php echo esc_attr($endpoint_id); ?>" class="aipkit_autosave_trigger" data-aipkit-endpoint-field="id" />
+                <?php if ($failures) : ?>
+                    <div
+                        class="aipkit_settings_provider_error aipkit_settings_developer_failure"
+                        data-aipkit-webhook-failures="<?php echo esc_attr(wp_json_encode(array_column($failures, 'uuid'))); ?>"
+                        data-chip-label="<?php echo esc_attr($state['label']); ?>"
+                        <?php /* translators: %s: how long ago, e.g. "2 hours ago". */ ?>
+                        data-chip-template="<?php esc_attr_e('Failed %s', 'gpt3-ai-content-generator'); ?>"
+                        <?php /* translators: %d: number of failed sends. */ ?>
+                        data-title-many="<?php esc_attr_e('The last %d sends didn’t go through', 'gpt3-ai-content-generator'); ?>"
+                        data-title-one="<?php esc_attr_e('The last send didn’t go through', 'gpt3-ai-content-generator'); ?>"
+                        data-retry-one="<?php esc_attr_e('Send it again', 'gpt3-ai-content-generator'); ?>"
+                        data-retry-many="<?php esc_attr_e('Send them again', 'gpt3-ai-content-generator'); ?>"
+                        data-done="<?php esc_attr_e('Sent. It went through this time.', 'gpt3-ai-content-generator'); ?>"
+                        role="alert"
+                    >
+                        <span class="dashicons dashicons-warning" aria-hidden="true"></span>
+                        <div class="aipkit_settings_provider_error_content">
+                            <?php /* translators: %d: number of failed sends. */ ?>
+                            <p class="aipkit_settings_developer_failure_title" data-aipkit-webhook-failure-title><?php echo esc_html(count($failures) > 1 ? sprintf(__('The last %d sends didn’t go through', 'gpt3-ai-content-generator'), count($failures)) : __('The last send didn’t go through', 'gpt3-ai-content-generator')); ?></p>
+                            <p data-aipkit-webhook-failure-reason><?php echo esc_html((string) $failures[0]['reason']); ?></p>
+                            <p class="aipkit_settings_developer_failure_when" data-aipkit-webhook-failure-when><?php echo esc_html(implode(' · ', array_filter([(string) $failures[0]['when'], (string) $failures[0]['event']]))); ?></p>
+                            <div class="aipkit_settings_developer_failure_actions">
+                                <button type="button" class="aipkit_settings_developer_failure_retry" data-aipkit-webhook-failure-retry><span class="dashicons dashicons-update" aria-hidden="true"></span><span data-aipkit-webhook-failure-retry-label><?php echo count($failures) > 1 ? esc_html__('Send them again', 'gpt3-ai-content-generator') : esc_html__('Send it again', 'gpt3-ai-content-generator'); ?></span></button>
+                                <button type="button" class="aipkit_settings_developer_failure_dismiss" data-aipkit-webhook-failure-dismiss><?php esc_html_e('Dismiss', 'gpt3-ai-content-generator'); ?></button>
+                            </div>
+                            <details class="aipkit_settings_provider_error_details">
+                                <summary><?php esc_html_e('View details', 'gpt3-ai-content-generator'); ?></summary>
+                                <p data-aipkit-webhook-failure-details><?php echo esc_html((string) $failures[0]['details']); ?></p>
+                            </details>
+                        </div>
+                    </div>
+                <?php endif; ?>
+                <p class="aipkit_settings_developer_result" data-aipkit-webhook-result role="status" hidden></p>
+
+                <section class="aipkit_settings_provider_panel_section">
+                    <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Where', 'gpt3-ai-content-generator'); ?></h3>
+                    <div class="aipkit_settings_provider_field">
+                        <label class="aipkit_settings_provider_option_label" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_name"><?php esc_html_e('Name', 'gpt3-ai-content-generator'); ?></label>
+                        <input type="text" id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_name" name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][name]" value="<?php echo esc_attr($endpoint_name); ?>" class="aipkit_form-input aipkit_autosave_trigger" data-aipkit-endpoint-field="name" placeholder="<?php esc_attr_e('CRM sync', 'gpt3-ai-content-generator'); ?>" />
+                    </div>
+                    <div class="aipkit_settings_provider_field">
+                        <label class="aipkit_settings_provider_option_label" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_url"><?php esc_html_e('URL', 'gpt3-ai-content-generator'); ?></label>
+                        <input type="url" id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_url" name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][url]" value="<?php echo esc_attr($endpoint_url); ?>" class="aipkit_form-input aipkit_autosave_trigger aipkit_settings_developer_mono" data-aipkit-endpoint-field="url" placeholder="<?php esc_attr_e('https://example.com/webhooks/aipuffer', 'gpt3-ai-content-generator'); ?>" />
+                    </div>
+                </section>
+
+                <section class="aipkit_settings_provider_panel_section">
+                    <div class="aipkit_settings_developer_section_head">
+                        <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('What it receives', 'gpt3-ai-content-generator'); ?></h3>
+                        <span class="aipkit_settings_developer_section_actions">
+                            <button type="button" class="aipkit_settings_developer_text_button" data-aipkit-event-webhook-events-select-all><?php esc_html_e('All', 'gpt3-ai-content-generator'); ?></button>
+                            <button type="button" class="aipkit_settings_developer_text_button" data-aipkit-event-webhook-events-clear><?php esc_html_e('None', 'gpt3-ai-content-generator'); ?></button>
+                        </span>
+                    </div>
+                    <div class="aipkit_settings_developer_events">
+                        <?php foreach ($event_webhook_groups as $group) : ?>
+                            <fieldset class="aipkit_settings_developer_event_group">
+                                <legend><?php echo esc_html((string) $group['label']); ?></legend>
+                                <?php foreach ($group['events'] as $event_item) :
+                                    $event_checkbox_id = 'aipkit_event_webhook_endpoint_' . $endpoint_dom_index . '_event_' . sanitize_key($event_item['field_key']);
+                                    ?>
+                                    <label class="aipkit_settings_developer_event" for="<?php echo esc_attr($event_checkbox_id); ?>">
+                                        <input
+                                            type="checkbox"
+                                            id="<?php echo esc_attr($event_checkbox_id); ?>"
+                                            name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][events][<?php echo esc_attr($event_item['field_key']); ?>]"
+                                            value="1"
+                                            data-aipkit-endpoint-field="event"
+                                            data-aipkit-event-field-key="<?php echo esc_attr($event_item['field_key']); ?>"
+                                            data-aipkit-event-name="<?php echo esc_attr($event_item['name']); ?>"
+                                            <?php checked(in_array($event_item['name'], $endpoint_events, true)); ?>
+                                        />
+                                        <span class="aipkit_settings_developer_event_copy">
+                                            <span><?php echo esc_html($event_item['label']); ?></span>
+                                            <code><?php echo esc_html($event_item['name']); ?></code>
+                                        </span>
+                                    </label>
+                                <?php endforeach; ?>
+                            </fieldset>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+
+                <div class="aipkit_settings_developer_test">
+                    <button
+                        type="button"
+                        class="aipkit_btn aipkit_btn-secondary aipkit_settings_developer_button"
+                        data-aipkit-webhook-test
+                        data-busy-label="<?php esc_attr_e('Sending…', 'gpt3-ai-content-generator'); ?>"
+                    >
+                        <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
+                        <span data-aipkit-webhook-test-label><?php esc_html_e('Send a test event', 'gpt3-ai-content-generator'); ?></span>
+                    </button>
+                    <span class="aipkit_settings_provider_option_help"><?php esc_html_e('Sends a sample of the first event it receives, marked as a test.', 'gpt3-ai-content-generator'); ?></span>
+                </div>
+            </div>
+            <div class="aipkit_settings_provider_modal_footer">
+                <button type="button" class="aipkit_settings_provider_remove" data-aipkit-remove-event-webhook-endpoint><?php esc_html_e('Delete endpoint', 'gpt3-ai-content-generator'); ?></button>
+                <label class="aipkit_settings_developer_sending" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_enabled">
+                    <span><?php esc_html_e('Sending', 'gpt3-ai-content-generator'); ?></span>
                     <span class="aipkit_switch">
-                        <input
-                            type="checkbox"
-                            id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_enabled"
-                            name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][enabled]"
-                            value="1"
-                            class="aipkit_autosave_trigger"
-                            data-aipkit-endpoint-field="enabled"
-                            <?php checked($endpoint_enabled); ?>
-                        />
-                        <span class="aipkit_switch_slider"></span>
+                        <input type="checkbox" id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_enabled" name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][enabled]" value="1" class="aipkit_autosave_trigger" data-aipkit-endpoint-field="enabled" <?php checked($endpoint_enabled); ?> />
+                        <span class="aipkit_switch_slider" aria-hidden="true"></span>
                     </span>
                 </label>
+                <button type="button" class="aipkit_btn aipkit_btn-primary aipkit_settings_provider_done" data-aipkit-provider-modal-close><?php esc_html_e('Done', 'gpt3-ai-content-generator'); ?></button>
             </div>
         </div>
+    </div>
+    <?php
+};
 
-        <div class="aipkit_settings_event_webhook_endpoint_fields">
-            <label class="aipkit_settings_event_webhook_field" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_name">
-                <span class="aipkit_settings_event_webhook_field_label"><?php esc_html_e('Name', 'gpt3-ai-content-generator'); ?></span>
-                <input
-                    type="text"
-                    id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_name"
-                    name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][name]"
-                    value="<?php echo esc_attr($endpoint_name); ?>"
-                    class="aipkit_form-input aipkit_autosave_trigger"
-                    data-aipkit-endpoint-field="name"
-                    placeholder="<?php esc_attr_e('Slack', 'gpt3-ai-content-generator'); ?>"
-                />
-            </label>
-            <label class="aipkit_settings_event_webhook_field" for="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_url">
-                <span class="aipkit_settings_event_webhook_field_label"><?php esc_html_e('Endpoint URL', 'gpt3-ai-content-generator'); ?></span>
-                <input
-                    type="url"
-                    id="aipkit_event_webhook_endpoint_<?php echo esc_attr($endpoint_dom_index); ?>_url"
-                    name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][url]"
-                    value="<?php echo esc_attr($endpoint_url); ?>"
-                    class="aipkit_form-input aipkit_autosave_trigger"
-                    data-aipkit-endpoint-field="url"
-                    placeholder="<?php esc_attr_e('https://example.com/webhooks/aipkit', 'gpt3-ai-content-generator'); ?>"
-                />
-            </label>
-        </div>
+$event_webhook_rows = [];
+foreach ($event_webhook_endpoints as $endpoint) {
+    $state = $event_webhook_state($endpoint);
+    foreach ($state['failures'] as $failure) {
+        $event_webhook_failed_uuids[$failure['uuid']] = true;
+    }
+    $selected = count(array_intersect(array_map('strval', (array) ($endpoint['events'] ?? [])), $event_webhook_event_names));
+    $event_webhook_rows[] = [$endpoint, $state, $selected];
+}
+$event_webhook_failed_count = count($event_webhook_failed_uuids);
+$event_webhook_endpoint_count = count($event_webhook_endpoints);
+$event_webhook_summary_data = [
+    'off' => __('Off', 'gpt3-ai-content-generator'),
+    'none' => __('On · No endpoints yet', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of endpoints. */
+    'one' => __('On · %d endpoint', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of endpoints. */
+    'many' => __('On · %d endpoints', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of endpoints. */
+    'count-one' => __('%d endpoint', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of endpoints. */
+    'count-many' => __('%d endpoints', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of failed sends. */
+    'failed-one' => __('%d failed send', 'gpt3-ai-content-generator'),
+    /* translators: %d: number of failed sends. */
+    'failed-many' => __('%d failed sends', 'gpt3-ai-content-generator'),
+];
+if (!$event_webhooks_enabled) {
+    $event_webhook_summary = $event_webhook_summary_data['off'];
+} elseif ($event_webhook_failed_count > 0) {
+    /* translators: %d: number of endpoints. */
+    $event_webhook_summary = sprintf(_n('%d endpoint', '%d endpoints', $event_webhook_endpoint_count, 'gpt3-ai-content-generator'), $event_webhook_endpoint_count)
+        /* translators: %d: number of failed sends. */
+        . ' · ' . sprintf(_n('%d failed send', '%d failed sends', $event_webhook_failed_count, 'gpt3-ai-content-generator'), $event_webhook_failed_count);
+} elseif ($event_webhook_endpoint_count === 0) {
+    $event_webhook_summary = $event_webhook_summary_data['none'];
+} else {
+    /* translators: %d: number of endpoints. */
+    $event_webhook_summary = sprintf(_n('On · %d endpoint', 'On · %d endpoints', $event_webhook_endpoint_count, 'gpt3-ai-content-generator'), $event_webhook_endpoint_count);
+}
+$event_webhook_has_failures = $event_webhooks_enabled && $event_webhook_failed_count > 0;
+?>
 
-        <div class="aipkit_settings_event_webhook_events">
-            <span class="aipkit_settings_event_webhook_field_label"><?php esc_html_e('Subscribed events', 'gpt3-ai-content-generator'); ?></span>
-            <div
-                class="aipkit_settings_event_webhook_events_control"
-                data-aipkit-event-webhook-events-control
-                data-placeholder="<?php echo esc_attr__('Select events', 'gpt3-ai-content-generator'); ?>"
-                data-all-label="<?php echo esc_attr__('All events selected', 'gpt3-ai-content-generator'); ?>"
-                <?php /* translators: %d: Number of selected webhook events. */ ?>
-                data-singular-label="<?php echo esc_attr__('%d event selected', 'gpt3-ai-content-generator'); ?>"
-                <?php /* translators: %d: Number of selected webhook events. */ ?>
-                data-plural-label="<?php echo esc_attr__('%d events selected', 'gpt3-ai-content-generator'); ?>"
-                <?php /* translators: %d: Number of selected webhook events. */ ?>
-                data-selected-singular-label="<?php echo esc_attr__('%d selected', 'gpt3-ai-content-generator'); ?>"
-                <?php /* translators: %d: Number of selected webhook events. */ ?>
-                data-selected-plural-label="<?php echo esc_attr__('%d selected', 'gpt3-ai-content-generator'); ?>"
-            >
-                <button
-                    type="button"
-                    class="aipkit_settings_event_webhook_events_btn"
-                    aria-expanded="false"
-                    aria-haspopup="dialog"
-                    aria-controls="<?php echo esc_attr($endpoint_events_modal_id); ?>"
-                    data-aipkit-event-webhook-events-toggle
-                >
-                    <span data-aipkit-event-webhook-events-label><?php echo esc_html($endpoint_events_label); ?></span>
-                    <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
-                </button>
-
-                <div
-                    id="<?php echo esc_attr($endpoint_events_modal_id); ?>"
-                    class="aipkit-modal-overlay aipkit_settings_event_webhook_events_modal"
-                    data-aipkit-event-webhook-events-modal
-                    aria-hidden="true"
-                >
-                    <div
-                        class="aipkit-modal-content aipkit-modal-shell aipkit_settings_event_webhook_events_modal_content"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="<?php echo esc_attr($endpoint_events_modal_title_id); ?>"
-                    >
-                        <div class="aipkit-modal-header aipkit-modal-shell-header aipkit_settings_event_webhook_events_modal_header">
-                            <div class="aipkit-modal-shell-intro">
-                                <h2 class="aipkit-modal-shell-title" id="<?php echo esc_attr($endpoint_events_modal_title_id); ?>">
-                                    <?php esc_html_e('Subscribed events', 'gpt3-ai-content-generator'); ?>
-                                </h2>
-                                <p class="aipkit-modal-shell-copy"><?php esc_html_e('Choose which events this endpoint receives.', 'gpt3-ai-content-generator'); ?></p>
-                            </div>
-                            <button type="button" class="aipkit-modal-close-btn aipkit-modal-shell-close" data-aipkit-event-webhook-events-close aria-label="<?php esc_attr_e('Close', 'gpt3-ai-content-generator'); ?>">
-                                <span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
-                            </button>
+<article
+    id="aipkit_settings_event_webhooks_section"
+    class="aipkit_settings_provider_card aipkit_settings_integration_card aipkit_settings_developer_card<?php echo $event_webhook_has_failures ? ' has-provider-error' : ''; ?>"
+    data-aipkit-developer-card="webhooks"
+    data-aipkit-provider-connected="<?php echo $event_webhooks_enabled ? 'true' : 'false'; ?>"
+    data-aipkit-developer-credential="webhook"
+    data-enabled="<?php echo $event_webhooks_enabled ? 'true' : 'false'; ?>"
+>
+    <?php $aipkit_render_dev_row('dev-webhooks', __('Webhooks', 'gpt3-ai-content-generator'), 'randomize', $event_webhook_summary, $event_webhook_summary_data); ?>
+    <div class="aipkit-modal-overlay aipkit_settings_provider_modal" id="aipkit_settings_dev_webhooks_modal" data-aipkit-provider-modal="dev-webhooks" aria-hidden="true">
+        <div class="aipkit-modal-content aipkit_settings_provider_panel" role="dialog" aria-modal="true" aria-labelledby="aipkit_settings_dev_webhooks_title">
+            <?php $aipkit_render_dev_panel_header('dev-webhooks', __('Webhooks', 'gpt3-ai-content-generator'), __('Send events to your own systems.', 'gpt3-ai-content-generator'), 'randomize'); ?>
+            <div class="aipkit_settings_provider_panel_body">
+                <?php $aipkit_render_dev_error(); ?>
+                <div class="aipkit_settings_provider_option_list">
+                    <div class="aipkit_settings_provider_option is-inline" id="aipkit_settings_event_webhooks_enabled_row">
+                        <div class="aipkit_settings_provider_option_copy">
+                            <label class="aipkit_settings_provider_option_label" for="aipkit_event_webhooks_enabled"><?php esc_html_e('Send events', 'gpt3-ai-content-generator'); ?></label>
+                            <span class="aipkit_settings_provider_option_help"><?php esc_html_e('When something happens in AI Puffer, it’s sent to your endpoints as JSON.', 'gpt3-ai-content-generator'); ?></span>
                         </div>
-
-                        <div class="aipkit-modal-body aipkit-modal-shell-body aipkit_settings_event_webhook_events_modal_body">
-                            <div class="aipkit_settings_event_webhook_events_tools">
-                                <label class="aipkit_settings_event_webhook_events_search">
-                                    <span class="screen-reader-text"><?php esc_html_e('Search events', 'gpt3-ai-content-generator'); ?></span>
-                                    <span class="dashicons dashicons-search" aria-hidden="true"></span>
-                                    <input
-                                        type="search"
-                                        class="aipkit_form-input"
-                                        placeholder="<?php esc_attr_e('Search events', 'gpt3-ai-content-generator'); ?>"
-                                        data-aipkit-event-webhook-events-search
-                                        autocomplete="off"
-                                    />
-                                </label>
-                                <div class="aipkit_settings_event_webhook_events_actions">
-                                    <button type="button" class="button aipkit_btn aipkit_btn-secondary" data-aipkit-event-webhook-events-select-all>
-                                        <?php esc_html_e('Select all', 'gpt3-ai-content-generator'); ?>
-                                    </button>
-                                    <button type="button" class="button aipkit_btn aipkit_btn-secondary" data-aipkit-event-webhook-events-clear>
-                                        <?php esc_html_e('Clear', 'gpt3-ai-content-generator'); ?>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="aipkit_settings_event_webhook_group_list">
-                                <?php foreach ($event_webhook_groups as $group) : ?>
-                                    <?php if (empty($group['events']) || !is_array($group['events'])) { continue; } ?>
-                                    <section class="aipkit_settings_event_webhook_group" data-aipkit-event-webhook-events-group>
-                                        <h3 class="aipkit_settings_event_webhook_group_title"><?php echo esc_html((string) ($group['label'] ?? '')); ?></h3>
-                                        <div class="aipkit_settings_event_webhook_event_grid">
-                                            <?php foreach ($group['events'] as $event_item) : ?>
-                                                <?php
-                                                $event_name = (string) ($event_item['name'] ?? '');
-                                                $field_key = (string) ($event_item['field_key'] ?? '');
-                                                $definition = isset($event_item['definition']) && is_array($event_item['definition'])
-                                                    ? $event_item['definition']
-                                                    : [];
-                                                if ($event_name === '' || $field_key === '') {
-                                                    continue;
-                                                }
-                                                $event_label = (string) ($definition['label'] ?? $event_name);
-                                                $event_checkbox_id = 'aipkit_event_webhook_endpoint_' . $endpoint_dom_index . '_event_' . sanitize_key($field_key);
-                                                $event_search_text = strtolower(implode(' ', [
-                                                    (string) ($group['label'] ?? ''),
-                                                    $event_label,
-                                                    $event_name,
-                                                ]));
-                                                ?>
-                                                <label
-                                                    class="aipkit_settings_event_webhook_event_option"
-                                                    for="<?php echo esc_attr($event_checkbox_id); ?>"
-                                                    data-aipkit-event-webhook-event-option
-                                                    data-search-text="<?php echo esc_attr($event_search_text); ?>"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        id="<?php echo esc_attr($event_checkbox_id); ?>"
-                                                        name="event_webhooks[endpoints][<?php echo esc_attr($endpoint_index); ?>][events][<?php echo esc_attr($field_key); ?>]"
-                                                        value="1"
-                                                        data-aipkit-endpoint-field="event"
-                                                        data-aipkit-event-field-key="<?php echo esc_attr($field_key); ?>"
-                                                        <?php checked(in_array($event_name, $endpoint_events, true)); ?>
-                                                    />
-                                                    <span class="aipkit_settings_event_webhook_event_copy">
-                                                        <span class="aipkit_settings_event_webhook_event_label"><?php echo esc_html($event_label); ?></span>
-                                                        <code class="aipkit_settings_event_webhook_event_code"><?php echo esc_html($event_name); ?></code>
-                                                    </span>
-                                                </label>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </section>
-                                <?php endforeach; ?>
-                                <p class="aipkit_settings_event_webhook_events_empty" data-aipkit-event-webhook-events-empty hidden>
-                                    <?php esc_html_e('No events match your search.', 'gpt3-ai-content-generator'); ?>
-                                </p>
-                            </div>
-
-                            <div class="aipkit_settings_event_webhook_events_modal_footer">
-                                <div class="aipkit_settings_event_webhook_events_summary" aria-live="polite">
-                                    <span data-aipkit-event-webhook-events-count><?php echo esc_html($endpoint_events_count_label); ?></span>
-                                    <span class="aipkit_settings_event_webhook_events_saved" data-aipkit-event-webhook-events-saved hidden></span>
-                                </div>
-                                <button type="button" class="aipkit_btn aipkit_btn-primary aipkit_settings_event_webhook_events_done_btn" data-aipkit-event-webhook-events-close>
-                                    <?php esc_html_e('Done', 'gpt3-ai-content-generator'); ?>
-                                </button>
-                            </div>
+                        <div class="aipkit_settings_provider_option_control">
+                            <label class="aipkit_switch" for="aipkit_event_webhooks_enabled">
+                                <input type="checkbox" id="aipkit_event_webhooks_enabled" name="event_webhooks[enabled]" value="1" data-aipkit-developer-enabled <?php checked($event_webhooks_enabled); ?> />
+                                <span class="aipkit_switch_slider" aria-hidden="true"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
+
+                <section class="aipkit_settings_provider_panel_section" id="aipkit_settings_event_webhooks_endpoints_row" data-aipkit-developer-dependent <?php echo $event_webhooks_enabled ? '' : 'hidden'; ?>>
+                    <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Endpoints', 'gpt3-ai-content-generator'); ?></h3>
+                    <ul class="aipkit_settings_developer_endpoints" data-aipkit-event-webhook-rows>
+                        <?php foreach ($event_webhook_rows as [$endpoint, $state, $selected]) {
+                            $render_event_webhook_row($endpoint, $state, $selected);
+                        } ?>
+                        <li>
+                            <button type="button" class="aipkit_settings_developer_endpoint_add" id="aipkit_add_event_webhook_endpoint_btn">
+                                <span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
+                                <span><?php esc_html_e('Add an endpoint', 'gpt3-ai-content-generator'); ?></span>
+                            </button>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="aipkit_settings_provider_panel_section" id="aipkit_settings_event_webhooks_secret_row" data-aipkit-developer-dependent <?php echo $event_webhooks_enabled ? '' : 'hidden'; ?>>
+                    <h3 class="aipkit_settings_provider_panel_section_title"><label for="aipkit_event_webhooks_signing_secret"><?php esc_html_e('Signing secret', 'gpt3-ai-content-generator'); ?></label></h3>
+                    <?php $aipkit_render_dev_credential('aipkit_event_webhooks_signing_secret', $event_webhook_secret_mask, __('signing secret', 'gpt3-ai-content-generator'), __('Each request is signed with it, so you can check it came from this site.', 'gpt3-ai-content-generator'), __('Make a new secret', 'gpt3-ai-content-generator')); ?>
+                    <details class="aipkit_settings_developer_howto">
+                        <summary><?php esc_html_e('How to check a request', 'gpt3-ai-content-generator'); ?></summary>
+                        <p class="aipkit_settings_developer_text"><?php esc_html_e('Each request has these headers. Sign the timestamp, a dot and the raw body with your secret using HMAC SHA-256, and compare.', 'gpt3-ai-content-generator'); ?></p>
+                        <pre class="aipkit_settings_developer_code"><code>X-AIPKit-Event: chatbot.response_generated
+X-AIPKit-Timestamp: 1791462033
+X-AIPKit-Signature: sha256=hex(hmac_sha256(secret, timestamp + "." + body))</code></pre>
+                    </details>
+                </section>
             </div>
-        </div>
-
-        <div class="aipkit_settings_event_webhook_endpoint_footer">
-            <button
-                type="button"
-                class="aipkit_btn aipkit_settings_event_webhook_delete_btn"
-                data-aipkit-remove-event-webhook-endpoint
-            >
-                <?php esc_html_e('Delete endpoint', 'gpt3-ai-content-generator'); ?>
-            </button>
-        </div>
-    </article>
-    <?php
-};
-
-$render_event_webhook_issue = static function (array $issue = []): void {
-    $job_uuid = sanitize_text_field((string) ($issue['job_uuid'] ?? ''));
-    $event_name = sanitize_text_field((string) ($issue['event_name'] ?? ''));
-    $target_summary = sanitize_text_field((string) ($issue['target_summary'] ?? __('Webhook endpoint', 'gpt3-ai-content-generator')));
-    $error_message = sanitize_text_field((string) (($issue['error_message'] ?? '') ?: __('Webhook delivery failed.', 'gpt3-ai-content-generator')));
-    $displayed_at = sanitize_text_field((string) ($issue['displayed_at'] ?? ''));
-    ?>
-    <article class="aipkit_settings_app_delivery_issue" data-aipkit-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-        <div class="aipkit_settings_app_delivery_issue_header">
-            <div class="aipkit_settings_app_delivery_issue_heading">
-                <strong><?php echo esc_html($target_summary); ?></strong>
-                <span class="aipkit_settings_app_delivery_issue_meta">
-                    <?php echo esc_html($event_name); ?>
-                </span>
-            </div>
-            <span class="aipkit_settings_app_delivery_issue_status aipkit_settings_app_delivery_issue_status--failed">
-                <?php esc_html_e('Failed', 'gpt3-ai-content-generator'); ?>
-            </span>
-        </div>
-        <p class="aipkit_settings_app_delivery_issue_message"><?php echo esc_html($error_message); ?></p>
-        <div class="aipkit_settings_app_delivery_issue_footer">
-            <span class="aipkit_settings_app_delivery_issue_time"><?php echo esc_html($displayed_at); ?></span>
-            <div class="aipkit_settings_app_delivery_issue_actions">
-                <button type="button" class="button button-secondary aipkit_btn aipkit_btn-danger" data-aipkit-clear-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-                    <span class="aipkit_btn-text"><?php esc_html_e('Clear', 'gpt3-ai-content-generator'); ?></span>
-                    <span class="aipkit_spinner"></span>
-                </button>
-                <button type="button" class="button button-secondary aipkit_btn" data-aipkit-retry-event-webhook-delivery-issue data-job-uuid="<?php echo esc_attr($job_uuid); ?>">
-                    <span class="aipkit_btn-text"><?php esc_html_e('Retry', 'gpt3-ai-content-generator'); ?></span>
-                    <span class="aipkit_spinner"></span>
-                </button>
-            </div>
-        </div>
-    </article>
-    <?php
-};
-?>
-
-<div
-    id="aipkit_settings_event_webhooks_section"
-    class="aipkit_settings_developer_credential"
-    data-aipkit-developer-credential="webhook"
-    data-enabled="<?php echo $event_webhooks_enabled === '1' ? 'true' : 'false'; ?>"
->
-    <div class="aipkit_settings_developer_toggle_row" id="aipkit_settings_event_webhooks_enabled_row">
-        <label class="aipkit_form-label" for="aipkit_event_webhooks_enabled">
-            <?php esc_html_e('Event webhooks', 'gpt3-ai-content-generator'); ?>
-            <span class="aipkit_form-label-helper"><?php esc_html_e('Send outbound events to external endpoints.', 'gpt3-ai-content-generator'); ?></span>
-        </label>
-        <label class="aipkit_switch" for="aipkit_event_webhooks_enabled">
-            <input
-                type="checkbox"
-                id="aipkit_event_webhooks_enabled"
-                name="event_webhooks[enabled]"
-                value="1"
-                data-aipkit-developer-enabled
-                <?php checked($event_webhooks_enabled, '1'); ?>
-            />
-            <span class="aipkit_switch_slider"></span>
-        </label>
-    </div>
-
-    <div class="aipkit_settings_developer_credential_body" id="aipkit_settings_event_webhooks_secret_row" data-aipkit-developer-dependent <?php if ($event_webhooks_enabled !== '1') : ?>hidden<?php endif; ?>>
-        <label class="aipkit_settings_developer_field_label" for="aipkit_event_webhooks_signing_secret">
-            <?php esc_html_e('Signing secret', 'gpt3-ai-content-generator'); ?>
-        </label>
-        <div class="aipkit_settings_developer_credential_row">
-            <input
-                type="text"
-                id="aipkit_event_webhooks_signing_secret"
-                class="aipkit_form-input aipkit_settings_developer_credential_input"
-                value="<?php echo esc_attr($event_webhook_secret_mask); ?>"
-                data-aipkit-developer-credential-input
-                data-credential-mask="<?php echo esc_attr($event_webhook_secret_mask); ?>"
-                data-has-credential="<?php echo $event_webhook_secret_mask !== '' ? 'true' : 'false'; ?>"
-                readonly
-                autocomplete="off"
-                spellcheck="false"
-            />
-            <button type="button" class="button aipkit_btn aipkit_icon_btn aipkit_settings_developer_icon_btn" data-aipkit-developer-reveal data-aipkit-developer-reveal-label="<?php esc_attr_e('Reveal signing secret', 'gpt3-ai-content-generator'); ?>" data-aipkit-developer-hide-label="<?php esc_attr_e('Hide signing secret', 'gpt3-ai-content-generator'); ?>" aria-label="<?php esc_attr_e('Reveal signing secret', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Reveal signing secret', 'gpt3-ai-content-generator'); ?>">
-                <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="button aipkit_btn aipkit_icon_btn aipkit_settings_developer_icon_btn" data-aipkit-developer-copy aria-label="<?php esc_attr_e('Copy signing secret', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Copy signing secret', 'gpt3-ai-content-generator'); ?>">
-                <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="button aipkit_btn aipkit_icon_btn aipkit_settings_developer_icon_btn" data-aipkit-developer-regenerate aria-label="<?php esc_attr_e('Regenerate signing secret', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Regenerate signing secret', 'gpt3-ai-content-generator'); ?>">
-                <span class="dashicons dashicons-update" aria-hidden="true"></span>
-            </button>
-        </div>
-        <p class="aipkit_settings_developer_field_help"><?php esc_html_e('Used to verify that outgoing webhook requests came from AI Puffer.', 'gpt3-ai-content-generator'); ?></p>
-    </div>
-
-    <div class="aipkit_settings_developer_endpoints" id="aipkit_settings_event_webhooks_endpoints_row" data-aipkit-developer-dependent <?php if ($event_webhooks_enabled !== '1') : ?>hidden<?php endif; ?>>
-        <div class="aipkit_settings_event_webhooks_main">
-            <div class="aipkit_settings_event_webhooks_toolbar">
-                <strong class="aipkit_settings_developer_endpoints_title"><?php esc_html_e('Endpoints', 'gpt3-ai-content-generator'); ?></strong>
-                <button type="button" class="aipkit_btn aipkit_btn-secondary aipkit_settings_event_webhook_add_btn" id="aipkit_add_event_webhook_endpoint_btn">
-                    <span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
-                    <?php esc_html_e('Add endpoint', 'gpt3-ai-content-generator'); ?>
-                </button>
-            </div>
-
-            <div class="aipkit_settings_event_webhooks_endpoint_list<?php echo empty($event_webhook_endpoints) ? ' is-empty' : ''; ?>" id="aipkit_settings_event_webhooks_endpoint_list" data-aipkit-event-webhook-list>
-                <?php if (!empty($event_webhook_endpoints)) : ?>
-                    <?php foreach ($event_webhook_endpoints as $endpoint_index => $endpoint) : ?>
-                        <?php $render_event_webhook_endpoint($endpoint_index, is_array($endpoint) ? $endpoint : []); ?>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
+            <?php $aipkit_render_dev_footer(); ?>
         </div>
     </div>
 
-    <template id="aipkit_event_webhook_endpoint_template">
-        <?php $render_event_webhook_endpoint('__INDEX__'); ?>
-    </template>
+    <div id="aipkit_settings_event_webhooks_endpoint_list" data-aipkit-event-webhook-list><?php
+        foreach ($event_webhook_endpoints as $endpoint_index => $endpoint) {
+            $render_event_webhook_endpoint($endpoint_index, $endpoint);
+        }
+    ?></div>
 
-    <?php if (!empty($event_webhook_delivery_issues)) : ?>
-        <div class="aipkit_settings_developer_delivery_issues" id="aipkit_settings_event_webhook_delivery_issues_row" data-aipkit-developer-dependent <?php if ($event_webhooks_enabled !== '1') : ?>hidden<?php endif; ?>>
-            <div class="aipkit_form-label">
-                <?php esc_html_e('Webhook delivery issues', 'gpt3-ai-content-generator'); ?>
-                <span class="aipkit_form-label-helper"><?php esc_html_e('Showing the 5 most recent failed webhook deliveries.', 'gpt3-ai-content-generator'); ?></span>
-            </div>
-            <div class="aipkit_settings_app_delivery_issues_main" id="aipkit_settings_event_webhook_delivery_issues_section">
-                <div class="aipkit_settings_app_delivery_issue_list" data-aipkit-event-webhook-delivery-issue-list>
-                    <?php foreach ($event_webhook_delivery_issues as $issue) : ?>
-                        <?php $render_event_webhook_issue(is_array($issue) ? $issue : []); ?>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-</div>
+    <template id="aipkit_event_webhook_endpoint_template"><?php $render_event_webhook_endpoint('__INDEX__'); ?></template>
+    <template data-aipkit-event-webhook-row-template><?php $render_event_webhook_row([], ['kind' => 'none', 'label' => __('Not sent yet', 'gpt3-ai-content-generator'), 'failures' => []], 0); ?></template>
+    <?php // Words the script needs when it updates a row or the summary. ?>
+    <script type="application/json" data-aipkit-event-webhook-words><?php echo wp_json_encode([
+        'total' => $event_webhook_event_total,
+        'noEvents' => __('No events yet', 'gpt3-ai-content-generator'),
+        'allEvents' => __('All events', 'gpt3-ai-content-generator'),
+        /* translators: %d: number of events. */
+        'oneEvent' => __('%d event', 'gpt3-ai-content-generator'),
+        /* translators: %d: number of events. */
+        'manyEvents' => __('%d events', 'gpt3-ai-content-generator'),
+        'webhooks' => __('Webhooks', 'gpt3-ai-content-generator'),
+        'newEndpoint' => __('New endpoint', 'gpt3-ai-content-generator'),
+        'paused' => __('Paused', 'gpt3-ai-content-generator'),
+        'notSent' => __('Not sent yet', 'gpt3-ai-content-generator'),
+        /* translators: %s: how long ago, e.g. "just now". */
+        'sent' => __('Sent %s', 'gpt3-ai-content-generator'),
+        'justNow' => __('just now', 'gpt3-ai-content-generator'),
+        /* translators: %s: how long ago, e.g. "2 hours ago". */
+        'failed' => __('Failed %s', 'gpt3-ai-content-generator'),
+        'deleteTitle' => __('Delete this endpoint?', 'gpt3-ai-content-generator'),
+        'deleteText' => __('It stops getting events. Its failed sends are kept until they expire.', 'gpt3-ai-content-generator'),
+        'deleteButton' => __('Delete endpoint', 'gpt3-ai-content-generator'),
+        'cancel' => __('Cancel', 'gpt3-ai-content-generator'),
+    ]); ?></script>
+</article>

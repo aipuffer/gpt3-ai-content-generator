@@ -138,6 +138,17 @@
         );
     const labelText = __("Label text", "gpt3-ai-content-generator");
 
+    if (elementData.type === "text-input") {
+      settingsFieldsContainer.innerHTML += `
+        <div class="aipkit_form-group aipkit_element_setting_group">
+          <label class="aipkit_form-label" for="setting-input-type-${elementData.internalId}">${__("Input format", "gpt3-ai-content-generator")}</label>
+          <select id="setting-input-type-${elementData.internalId}" class="aipkit_form-input aipkit-setting-field" data-setting="inputType">
+            <option value="text" ${elementData.inputType !== "email" ? "selected" : ""}>${__("Text", "gpt3-ai-content-generator")}</option>
+            <option value="email" ${elementData.inputType === "email" ? "selected" : ""}>${__("Email", "gpt3-ai-content-generator")}</option>
+          </select>
+        </div>`;
+    }
+
     settingsFieldsContainer.innerHTML += `
             <div class="aipkit_form-group aipkit_element_setting_group aipkit_element_setting_group--label">
                 <label class="aipkit_form-label" for="setting-label-${
@@ -450,6 +461,11 @@
     );
     if (helpTextInput) elementData.helpText = helpTextInput.value;
 
+    if (elementData.type === "text-input") {
+      const inputTypeSelect = settingsPanel.querySelector('[data-setting="inputType"]');
+      if (inputTypeSelect) elementData.inputType = inputTypeSelect.value === "email" ? "email" : "text";
+    }
+
     if (
       elementData.type === "text-input" ||
       elementData.type === "textarea" ||
@@ -673,7 +689,7 @@
       }
     });
     settingsPanel.addEventListener("change", (event) => {
-      if (event.target.matches('.aipkit-setting-field[type="checkbox"]')) {
+      if (event.target.matches('.aipkit-setting-field[type="checkbox"]') || event.target.matches('[data-setting="inputType"]')) {
         updateHandler();
       }
     });

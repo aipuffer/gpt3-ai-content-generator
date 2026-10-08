@@ -219,30 +219,30 @@
   display: none;
 }
 
-/* Keep fullscreen below the WordPress admin bar in frontend and preview QA. */
-body.admin-bar .aipkit_chat_container.aipkit-fullscreen,
-body.admin-bar
+/* Reserve admin-bar space outside onboarding, which covers the admin chrome. */
+body.admin-bar:not(.aipkit-setup-screen) .aipkit_chat_container.aipkit-fullscreen,
+body.admin-bar:not(.aipkit-setup-screen)
   .aipkit_popup_wrapper.aipkit-fullscreen-wrapper
   .aipkit_popup_content {
   top: 32px !important;
   height: calc(100% - 32px) !important;
 }
 
-body.admin-bar .aipkit_fullscreen_backdrop {
+body.admin-bar:not(.aipkit-setup-screen) .aipkit_fullscreen_backdrop {
   top: 32px;
 }
 
 /* Adjust for the taller WordPress admin bar on smaller screens. */
 @media screen and (max-width: 782px) {
-  body.admin-bar .aipkit_chat_container.aipkit-fullscreen,
-  body.admin-bar
+  body.admin-bar:not(.aipkit-setup-screen) .aipkit_chat_container.aipkit-fullscreen,
+  body.admin-bar:not(.aipkit-setup-screen)
     .aipkit_popup_wrapper.aipkit-fullscreen-wrapper
     .aipkit_popup_content {
     top: 46px !important;
     height: calc(100% - 46px) !important;
   }
 
-  body.admin-bar .aipkit_fullscreen_backdrop {
+  body.admin-bar:not(.aipkit-setup-screen) .aipkit_fullscreen_backdrop {
     top: 46px;
   }
 }

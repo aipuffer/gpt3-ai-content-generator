@@ -172,8 +172,7 @@ abstract class AIPKit_Admin_Asset_Base
     {
         return [
             // General / Loader
-            /* translators: %s is the name of the module being loaded */
-            'loading'                   => __('Loading %s...', 'gpt3-ai-content-generator'),
+            'loading'                   => __('Loading…', 'gpt3-ai-content-generator'),
             'errorLoadingModuleTitle'   => __('Error Loading Module', 'gpt3-ai-content-generator'),
             /* translators: %s is the name of the module that failed to load */
             'errorLoadingModuleMsg'     => __('An error occurred while loading the \'%s\' module. Please try again later or check the browser console for details.', 'gpt3-ai-content-generator'),
@@ -476,6 +475,7 @@ class DashboardAssets extends AIPKit_Admin_Asset_Base
             ],
             'providerStatus' => $provider_status,
             'cloudConnected' => class_exists('\\WPAICG\\Cloud\\Connection') && \WPAICG\Cloud\Connection::display()['connected'],
+            'cloudNonce' => class_exists('\\WPAICG\\Cloud\\Connection') && \WPAICG\Cloud\Connection::allowed() ? wp_create_nonce('aipkit_cloud_connection') : '',
             'modelRegistry' => [
                 'schemaVersion' => \WPAICG\Core\Models\AIPKit_Model_Registry::SCHEMA_VERSION,
                 'providerStates' => $provider_connection_states ?? [],

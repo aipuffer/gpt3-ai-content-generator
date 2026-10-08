@@ -1,7 +1,6 @@
 <?php
-// UPDATED FILE - Refactored IPv4 anonymization using string manipulation
 
-namespace WPAICG\AIPKit\Addons; // Updated Namespace
+namespace WPAICG\AIPKit\Addons;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
@@ -12,9 +11,6 @@ if (!defined('ABSPATH')) {
  *
  * Provides functionality to anonymize IP addresses when enabled.
  * Supports both IPv4 and IPv6.
- * UPDATED: Added conditional logging based on WP_DEBUG.
- * UPDATED: Improved IPv6 anonymization fallback.
- * UPDATED: Refactored IPv4 anonymization using string manipulation for reliability.
  */
 class AIPKit_IP_Anonymization {
 
@@ -70,45 +66,9 @@ class AIPKit_IP_Anonymization {
      * @return string Anonymized IPv6 address.
      */
     private static function _anonymize_ipv6(string $ip): string {
-        $packed_ip = @inet_pton($ip); // Use error suppression for invalid input (already filtered)
-        if ($packed_ip === false) {
-            return '::'; // Return generic anonymous on pton failure
-        }
-
-        // Expand compressed IPv6 address for easier manipulation
-        $expanded_ip = inet_ntop($packed_ip);
-        if ($expanded_ip === false) {
-
-            return '::'; // Return generic anonymous on expansion failure
-        }
-
-        // Split into blocks
-        $blocks = explode(':', $expanded_ip);
-
-        // Set the last block to '0000'
-        if (count($blocks) === 8) { // Ensure we have 8 blocks after expansion
-            $blocks[7] = '0000';
-        } else {
-
-            return '::'; // Return generic anonymous if block count is wrong
-        }
-
-
-        // Re-join and attempt to compress
-        $anonymized_expanded = implode(':', $blocks);
-        $anonymized_packed = @inet_pton($anonymized_expanded);
-        if ($anonymized_packed === false) {
-
-            return '::'; // Return generic anonymous on pack failure
-        }
-
-        $anonymized_compressed = inet_ntop($anonymized_packed);
-        if ($anonymized_compressed === false) {
-
-            // *** UPDATED FALLBACK ***
-            return '::'; // Return generic anonymous '::' if compression fails
-        }
-
-        return $anonymized_compressed;
+        $packed_ip = inet_pton($ip);
+        // Work on the 16 address bytes: inet_ntop() compresses zero blocks and
+        // cannot be used to expand IPv6 into eight colon-separated groups.
+        return inet_ntop(substr($packed_ip, 0, 14) . "\0\0");
     }
 }

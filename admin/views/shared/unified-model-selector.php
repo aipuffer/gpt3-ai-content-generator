@@ -22,6 +22,8 @@
  * - trigger_action_label (string, optional): shown at the trigger's end, such as Change; the trigger then
  *   also names the model's provider under the model
  * - show_sync_button (bool, optional; defaults to false): a footer button that syncs the provider being browsed
+ * - simple (bool, optional; defaults to false): one provider's models as a plain list (Settings): no provider rail,
+ *   no favorites, no footer, and search only for long lists
  */
 
 if (!defined('ABSPATH')) {
@@ -90,6 +92,7 @@ $aipkit_unified_model_action_label = isset($aipkit_unified_model_selector_config
     ? (string) $aipkit_unified_model_selector_config['trigger_action_label']
     : '';
 $aipkit_unified_model_show_sync_button = !empty($aipkit_unified_model_selector_config['show_sync_button']);
+$aipkit_unified_model_simple = !empty($aipkit_unified_model_selector_config['simple']);
 ?>
 <div
     class="aipkit_unified_model_selector<?php echo $aipkit_unified_model_class_name !== '' ? ' ' . esc_attr($aipkit_unified_model_class_name) : ''; ?>"
@@ -99,6 +102,7 @@ $aipkit_unified_model_show_sync_button = !empty($aipkit_unified_model_selector_c
     data-aipkit-popover-placement="<?php echo esc_attr($aipkit_unified_model_popover_placement); ?>"
     data-aipkit-provider-diagnostics="<?php echo $aipkit_unified_model_show_provider_diagnostics ? '1' : '0'; ?>"
     data-aipkit-show-manage-link="<?php echo $aipkit_unified_model_show_manage_link ? '1' : '0'; ?>"
+    <?php echo $aipkit_unified_model_simple ? 'data-aipkit-model-picker="simple"' : ''; ?>
 >
     <button
         type="button"

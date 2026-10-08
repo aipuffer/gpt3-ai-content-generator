@@ -108,10 +108,10 @@ $render_drawer_start = static function (string $key, string $title, string $hint
         <div class="aipkit_feature_drawer_body">
     <?php
 };
-// The footer note: true for the usual autosave line, false for none, or its own text. An action (label, url)
-// takes Done's place, such as Upgrade.
-$render_drawer_end = static function ($note = true, array $action = []): void {
-    $note_text = $note === true ? __('Changes save automatically.', 'gpt3-ai-content-generator') : (is_string($note) ? $note : '');
+// The footer note: none by default, or a line that says something specific (Pro, apps). An action (label, url)
+// takes Done's place, such as Upgrade. The note's slot stays, so Done keeps right and a status can sit beside it.
+$render_drawer_end = static function (string $note = '', array $action = []): void {
+    $note_text = $note;
     ?>
         </div>
         <div class="aipkit_feature_drawer_footer">

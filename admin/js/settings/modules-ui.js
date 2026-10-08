@@ -157,7 +157,7 @@
 
   function setAutosaveBusy(isBusy) {
     if (typeof window.aipkit_setSettingsAutosaveBusy === "function") {
-      window.aipkit_setSettingsAutosaveBusy(isBusy, document.querySelector('[data-aipkit-settings-page="modules"]'));
+      window.aipkit_setSettingsAutosaveBusy(isBusy, document.querySelector('.aipkit_settings_scope[data-aipkit-settings-page="modules"]'));
     }
   }
 

@@ -172,6 +172,22 @@ class AIPKit_Global_Security_Settings
         return in_array($ip_address, array_filter($blocked_ips), true);
     }
 
+    /** Whether a log address is shortened, including ambiguous legacy records. */
+    public static function is_logged_ip_anonymized(array $log_row): bool
+    {
+        if (isset($log_row['ip_anonymized'])) {
+            return (bool) $log_row['ip_anonymized'];
+        }
+        // Older logs have no privacy marker. Never offer an exact-visitor block
+        // for an address that could be a shortened network address.
+        $ip = self::normalize_ip((string) ($log_row['ip_address'] ?? ''));
+        if ($ip === '') {
+            return false;
+        }
+        $bytes = inet_pton($ip);
+        return strlen($bytes) === 4 ? substr($bytes, -1) === "\0" : substr($bytes, -2) === "\0\0";
+    }
+
     /**
      * Adds or removes an exact IP address from the global blocklist.
      */

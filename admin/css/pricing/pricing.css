@@ -102,6 +102,8 @@ body[class*="page_wpaicg-pricing"] { background: #f4f6fa; }
 #fs_pricing #fs_pricing_app .fs-package[data-aipkit-pricing-tier="plus"] { border: 2px solid var(--aipkit-pricing-blue); box-shadow: 0 8px 24px #405cf010; }
 #fs_pricing #fs_pricing_app .fs-package[data-aipkit-pricing-tier] .fs-package-content { display: flex; flex-direction: column; }
 #fs_pricing #fs_pricing_app .fs-package[data-aipkit-pricing-tier] :is(.fs-most-popular, .fs-plan-title, .fs-plan-description, .fs-undiscounted-price, .fs-selected-pricing-cycle, .fs-selected-pricing-license-quantity, .fs-support-and-main-features, .fs-plan-features) { display: none; }
+/* The SDK replaces the annual discount row with a spacer on other cycles. */
+#fs_pricing #fs_pricing_app .fs-package[data-aipkit-pricing-tier] .fs-package-content > .fs-placeholder { display: none; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-recommended { position: absolute; top: -14px; left: 24px; padding: 5px 12px; border-radius: 999px; background: var(--aipkit-pricing-blue); color: white; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-card-header { order: 0; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-card-header h2 { margin: 0 0 8px; color: var(--aipkit-pricing-ink); font-size: 24px; line-height: 1.3; text-align: left; }

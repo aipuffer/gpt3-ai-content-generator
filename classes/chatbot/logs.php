@@ -165,8 +165,9 @@ function build_where_clauses_logic(
  * @param array $existing_log_row The existing log row data from DB.
  * @param array $new_message The new message object to add.
  * @param int $current_timestamp The current timestamp for the message.
- * @param string|null $ip_to_store Anonymized IP address.
+ * @param string|null $ip_to_store Address stored according to the privacy setting.
  * @param string|null $user_wp_role User's WordPress role.
+ * @param bool $ip_anonymized Whether the stored address was shortened.
  * @return array|false ['log_id' => int, 'message_id' => string] on success, false on failure.
  */
 function update_existing_log_logic(
@@ -176,7 +177,8 @@ function update_existing_log_logic(
     array $new_message,
     int $current_timestamp,
     ?string $ip_to_store,
-    ?string $user_wp_role
+    ?string $user_wp_role,
+    bool $ip_anonymized = false
 ) {
     $log_id = absint($existing_log_row['id']);
     $messages_json = $existing_log_row['messages'] ?? null;
@@ -196,6 +198,7 @@ function update_existing_log_logic(
     $updated_conversation_data = [
         'parent_id' => $parent_id,
         'messages' => $messages_array,
+        'ip_anonymized' => $ip_anonymized,
     ];
 
     $update_data_fields = [
@@ -256,8 +259,9 @@ function update_existing_log_logic(
  * @param int $is_guest
  * @param array $new_message The first message object.
  * @param int $current_timestamp The current timestamp for the message.
- * @param string|null $ip_to_store Anonymized IP address.
+ * @param string|null $ip_to_store Address stored according to the privacy setting.
  * @param string|null $user_wp_role User's WordPress role.
+ * @param bool $ip_anonymized Whether the stored address was shortened.
  * @return array|false ['log_id' => int, 'message_id' => string, 'is_new_session' => true] on success, false on failure.
  */
 function insert_new_log_logic(
@@ -272,7 +276,8 @@ function insert_new_log_logic(
     array $new_message,
     int $current_timestamp,
     ?string $ip_to_store,
-    ?string $user_wp_role
+    ?string $user_wp_role,
+    bool $ip_anonymized = false
 ) {
     $parent_id = generate_parent_id_logic(); // Call namespaced function
     $messages_array = [$new_message];
@@ -280,6 +285,7 @@ function insert_new_log_logic(
     $conversation_data = [
          'parent_id' => $parent_id,
          'messages' => $messages_array,
+         'ip_anonymized' => $ip_anonymized,
     ];
 
     $insert_data_fields = [
@@ -873,7 +879,8 @@ class ConversationLogger
                 $new_message,
                 $current_timestamp,
                 $ip_to_store,
-                $user_wp_role
+                $user_wp_role,
+                $ip_anonymize
             );
             if (is_array($update_result)) {
                 $update_result['is_new_session'] = false; // It's an update to an existing log
@@ -893,7 +900,8 @@ class ConversationLogger
                 $new_message,
                 $current_timestamp,
                 $ip_to_store,
-                $user_wp_role
+                $user_wp_role,
+                $ip_anonymize
             );
         }
     }
@@ -1446,10 +1454,14 @@ class LogManager
             return null;
         }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Reason: $this->table_name is safe.
-        $log_row = $this->wpdb->get_row($this->wpdb->prepare("SELECT id, bot_id, user_id, session_id, conversation_uuid, module, is_guest, message_count, first_message_ts, last_message_ts, ip_address, user_wp_role, created_at, updated_at FROM {$this->table_name} WHERE id = %d", $log_id), ARRAY_A);
+        $log_row = $this->wpdb->get_row($this->wpdb->prepare("SELECT id, bot_id, user_id, session_id, conversation_uuid, module, is_guest, message_count, first_message_ts, last_message_ts, ip_address, user_wp_role, created_at, updated_at, messages FROM {$this->table_name} WHERE id = %d", $log_id), ARRAY_A);
         if (!$log_row) {
             return null;
         }
+        $conversation = json_decode((string) ($log_row['messages'] ?? ''), true);
+        $log_row['ip_anonymized'] = is_array($conversation) && array_key_exists('ip_anonymized', $conversation)
+            ? (bool) $conversation['ip_anonymized'] : null;
+        unset($log_row['messages']);
         if (!empty($log_row['bot_id'])) {
             $log_row['bot_name'] = get_the_title($log_row['bot_id']) ?: __('(Deleted Bot)', 'gpt3-ai-content-generator');
         } elseif (empty($log_row['module'])) {

@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Connects vector-store providers and dispatches their supported operations.
+ * Configures vector-store providers and dispatches their authenticated operations.
  */
 class AIPKit_Vector_Store_Manager
 {
@@ -31,13 +31,16 @@ class AIPKit_Vector_Store_Manager
         if ($policy === null) { return $options; }
         $dimension = null;
         foreach (array_unique($targets) as $target) {
-            $description = $this->describe_single_index($provider, (string) $target, $config);
+            $description = $this->describe_embedding_index($provider, (string) $target, $config);
             if (is_wp_error($description)) { return $description; }
             $size = $description['dimensions'] ?? $description['dimension'] ?? $description['config']['params']['vectors']['size'] ?? null;
             // Empty Chroma collections acquire their dimension from the first vectors.
             if ($size === null && strtolower($provider) === 'chroma'
                 && ((array_key_exists('dimension', $description) && $description['dimension'] === null)
                     || ($description['total_vector_count'] ?? null) === 0)) { $size = $policy['default']; }
+            if (!is_numeric($size) || (int) $size <= 0) {
+                return new WP_Error('embedding_store_dimensions_unavailable', __('Could not determine the knowledge store dimensions. Refresh the store configuration and use a collection with one dense vector.', 'gpt3-ai-content-generator'));
+            }
             $size = (int) $size;
             $supported = isset($policy['sizes']) ? in_array($size, $policy['sizes'], true) : ($size >= $policy['min'] && $size <= $policy['max']);
             if (!$supported) {
@@ -56,6 +59,16 @@ class AIPKit_Vector_Store_Manager
         return $options;
     }
 
+    /** Read only the metadata needed to choose embedding dimensions. */
+    protected function describe_embedding_index(string $provider, string $index_name, array $provider_config)
+    {
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
+        if (is_wp_error($strategy)) { return $strategy; }
+        return method_exists($strategy, 'describe_index_for_embeddings')
+            ? $strategy->describe_index_for_embeddings($index_name)
+            : $strategy->describe_index($index_name);
+    }
+
     /**
      * Logic for creating an index in the specified vector store if it doesn't already exist.
      *
@@ -67,7 +80,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function create_index_if_not_exists(string $provider, string $index_name, array $index_config, array $provider_config)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -85,7 +98,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function upsert_vectors(string $provider, string $index_name, array $vectors, array $provider_config)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -105,7 +118,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function query_vectors(string $provider, string $index_name, array $query_vector, int $top_k, array $filter = [], array $provider_config = [])
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -123,7 +136,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function delete_vectors(string $provider, string $index_name, array $vector_ids, array $provider_config)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -140,7 +153,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function delete_index(string $provider, string $index_name, array $provider_config)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -160,7 +173,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function list_all_indexes(string $provider, array $provider_config, ?int $limit = 20, ?string $order = 'desc', ?string $after = null, ?string $before = null)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -177,7 +190,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function describe_single_index(string $provider, string $index_name, array $provider_config)
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -195,7 +208,7 @@ class AIPKit_Vector_Store_Manager
      */
     public function list_files_in_store(string $provider, string $vector_store_id, array $provider_config, array $query_params = [])
     {
-        $strategy = $this->get_connected_strategy($provider, $provider_config);
+        $strategy = $this->get_configured_strategy($provider, $provider_config);
         if (is_wp_error($strategy)) {
             return $strategy;
         }
@@ -206,13 +219,13 @@ class AIPKit_Vector_Store_Manager
     }
 
     /**
-     * Helper to get and connect a strategy.
+     * Initialize locally. The requested operation itself verifies remote access.
      *
      * @param string $provider The vector store provider name.
      * @param array $provider_config Provider-specific connection/API configuration.
-     * @return AIPKit_Vector_Provider_Strategy_Interface|WP_Error The connected strategy instance or WP_Error.
+     * @return AIPKit_Vector_Provider_Strategy_Interface|WP_Error The configured strategy instance or WP_Error.
      */
-    private function get_connected_strategy(string $provider, array $provider_config)
+    private function get_configured_strategy(string $provider, array $provider_config)
     {
         if (!class_exists(AIPKit_Vector_Provider_Strategy_Factory::class)) {
             // This should ideally be caught by the main class constructor or dependency loader
@@ -224,7 +237,9 @@ class AIPKit_Vector_Store_Manager
             return $strategy;
         }
 
-        $connect_result = $strategy->connect($provider_config);
+        $connect_result = method_exists($strategy, 'configure')
+            ? $strategy->configure($provider_config)
+            : $strategy->connect($provider_config);
         if (is_wp_error($connect_result) || $connect_result === false) {
             /* translators: %s is the vector store provider name */
             return is_wp_error($connect_result) ? $connect_result : new WP_Error('connection_failed', sprintf(__('Failed to connect to %s vector store.', 'gpt3-ai-content-generator'), $provider));

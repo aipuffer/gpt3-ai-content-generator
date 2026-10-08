@@ -1,5 +1,6 @@
 import { bindAccountEmail } from '../shared/account-email.js';
 import { reportConnectionDiagnostic } from '../shared/connection-diagnostics.js';
+import { beginCloudConnectionChange, publishCloudConnectionChange, watchCloudConnection } from '../shared/cloud-connection-sync.js';
 
 /**
  * First-run setup (admin/views/onboarding/page.php). Steps are sections toggled by data-step;
@@ -34,15 +35,20 @@ async function post(action, fields, keepalive = false) {
 }
 
 let cloudConnected = config.cloudConnected === true;
-const outcomeOps = new Set(['goals', 'cloud', 'use_key', 'chat', 'publish_bot', 'draft', 'template', 'product', 'save_product', 'finish', 'skip']);
+const outcomeOps = new Set(['goals', 'cloud', 'use_key', 'chat_result', 'publish_bot', 'draft', 'template', 'product', 'save_product', 'finish', 'skip']);
 const reportProgress = () => {
     if (cloudConnected) void post('aipkit_onboarding', { _wpnonce: config.nonce, op: 'progress' }, true).catch(() => {});
 };
 const setup = async (op, fields = {}) => {
-    const data = await post('aipkit_onboarding', { _wpnonce: config.nonce, op, ...fields });
-    if (typeof data.connected === 'boolean') cloudConnected = data.connected;
-    if (outcomeOps.has(op)) reportProgress();
-    return data;
+    const changingCloud = ['cloud', 'cloud_disconnect'].includes(op);
+    const finishChange = changingCloud ? beginCloudConnectionChange() : () => {};
+    try {
+        const data = await post('aipkit_onboarding', { _wpnonce: config.nonce, op, ...fields });
+        if (typeof data.connected === 'boolean') cloudConnected = data.connected;
+        if (outcomeOps.has(op)) reportProgress();
+        if (changingCloud) publishCloudConnectionChange();
+        return data;
+    } finally { finishChange(); }
 };
 
 if (root) {
@@ -57,14 +63,14 @@ if (root) {
 
     const state = {
         step: 'welcome',
-        goals: ['chatbot'],
+        goals: Array.isArray(config.goals) && config.goals.length ? config.goals : ['chatbot'],
         power: 'cloud',
         connection: '',
         keyReady: false,
         busy: false,
-        chatHistory: [],
+        // The connection the chatbot should use, and the one it was last loaded with.
         chatModel: '',
-        chatRequest: null,
+        chatWidget: '',
         product: null,
     };
     const backTo = { goals: 'welcome', connect: 'goals', 'try-chat': 'connect', 'try-write': 'connect', 'try-auto': 'connect', 'try-forms': 'connect', 'try-products': 'connect' };
@@ -79,7 +85,11 @@ if (root) {
     async function busy(button, work) {
         if (!button || state.busy) return undefined;
         state.busy = true;
-        const controls = $$('button, input, select, textarea').map((control) => [control, control.disabled]);
+        const pausedChat = state.step === 'try-chat';
+        if (pausedChat) pauseChatWidget();
+        const pausedChatGeneration = chatLoads;
+        // The widget owns its controls, including streaming and consent state.
+        const controls = $$('button, input, select, textarea').filter(control => !control.closest('.aipkit_chat_container')).map((control) => [control, control.disabled]);
         controls.forEach(([control]) => { control.disabled = true; });
         button.setAttribute('aria-busy', 'true');
         showError('');
@@ -92,7 +102,7 @@ if (root) {
             controls.forEach(([control, disabled]) => { control.disabled = disabled; });
             button.removeAttribute('aria-busy');
             state.busy = false;
-            renderChatControls();
+            if (pausedChat && state.step === 'try-chat' && chatLoads === pausedChatGeneration) void loadChatWidget();
             renderGoals();
             renderPower();
             if ((button.hidden || button.isConnected === false) && state.power === 'cloud' && root.dataset.cloudReady === 'true') {
@@ -102,7 +112,7 @@ if (root) {
     }
 
     function go(step) {
-        if (step !== 'try-chat') discardPendingChat();
+        if (state.step === 'try-chat' && step !== 'try-chat') pauseChatWidget();
         if (step !== 'connect' && keyRequest) { keyRequest = null; renderPower(); }
         if (step !== 'connect') accountEmail.cancel();
         state.step = step;
@@ -118,7 +128,10 @@ if (root) {
         });
         root.querySelector('[data-action="skip"]').textContent = step === 'done' ? __('Close', 'gpt3-ai-content-generator') : __('Skip setup', 'gpt3-ai-content-generator');
         if (step === 'done') renderSummary();
-        if (step === 'try-chat') $$('[data-connection-label]').forEach((el) => { el.textContent = sprintf(__('Uses %s', 'gpt3-ai-content-generator'), state.connection); });
+        if (step === 'try-chat') {
+            $$('[data-connection-label]').forEach((el) => { el.textContent = sprintf(__('Uses %s', 'gpt3-ai-content-generator'), state.connection); });
+            void loadChatWidget();
+        }
         const heading = $(`.aipkit-setup__step[data-step="${step}"] h1`);
         if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
         root.scrollTop = 0;
@@ -178,6 +191,7 @@ if (root) {
     }
 
     function updateCloud(data) {
+        cloudConnected = data.connected === true;
         root.dataset.cloud = data.connected ? 'connected' : 'none';
         $('[data-action="disconnect-cloud"]').hidden = !data.connected;
         root.dataset.cloudReady = String(data.ready === true);
@@ -186,6 +200,17 @@ if (root) {
         $('[data-cloud-email-field]').hidden = !!data.registered;
         $('[data-cloud-marketing]').hidden = !!data.registered;
         $('[data-cloud-email]').textContent = data.email || '';
+        const avatar = root.querySelector('.aipkit_cloud_account_avatar');
+        if (avatar) avatar.textContent = ([...(data.email || '')][0] || '').toLocaleUpperCase();
+        const caption = root.querySelector('.aipkit_cloud_account_caption');
+        if (caption) caption.hidden = !!data.connected;
+        const verified = root.querySelector('.aipkit_cloud_account_verified');
+        if (verified) verified.hidden = !data.connected || data.emailVerified !== true;
+        const accountChange = root.querySelector('[data-cloud-account-change]');
+        if (accountChange) {
+            accountChange.textContent = data.accountChangeMessage || '';
+            accountChange.hidden = !data.accountChangeMessage;
+        }
         $('[data-cloud-manage-email]').href = data.manageEmailUrl || '';
         $('[data-cloud-manage-email]').hidden = !!data.emailUpdate || !data.manageEmailUrl;
         $('[data-action="edit-email"]').hidden = !data.emailUpdate;
@@ -194,15 +219,20 @@ if (root) {
         editor.dataset.emailSecurity = data.emailUpdate?.security || '';
         editor.dataset.emailModule = data.emailUpdate?.moduleId || '';
         $('[data-action="check-email"]').hidden = !data.pendingEmail;
-        $('[data-action="cloud"]').textContent = data.pendingEmail ? __('Resend email', 'gpt3-ai-content-generator') : __('Connect', 'gpt3-ai-content-generator');
+        $('[data-action="cloud"]').textContent = data.pendingEmail ? __('Resend email', 'gpt3-ai-content-generator') : __('Get 25 free credits', 'gpt3-ai-content-generator');
         $('[data-action="cloud"]').classList.toggle('aipkit-setup__btn--ghost', !!data.pendingEmail);
         $('[data-cloud-recovery]').innerHTML = data.emailRecoveryHtml || '';
         $('[data-cloud-message]').textContent = data.message || '';
         $('[data-cloud-message]').hidden = !data.message;
         $('[data-action="retry-cloud"]').hidden = !data.retry;
-        if (data.ready && data.provider && data.model) useConnection(data);
+        if (!data.connected && state.chatModel.startsWith('AIPufferCloud:')) {
+            resetChatWidget(); state.connection = ''; state.chatModel = '';
+        }
+        if (data.ready && data.provider && data.model && state.power === 'cloud') useConnection(data);
         renderPower();
     }
+
+    watchCloudConnection('onboarding', () => post('aipkit_onboarding', { _wpnonce: config.nonce, op: 'cloud_state' }), updateCloud);
 
     const accountEmail = bindAccountEmail(root, {
         busy,
@@ -211,6 +241,7 @@ if (root) {
             root.dataset.cloudReady = 'false';
             const data = await setup('cloud_state');
             updateCloud(data);
+            publishCloudConnectionChange();
             return data;
         },
     });
@@ -227,12 +258,11 @@ if (root) {
 
     function useConnection(data) {
         const model = `${data.provider}:${data.model}`;
-        if (state.chatModel !== model) {
-            discardPendingChat();
-            state.chatHistory = [];
-            $$('[data-chat-log] .aipkit-setup__msg:not(:first-child)').forEach((message) => message.remove());
-            state.chatModel = model;
+        if (state.chatModel && state.chatModel !== model) {
+            resetChatWidget();
+            window.aipkit_regenerateConversationUUID?.();
         }
+        state.chatModel = model;
         state.connection = data.label;
     }
 
@@ -253,35 +283,62 @@ if (root) {
         return firstSteps[state.goals[0]] || 'done';
     }
 
-    function addMessage(text, who) {
-        const log = $('[data-chat-log]');
-        const bubble = document.createElement('div');
-        bubble.className = `aipkit-setup__msg aipkit-setup__msg--${who}`;
-        bubble.textContent = text;
-        log.appendChild(bubble);
-        log.scrollTop = log.scrollHeight;
-        return bubble;
+    // The real chatbot (the Chatbot module's widget), loaded for the connection chosen in this setup.
+    let chatLoads = 0, chatNode = null;
+    const chatRecord = () => chatNode && window.aipkitChatInstances?.[chatNode.id];
+    function pauseChatWidget() {
+        chatLoads++;
+        chatRecord()?.lifecycle?.suspend();
+        // A load still in flight must not initialize a hidden chatbot after leaving the step.
+        if (!state.chatWidget) { $('[data-chat-widget]').innerHTML = ''; chatNode = null; }
+    }
+    function resetChatWidget() {
+        pauseChatWidget();
+        state.chatWidget = '';
+        chatNode = null;
+        $('[data-chat-widget]').innerHTML = '';
+    }
+    function chatStatus(message, failed = false) {
+        $('[data-chat-message]').textContent = message;
+        $('[data-chat-status]').hidden = !message;
+        $('[data-action="load-chat"]').hidden = !failed;
     }
 
-    function renderChatControls() {
-        const button = $('[data-chat-form] button');
-        button.disabled = state.busy || !!state.chatRequest;
-        if (state.chatRequest) button.setAttribute('aria-busy', 'true');
-        else button.removeAttribute('aria-busy');
-    }
-
-    function discardPendingChat() {
-        if (!state.chatRequest) return;
-        state.chatRequest.userMessage.remove();
-        state.chatRequest.thinking.remove();
-        state.chatRequest = null;
-        renderChatControls();
+    async function loadChatWidget(force = false) {
+        const box = $('[data-chat-widget]');
+        if (!force && state.chatWidget && state.chatWidget === state.chatModel) {
+            chatRecord()?.lifecycle?.resume();
+            return;
+        }
+        resetChatWidget();
+        const load = ++chatLoads;
+        const model = state.chatModel;
+        const current = () => load === chatLoads && state.step === 'try-chat' && state.chatModel === model;
+        chatStatus(__('Loading your chatbot…', 'gpt3-ai-content-generator'));
+        try {
+            const data = await setup('chat_widget');
+            if (!current()) return;
+            box.innerHTML = data.html || '';
+            const chat = box.querySelector('.aipkit_chat_container');
+            if (!chat || typeof window.aipkit_initializeChatInstance !== 'function') throw new Error(__('Your chatbot could not be shown. Open it in Chatbots instead.', 'gpt3-ai-content-generator'));
+            chatNode = chat;
+            // Keep the first-result metric tied to a completed reply, never a failed submission.
+            chat.addEventListener('aipkit:messageReceived', () => { void setup('chat_result').catch(() => {}); }, { once: true });
+            await window.aipkit_initializeChatInstance(chat);
+            if (!current()) return;
+            if (!chat.classList.contains('aipkit-initialized')) throw new Error(__('Your chatbot could not be shown. Try again or open it in Chatbots.', 'gpt3-ai-content-generator'));
+            state.chatWidget = model;
+            chatStatus('');
+        } catch (error) {
+            if (!current()) return;
+            resetChatWidget();
+            chatStatus(error.message, true);
+        }
     }
 
     async function leave(op, button) {
         await busy(button, async () => {
             const data = await setup(op);
-            discardPendingChat();
             window.location.assign(data.url || config.dashboardUrl);
         });
     }
@@ -331,7 +388,6 @@ if (root) {
         'disconnect-cloud': (button) => busy(button, async () => {
             const data = await setup('cloud_disconnect');
             updateCloud(data);
-            if (state.connection === 'AI Puffer Cloud') { state.connection = ''; state.chatModel = ''; state.chatHistory = []; }
         }),
         key: (button) => keyRequest ? undefined : busy(button, async () => {
             const provider = field('provider').value;
@@ -380,6 +436,7 @@ if (root) {
             const text = button.closest('[data-product-result]').dataset.text || '';
             navigator.clipboard?.writeText(text).then(() => { button.textContent = __('Copied', 'gpt3-ai-content-generator'); }, () => showError(__('Copying failed. Select the text and copy it yourself.', 'gpt3-ai-content-generator')));
         },
+        'load-chat': () => loadChatWidget(true),
         'publish-bot': (button) => busy(button, async () => {
             await setup('publish_bot');
             const item = $('[data-bot-visibility] span');
@@ -415,6 +472,12 @@ if (root) {
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+        const record = chatRecord();
+        if (state.step === 'try-chat' && (record?.state?.isFullscreen || chatNode?.contains(event.target))) {
+            event.preventDefault();
+            if (record?.state?.isFullscreen) record.actions.toggleFullscreenAction();
+            return;
+        }
         // Never abandon a connect/check/draft request halfway.
         if (state.busy) return;
         event.preventDefault();
@@ -435,7 +498,7 @@ if (root) {
         if (root.dataset.cloudPending !== 'true') return;
         root.dataset.cloudPending = 'false';
         $('[data-action="check-email"]').hidden = true;
-        $('[data-action="cloud"]').textContent = __('Connect', 'gpt3-ai-content-generator');
+        $('[data-action="cloud"]').textContent = __('Get 25 free credits', 'gpt3-ai-content-generator');
         $('[data-action="cloud"]').classList.remove('aipkit-setup__btn--ghost');
         $('[data-cloud-message]').hidden = true;
     });
@@ -451,39 +514,6 @@ if (root) {
         invalidateKey();
     });
     field('api_key').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); actions.key($('[data-action="key"]')); } });
-
-    $('[data-chat-form]').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const input = field('message');
-        const message = input.value.trim();
-        if (!message || state.busy || state.chatRequest || state.step !== 'try-chat') return;
-        input.value = '';
-        showError('');
-        const pending = { userMessage: addMessage(message, 'user'), thinking: addMessage('…', 'bot') };
-        state.chatRequest = pending;
-        pending.thinking.classList.add('is-typing');
-        renderChatControls();
-        try {
-            const data = await setup('chat', { message, history: JSON.stringify(state.chatHistory) });
-            if (state.chatRequest !== pending) return;
-            pending.thinking.classList.remove('is-typing');
-            const text = document.createElement('div');
-            text.innerHTML = data.reply || '';
-            pending.thinking.textContent = text.textContent.trim() || __('(No reply)', 'gpt3-ai-content-generator');
-            state.chatHistory = state.chatHistory.concat([{ role: 'user', content: message }, { role: 'assistant', content: text.textContent.trim() }]).slice(-10);
-        } catch (error) {
-            if (state.chatRequest !== pending) return;
-            pending.thinking.remove();
-            pending.userMessage.remove();
-            if (!input.value) input.value = message;
-            showError(error.message);
-        } finally {
-            if (state.chatRequest === pending) {
-                state.chatRequest = null;
-                renderChatControls();
-            }
-        }
-    });
 
     const productSelect = field('product_id');
     productSelect?.addEventListener('change', () => {
@@ -557,5 +587,5 @@ if (root) {
 
     renderGoals();
     renderPower();
-    go('welcome');
+    go(window.location.hash === '#connect' ? 'connect' : 'welcome');
 }

@@ -360,7 +360,7 @@ final class AIPKit_Model_Catalog
                 'claude-sonnet-5',
                 [
                     ['id' => 'claude-sonnet-5', 'name' => 'Claude Sonnet 5'],
-                    ['id' => 'claude-haiku-4-5', 'name' => 'Claude Haiku 4.5'],
+                    ['id' => 'claude-haiku-5-5', 'name' => 'Claude Haiku 5.5'],
                     ['id' => 'claude-opus-5', 'name' => 'Claude Opus 5'],
                 ]
             ),
@@ -533,7 +533,14 @@ final class AIPKit_Model_Catalog
             $models = !class_exists('\\WPAICG\\Cloud\\Connection') ? [] : ($capability === 'text_generation' ? \WPAICG\Cloud\Connection::models()
                 : ($capability === 'embeddings' ? \WPAICG\Cloud\Connection::embedding_models()
                     : \WPAICG\Cloud\Connection::media_models($operation)));
-            return self::model_definition('AIPufferCloud', $type, $capability, '', $models[0]['id'] ?? '', $models);
+            $default = $models[0]['id'] ?? '';
+            if ($capability === 'text_generation' && class_exists('\\WPAICG\\Cloud\\Connection')) {
+                $published_default = \WPAICG\Cloud\Connection::default_model();
+                if ($published_default !== '' && in_array($published_default, array_column($models, 'id'), true)) {
+                    $default = $published_default;
+                }
+            }
+            return self::model_definition('AIPufferCloud', $type, $capability, '', $default, $models);
         }
         $definitions = self::get_builtin_definitions();
         return $definitions[$normalized_key] ?? [];
@@ -2834,6 +2841,7 @@ final class AIPKit_Model_Registry
 
         return [
             'schema_version' => self::SCHEMA_VERSION,
+            'complete' => true,
             'manifest' => get_option(self::MANIFEST_OPTION, []),
             'snapshots' => $snapshots,
         ];
@@ -2917,6 +2925,24 @@ final class AIPKit_Model_Registry
         $snapshots = isset($state['snapshots']) && is_array($state['snapshots'])
             ? $state['snapshots']
             : [];
+        // A full backup also records providers with no snapshot. Remove catalogs
+        // introduced since that backup; older partial exports retain merge behavior.
+        if (($state['complete'] ?? false) === true) {
+            $manifest = get_option(self::MANIFEST_OPTION, []);
+            $manifest = is_array($manifest) ? $manifest : [];
+            foreach (array_keys(AIPKit_Model_Catalog::get_catalog_keys_by_provider()) as $provider) {
+                if (array_key_exists($provider, $snapshots)) {
+                    continue;
+                }
+                $option_name = self::get_snapshot_option_name($provider);
+                delete_option($option_name);
+                if (get_option($option_name, null) !== null) {
+                    return new WP_Error('aipkit_registry_snapshot_write_failed', __('Could not restore the model catalog.', 'gpt3-ai-content-generator'));
+                }
+                unset($manifest['providers'][$provider]);
+            }
+            update_option(self::MANIFEST_OPTION, $manifest, 'no');
+        }
         foreach ($snapshots as $provider => $snapshot) {
             $provider = sanitize_text_field((string) $provider);
             if ($provider === '' || !is_array($snapshot)) {

@@ -20,15 +20,15 @@ final class Announcement
         if (!Connection::allowed() || get_user_meta(get_current_user_id(), self::DISMISSED, true)) {
             return;
         }
-        $connected = Connection::display()['connected'];
         $settings_url = add_query_arg([
             'page' => 'wpaicg',
             'aipkit_module' => 'settings',
             'aipkit_settings_page' => 'ai',
             'aipkit_provider' => 'AIPufferCloud',
         ], admin_url('admin.php'));
+        // Starts hidden; ui-cloud-announcement.js shows it once the first module's own notices are known.
         ?>
-        <div class="aipkit_notification_bar aipkit_notification_bar--promo" data-aipkit-cloud-announcement<?php if ($connected) : ?> hidden<?php endif; ?>>
+        <div class="aipkit_notification_bar aipkit_notification_bar--promo" data-aipkit-cloud-announcement hidden>
             <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-cloud"></span></span>
             <div class="aipkit_notification_bar__content">
                 <p><strong><?php esc_html_e('Try AI Puffer Cloud: 25 free credits every month.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('No API key needed.', 'gpt3-ai-content-generator'); ?></p>

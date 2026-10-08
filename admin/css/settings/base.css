@@ -1,12 +1,13 @@
 
 /* --- Settings Layout --- */
+/* The same centered frame as the chatbot builder, so screens line up when switching. */
 .aipkit_settings_main_container {
     display: flex;
     flex-direction: column;
     gap: 0;
     min-width: 0;
     width: 100%;
-    max-width: 1032px;
+    max-width: var(--aipkit_workspace-width, 1240px);
     margin: 0 auto;
     padding: 0;
     border: 0;
@@ -15,252 +16,1051 @@
     box-shadow: none;
     overflow: visible;
 }
-.aipkit_settings_module_header {
+/* Two white cards like the chatbot builder: the menu, and the section it shows. */
+.aipkit_settings_layout {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+}
+.aipkit_settings_menu_card,
+.aipkit_settings_section {
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: inset 0 0 0 1px #e3e7ee, 0 1px 2px rgba(24, 32, 46, 0.04);
+}
+.aipkit_settings_menu_card {
+    position: sticky;
+    top: calc(var(--wp-admin--admin-bar--height, 32px) + 20px);
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 14px;
-    min-height: 0;
-    margin: 0 0 14px;
-    padding: 0;
-    border: 0;
-    background: transparent;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: 16px 12px;
+}
+.aipkit_settings_menu_head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 10px;
 }
 #aipkit_settings_container .aipkit_container-title {
     margin: 0;
     color: #172033;
-    font-size: 22px;
-    font-weight: 650;
-    line-height: 1.2;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
 }
-#aipkit_settings_container .aipkit_settings_header_copy {
-    gap: 5px;
+.aipkit_settings_jump {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
-#aipkit_settings_container .aipkit_settings_header_hint {
-    max-width: none;
-    color: #64748b;
-    font-size: 12.5px;
-    line-height: 1.45;
-}
-.aipkit_settings_page_nav_row {
-    position: relative;
-    display: block;
-    margin: 0 0 18px;
-    padding: 0;
-    min-height: 0;
-}
-.aipkit_settings_page_nav {
+#aipkit_settings_container .aipkit_settings_jump_link {
     display: flex;
     align-items: center;
-    flex-wrap: nowrap;
-    gap: 16px;
-    width: min(100%, var(--aipkit_settings-panel-width));
-    max-width: var(--aipkit_settings-panel-width);
+    gap: 9px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    color: #5f6b7d;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    box-shadow: none;
+}
+#aipkit_settings_container .aipkit_settings_jump_link .dashicons {
+    width: 16px;
+    height: 16px;
+    color: #8a94a6;
+    font-size: 16px;
+    line-height: 16px;
+}
+#aipkit_settings_container .aipkit_settings_jump_link:hover {
+    background: #eef1f6;
+    color: #172033;
+}
+#aipkit_settings_container .aipkit_settings_jump_link:focus-visible {
+    outline: 2px solid rgba(63, 95, 232, 0.3);
+    outline-offset: 1px;
+}
+#aipkit_settings_container .aipkit_settings_jump_link.is-active {
+    background: #eef2ff;
+    color: #2f49c9;
+}
+#aipkit_settings_container .aipkit_settings_jump_link.is-active .dashicons {
+    color: inherit;
+}
+.aipkit_settings_sections {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.aipkit_settings_section {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.aipkit_settings_section[hidden] {
+    display: none;
+}
+.aipkit_settings_section_header {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 20px 24px 18px;
+}
+#aipkit_settings_container .aipkit_settings_section_title {
+    margin: 0;
+    color: #172033;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+.aipkit_settings_section_hint {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.45;
+}
+.aipkit_settings_scope {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+/* Each part of a section sits under a divider, as in the chatbot builder. */
+.aipkit_settings_part {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    padding: 20px 24px;
+    border-top: 1px solid #edf1f6;
+}
+#aipkit_settings_container .aipkit_settings_scope.aipkit_settings_simple_form {
+    width: 100%;
+    max-width: none;
+}
+#aipkit_settings_container .aipkit_settings_group_title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0;
+    color: #172033;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.aipkit_settings_group_count {
+    color: #8a94a6;
+    font-weight: 600;
+}
+.aipkit_settings_group_count:empty {
+    display: none;
+}
+.aipkit_settings_group_count::before {
+    content: "· ";
+}
+
+/* Shared rows: an icon, a title with one line of help, and the control on the right. */
+.aipkit_settings_list {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
+}
+.aipkit_settings_list > * + * {
+    border-top: 1px solid #edf1f6;
+}
+.aipkit_settings_list_row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px 16px;
+}
+.aipkit_settings_list_block {
+    min-width: 0;
+    padding: 12px 16px;
+}
+#aipkit_settings_container a.aipkit_settings_list_row {
+    color: inherit;
+    text-decoration: none;
+    box-shadow: none;
+}
+/* A row that opens a side panel, like an AI provider's. */
+#aipkit_settings_container .aipkit_settings_list_row--button {
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container a.aipkit_settings_list_row:hover,
+#aipkit_settings_container .aipkit_settings_list_row--button:hover {
+    background: #f8fafc;
+}
+#aipkit_settings_container a.aipkit_settings_list_row:focus-visible,
+#aipkit_settings_container .aipkit_settings_list_row--button:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(59, 91, 219, 0.18);
+}
+.aipkit_settings_list > :first-child,
+.aipkit_settings_list > :first-child > .aipkit_settings_list_row--button {
+    border-top-left-radius: 11px;
+    border-top-right-radius: 11px;
+}
+.aipkit_settings_list > :last-child,
+.aipkit_settings_list > :last-child > .aipkit_settings_list_row--button {
+    border-bottom-left-radius: 11px;
+    border-bottom-right-radius: 11px;
+}
+.aipkit_settings_list_icon {
+    display: inline-flex;
+    flex: 0 0 32px;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: #eef2ff;
+    color: #3f5fe8;
+    font-size: 16px;
+    line-height: 1;
+}
+.aipkit_settings_list_copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    margin: 0;
+}
+.aipkit_settings_list_title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.35;
+}
+.aipkit_settings_list_meta {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.aipkit_settings_list_chevron {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    color: #8a94a6;
+    font-size: 16px;
+    line-height: 16px;
+}
+.aipkit_settings_list_row > .aipkit_switch,
+.aipkit_settings_list_row > .aipkit_pro_upgrade_button {
+    flex: 0 0 auto;
+}
+/* Backups: what happened shows under the list, or above it after a restore, with Go back. */
+#aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn[hidden] {
+    display: none;
+}
+.aipkit_settings_backup_notice {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 14px;
+    border: 1px solid #bfe5cc;
+    border-radius: 10px;
+    background: #ecf8f0;
+    color: #18733b;
+}
+.aipkit_settings_backup_notice[hidden],
+.aipkit_settings_backup_message[hidden] {
+    display: none;
+}
+.aipkit_settings_backup_notice > .dashicons {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+}
+.aipkit_settings_backup_notice_text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+#aipkit_settings_container .aipkit_settings_backup_notice_action {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: #2f49c9;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_backup_notice_action:is(:hover, :focus-visible) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.aipkit_settings_backup_message {
+    margin: 0;
+    color: #18733b;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+.aipkit_settings_backup_message.is-error {
+    color: #b42318;
+}
+.aipkit_settings_backup_scope_note {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+}
+/* Inside the warning: the file, what it replaces, and that today's settings are kept. */
+.aipkit_cw_confirm_modal_content--modern .aipkit_cw_alert_modal_message:has(+ .aipkit_settings_backup_details),
+.aipkit_cw_confirm_modal_content--modern .aipkit_cw_alert_modal_message:has(+ .aipkit_settings_backup_safety) {
+    margin-bottom: 12px;
+}
+.aipkit_settings_backup_details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+.aipkit_settings_backup_file {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 13px;
+    border: 1px solid #dce3ec;
+    border-radius: 10px;
+    background: #ffffff;
+}
+.aipkit_settings_backup_file > .dashicons {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    color: #3f5fe8;
+    font-size: 18px;
+}
+.aipkit_settings_backup_file_copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.aipkit_settings_backup_file_name {
+    color: #172033;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.aipkit_settings_backup_file_meta {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+}
+.aipkit_settings_backup_file_warning {
+    color: #8a5b00;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+.aipkit_settings_backup_file_meta[hidden],
+.aipkit_settings_backup_file_warning[hidden] {
+    display: none;
+}
+.aipkit_settings_backup_scope {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 13px;
+    border: 1px solid #edf1f6;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+.aipkit_settings_backup_scope p,
+.aipkit-modal-body .aipkit_settings_backup_scope p {
+    margin: 0;
+    color: #475467;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+.aipkit_settings_backup_scope strong {
+    color: #172033;
+    font-weight: 650;
+}
+.aipkit_settings_backup_safety,
+.aipkit-modal-body .aipkit_settings_backup_safety {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0 0 20px;
+    color: #18733b;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+.aipkit_settings_backup_details .aipkit_settings_backup_safety,
+.aipkit-modal-body .aipkit_settings_backup_details .aipkit_settings_backup_safety {
+    margin: 0;
+}
+.aipkit_settings_backup_safety > .dashicons {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    font-size: 16px;
+}
+/* For developers: three rows like Connections, each with its side panel. An off row still opens its panel. */
+.aipkit_settings_provider_card.aipkit_settings_developer_card[data-aipkit-provider-connected="false"] .aipkit_settings_provider_card_manage {
+    display: inline-flex !important;
+}
+#aipkit_settings_container :is(.aipkit_settings_provider_card_main, .aipkit_settings_provider_panel_header) .aipkit_settings_provider_logo.aipkit_settings_developer_logo {
+    border-color: transparent;
+    background: #eef2ff;
+    color: #3f5fe8;
+}
+#aipkit_settings_container .aipkit_settings_developer_card[data-aipkit-provider-connected="false"] :is(.aipkit_settings_provider_card_main, .aipkit_settings_provider_panel_header) .aipkit_settings_provider_logo.aipkit_settings_developer_logo {
+    background: #f1f4f8;
+    color: #98a2b3;
+}
+.aipkit_settings_provider_card_main .aipkit_settings_developer_logo .dashicons,
+.aipkit_settings_provider_panel_header .aipkit_settings_developer_logo .dashicons {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 18px;
+}
+.aipkit_settings_developer_card.has-provider-error .aipkit_settings_provider_summary {
+    color: #b42318;
+}
+.aipkit_settings_developer_text {
+    margin: 0;
+    color: #475467;
+    font-size: 13px;
+    line-height: 1.55;
+}
+/* A key, a secret or the base URL: the whole value readable, with Show and Copy beside it. */
+.aipkit_settings_developer_field_row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_settings_developer_field_row .aipkit_form-input,
+#aipkit_settings_container .aipkit_settings_developer_mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+}
+#aipkit_settings_container .aipkit_settings_developer_field_row .aipkit_form-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    height: 38px;
+    background: #fafbfc;
+}
+#aipkit_settings_container .aipkit_settings_developer_button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    height: 36px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid #d7dee8;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1;
+    box-shadow: none;
+    white-space: nowrap;
+}
+#aipkit_settings_container .aipkit_settings_developer_button:is(:hover, :focus-visible):not(:disabled) {
+    border-color: #c3cddb;
+    background: #f8fafc;
+}
+#aipkit_settings_container .aipkit_settings_developer_button .dashicons {
+    width: 15px;
+    height: 15px;
+    font-size: 15px;
+    line-height: 15px;
+}
+#aipkit_settings_container .aipkit_settings_developer_button.is-copied {
+    border-color: #a6d9b8;
+    color: #18733b;
+}
+.aipkit_settings_developer_field_foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 16px;
+}
+.aipkit_settings_developer_field_foot > .aipkit_settings_provider_option_help {
+    flex: 1 1 0;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_settings_developer_field_foot > .aipkit_settings_developer_regenerate {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+#aipkit_settings_container :is(.aipkit_settings_developer_regenerate, .aipkit_settings_developer_text_button) {
+    margin: 0;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: #b42318;
+    font-size: 12.5px;
+    font-weight: 700;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_developer_text_button {
+    color: #2f49c9;
+}
+#aipkit_settings_container :is(.aipkit_settings_developer_regenerate, .aipkit_settings_developer_text_button):is(:hover, :focus-visible):not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.aipkit_settings_developer_code {
+    margin: 0;
+    padding: 11px 13px;
+    overflow-x: auto;
+    border-radius: 10px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre;
+}
+.aipkit_settings_developer_code code {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+.aipkit_settings_developer_links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+}
+.aipkit_settings_developer_list,
+.aipkit_settings_developer_routes,
+.aipkit_settings_developer_endpoints {
+    margin: 0;
+    padding: 0;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
+    list-style: none;
+}
+.aipkit_settings_developer_list > li,
+.aipkit_settings_developer_routes > li,
+.aipkit_settings_developer_endpoints > li {
+    margin: 0;
+}
+.aipkit_settings_developer_list > li + li,
+.aipkit_settings_developer_routes > li + li,
+.aipkit_settings_developer_endpoints > li + li {
+    border-top: 1px solid #edf1f6;
+}
+.aipkit_settings_developer_list_item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 13px;
+    color: #64748b;
+    font-size: 13px;
+}
+.aipkit_settings_developer_list_item strong {
+    color: #172033;
+    font-weight: 650;
+}
+.aipkit_settings_developer_provider_logo {
+    display: inline-flex;
+    flex: 0 0 28px;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #f5f7fb;
+}
+.aipkit_settings_developer_provider_logo img {
+    width: 18px;
+    height: 18px;
+}
+.aipkit_settings_developer_routes > li {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 13px;
+    color: #64748b;
+    font-size: 12px;
+}
+.aipkit_settings_developer_routes code {
+    padding: 0;
+    background: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+.aipkit_settings_developer_method {
+    color: #3f5fe8;
+    font-weight: 800;
+}
+.aipkit_settings_developer_method.is-get {
+    color: #18733b;
+}
+.aipkit_settings_developer_path {
+    overflow: hidden;
+    color: #172033;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Endpoints: a row each, with its last send; Add an endpoint closes the list. */
+#aipkit_settings_container :is(.aipkit_settings_developer_endpoint_row, .aipkit_settings_developer_endpoint_add) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 11px 13px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoints > li:first-child > button {
+    border-radius: 11px 11px 0 0;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoints > li:last-child > button {
+    border-radius: 0 0 11px 11px;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoints > li:only-child > button {
+    border-radius: 11px;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoint_row:is(:hover, :focus-visible) {
+    outline: none;
+    background: #f8fafc;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoint_row > .dashicons {
+    color: #98a2b3;
+    font-size: 16px;
+}
+.aipkit_settings_developer_endpoint_copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.aipkit_settings_developer_endpoint_name {
+    overflow: hidden;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aipkit_settings_developer_endpoint_meta {
+    overflow: hidden;
+    color: #64748b;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoint_add {
+    color: #2f49c9;
+    font-size: 13px;
+    font-weight: 700;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoint_add:is(:hover, :focus-visible) > span:not(.dashicons) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+#aipkit_settings_container .aipkit_settings_developer_endpoint_add .dashicons {
+    font-size: 16px;
+}
+/* An endpoint's last send, in words with a dot. */
+.aipkit_settings_developer_status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    color: #5f6b7a;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.aipkit_settings_developer_status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #98a2b3;
+}
+.aipkit_settings_developer_status[data-aipkit-webhook-status="sent"] {
+    color: #18733b;
+}
+.aipkit_settings_developer_status[data-aipkit-webhook-status="sent"]::before {
+    background: #1d9a5b;
+}
+.aipkit_settings_developer_status[data-aipkit-webhook-status="failed"] {
+    color: #b42318;
+}
+.aipkit_settings_developer_status[data-aipkit-webhook-status="failed"]::before {
+    background: #d92d20;
+}
+.aipkit_settings_developer_howto summary {
+    width: fit-content;
+    color: #172033;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.aipkit_settings_developer_howto[open] summary {
+    margin-bottom: 8px;
+}
+.aipkit_settings_developer_howto .aipkit_settings_developer_text {
+    margin-bottom: 8px;
+    font-size: 12.5px;
+}
+/* An endpoint's panel: Back where the others have Close; what it receives, two columns of plain words. */
+#aipkit_settings_container .aipkit_settings_developer_back {
+    order: -1;
+    margin: 4px -4px 0 -8px;
+}
+.aipkit_settings_developer_section_head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+.aipkit_settings_developer_section_actions {
+    display: inline-flex;
+    gap: 14px;
+}
+.aipkit_settings_developer_events {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 20px;
+}
+.aipkit_settings_developer_event_group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
     margin: 0;
     padding: 0;
     border: 0;
-    border-bottom: 1px solid #dfe4ea;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
 }
-.aipkit_settings_page_nav_link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.aipkit_settings_developer_event_group legend {
+    margin-bottom: 4px;
+    padding: 0;
+    color: #475467;
+    font-size: 12px;
+    font-weight: 700;
+}
+.aipkit_settings_developer_event {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_developer_event input[type="checkbox"] {
     flex: 0 0 auto;
-    gap: 6px;
-    min-height: 34px;
-    margin: 0 0 -1px;
-    padding: 0 2px 9px;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
-    background: transparent;
-    color: var(--aipkit_text-secondary, #64748b);
+    margin: 2px 0 0;
+}
+.aipkit_settings_developer_event_copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    color: #172033;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.aipkit_settings_developer_event_copy code {
+    padding: 0;
+    overflow: hidden;
+    background: none;
+    color: #64748b;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aipkit_settings_developer_test {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+.aipkit_settings_developer_result {
+    margin: 0;
+    color: #18733b;
     font-size: 12.5px;
     font-weight: 600;
-    line-height: 1.2;
-    white-space: nowrap;
-    text-decoration: none;
+    line-height: 1.5;
+    outline: none;
+    overflow-wrap: anywhere;
+}
+.aipkit_settings_developer_result.is-error {
+    color: #b42318;
+}
+.aipkit_settings_developer_result[hidden] {
+    display: none;
+}
+.aipkit_settings_developer_sending {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: auto;
+    margin-left: 16px;
+    color: #475467;
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
+}
+/* A send that didn't go through: what went wrong, when, and Send it again. */
+.aipkit_settings_developer_failure .aipkit_settings_provider_error_content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+}
+.aipkit_settings_developer_failure .aipkit_settings_provider_error_content > p {
+    color: #7a271a;
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+.aipkit_settings_developer_failure .aipkit_settings_provider_error_content > p.aipkit_settings_developer_failure_title {
+    color: #9f1c15;
+    font-size: 13px;
+    font-weight: 700;
+}
+.aipkit_settings_developer_failure .aipkit_settings_provider_error_content > p.aipkit_settings_developer_failure_when {
+    color: #b54a3f;
+    font-size: 11.5px;
+}
+.aipkit_settings_developer_failure_actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin-top: 4px;
+}
+#aipkit_settings_container :is(.aipkit_settings_developer_failure_retry, .aipkit_settings_developer_failure_dismiss) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.3;
     box-shadow: none;
-    transition: border-color 0.15s ease, color 0.15s ease;
+    cursor: pointer;
 }
-.aipkit_settings_page_nav_link:hover,
-.aipkit_settings_page_nav_link:focus {
-    color: var(--aipkit_text-heading, #1e293b);
-    background: transparent;
-    text-decoration: none;
+#aipkit_settings_container .aipkit_settings_developer_failure_retry {
+    min-height: 30px;
+    padding: 0 11px;
+    border: 1px solid #f0b4ae;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #b42318;
 }
-.aipkit_settings_page_nav_link:focus-visible {
-    outline: 2px solid rgba(63, 95, 232, 0.2);
-    outline-offset: 2px;
+#aipkit_settings_container .aipkit_settings_developer_failure_retry:is(:hover, :focus-visible):not(:disabled) {
+    border-color: #d92d20;
 }
-.aipkit_settings_page_nav_link.is-active,
-.aipkit_settings_page_nav_link.aipkit_active {
-    color: #172033;
-    background: transparent;
-    border-bottom-color: var(--aipkit_brand-primary, #3f5fe8);
-    box-shadow: none;
-}
-.aipkit_settings_page_nav_link .dashicons {
+#aipkit_settings_container .aipkit_settings_developer_failure_retry .dashicons {
     width: 14px;
     height: 14px;
     font-size: 14px;
     line-height: 14px;
 }
-.aipkit_settings_page_nav_link_label {
-    display: inline-flex;
-    align-items: center;
-}
-.aipkit_settings_pages {
-    display: flex;
-    flex-direction: column;
-    gap: var(--aipkit_spacing-md, 12px);
-    min-width: 0;
-    width: 100%;
-}
-.aipkit_settings_product_promotions {
-    min-width: 0;
-    padding-top: 18px;
-    border-top: 1px solid #e1e6ed;
-    color: #172033;
-}
-.aipkit_settings_product_promotions_title {
-    margin: 0 0 12px;
-    color: #7a8596;
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 1.3;
-    letter-spacing: 0.055em;
-    text-transform: uppercase;
-}
-.aipkit_settings_product_list {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-.aipkit_settings_product {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) max-content;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    margin: 0;
-    padding: 10px 0;
+#aipkit_settings_container .aipkit_settings_developer_failure_dismiss {
+    padding: 2px 0;
     border: 0;
-    border-bottom: 1px solid #e1e6ed;
-    background: transparent;
-    box-shadow: none;
+    background: none;
+    color: #7a271a;
 }
-.aipkit_settings_product:last-child {
-    border-bottom: 0;
-}
-.aipkit_settings_product_logo {
-    display: block;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    object-fit: cover;
-}
-.aipkit_settings_product_summary {
-    min-width: 0;
-    margin: 0;
-    color: #5f6b7d;
-    font-size: 11.5px;
-    line-height: 1.45;
-}
-.aipkit_settings_product_name {
-    color: #172033;
-    font-weight: 700;
-}
-.aipkit_settings_product_description {
-    color: #5f6b7d;
-}
-#aipkit_settings_container .aipkit_settings_product_link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--aipkit_text-link, #315be8);
-    font-size: 11.5px;
-    font-weight: 600;
-    line-height: 1.4;
-    text-decoration: none;
-}
-#aipkit_settings_container .aipkit_settings_product_link_label {
+#aipkit_settings_container .aipkit_settings_developer_failure_dismiss:is(:hover, :focus-visible):not(:disabled) {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
-#aipkit_settings_container .aipkit_settings_product_link_arrow {
-    text-decoration: none;
+#aipkit_settings_container :is(.aipkit_settings_developer_failure_retry, .aipkit_settings_developer_failure_dismiss):disabled {
+    cursor: default;
+    opacity: 0.6;
 }
-#aipkit_settings_container .aipkit_settings_product_link:hover,
-#aipkit_settings_container .aipkit_settings_product_link:focus {
-    color: var(--aipkit_text-link-hover, #2448c7);
-    text-decoration: none;
+@media (max-width: 600px) {
+    .aipkit_settings_developer_events {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .aipkit_settings_developer_routes > li {
+        grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .aipkit_settings_developer_routes > li > span {
+        grid-column: 2;
+    }
 }
-#aipkit_settings_container .aipkit_settings_product_link:focus-visible {
-    border-radius: 3px;
-    outline: 2px solid rgba(63, 95, 232, 0.22);
-    outline-offset: 3px;
+/* An app's letter, for the two apps whose wordmark has no symbol (app-mark.php). */
+.aipkit_settings_app_letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
 }
-.aipkit_settings_page_section[hidden] {
-    display: none !important;
+.aipkit_settings_app_letter.is-round {
+    border-radius: 50%;
 }
-.aipkit_settings_page_section {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    align-self: flex-start;
-    width: min(100%, var(--aipkit_settings-panel-width));
-    max-width: var(--aipkit_settings-panel-width);
-    padding: 18px 20px;
-    border: 1px solid #dce3ec;
-    border-radius: 12px;
+/* The free Apps row: a few of the apps, each on a tile the size of its neighbours' icons, slightly overlapped. */
+.aipkit_settings_apps_upsell_logos {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+}
+.aipkit_settings_apps_upsell_logo {
+    display: inline-flex;
+    flex: 0 0 32px;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid #e3e8ef;
+    border-radius: 9px;
     background: #ffffff;
-    box-shadow: none;
-    overflow: visible;
+    box-shadow: 0 0 0 2px #ffffff;
+    box-sizing: border-box;
 }
-.aipkit_settings_page_header {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin: 0;
-    padding: 0 0 14px;
-    border: 0;
-    border-bottom: 1px solid #e7ebf0;
-    border-radius: 0;
-    background: transparent;
+.aipkit_settings_apps_upsell_logo + .aipkit_settings_apps_upsell_logo {
+    margin-left: -5px;
 }
-.aipkit_settings_page_title {
-    margin: 0;
-    font-size: var(--aipkit_font-size-h-sub, 15px);
-    font-weight: 700;
-    line-height: 1.3;
-    color: #0f172a;
+.aipkit_settings_apps_upsell_logo img {
+    display: block;
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
 }
-.aipkit_settings_page_helper {
-    margin: 0;
-    font-size: var(--aipkit_font-size-help, 11px);
-    line-height: 1.5;
-    color: var(--aipkit_text-secondary);
+.aipkit_settings_apps_upsell_logo .aipkit_settings_app_letter {
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
 }
-.aipkit_settings_pages_shell .aipkit_settings_page_section + .aipkit_settings_page_section {
-    margin-top: 0;
+
+.aipkit_settings_jump_divider {
+    height: 1px;
+    margin: 8px 10px;
+    background: #e3e8ef;
+}
+.aipkit_settings_product_logo {
+    display: block;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    object-fit: cover;
 }
 .aipkit_settings_modules {
     display: block;
     width: 100%;
 }
-#aipkit_settings_container .aipkit_settings_pages_shell {
-    background: transparent;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 0;
-    margin: 0;
-    position: relative;
+@media (max-width: 960px) {
+    .aipkit_settings_layout {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+
+    .aipkit_settings_menu_card {
+        position: static;
+    }
+
+    .aipkit_settings_jump {
+        flex-direction: row;
+        gap: 4px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    #aipkit_settings_container .aipkit_settings_jump_link {
+        flex: 0 0 auto;
+    }
+
+    .aipkit_settings_jump_divider {
+        flex: 0 0 1px;
+        width: 1px;
+        height: auto;
+        margin: 6px 4px;
+    }
+
+}
+@media (max-width: 600px) {
+    .aipkit_settings_section_header,
+    .aipkit_settings_part {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    .aipkit_settings_list_row:not(.aipkit_settings_list_row--button, a) {
+        flex-wrap: wrap;
+    }
+
+    .aipkit_settings_list_row > .aipkit_settings_list_copy {
+        flex-basis: calc(100% - 44px);
+    }
+
+    #aipkit_settings_container .aipkit_settings_scope .aipkit_settings_list .aipkit_settings_list_row > .aipkit_settings_action_buttons,
+    .aipkit_settings_list_row > .aipkit_pro_upgrade_button {
+        width: auto;
+        margin-left: 44px;
+        justify-content: flex-start;
+    }
+
+    /* The Apps logo group wraps above the copy, so its action has no icon indent. */
+    #aipkit_settings_apps_upsell_section .aipkit_pro_upgrade_button {
+        margin-left: 0;
+    }
+
 }
 /* Keep settings dropdown panels above surrounding containers without clipping. */
 body.toplevel_page_wpaicg .aipkit_wrap.aipkit_wrap--settings-active,
@@ -271,8 +1071,7 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
 /* --- Settings Controls Polish --- */
 .aipkit_settings_main_container {
     --aipkit_settings-control-height: 40px;
-    --aipkit_settings-content-width: 680px;
-    --aipkit_settings-panel-width: calc(var(--aipkit_settings-content-width) + 42px);
+    --aipkit_settings-content-width: 100%;
     --aipkit_input-height: var(--aipkit_settings-control-height);
     --aipkit_button-height: var(--aipkit_settings-control-height);
     --aipkit-popover-panel-width: 420px;
@@ -296,9 +1095,6 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     --aipkit-popover-control-height: var(--aipkit_settings-control-height);
     --aipkit-popover-control-padding-x: 8px;
     --aipkit-popover-control-font-size: 12px;
-    --aipkit-settings-group-start-gap: 16px;
-    --aipkit-settings-group-divider-gap: 14px;
-    --aipkit-settings-group-content-gap: 10px;
 }
 .aipkit_settings_main_container .aipkit_form-input {
     border-radius: 7px;
@@ -447,10 +1243,6 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     border-top: 0;
     padding-top: 0;
 }
-#aipkit_settings_container .aipkit_settings_simple_form #aipkit_settings_event_webhooks_section > .aipkit_settings_simple_row:first-child {
-    border-top: 1px solid #edf2f7;
-    padding-top: 10px;
-}
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_simple_row[hidden] {
     display: none !important;
 }
@@ -478,54 +1270,6 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     max-width: var(--aipkit_settings_field_col) !important;
     min-width: 0;
     justify-self: start;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--others {
-    --aipkit_settings_label_col: 300px;
-    --aipkit_settings_field_col: var(--aipkit_settings_standard_field_col);
-    --aipkit_settings_control_group_col: var(--aipkit_settings_field_col);
-}
-#aipkit_settings_container .aipkit_settings_simple_form--others {
-    min-width: 0;
-    container-type: inline-size;
-    padding-top: var(--aipkit-settings-group-start-gap);
-}
-#aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_simple_row {
-    grid-template-columns: minmax(240px, 1fr) minmax(280px, var(--aipkit_settings_control_group_col));
-    column-gap: 20px;
-    row-gap: 6px;
-    width: 100%;
-    max-width: var(--aipkit_settings-content-width);
-    padding: 12px 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_simple_row:first-child {
-    padding-top: 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_simple_row > .aipkit_form-input {
-    width: min(100%, var(--aipkit_settings_field_col)) !important;
-    max-width: var(--aipkit_settings_field_col) !important;
-    justify-self: start;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--apps {
-    width: min(100%, var(--aipkit_settings-content-width));
-    max-width: var(--aipkit_settings-content-width);
-    padding-top: var(--aipkit-settings-group-start-gap);
-    container-type: inline-size;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--apps #aipkit_settings_apps_upsell_section,
-#aipkit_settings_container .aipkit_settings_simple_form--apps .aipkit_settings_apps_upsell_main {
-    width: 100%;
-    max-width: 100%;
-}
-@container (max-width: 620px) {
-    #aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_simple_row {
-        grid-template-columns: minmax(0, 1fr);
-        max-width: 100%;
-        row-gap: 7px;
-    }
-
-    #aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_form-label {
-        margin-top: 0;
-    }
 }
 #aipkit_settings_container .aipkit_settings_row_icon_button {
     display: inline-flex;
@@ -564,39 +1308,38 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
 #aipkit_settings_container .aipkit_settings_simple_form--modules {
     width: min(100%, var(--aipkit_settings-content-width));
     max-width: var(--aipkit_settings-content-width);
-    padding-top: var(--aipkit-settings-group-start-gap);
     --aipkit_settings_label_col: 300px;
     --aipkit_settings_field_col: var(--aipkit_settings_standard_field_col);
     --aipkit_settings_control_group_col: var(--aipkit_settings_field_col);
 }
-#aipkit_settings_container .aipkit_settings_modules_section + .aipkit_settings_modules_section {
-    margin-top: var(--aipkit-settings-group-divider-gap);
-    padding-top: var(--aipkit-settings-group-divider-gap);
-    border-top: 1px solid #edf2f7;
-}
 #aipkit_settings_container .aipkit_settings_modules_section_title {
     margin: 0;
-    color: #8a94a6;
-    font-size: 10.5px;
+    color: #172033;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.3;
-    letter-spacing: 0.045em;
-    text-transform: uppercase;
 }
 #aipkit_settings_container .aipkit_settings_simple_form--modules .aipkit_settings_modules_list {
-    padding-top: var(--aipkit-settings-group-content-gap);
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
 }
 #aipkit_settings_container .aipkit_settings_simple_form--modules .aipkit_settings_modules_list > .aipkit_settings_simple_row {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 16px;
     width: 100%;
-    max-width: var(--aipkit_settings-content-width);
-    min-height: 60px;
-    padding: 10px 0;
+    max-width: none;
+    padding: 12px 16px;
 }
 #aipkit_settings_container .aipkit_settings_simple_form--modules .aipkit_settings_modules_list > .aipkit_settings_simple_row:first-child {
-    padding-top: 10px;
+    padding-top: 12px;
+}
+#aipkit_settings_container .aipkit_settings_modules_section_hint {
+    margin: -7px 0 0;
+    color: #64748b;
+    font-size: 12.5px;
+    line-height: 1.45;
 }
 #aipkit_settings_container .aipkit_settings_module_identity {
     display: flex;
@@ -606,14 +1349,21 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
 }
 #aipkit_settings_container .aipkit_settings_module_icon {
     display: inline-flex;
-    width: 18px;
-    height: 18px;
-    flex: 0 0 18px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     align-items: center;
     justify-content: center;
-    color: #697586;
-    font-size: 18px;
-    line-height: 18px;
+    border-radius: 9px;
+    background: #eef2ff;
+    color: #3f5fe8;
+    font-size: 16px;
+    line-height: 1;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+#aipkit_settings_container .aipkit_settings_module_row:has(.aipkit_switch input:not(:checked)) .aipkit_settings_module_icon {
+    background: #f1f4f8;
+    color: #8a94a6;
 }
 #aipkit_settings_container .aipkit_settings_module_icon--glyph {
     font-family: Arial, Helvetica, sans-serif;
@@ -626,10 +1376,19 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     cursor: pointer;
 }
 #aipkit_settings_container .aipkit_settings_module_title {
-    color: #20283a;
-    font-size: 12.5px;
+    color: #172033;
+    font-size: 13px;
     font-weight: 650;
-    line-height: 1.3;
+    line-height: 1.35;
+}
+#aipkit_settings_container .aipkit_settings_simple_form--modules .aipkit_form-label {
+    gap: 2px;
+    margin: 0;
+}
+#aipkit_settings_container .aipkit_settings_simple_form--modules .aipkit_form-label-helper {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
 }
 #aipkit_settings_container .aipkit_settings_module_control {
     justify-self: end;
@@ -639,279 +1398,27 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     max-width: var(--aipkit_settings-content-width);
     min-width: 0;
     container-type: inline-size;
-    padding-top: var(--aipkit-settings-group-start-gap);
 }
-#aipkit_settings_container .aipkit_settings_developer_section {
-    width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_developer_section + .aipkit_settings_developer_section {
-    margin-top: var(--aipkit-settings-group-divider-gap);
-    padding-top: var(--aipkit-settings-group-divider-gap);
-    border-top: 1px solid #edf2f7;
-}
-#aipkit_settings_container .aipkit_settings_developer_section_title {
-    margin: 0 0 10px;
-    color: #8a94a6;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1.2;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential {
-    width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_developer_toggle_row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-width: 0;
-    padding: 8px 0;
-}
-#aipkit_settings_container .aipkit_settings_developer_toggle_row .aipkit_form-label {
-    flex: 1 1 auto;
-    min-width: 0;
-    margin: 0;
-}
-#aipkit_settings_container .aipkit_settings_developer_toggle_row > .aipkit_switch {
-    flex: 0 0 auto;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential_body {
-    margin-top: 10px;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential_body[hidden],
-#aipkit_settings_container .aipkit_settings_developer_endpoints[hidden],
-#aipkit_settings_container .aipkit_settings_developer_delivery_issues[hidden] {
-    display: none !important;
-}
-#aipkit_settings_container .aipkit_settings_developer_field_label,
-#aipkit_settings_container .aipkit_settings_developer_endpoints_title {
-    display: block;
-    margin: 0 0 6px;
-    color: #20283a;
-    font-size: 12.5px;
-    font-weight: 650;
-    line-height: 1.3;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential_row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) repeat(3, 40px);
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential_input {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0;
-    color: #738096;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    letter-spacing: 0.01em;
-    cursor: default;
-}
-#aipkit_settings_container .aipkit_settings_developer_icon_btn {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
-    min-height: 40px;
-    margin: 0;
-    padding: 0;
-    border: 1px solid #d7e2f0;
-    border-radius: 8px;
-    background: #ffffff;
-    color: #64748b;
-    box-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_developer_icon_btn:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_developer_icon_btn:focus-visible:not(:disabled) {
-    border-color: #c9d6e8;
-    background: #f4f7fb;
-    color: #334155;
-}
-#aipkit_settings_container .aipkit_settings_developer_icon_btn.is-copied {
-    border-color: #bbdfc7;
-    background: #f2fbf5;
-    color: #16803c;
-}
-#aipkit_settings_container .aipkit_settings_developer_icon_btn .dashicons {
-    width: 16px;
-    height: 16px;
-    font-size: 16px;
-    line-height: 16px;
-}
-#aipkit_settings_container .aipkit_settings_developer_credential.is-busy [data-aipkit-developer-regenerate] .dashicons {
-    animation: aipkit_spin 0.8s linear infinite;
-}
-#aipkit_settings_container .aipkit_settings_developer_field_help {
-    margin: 6px 0 0;
-    color: #8a94a6;
-    font-size: 11px;
-    line-height: 1.4;
-}
-#aipkit_settings_container .aipkit_settings_developer_endpoints,
-#aipkit_settings_container .aipkit_settings_developer_delivery_issues {
-    margin-top: var(--aipkit-settings-group-divider-gap);
-    padding-top: var(--aipkit-settings-group-divider-gap);
-    border-top: 1px solid #edf2f7;
-}
-#aipkit_settings_container .aipkit_settings_event_webhooks_main {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--aipkit_spacing-sm, 8px);
-    width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_settings_developer_endpoints_title {
-    margin: 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    width: auto;
-    min-width: 0;
-    height: 34px;
-    min-height: 34px;
-    margin: 0;
-    padding: 0 11px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 500;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .dashicons {
-    width: 14px;
-    height: 14px;
-    font-size: 14px;
-    line-height: 14px;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_endpoint_list,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_endpoint,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_endpoint_header,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_endpoint_fields,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_field,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_events,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_events_control {
-    max-width: 100%;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_endpoint {
-    box-sizing: border-box;
-    padding: 14px;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_field .aipkit_form-input,
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhook_events_btn {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_footer {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 10px;
-    border-top: 1px solid #edf2f7;
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_delete_btn {
-    width: auto;
-    min-width: 0;
-    height: 32px;
-    min-height: 32px;
-    margin: 0;
-    padding: 0 11px;
-    border: 1px solid #dbe5ef;
-    border-radius: 8px;
-    background: #ffffff;
-    color: #b42318;
-    font-size: 12px;
-    font-weight: 500;
-    box-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_delete_btn:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_delete_btn:focus-visible:not(:disabled) {
-    border-color: #fecaca;
-    background: #fff7f7;
-    color: #991b1b;
-    box-shadow: none;
-}
-@container (max-width: 520px) {
-    #aipkit_settings_container .aipkit_settings_developer_credential_row {
-        grid-template-columns: repeat(3, 40px);
-    }
-
-    #aipkit_settings_container .aipkit_settings_developer_credential_input {
-        grid-column: 1 / -1;
-    }
-
-    #aipkit_settings_container .aipkit_settings_developer_toggle_row {
-        align-items: flex-start;
-    }
-}
-#aipkit_settings_container .aipkit_settings_simple_form--security {
-    width: min(100%, var(--aipkit_settings-content-width));
-    max-width: var(--aipkit_settings-content-width);
-    min-width: 0;
-    padding-top: var(--aipkit-settings-group-start-gap);
-}
-#aipkit_settings_container .aipkit_settings_security {
-    width: 100%;
-}
-#aipkit_settings_container .aipkit_settings_security_section + .aipkit_settings_security_section {
-    margin-top: var(--aipkit-settings-group-divider-gap);
-    padding-top: var(--aipkit-settings-group-divider-gap);
-    border-top: 1px solid #edf2f7;
-}
-#aipkit_settings_container .aipkit_settings_security_section_title {
-    margin: 0;
-    color: #8a94a6;
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.3;
-    letter-spacing: 0.045em;
-    text-transform: uppercase;
-}
-#aipkit_settings_container .aipkit_settings_security_toggle_row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 16px;
-    min-height: 60px;
-    margin-top: 10px;
-    padding: 10px 0;
-}
-#aipkit_settings_container .aipkit_settings_security_toggle_copy {
-    min-width: 0;
-    margin: 0;
-    color: #20283a;
-    cursor: pointer;
-}
-#aipkit_settings_container .aipkit_settings_security_field {
-    margin-top: var(--aipkit-settings-group-content-gap);
-}
-#aipkit_settings_container .aipkit_settings_security_field + .aipkit_settings_security_field {
-    margin-top: 16px;
-}
-#aipkit_settings_container .aipkit_settings_security_field > .aipkit_form-label {
-    margin: 0 0 8px;
-}
-#aipkit_settings_container .aipkit_settings_security_field_title {
-    color: #20283a;
-    font-size: 12.5px;
-    font-weight: 650;
-    line-height: 1.3;
-}
+/* The reply visitors see, written out in full. */
 #aipkit_settings_container .aipkit_settings_security_message {
     width: 100% !important;
     max-width: 100% !important;
+    min-height: 76px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #d4dde8;
+    border-radius: 9px;
+    background-color: #ffffff;
+    color: #172033;
+    font-size: 13px;
+    line-height: 1.5;
+    box-shadow: none;
+    resize: vertical;
+}
+#aipkit_settings_container .aipkit_settings_security_message:focus {
+    outline: none;
+    border-color: #3b5bdb;
+    box-shadow: 0 0 0 2px rgba(59, 91, 219, 0.12);
 }
 #aipkit_settings_container .aipkit_settings_security_chip_editor {
     display: flex;
@@ -1007,17 +1514,11 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
 #aipkit_settings_container .aipkit_settings_security_source {
     display: none !important;
 }
-#aipkit_settings_container .aipkit_settings_security_help,
 #aipkit_settings_container .aipkit_settings_security_error {
-    margin: 6px 0 0;
-    font-size: var(--aipkit_font-size-help, 11px);
-    line-height: 1.4;
-}
-#aipkit_settings_container .aipkit_settings_security_help {
-    color: var(--aipkit_text-secondary);
-}
-#aipkit_settings_container .aipkit_settings_security_error {
+    margin: 0;
     color: #b42318;
+    font-size: 12.5px;
+    line-height: 1.45;
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons {
     display: flex;
@@ -1032,10 +1533,14 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn {
     margin: 0;
 }
-#aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_action_buttons {
+#aipkit_settings_container .aipkit_settings_list_row > .aipkit_settings_action_buttons {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    width: auto;
+    max-width: none;
 }
-#aipkit_settings_container .aipkit_settings_simple_form.aipkit_settings_simple_form--others .aipkit_settings_action_buttons .aipkit_btn {
+#aipkit_settings_container .aipkit_settings_list .aipkit_settings_list_row .aipkit_settings_action_buttons .aipkit_btn {
     width: auto;
     min-width: 0;
     height: 32px;
@@ -1050,34 +1555,15 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     font-weight: 500;
     line-height: 1;
 }
-#aipkit_settings_container .aipkit_settings_simple_form.aipkit_settings_simple_form--others .aipkit_settings_action_buttons .aipkit_btn:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_simple_form.aipkit_settings_simple_form--others .aipkit_settings_action_buttons .aipkit_btn:focus-visible:not(:disabled) {
+#aipkit_settings_container .aipkit_settings_list .aipkit_settings_list_row .aipkit_settings_action_buttons .aipkit_btn:hover:not(:disabled),
+#aipkit_settings_container .aipkit_settings_list .aipkit_settings_list_row .aipkit_settings_action_buttons .aipkit_btn:focus-visible:not(:disabled) {
     border-color: #c8d2df;
     background: #f8fafc;
     color: #202430;
     box-shadow: none;
 }
-@container (max-width: 620px) {
-    #aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_action_buttons {
-        width: 100%;
-        max-width: 100%;
-        justify-self: stretch;
-    }
-}
-@container (max-width: 360px) {
-    #aipkit_settings_container .aipkit_settings_simple_form--others .aipkit_settings_action_buttons > .aipkit_btn {
-        width: 100%;
-        min-width: 0;
-    }
-}
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn {
-    margin: 0;
-}
 /* Match Settings action buttons to Chatbot Actions button style */
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn,
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn,
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_sync_btn {
     display: inline-flex;
     align-items: center;
@@ -1096,20 +1582,14 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     text-decoration: none;
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn:hover:not(:disabled),
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_sync_btn:hover:not(:disabled),
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn:focus-visible,
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn:focus-visible,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn:focus-visible,
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_sync_btn:focus-visible {
     background-color: #edf3fb;
     border-color: #c9d6e8;
     color: var(--aipkit-builder-title, #1f2a3a);
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn:disabled,
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn:disabled,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn:disabled,
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_input-with-button > .aipkit_sync_btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1119,109 +1599,30 @@ body.toplevel_page_wpaicg #aipkit_settings_container {
     box-shadow: none;
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-primary,
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-primary,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-primary,
 #aipkit_settings_container .aipkit_settings_provider_modal .aipkit_btn.aipkit_btn-primary {
     background-color: #3f5fe8;
     border-color: #3f5fe8;
     color: #ffffff;
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-primary:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-primary:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-primary:hover:not(:disabled),
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-primary:focus-visible:not(:disabled),
 #aipkit_settings_container .aipkit_settings_provider_modal .aipkit_btn.aipkit_btn-primary:is(:hover, :focus-visible):not(:disabled) {
     background-color: #3452d5;
     border-color: #3452d5;
     color: #ffffff;
 }
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-primary:focus-visible:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-primary:focus-visible:not(:disabled) {
-    background-color: #3452d5;
-    border-color: #3452d5;
-    color: #ffffff;
-}
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-danger,
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-danger,
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-danger,
 #aipkit_settings_container .aipkit_settings_provider_modal .aipkit_btn.aipkit_btn-danger {
     border-color: #f4b4b4;
     background-color: #fff1f1;
     color: #b42318;
 }
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-danger:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-danger:hover:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-danger:hover:not(:disabled),
 #aipkit_settings_container .aipkit_settings_simple_form .aipkit_settings_action_buttons .aipkit_btn.aipkit_btn-danger:focus-visible:not(:disabled),
 #aipkit_settings_container .aipkit_settings_provider_modal .aipkit_btn.aipkit_btn-danger:is(:hover, :focus-visible):not(:disabled) {
     border-color: #e58f8f;
     background-color: #ffe4e4;
     color: #991b1b;
-}
-#aipkit_settings_container .aipkit_settings_event_webhooks_toolbar .aipkit_btn.aipkit_btn-danger:focus-visible:not(:disabled),
-#aipkit_settings_container .aipkit_settings_event_webhook_endpoint_actions .aipkit_btn.aipkit_btn-danger:focus-visible:not(:disabled) {
-    border-color: #e58f8f;
-    background-color: #ffe4e4;
-    color: #991b1b;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_settings_event_webhook_add_btn,
-#aipkit_settings_container .aipkit_settings_event_webhook_events_modal_footer > .aipkit_settings_event_webhook_events_done_btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: auto;
-    min-width: 0;
-    height: 32px;
-    min-height: 32px;
-    margin: 0;
-    padding: 0 11px;
-    border: 1px solid;
-    border-radius: 8px;
-    box-shadow: none;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_settings_event_webhook_add_btn {
-    border-color: #d7dee8;
-    background: #ffffff;
-    color: #364152;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_settings_event_webhook_add_btn:hover:not(:disabled) {
-    border-color: #c8d2df;
-    background: #f8fafc;
-    color: #202430;
-    box-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_simple_form--api .aipkit_settings_event_webhooks_toolbar .aipkit_settings_event_webhook_add_btn:focus-visible {
-    border-color: #b9c6d8;
-    background: #ffffff;
-    color: #364152;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.14);
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_events_modal_footer > .aipkit_settings_event_webhook_events_done_btn {
-    min-width: 72px;
-    border-color: #3f5fe8;
-    background: #3f5fe8;
-    color: #ffffff;
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_events_modal_footer > .aipkit_settings_event_webhook_events_done_btn:hover:not(:disabled) {
-    border-color: #3452d5 !important;
-    background-color: #3452d5 !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff;
-    box-shadow: none;
-    text-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_event_webhook_events_modal_footer > .aipkit_settings_event_webhook_events_done_btn:focus-visible {
-    border-color: #3452d5 !important;
-    background-color: #3f5fe8 !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.2);
-    text-shadow: none;
 }
 #aipkit_settings_container .aipkit_settings_hidden_file_input {
     position: absolute;
@@ -1628,21 +2029,25 @@ hr.aipkit_hr {
     border-top: 1px solid var(--aipkit_container-border);
     margin: var(--aipkit_spacing-md, 12px) 0;
 }
-/* AI provider cards ------------------------------------------------------ */
-#aipkit_settings_page_panel_ai {
-    --aipkit_settings-content-width: 1200px;
-    --aipkit_settings-panel-width: calc(var(--aipkit_settings-content-width) + 42px);
-    overflow: visible;
+/* AI: every provider in one list; its footer opens Advanced and syncs models */
+.aipkit_settings_ai {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.aipkit_settings_ai [hidden] {
+    display: none !important;
 }
 .aipkit_settings_provider_cards {
-    display: grid;
-    /* Three per row at most; fewer when a card would drop below 280px. */
-    grid-template-columns: repeat(auto-fill, minmax(max(280px, calc((100% - 24px) / 3)), 1fr));
-    align-items: stretch;
-    gap: 12px;
-    width: min(100%, var(--aipkit_settings-content-width));
-    max-width: var(--aipkit_settings-content-width);
-    margin: 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    margin: 0;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
 }
 .aipkit_settings_provider_card {
     display: flex;
@@ -1654,82 +2059,6 @@ hr.aipkit_hr {
     border-radius: 10px;
     background: #ffffff;
     box-shadow: none;
-}
-.aipkit_settings_provider_card.is-locked {
-    gap: 14px;
-    border-color: #cfc7ff;
-    background: #f7f5ff;
-}
-.aipkit_settings_provider_upgrade_header {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    min-width: 0;
-}
-.aipkit_settings_provider_upgrade_logo {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    border-radius: 9px;
-    background: #ece8ff;
-}
-.aipkit_settings_provider_upgrade_logo > img {
-    display: block;
-    width: 21px;
-    height: 21px;
-    object-fit: contain;
-}
-.aipkit_settings_provider_upgrade_lock {
-    position: absolute;
-    right: -4px;
-    bottom: -4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 17px;
-    height: 17px;
-    border: 2px solid #f7f5ff;
-    border-radius: 50%;
-    background: #6c55df;
-    color: #ffffff;
-}
-.aipkit_settings_provider_upgrade_lock .dashicons {
-    width: 10px;
-    height: 10px;
-    font-size: 10px;
-    line-height: 10px;
-}
-.aipkit_settings_provider_upgrade_title {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    min-width: 0;
-}
-.aipkit_settings_provider_card.is-locked .aipkit_settings_provider_name {
-    color: #49379f;
-}
-.aipkit_settings_provider_upgrade_description {
-    margin: 0;
-    color: #5f54a5;
-    font-size: 12px;
-    line-height: 1.5;
-}
-#aipkit_settings_container .aipkit_settings_provider_upgrade_cta {
-    flex: 0 0 auto;
-    align-self: center;
-    margin: 0;
-}
-.aipkit_settings_provider_card_header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 9px;
-    min-width: 0;
 }
 .aipkit_settings_provider_logo {
     display: inline-flex;
@@ -1788,10 +2117,6 @@ hr.aipkit_hr {
 .aipkit_settings_provider_status--sync-error {
     background: #feeceb;
     color: #b42318;
-}
-.aipkit_settings_provider_status--pro {
-    background: #eeebff;
-    color: #4c3aa8;
 }
 #aipkit_settings_container .aipkit_settings_provider_default_action.aipkit_loading {
     color: transparent;
@@ -1862,12 +2187,6 @@ hr.aipkit_hr {
     background: #ffffff;
     box-shadow: 0 0 0 2px rgba(59, 91, 219, 0.12);
 }
-.aipkit_settings_provider_connected_actions {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-.aipkit_settings_provider_connected_actions[hidden],
 .aipkit_settings_provider_connect[hidden] {
     display: none !important;
 }
@@ -1998,17 +2317,6 @@ hr.aipkit_hr {
     color: #7a271a;
     overflow-wrap: anywhere;
 }
-.aipkit_settings_provider_model_block {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    padding-top: 11px;
-    border-top: 1px solid #e8edf4;
-}
-.aipkit_settings_provider_model_block[hidden] {
-    display: none !important;
-}
 .aipkit_settings_provider_model_label {
     margin: 0;
     color: #20283a;
@@ -2016,31 +2324,93 @@ hr.aipkit_hr {
     font-weight: 650;
     line-height: 1.35;
 }
-.aipkit_settings_provider_key_link {
-    align-self: flex-start;
-    color: #3858e9;
-    font-size: 11.5px;
-    font-weight: 500;
+#aipkit_settings_container .aipkit_settings_provider_key_link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #2f49c9;
+    font-size: 12.5px;
+    font-weight: 650;
     line-height: 1.3;
     text-decoration: none;
+    box-shadow: none;
 }
-.aipkit_settings_provider_key_link:hover,
-.aipkit_settings_provider_key_link:focus-visible {
-    color: #2945c5;
+#aipkit_settings_container .aipkit_settings_provider_key_link .dashicons {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    line-height: 14px;
+}
+#aipkit_settings_container .aipkit_settings_provider_key_link:is(:hover, :focus-visible) > span:first-child {
     text-decoration: underline;
+    text-underline-offset: 2px;
 }
-.aipkit_settings_provider_key_link > span {
-    display: inline-block;
-    text-decoration: none;
-}
-/* Provider summaries; connection and settings live in the modal. */
+/* Every provider is a row; connection and settings live in its side panel. */
 .aipkit_settings_provider_cards > .aipkit_settings_provider_card {
     position: relative;
-    justify-content: center;
     gap: 0;
-    min-height: 72px;
-    padding: 14px 16px;
-    border-radius: 12px;
+    padding: 11px 16px;
+    border: 0;
+    border-bottom: 1px solid #edf1f6;
+    border-radius: 0;
+    background: transparent;
+}
+.aipkit_settings_provider_cards > .aipkit_settings_provider_card:not(.aipkit_settings_provider_card--locked):hover {
+    background: #f8fafc;
+}
+.aipkit_settings_provider_list_footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    min-width: 0;
+    padding: 9px 16px;
+    background: #fafbfc;
+}
+/* Footer text buttons: Advanced (its side panel) and Sync models. */
+#aipkit_settings_container :is(.aipkit_settings_provider_list_defaults, .aipkit_settings_provider_list_refresh) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    padding: 4px 2px;
+    border: 0;
+    background: none;
+    color: #5f6b7d;
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_provider_list_defaults {
+    margin-left: auto;
+}
+#aipkit_settings_container :is(.aipkit_settings_provider_list_defaults, .aipkit_settings_provider_list_refresh) .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    line-height: 16px;
+}
+#aipkit_settings_container .aipkit_settings_provider_list_refresh.aipkit_loading .dashicons {
+    display: none;
+}
+#aipkit_settings_container :is(.aipkit_settings_provider_list_defaults, .aipkit_settings_provider_list_refresh):hover:not(:disabled) > :not(.dashicons, .aipkit_spinner) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+#aipkit_settings_container :is(.aipkit_settings_provider_list_defaults, .aipkit_settings_provider_list_refresh):focus-visible {
+    border-radius: 4px;
+    outline: 2px solid rgba(63, 95, 232, 0.3);
+}
+/* Advanced settings and model sync only matter once something is connected, so the footer waits until then. */
+#aipkit_settings_container .aipkit_settings_ai[data-state="empty"] .aipkit_settings_provider_list_footer {
+    display: none;
+}
+#aipkit_settings_container .aipkit_settings_ai[data-state="empty"] .aipkit_settings_provider_card:has(+ .aipkit_settings_provider_list_footer) {
+    border-bottom: 0;
 }
 .aipkit_settings_provider_card_main {
     display: flex;
@@ -2048,16 +2418,40 @@ hr.aipkit_hr {
     gap: 12px;
     min-width: 0;
 }
-.aipkit_settings_provider_card_main .aipkit_settings_provider_logo,
-.aipkit_settings_provider_card_main .aipkit_settings_provider_upgrade_logo {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    border-radius: 10px;
+.aipkit_settings_provider_card_main .aipkit_settings_provider_logo {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    border-radius: 9px;
 }
 .aipkit_settings_provider_card_main .aipkit_settings_provider_logo img {
-    width: 20px;
-    height: 20px;
+    width: 19px;
+    height: 19px;
+}
+.aipkit_settings_provider_cards .aipkit_settings_provider_card_main .aipkit_settings_provider_logo {
+    position: relative;
+}
+.aipkit_settings_provider_card:is([data-aipkit-provider-connected="false"], .aipkit_settings_provider_card--locked) .aipkit_settings_provider_card_main .aipkit_settings_provider_logo img {
+    filter: grayscale(1);
+    opacity: 0.55;
+}
+.aipkit_settings_provider_card:is([data-aipkit-provider-connected="false"], .aipkit_settings_provider_card--locked) .aipkit_settings_provider_card_main .aipkit_settings_provider_logo {
+    background: #f1f4f8;
+}
+.aipkit_settings_provider_cards .aipkit_settings_provider_card[data-aipkit-provider-connected="true"] .aipkit_settings_provider_card_main .aipkit_settings_provider_logo::after {
+    content: "";
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #1d9a5b;
+}
+.aipkit_settings_provider_cards .aipkit_settings_provider_card.has-provider-error .aipkit_settings_provider_card_main .aipkit_settings_provider_logo::after {
+    background: #d92d20;
 }
 .aipkit_settings_provider_card_main .aipkit_settings_provider_logo .dashicons {
     width: 20px;
@@ -2074,8 +2468,9 @@ hr.aipkit_hr {
 }
 .aipkit_settings_provider_card_title {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 2px 6px;
     min-width: 0;
 }
 .aipkit_settings_provider_card_title .aipkit_settings_provider_name {
@@ -2085,6 +2480,46 @@ hr.aipkit_hr {
 }
 .aipkit_settings_provider_cards .aipkit_settings_provider_status--default {
     margin-left: 0;
+}
+.aipkit_settings_provider_card:is([data-aipkit-provider-connected="false"], .aipkit_settings_provider_card--locked) .aipkit_settings_provider_name {
+    color: #475467;
+}
+.aipkit_settings_provider_free {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #e8f7ed;
+    color: #18733b;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.aipkit_settings_provider_card_title .aipkit_pro_badge {
+    flex: 0 0 auto;
+}
+.aipkit_settings_provider_card_status .aipkit_settings_provider_tagline {
+    overflow: hidden;
+    min-width: 0;
+    color: #8a94a6;
+    text-overflow: ellipsis;
+}
+/* Connected rows say their model; the rest say what the provider is. */
+.aipkit_settings_provider_card[data-aipkit-provider-connected="true"] :is(.aipkit_settings_provider_free, .aipkit_settings_provider_tagline),
+.aipkit_settings_provider_card[data-aipkit-provider-connected="false"]:not([data-aipkit-provider-default="true"]) :is(.aipkit_settings_provider_card_status .aipkit_settings_provider_status--disconnected, .aipkit_settings_provider_card_title .aipkit_settings_provider_status--default),
+.aipkit_settings_ai[data-state="empty"] .aipkit_settings_provider_card :is(.aipkit_settings_provider_card_status .aipkit_settings_provider_status--disconnected, .aipkit_settings_provider_card_title .aipkit_settings_provider_status--default) {
+    display: none !important;
+}
+/* A default that isn't connected keeps its badge and says so: tools using the default can't run. */
+.aipkit_settings_ai:not([data-state="empty"]) .aipkit_settings_provider_card[data-aipkit-provider-connected="false"][data-aipkit-provider-default="true"] .aipkit_settings_provider_tagline {
+    display: none !important;
+}
+.aipkit_settings_provider_card[data-aipkit-provider-connected="false"][data-aipkit-provider-default="true"] .aipkit_settings_provider_card_status .aipkit_settings_provider_status--disconnected {
+    color: #a15c00;
+    font-weight: 600;
 }
 .aipkit_settings_provider_card_status {
     display: flex;
@@ -2096,22 +2531,6 @@ hr.aipkit_hr {
     font-size: 12px;
     line-height: 1.4;
     white-space: nowrap;
-}
-/* Connected shows as a dot on the logo, so the status line can name the model. */
-.aipkit_settings_provider_card_main .aipkit_settings_provider_logo {
-    position: relative;
-}
-:is(.aipkit_settings_provider_card[data-aipkit-provider-connected="true"], .aipkit_settings_provider_card.is-connected) .aipkit_settings_provider_card_main .aipkit_settings_provider_logo::after {
-    content: "";
-    position: absolute;
-    right: -3px;
-    bottom: -3px;
-    width: 11px;
-    height: 11px;
-    border: 2px solid #ffffff;
-    border-radius: 50%;
-    background: #1d9a5b;
-    box-sizing: border-box;
 }
 .aipkit_settings_provider_card_status .aipkit_settings_provider_status {
     min-height: 0;
@@ -2139,91 +2558,257 @@ hr.aipkit_hr {
     margin-right: 6px;
     color: #b6c0cf;
 }
+.aipkit_settings_provider_card_status .aipkit_settings_provider_summary.is-empty {
+    color: #a15c00;
+}
 .aipkit_settings_provider_card_status .aipkit_settings_provider_summary[hidden] {
     display: none;
 }
-.aipkit_settings_provider_card_status.aipkit_settings_provider_upgrade_description {
-    display: block;
-    overflow: hidden;
-    color: #5f54a5;
-    text-overflow: ellipsis;
-}
-#aipkit_settings_container .aipkit_settings_provider_card_action:not(.aipkit_pro_upgrade_button) {
+#aipkit_settings_container .aipkit_settings_provider_card_action {
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
+    justify-content: center;
+    min-width: 28px;
     height: 32px;
-    min-height: 32px;
+    min-height: 28px;
     margin: 0;
-    padding: 0 14px;
-    border: 1px solid #d7dee8;
-    border-radius: 8px;
-    background: #ffffff;
-    color: #344054;
-    font-size: 12.5px;
-    font-weight: 600;
-    line-height: 1;
-    text-decoration: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #8a94a6;
     box-shadow: none;
     cursor: pointer;
 }
-/* The whole card opens the provider modal. */
-#aipkit_settings_container .aipkit_settings_provider_card_main > [data-aipkit-provider-settings-open]::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 12px;
+#aipkit_settings_container .aipkit_settings_provider_card_action .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    line-height: 16px;
 }
-#aipkit_settings_container .aipkit_settings_provider_card:hover .aipkit_settings_provider_card_action:not(.aipkit_pro_upgrade_button),
-#aipkit_settings_container .aipkit_settings_provider_card_action:not(.aipkit_pro_upgrade_button):focus-visible {
+.aipkit_settings_provider_card_manage {
+    display: inline-flex;
+}
+#aipkit_settings_container .aipkit_settings_provider_card_connect {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 13px;
+    box-sizing: border-box;
+    border: 1px solid #d7dee8;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 12.5px;
+    font-weight: 650;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+}
+#aipkit_settings_container .aipkit_settings_provider_card:hover .aipkit_settings_provider_card_connect,
+#aipkit_settings_container .aipkit_settings_provider_card_upgrade:hover {
     border-color: #c3cddb;
     background: #f8fafc;
-    color: #1f2a3a;
+    color: #172033;
 }
-#aipkit_settings_container .aipkit_settings_provider_card_action:not(.aipkit_pro_upgrade_button):focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.25);
+#aipkit_settings_container .aipkit_settings_provider_card_upgrade:focus-visible {
+    outline: 2px solid rgba(63, 95, 232, 0.3);
+    outline-offset: 1px;
+    box-shadow: none;
 }
-#aipkit_settings_container .aipkit_settings_provider_card[data-aipkit-provider-connected="false"] .aipkit_settings_provider_card_action,
-#aipkit_settings_container .aipkit_settings_provider_card_action.aipkit_settings_provider_card_action--connect {
+.aipkit_settings_provider_card[data-aipkit-provider-connected="true"] .aipkit_settings_provider_card_connect,
+.aipkit_settings_provider_card[data-aipkit-provider-connected="false"] .aipkit_settings_provider_card_manage {
+    display: none !important;
+}
+/* First visit: Cloud needs no key, so its Connect leads. */
+#aipkit_settings_container .aipkit_settings_ai[data-state="empty"] [data-aipkit-provider-card="AIPufferCloud"] .aipkit_settings_provider_card_connect {
     border-color: #3f5fe8;
     background: #3f5fe8;
     color: #ffffff;
 }
-#aipkit_settings_container .aipkit_settings_provider_card[data-aipkit-provider-connected="false"]:hover .aipkit_settings_provider_card_action,
-#aipkit_settings_container .aipkit_settings_provider_card:hover .aipkit_settings_provider_card_action.aipkit_settings_provider_card_action--connect {
-    border-color: #3452d5;
-    background: #3452d5;
-    color: #ffffff;
+#aipkit_settings_container .aipkit_settings_ai[data-state="empty"] [data-aipkit-provider-card="AIPufferCloud"]:hover .aipkit_settings_provider_card_connect {
+    border-color: #334fd0;
+    background: #334fd0;
 }
-.aipkit_settings_provider_cards > .aipkit_settings_provider_card.is-locked {
-    padding: 14px 16px;
-    border-radius: 12px;
+/* The whole row opens the provider modal. */
+#aipkit_settings_container .aipkit_settings_provider_card_main > [data-aipkit-provider-settings-open]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+#aipkit_settings_container .aipkit_settings_provider_card:hover .aipkit_settings_provider_card_action {
+    color: #344054;
+}
+#aipkit_settings_container .aipkit_settings_provider_card_action:focus-visible {
+    outline: none;
+}
+#aipkit_settings_container .aipkit_settings_provider_card_action:focus-visible::after {
+    box-shadow: inset 0 0 0 2px rgba(63, 95, 232, 0.3);
 }
 
-/* Provider modal: connection first, model once connected, advanced settings folded away. */
-#aipkit_settings_container .aipkit_settings_provider_modal_intro {
+/* Provider panels slide in from the right, like the chatbot builder's side panels. */
+#aipkit_settings_container .aipkit_settings_provider_modal.aipkit-modal-overlay {
+    top: var(--wp-admin--admin-bar--height, 32px);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+    background: rgba(24, 32, 46, 0.45);
+    z-index: 1000020;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+    width: min(560px, 100vw);
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    /* The shared modal caps these with !important; a side panel runs the full height. */
+    max-block-size: none !important;
+    max-inline-size: 100vw !important;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-left: 1px solid #e3e7ee;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: -24px 0 60px rgba(24, 32, 46, 0.22);
+    overflow: hidden;
+    transform: translateX(24px);
+    transition: transform 0.2s ease-out;
+}
+#aipkit_settings_container .aipkit_settings_provider_modal.aipkit-active .aipkit_settings_provider_panel {
+    transform: none;
+}
+.aipkit_settings_provider_panel_header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid #e3e7ee;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel_header .aipkit_settings_provider_logo {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border-radius: 10px;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel_header .aipkit_settings_provider_logo img {
+    width: 21px;
+    height: 21px;
+}
+.aipkit_settings_answer_defaults_logo .dashicons {
+    width: 20px;
+    height: 20px;
+    color: #3f5fe8;
+    font-size: 20px;
+    line-height: 20px;
+}
+.aipkit_settings_provider_panel_heading {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.aipkit_settings_provider_panel_title_row {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 8px;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel_title {
+    margin: 0;
+    color: #172033;
+    font-size: 19px;
+    font-weight: 800;
+    line-height: 1.3;
+}
+.aipkit_settings_provider_panel_hint {
+    margin: 0;
+    color: #64748b;
+    font-size: 13.5px;
+    line-height: 1.45;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel_close {
+    display: inline-flex;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin: -4px -6px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #64748b;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_provider_panel_close:is(:hover, :focus-visible) {
+    outline: none;
+    background: #f2f5f9;
+    color: #172033;
+}
+/* The header says how the connection is doing; the card's state picks which one shows. */
+.aipkit_settings_provider_pill {
+    display: none;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1;
+}
+.aipkit_settings_provider_card[data-aipkit-provider-connected="true"]:not(.has-provider-error) .aipkit_settings_provider_pill--on {
+    display: inline-flex;
+    background: #e8f7ed;
+    color: #18733b;
+}
+.aipkit_settings_provider_card[data-aipkit-provider-connected="false"]:not(.has-provider-error) .aipkit_settings_provider_pill--off {
+    display: inline-flex;
+    background: #f0f2f5;
+    color: #5f6b7a;
+}
+.aipkit_settings_provider_card.has-invalid-credential .aipkit_settings_provider_pill--invalid,
+.aipkit_settings_provider_card.has-provider-error:not(.has-invalid-credential) .aipkit_settings_provider_pill--error {
+    display: inline-flex;
+    background: #feeceb;
+    color: #b42318;
+}
+.aipkit_settings_provider_panel_body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 22px;
+    min-height: 0;
+    padding: 20px 24px;
+    overflow-y: auto;
+}
+.aipkit_settings_provider_panel_section {
+    display: flex;
+    flex-direction: column;
     gap: 10px;
     min-width: 0;
 }
-#aipkit_settings_container .aipkit_settings_provider_modal_intro .aipkit_settings_provider_logo {
-    width: 30px;
-    height: 30px;
-    flex: 0 0 30px;
-    border-radius: 8px;
+.aipkit_settings_provider_panel_section[hidden] {
+    display: none !important;
 }
-#aipkit_settings_container .aipkit_settings_provider_modal_intro .aipkit_settings_provider_logo img {
-    width: 17px;
-    height: 17px;
-}
-.aipkit_settings_provider_connection_fields {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 0;
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_settings_provider_panel_section_title {
+    margin: 0;
+    color: #64748b;
+    font-size: 11.5px;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 .aipkit_settings_provider_field {
     display: flex;
@@ -2231,93 +2816,256 @@ hr.aipkit_hr {
     gap: 6px;
     min-width: 0;
 }
-.aipkit_settings_provider_field[hidden] {
-    display: none !important;
-}
-.aipkit_settings_provider_field_head {
+.aipkit_settings_provider_field_links {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-    min-width: 0;
-}
-.aipkit_settings_provider_field > .aipkit_settings_provider_key_link {
-    align-self: flex-start;
-    max-width: 100%;
-    overflow: hidden;
-    min-width: 0;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.aipkit_settings_provider_advanced {
-    margin: 0 -16px;
-    padding: 0 16px;
-    border-top: 1px solid #e8edf3;
-}
-.aipkit_settings_provider_advanced > summary {
-    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 0;
-    color: #344054;
+    gap: 4px 12px;
+    min-height: 20px;
+}
+#aipkit_settings_container .aipkit_settings_provider_remove {
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #b42318;
     font-size: 12.5px;
+    font-weight: 700;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_settings_provider_remove[hidden] {
+    display: none;
+}
+#aipkit_settings_container .aipkit_settings_provider_modal_footer .aipkit_settings_provider_remove {
+    margin: 0 auto 0 0;
+}
+#aipkit_settings_container .aipkit_settings_provider_remove:is(:hover, :focus-visible) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+/* An option is a row: its words on the left, the switch or value on the right. Text and pickers stack. */
+.aipkit_settings_provider_option {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.aipkit_settings_provider_option[hidden] {
+    display: none !important;
+}
+.aipkit_settings_provider_panel_section > .aipkit_settings_provider_option.is-inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+}
+/* A group's options share one card, split by hairlines. */
+.aipkit_settings_provider_option_list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
+}
+.aipkit_settings_provider_option_list > .aipkit_settings_provider_option {
+    padding: 13px 14px;
+}
+.aipkit_settings_provider_option_list > .aipkit_settings_provider_option.is-inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+.aipkit_settings_provider_option_list > :not([hidden]) ~ .aipkit_settings_provider_option {
+    border-top: 1px solid #e3e7ee;
+}
+/* Stacked fields (the backups) and a switch's follow-up field (the moderation message) read as one option. */
+.aipkit_settings_provider_option_list > .aipkit_settings_provider_option:not(.is-inline) + .aipkit_settings_provider_option:not(.is-inline),
+.aipkit_settings_provider_option_list > .aipkit_settings_provider_option.is-follow-up {
+    padding-top: 0;
+    border-top: 0;
+}
+/* Compatibility mode turns these off: they read as off, with the reason under them. */
+.aipkit_settings_provider_option.is-api-mode-disabled :is(.aipkit_settings_provider_option_label, .aipkit_settings_provider_option_help) {
+    opacity: 0.55;
+}
+.aipkit_settings_provider_option.is-api-mode-disabled .aipkit_switch input:checked + .aipkit_switch_slider {
+    background-color: var(--aipkit-builder-border, #d1d5db);
+}
+.aipkit_settings_provider_option.is-api-mode-disabled .aipkit_switch input:checked + .aipkit_switch_slider::before {
+    transform: none;
+}
+.aipkit_settings_provider_option_note {
+    margin-top: 4px;
+    color: #a15c00;
+    font-size: 12px;
     font-weight: 600;
+}
+.aipkit_settings_provider_option_copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_settings_provider_option_label {
+    margin: 0;
+    color: #172033;
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+.aipkit_settings_provider_option_help {
+    margin: 0;
+    color: #64748b;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+.aipkit_settings_provider_option_control {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-width: 0;
+}
+.aipkit_settings_provider_option:not(.is-inline) > .aipkit_settings_provider_option_control {
+    width: 100%;
+}
+.aipkit_settings_provider_option_input,
+.aipkit_settings_provider_option_picker {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.aipkit_settings_provider_option_picker > .aipkit_unified_model_selector {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_settings_provider_option_input .aipkit_form-input,
+#aipkit_settings_container .aipkit_settings_provider_option_control > select.aipkit_form-input {
+    width: 100%;
+    max-width: none;
+    height: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid #d4dde8;
+    border-radius: 9px;
+    background-color: #ffffff;
+    color: #172033;
+    font-size: 13px;
+    box-shadow: none;
+}
+#aipkit_settings_container .aipkit_settings_provider_option.is-inline .aipkit_settings_provider_option_input .aipkit_form-input {
+    width: 72px;
+    text-align: center;
+}
+#aipkit_settings_container .aipkit_settings_provider_option_input .aipkit_form-input:focus {
+    outline: none;
+    border-color: #3b5bdb;
+    box-shadow: 0 0 0 2px rgba(59, 91, 219, 0.12);
+}
+#aipkit_settings_container .aipkit_settings_provider_option_input .is-monospace {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+}
+.aipkit_settings_provider_option_suffix {
+    color: #64748b;
+    font-size: 12.5px;
+}
+/* Rarely changed groups stay folded, with what they hold in one line. */
+.aipkit_settings_provider_fold {
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+}
+.aipkit_settings_provider_fold[hidden] {
+    display: none;
+}
+.aipkit_settings_provider_fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
     list-style: none;
     cursor: pointer;
 }
-.aipkit_settings_provider_advanced > summary::-webkit-details-marker {
+.aipkit_settings_provider_fold > summary::-webkit-details-marker {
     display: none;
 }
-.aipkit_settings_provider_advanced > summary:hover {
-    color: #1f2a3a;
+.aipkit_settings_provider_fold > summary:focus-visible {
+    outline: none;
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 2px rgba(59, 91, 219, 0.18);
 }
-.aipkit_settings_provider_advanced > summary:focus-visible {
-    outline: 2px solid rgba(63, 95, 232, 0.35);
-    outline-offset: 2px;
-    border-radius: 6px;
-}
-.aipkit_settings_provider_advanced > summary .dashicons {
+.aipkit_settings_provider_fold > summary .dashicons {
     width: 16px;
     height: 16px;
-    color: #7b8798;
+    color: #8a94a6;
     font-size: 16px;
     line-height: 16px;
-    transition: transform 0.2s ease;
+    transition: transform 0.16s ease;
 }
-.aipkit_settings_provider_advanced[open] > summary .dashicons {
+.aipkit_settings_provider_fold[open] > summary .dashicons {
     transform: rotate(180deg);
 }
-.aipkit_settings_provider_advanced .aipkit_settings_provider_modal_section:first-child {
-    padding-top: 0;
+.aipkit_settings_provider_fold_body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 14px 14px;
+}
+.aipkit_settings_provider_model_meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
 }
 .aipkit_settings_provider_modal_footer {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 12px;
-    padding: 12px 16px;
-    border-top: 1px solid #e7ebf0;
-    background: #fafbfc;
+    padding: 14px 24px;
+    border-top: 1px solid #e3e7ee;
+    background: #ffffff;
 }
-.aipkit_settings_provider_modal_footer_actions {
-    display: flex;
+.aipkit_settings_provider_default_note {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    margin-left: auto;
+    gap: 4px;
+    color: #3b5bdb;
+    font-size: 12.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.aipkit_settings_provider_default_note[hidden] {
+    display: none;
+}
+.aipkit_settings_provider_default_note .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    line-height: 16px;
 }
 #aipkit_settings_container .aipkit_settings_provider_secondary_action {
-    height: 32px;
-    min-height: 32px;
+    height: 36px;
+    min-height: 36px;
     margin: 0;
-    padding: 0 12px;
+    padding: 0 14px;
     border: 1px solid #d7dee8;
-    border-radius: 8px;
+    border-radius: 9px;
     background: #ffffff;
-    color: #344054;
-    font-size: 12.5px;
-    font-weight: 600;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 700;
     line-height: 1.2;
+    white-space: nowrap;
     box-shadow: none;
     cursor: pointer;
 }
@@ -2326,57 +3074,28 @@ hr.aipkit_hr {
     background: #f8fafc;
 }
 #aipkit_settings_container .aipkit_settings_provider_done {
-    height: 32px;
-    min-height: 32px;
+    height: 36px;
+    min-height: 36px;
     margin: 0;
     padding: 0 18px;
-    border-radius: 8px;
-    font-size: 12.5px;
-    font-weight: 600;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 700;
     box-shadow: none;
 }
 /* A provider becomes the default only after it is connected. */
-.aipkit_settings_provider_card[data-aipkit-provider-connected="false"] .aipkit_settings_provider_default_action {
+.aipkit_settings_provider_card[data-aipkit-provider-connected="false"] :is(.aipkit_settings_provider_default_action, .aipkit_settings_provider_default_note) {
     display: none;
 }
 
-#aipkit_settings_container .aipkit_settings_provider_modal_footer_actions > button {
-    white-space: nowrap;
-}
-
-@media (max-width: 782px) {
-    .aipkit_settings_provider_cards {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .aipkit_settings_provider_cards .aipkit_settings_provider_credential_row {
-        grid-template-columns: minmax(0, 1fr) max-content;
-    }
-}
-
-
-/* Integration provider cards --------------------------------------------- */
-#aipkit_settings_page_panel_integrations {
-    overflow: visible;
-}
+/* Connections: each group is a list like the AI providers', and each service opens the same side panel ---- */
 .aipkit_settings_integration_groups {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    width: min(100%, var(--aipkit_settings-content-width));
-    max-width: var(--aipkit_settings-content-width);
-    margin: var(--aipkit-settings-group-start-gap) 0 0;
-}
-.aipkit_settings_integration_group {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
     min-width: 0;
 }
-.aipkit_settings_integration_group + .aipkit_settings_integration_group {
-    margin-top: var(--aipkit-settings-group-divider-gap);
-    padding-top: var(--aipkit-settings-group-divider-gap);
-    border-top: 1px solid #e8edf4;
+.aipkit_settings_integration_groups [hidden] {
+    display: none !important;
 }
 .aipkit_settings_integration_group_header {
     display: flex;
@@ -2384,300 +3103,107 @@ hr.aipkit_hr {
     gap: 2px;
     min-width: 0;
 }
-.aipkit_settings_integration_group_header h4,
 .aipkit_settings_integration_group_header p {
     margin: 0;
-}
-.aipkit_settings_integration_group_header h4 {
-    color: #8a94a6;
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.35;
-    letter-spacing: 0.045em;
-    text-transform: uppercase;
-}
-.aipkit_settings_integration_group_header p {
-    color: #667085;
-    font-size: 11.5px;
+    color: #64748b;
+    font-size: 12px;
     line-height: 1.45;
 }
-.aipkit_settings_integration_cards {
+/* A group's list has no footer under it, so its last row needs no line of its own. */
+.aipkit_settings_integration_cards > .aipkit_settings_provider_card:last-child {
+    border-bottom: 0;
+}
+/* A list to review: how many there are with a refresh, then the first few by name. */
+.aipkit_settings_integration_review {
     display: flex;
     flex-direction: column;
-    gap: 9px;
     min-width: 0;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #ffffff;
 }
-.aipkit_settings_integration_card {
-    gap: 0;
-    padding: 0;
-    overflow: hidden;
-}
-#aipkit_settings_container .aipkit_settings_integration_summary {
+.aipkit_settings_integration_review_head {
     display: flex;
     align-items: center;
-    gap: 9px;
-    width: 100%;
-    min-height: 54px;
-    margin: 0;
-    padding: 12px 14px;
-    border: 0;
-    border-radius: 9px;
-    background: #ffffff;
-    color: #182033;
-    text-align: left;
-    box-shadow: none;
-    cursor: pointer;
-}
-#aipkit_settings_container .aipkit_settings_integration_summary:hover {
-    background: #f8fafc;
-    color: #182033;
-}
-#aipkit_settings_container .aipkit_settings_integration_summary:focus-visible {
-    outline: none;
-    background: #ffffff;
-    box-shadow: inset 0 0 0 2px rgba(59, 91, 219, 0.16);
-}
-.aipkit_settings_integration_chevron {
-    width: 15px;
-    height: 15px;
-    margin-left: auto;
-    color: #7b8798;
-    font-size: 15px;
-    line-height: 15px;
-    transition: transform 0.16s ease;
-}
-.aipkit_settings_integration_summary[aria-expanded="true"] .aipkit_settings_integration_chevron {
-    transform: rotate(180deg);
-}
-.aipkit_settings_integration_body {
-    display: flex;
-    flex-direction: column;
     gap: 12px;
     min-width: 0;
-    padding: 2px 14px 14px;
-    border-top: 1px solid #edf1f6;
+    padding: 8px 8px 8px 14px;
 }
-.aipkit_settings_integration_body[hidden] {
-    display: none !important;
-}
-.aipkit_settings_integration_connection_fields {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+.aipkit_settings_integration_review_count {
+    flex: 1 1 auto;
     min-width: 0;
-}
-.aipkit_settings_integration_field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-}
-.aipkit_settings_integration_field_label {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-    margin: 0;
-    color: #20283a;
-    font-size: 11.5px;
-    font-weight: 650;
+    color: #172033;
+    font-size: 13.5px;
+    font-weight: 700;
     line-height: 1.35;
 }
-.aipkit_settings_integration_field_label .aipkit_form-label-helper {
+#aipkit_settings_container .aipkit_settings_integration_review_list {
     margin: 0;
-    color: #748196;
-    font-size: 10.5px;
-    font-weight: 400;
-    line-height: 1.4;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid #e3e7ee;
 }
-.aipkit_settings_integration_credential_row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    align-items: center;
-    gap: 8px;
+#aipkit_settings_container .aipkit_settings_integration_review_list > li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
     min-width: 0;
+    margin: 0;
+    padding: 10px 14px;
 }
-#aipkit_settings_container .aipkit_settings_integration_text_input,
-#aipkit_settings_container .aipkit_settings_integration_option_control > .aipkit_form-input {
+#aipkit_settings_container .aipkit_settings_integration_review_list > li + li {
+    border-top: 1px solid #edf1f6;
+}
+.aipkit_settings_integration_review_name {
+    overflow: hidden;
+    min-width: 0;
+    color: #172033;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aipkit_settings_integration_review_meta {
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 12px;
+}
+#aipkit_settings_container .aipkit_settings_integration_review_list > .aipkit_settings_integration_review_more {
+    color: #8a94a6;
+    font-size: 12px;
+}
+/* A default picker reads like the AI panel's model picker. */
+#aipkit_settings_container .aipkit_settings_provider_model_select_row > select.aipkit_settings_integration_select {
     width: 100%;
     max-width: none;
     min-width: 0;
     height: 38px;
     min-height: 38px;
     margin: 0;
-    padding: 0 11px;
+    padding: 0 32px 0 12px;
     border: 1px solid #d4dde8;
     border-radius: 8px;
     background-color: #ffffff;
-    color: #20283a;
-    font-size: 12px;
-    box-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_integration_option_control > select.aipkit_form-input {
-    padding-right: 32px;
     background-image: var(--aipkit-form-select-chevron-icon);
     background-repeat: no-repeat;
     background-position: right 11px center;
     background-size: 11px 11px;
+    color: #172033;
+    font-size: 12px;
+    box-shadow: none;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
     cursor: pointer;
 }
-#aipkit_settings_container .aipkit_settings_integration_text_input:hover:not(:disabled):not(:focus),
-#aipkit_settings_container .aipkit_settings_integration_option_control > .aipkit_form-input:hover:not(:disabled):not(:focus) {
-    border-color: #c3cfdd;
-    background-color: #ffffff;
-}
-#aipkit_settings_container .aipkit_settings_integration_text_input:focus,
-#aipkit_settings_container .aipkit_settings_integration_option_control > .aipkit_form-input:focus {
+#aipkit_settings_container .aipkit_settings_provider_model_select_row > select.aipkit_settings_integration_select:focus {
     outline: none;
     border-color: #3b5bdb;
-    background-color: #ffffff;
     box-shadow: 0 0 0 2px rgba(59, 91, 219, 0.12);
 }
-.aipkit_settings_integration_connected_actions {
-    display: flex;
-    align-items: center;
-}
-.aipkit_settings_integration_connected_actions[hidden],
-.aipkit_settings_integration_connect[hidden],
-.aipkit_settings_integration_connected_fields[hidden] {
-    display: none !important;
-}
-.aipkit_settings_integration_field .aipkit_settings_provider_key_link {
-    margin-top: 1px;
-}
-.aipkit_settings_integration_connected_fields {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    min-width: 0;
-    padding-top: 2px;
-    border-top: 1px solid #edf1f6;
-}
-.aipkit_settings_integration_option_row {
-    display: grid;
-    grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr);
-    align-items: center;
-    gap: 16px;
-    min-width: 0;
-    padding: 11px 0;
-    border-bottom: 1px solid #edf1f6;
-}
-.aipkit_settings_integration_option_row:last-child {
-    padding-bottom: 0;
-    border-bottom: 0;
-}
-.aipkit_settings_integration_option_control {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) max-content;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-}
-.aipkit_settings_integration_option_row > .aipkit_settings_integration_text_input {
-    justify-self: stretch;
-}
-.aipkit_settings_integration_toggle {
-    justify-self: end;
-}
-@media (max-width: 782px) {
-    .aipkit_settings_integration_option_row {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 7px;
-    }
-
-    .aipkit_settings_integration_toggle {
-        justify-self: start;
-    }
-}
-@media (max-width: 520px) {
-    .aipkit_settings_product {
-        grid-template-columns: 32px minmax(0, 1fr);
-    }
-
-    #aipkit_settings_container .aipkit_settings_product_link {
-        grid-column: 2;
-        justify-self: start;
-    }
-
-    .aipkit_settings_integration_credential_row,
-    .aipkit_settings_integration_option_control {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .aipkit_settings_integration_connected_actions,
-    .aipkit_settings_integration_connect {
-        justify-self: start;
-    }
-}
-/* Provider advanced settings modal */
-#aipkit_settings_container .aipkit_settings_provider_modal {
-    padding: 14px;
-    background: rgba(15, 23, 42, 0.44);
-    z-index: 1000020;
-    box-sizing: border-box;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_content {
-    width: min(560px, calc(100vw - 28px));
-    max-width: 560px;
-    max-height: calc(100vh - 28px);
-    border-radius: 12px;
-    overflow: hidden;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_header {
-    align-items: center;
-    padding: 12px 16px 10px;
-    border-bottom-color: #e7ebf0;
-    background: #ffffff;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_header .aipkit-modal-shell-close {
-    margin: -2px -4px 0 0;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_body {
-    display: block;
-    flex: 1 1 auto;
-    padding: 0 16px;
-    overflow-x: hidden;
-    overflow-y: auto;
-}
-.aipkit_settings_provider_modal_fields {
-    display: flex;
-    flex-direction: column;
-    padding-bottom: 3px;
-}
-.aipkit_settings_provider_modal_section {
-    padding: 12px 0;
-}
-.aipkit_settings_provider_modal_section + .aipkit_settings_provider_modal_section {
-    border-top: 1px solid #e8edf3;
-}
-.aipkit_settings_provider_modal_section_title {
-    margin: 0 0 8px;
-    color: #8a94a3;
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.3;
-    letter-spacing: 0.045em;
-    text-transform: uppercase;
-}
-.aipkit_settings_provider_modal_section_fields {
-    display: flex;
-    flex-direction: column;
-}
-.aipkit_settings_provider_modal_row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(180px, 230px);
-    align-items: center;
-    gap: 16px;
-    min-height: 60px;
-    padding: 7px 0;
-    border-bottom: 1px solid #e8edf3;
-}
-.aipkit_settings_provider_modal_row:last-child {
-    border-bottom: 0;
-}
+/* Model picker with its refresh button, inside a provider panel. */
 .aipkit_settings_provider_model_select_row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 38px;
@@ -2757,152 +3283,12 @@ hr.aipkit_hr {
 .aipkit_settings_provider_model_last_synced[hidden] {
     display: none;
 }
-.aipkit_settings_provider_modal_row[hidden] {
-    display: none !important;
-}
-.aipkit_settings_provider_modal_row.is-api-mode-disabled {
-    opacity: 0.58;
-}
-.aipkit_settings_openai_api_mode_notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin: 8px 0 4px;
-    padding: 9px 11px;
-    border: 1px solid #f2d38a;
-    border-radius: 8px;
-    background: #fff9e8;
-    color: #6f5115;
-    font-size: 11px;
-    line-height: 1.45;
-}
-.aipkit_settings_openai_api_mode_notice[hidden] {
-    display: none !important;
-}
-.aipkit_settings_openai_api_mode_notice .dashicons {
-    width: 16px;
-    height: 16px;
-    flex: 0 0 16px;
-    margin-top: 1px;
-    font-size: 16px;
-    line-height: 16px;
-}
-.aipkit_settings_provider_modal_copy {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-.aipkit_settings_provider_modal_label {
-    margin: 0;
-    color: #20283a;
-    font-size: 12.5px;
-    font-weight: 650;
-    line-height: 1.35;
-}
-.aipkit_settings_provider_modal_helper {
-    color: #697586;
-    font-size: 11px;
-    line-height: 1.35;
-}
-.aipkit_settings_provider_modal_control {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_control > .aipkit_form-input,
-.aipkit_settings_provider_modal_input_wrap {
-    width: 100%;
-    max-width: 230px;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_control .aipkit_form-input {
-    width: 100%;
-    max-width: 100%;
-    min-height: 36px;
-    height: 36px;
-    border-color: #d4dde8;
-    border-radius: 8px;
-    background-color: #ffffff;
-    font-size: 12px;
-    text-align: left;
-    box-shadow: none;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_control input[type="number"] {
-    text-align: left;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_control .is-monospace {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 11px;
-}
-.aipkit_settings_provider_modal_input_wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-.aipkit_settings_provider_modal_input_wrap > .aipkit_form-input {
-    min-width: 0;
-    flex: 1 1 auto;
-}
-.aipkit_settings_provider_modal_model_picker > .aipkit_unified_model_selector {
-    min-width: 0;
-    flex: 1 1 auto;
-}
-#aipkit_settings_container .aipkit_settings_provider_modal_model_picker .aipkit_unified_model_trigger {
-    min-height: 36px;
-    height: 36px;
-    border-color: #d4dde8;
-    border-radius: 8px;
-    font-size: 12px;
-    box-shadow: none;
-}
-.aipkit_settings_provider_modal_suffix {
-    flex: 0 0 auto;
-    color: #697586;
-    font-size: 11px;
-}
 #aipkit_settings_container .aipkit_settings_provider_reset {
     width: 30px;
     height: 30px;
     min-width: 30px;
     min-height: 30px;
     flex: 0 0 30px;
-}
-@media (max-width: 782px) {
-    .aipkit_settings_page_nav {
-        flex-wrap: wrap;
-        gap: 10px 14px;
-    }
-
-    .aipkit_settings_module_header {
-        align-items: stretch;
-    }
-
-    .aipkit_settings_provider_credential_row {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .aipkit_settings_provider_connected_actions,
-    #aipkit_settings_container .aipkit_settings_provider_connect {
-        justify-self: start;
-    }
-
-    .aipkit_settings_provider_modal_row {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 7px;
-        padding: 12px 0;
-    }
-
-    .aipkit_settings_provider_modal_control {
-        justify-content: flex-start;
-    }
-
-    #aipkit_settings_container .aipkit_settings_provider_modal_control > .aipkit_form-input,
-    .aipkit_settings_provider_modal_input_wrap {
-        width: 100%;
-        max-width: none;
-    }
 }
 #aipkit_settings_container .aipkit_settings_provider_dropdown {
     width: 100%;
@@ -3195,12 +3581,13 @@ hr.aipkit_hr {
     padding-top: 14px;
     border-top: 1px solid #e8edf3;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     height: 34px;
+    min-height: 0;
     margin: 0;
     padding: 0 12px;
     border: 1px solid #d7dee8;
@@ -3212,35 +3599,35 @@ hr.aipkit_hr {
     cursor: pointer;
     box-shadow: none;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn:hover:not(:disabled) {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn:hover:not(:disabled) {
     border-color: #c8d2df;
     background: #f8fafc;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn:focus-visible {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn:focus-visible {
     outline: none;
     border-color: #3f5fe8;
     box-shadow: 0 0 0 2px rgba(63, 95, 232, 0.18);
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn:disabled {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn:disabled {
     cursor: wait;
     opacity: 0.7;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn .dashicons {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn .dashicons {
     width: 15px;
     height: 15px;
     font-size: 15px;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn--primary {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn--primary {
     border-color: #3f5fe8;
     background: #3f5fe8;
     color: #ffffff;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn--primary:hover:not(:disabled) {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn--primary:hover:not(:disabled) {
     border-color: #3450d1;
     background: #3450d1;
     color: #ffffff;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container) .aipkit_cloud_btn--block {
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn--block {
     width: 100%;
     height: 38px;
     font-size: 13px;
@@ -3261,38 +3648,35 @@ hr.aipkit_hr {
 @keyframes aipkit-cloud-spin {
     to { transform: rotate(360deg); }
 }
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_intro {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding: 16px;
-    border: 1px solid #e3e8ef;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_intro_title {
-    font-size: 16px;
-    font-weight: 700;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_benefits {
+/* The offer before connecting: free credits, no API key. */
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+    padding: 20px;
+    border: 1px solid #ffe1d3;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fff4ec 0%, #ffffff 70%);
 }
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_benefits li {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    margin: 0;
-    line-height: 1.45;
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_eyebrow {
+    color: #c2410c;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_benefits .dashicons {
-    flex: 0 0 18px;
-    color: #1d7a45;
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_title {
+    margin: 0;
+    color: #172033;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_text {
+    margin: 0;
+    color: #475467;
+    font-size: 13px;
+    line-height: 1.5;
 }
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_connect {
     display: flex;
@@ -3304,6 +3688,7 @@ hr.aipkit_hr {
     align-items: flex-start;
     gap: 8px;
     margin: 0;
+    color: #344054;
     font-size: 13px;
     line-height: 1.45;
     cursor: pointer;
@@ -3311,15 +3696,322 @@ hr.aipkit_hr {
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_check input {
     margin-top: 2px;
 }
-@media (max-width: 560px) {
+
+/* The Cloud section (design A), the same in the Settings panel and the connect dialog. */
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+/* In the panel, connected, the Cloud groups join the panel body so the model picker sits between them. */
+.aipkit_settings_cloud_fields,
+#aipkit_settings_container .aipkit_settings_provider_panel .aipkit_cloud_connection.is-connected {
+    display: contents;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connect details {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #64748b;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connect summary {
+    color: #5f6b7d;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connect details p {
+    margin: 8px 0 0;
+}
+/* The email field (connecting, or changing it) has one look in both places. */
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connection .aipkit_settings_provider_model_label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connection input[type="email"] {
+    width: 100%;
+    height: 40px;
+    min-height: 40px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid #d4dde8;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 13.5px;
+    font-weight: 400;
+    box-shadow: none;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connection input[type="email"]:focus {
+    border-color: #3f5fe8;
+    box-shadow: 0 0 0 3px #e8edff;
+    outline: none;
+}
+.aipkit_cloud_panel_group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+.aipkit_cloud_panel_group--credits {
+    order: 1;
+}
+[data-aipkit-provider-modal="AIPufferCloud"] .aipkit_settings_provider_model_block {
+    order: 2;
+}
+.aipkit_cloud_panel_group--account {
+    order: 3;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_account_controls {
+    margin-bottom: 0;
+}
+.aipkit_cloud_panel_credits {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid #dce3ec;
+    border-radius: 14px;
+}
+.aipkit_cloud_panel_credits_top {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+.aipkit_cloud_panel_credits_copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.aipkit_cloud_panel_credits_label {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+}
+.aipkit_cloud_panel_credits_value {
+    color: #172033;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.aipkit_cloud_panel_split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+.aipkit_cloud_panel_split_item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+.aipkit_cloud_panel_split_item dt {
+    color: #64748b;
+    font-size: 11.5px;
+    font-weight: 700;
+}
+.aipkit_cloud_panel_split_item dd {
+    margin: 0;
+    color: #172033;
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+.aipkit_cloud_panel_split_item small {
+    color: #8a94a6;
+    font-size: 11.5px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits_link {
+    align-self: flex-start;
+    color: #2f49c9;
+    font-size: 12.5px;
+    font-weight: 650;
+    text-decoration: none;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits_link:is(:hover, :focus-visible) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.aipkit_cloud_panel_credits .aipkit_cloud_purchase {
+    margin: 0;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits .aipkit_cloud_btn {
+    height: 36px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 14px;
+    border: 1px solid #d7dee8;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: none;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits .aipkit_cloud_btn:hover:not(:disabled) {
+    border-color: #c3cddb;
+    background: #f8fafc;
+}
+/* The account is one card; the email editor opens inside it. */
+:is(.aipkit_settings_provider_panel, .aipkit_connect_dialog) .aipkit_cloud_account_controls:has(.aipkit_cloud_account_avatar) {
+    padding: 12px 14px;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+}
+:is(.aipkit_settings_provider_panel, .aipkit_connect_dialog) .aipkit_cloud_account_controls .aipkit_cloud_email_editor .aipkit_cloud_email_actions {
+    margin-top: 12px;
+}
+.aipkit_cloud_account_avatar {
+    display: inline-flex;
+    flex: 0 0 32px;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff1ea;
+    color: #c2410c;
+    font-size: 13px;
+    font-weight: 800;
+}
+.aipkit_cloud_account_who {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    color: #172033;
+    font-size: 13.5px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+.aipkit_cloud_account_caption {
+    color: #64748b;
+    font-size: 11.5px;
+    font-weight: 600;
+}
+.aipkit_cloud_account_verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #18733b;
+    font-size: 12px;
+    font-weight: 600;
+}
+.aipkit_cloud_account_verified::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #1d9a5b;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_account_row :is(.button-link, a) {
+    color: #2f49c9;
+    font-size: 13px;
+    font-weight: 650;
+    text-decoration: none;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_account_row :is(.button-link, a):is(:hover, :focus-visible) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+/* Cloud's footer Disconnect waits while the account email is being changed. */
+.aipkit_settings_provider_panel:has([data-cloud-email-editor]:not([hidden])) .aipkit_settings_provider_modal_footer [name="cloud_action"][value="disconnect"] {
+    display: none;
 }
 
 /* Shared account email row/editor, including dynamically opened provider dialogs. */
 .aipkit_cloud_account_controls { flex: 1; min-width: 0; margin-bottom: 16px; }
 .aipkit_cloud_account_row, .aipkit_cloud_email_actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .aipkit_cloud_email_actions { margin-top: 16px; }
+/* The email form's Save and Cancel match the panel's other buttons. */
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_email_actions .aipkit_btn { height: 36px; min-height: 36px; margin: 0; padding: 0 14px; border-radius: 9px; font-size: 13px; font-weight: 700; line-height: 1.2; box-shadow: none; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_email_actions .aipkit_btn:not(.aipkit_btn-primary) { border: 1px solid #d7dee8; background: #ffffff; color: #172033; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_email_actions .aipkit_btn:not(.aipkit_btn-primary):hover:not(:disabled) { border-color: #c3cddb; background: #f8fafc; }
 .aipkit_cloud_account_row > span { overflow-wrap: anywhere; min-width: 0; }
 .aipkit_cloud_account_row .button-link { font: inherit; text-decoration: underline; }
+/* After saving a new email: nothing has changed until the inbox confirms it, so it reads as a callout. */
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) p.aipkit_cloud_email_message {
+    position: relative;
+    margin: 12px 0 0;
+    padding: 10px 12px 10px 38px;
+    border: 1px solid #f5dfb3;
+    border-radius: 10px;
+    background: #fff8eb;
+    color: #5c4813;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+.aipkit_cloud_email_message::before {
+    content: "\f466";
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    color: #b45309;
+    font: 18px/1 dashicons;
+}
+.aipkit_cloud_email_message strong {
+    display: block;
+    margin-bottom: 2px;
+    color: #7a4b00;
+    font-size: 13px;
+    font-weight: 700;
+}
+.aipkit_cloud_email_message_actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin-top: 10px;
+    font-weight: 600;
+}
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_email_message_actions .aipkit_btn {
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid #e8c98a;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #7a4b00;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: none;
+}
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_email_message_actions .aipkit_btn:hover:not(:disabled) {
+    border-color: #d9ad5c;
+    background: #fffdf7;
+}
+/* The change reached this site. */
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) p.aipkit_cloud_email_message.is-done {
+    border-color: #abefc6;
+    background: #ecfdf3;
+    color: #085d3a;
+}
+.aipkit_cloud_email_message.is-done::before {
+    content: "\f12a";
+    color: #079455;
+}
+.aipkit_cloud_email_message.is-done strong {
+    color: #067647;
+}
 .aipkit_cloud_account_disconnect { margin: 0; }
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_account_disconnect .aipkit_cloud_btn {
     display: inline-flex; align-items: center; gap: 5px; width: auto; height: auto; min-height: 0;

@@ -7,21 +7,22 @@
 
     let dismissed = false;
     let connected = Boolean(window.aipkit_dashboard?.cloudConnected);
+    // The shell renders it hidden. It is decided when a module renders, together with that
+    // module's setup notice (module-loader.js), so a "Connect an AI provider" warning never
+    // replaces it a moment after the page loads; provider changes emit their own event.
+    let moduleRendered = !document.getElementById('aipkit_module-container');
     const updateVisibility = () => {
       // A provider warning folded behind "n more" (ui-notice-stack.js) still counts as showing.
       const setupVisible = Array.from(document.querySelectorAll('[data-aipkit-provider-notice]')).some(item =>
         !item.hidden && !item.classList.contains('aipkit_provider_notice--hidden')
         && (item.getClientRects().length > 0 || item.hasAttribute('data-aipkit-notice-folded')));
-      notice.hidden = dismissed || connected || setupVisible;
+      notice.hidden = dismissed || connected || setupVisible || !moduleRendered;
     };
     window.addEventListener('aipkit:provider-notice-visibility', updateVisibility);
-    const moduleContainer = document.getElementById('aipkit_module-container');
-    if (moduleContainer) {
-      // Only module replacement matters here; provider changes emit their own event.
-      const observer = new MutationObserver(updateVisibility);
-      observer.observe(moduleContainer, { childList: true });
-      window.addEventListener('pagehide', () => observer.disconnect(), { once: true });
-    }
+    window.addEventListener('aipkit:module-rendered', () => {
+      moduleRendered = true;
+      updateVisibility();
+    });
     const connect = notice.querySelector("[data-cloud-announcement-connect]");
     const dismiss = notice.querySelector("[data-cloud-announcement-dismiss]");
     const feedback = notice.querySelector("[data-cloud-announcement-feedback]");

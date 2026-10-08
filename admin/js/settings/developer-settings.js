@@ -22,7 +22,23 @@
     return `${credential.slice(0, prefixLength)}••••••••••••${credential.slice(-4)}`;
   }
 
-  function showError(message) {
+  // A feature's own panel: the first one in its row. Webhooks keeps its endpoints' panels after it.
+  const panelOf = (group) => group?.querySelector(".aipkit_settings_provider_modal") || group;
+
+  // Errors show in the feature's panel, where the switch or key is; the page's message area is the fallback.
+  function showError(message, group = null) {
+    const box = panelOf(group)?.querySelector?.("[data-aipkit-developer-error]");
+    if (box) {
+      const text = box.querySelector("[data-aipkit-developer-error-text]");
+      if (text) {
+        text.textContent = message;
+      }
+      box.hidden = !message;
+      return;
+    }
+    if (!message) {
+      return;
+    }
     if (typeof window.aipkit_showMessage === "function") {
       window.aipkit_showMessage(MESSAGE_CONTAINER_ID, "error", message);
       return;
@@ -32,7 +48,7 @@
   }
 
   function setGroupBusy(group, busy) {
-    group.querySelectorAll("button, input").forEach((control) => {
+    panelOf(group).querySelectorAll("button:not([data-aipkit-provider-modal-close]), input").forEach((control) => {
       control.disabled = busy;
     });
     group.classList.toggle("is-busy", busy);
@@ -67,7 +83,31 @@
         revealButton.dataset.aipkitDeveloperRevealLabel ||
         __("Reveal credential", "gpt3-ai-content-generator");
       revealButton.setAttribute("aria-label", revealLabel);
-      revealButton.title = revealLabel;
+      const text = revealButton.querySelector("[data-aipkit-developer-reveal-text]");
+      if (text) {
+        text.textContent = text.dataset.show || text.textContent;
+      }
+    }
+    updateRow(group);
+  }
+
+  // The row says On or Off, and for the REST API which key it uses; webhooks counts its own endpoints.
+  function updateRow(group) {
+    const enabled = group.dataset.enabled === "true";
+    group.dataset.aipkitProviderConnected = enabled ? "true" : "false";
+    const summary = group.querySelector("[data-aipkit-developer-summary]");
+    if (summary && group.dataset.aipkitDeveloperCredential === "rest_api") {
+      const input = group.querySelector("[data-aipkit-developer-credential-input]");
+      const credential = input?.dataset.credentialValue || input?.dataset.credentialMask || "";
+      const last4 = /•/.test(credential.slice(-4)) ? "" : credential.slice(-4);
+      summary.textContent = !enabled
+        ? summary.dataset.off || ""
+        : last4
+          ? String(summary.dataset.on || "").replace("%s", last4)
+          : summary.dataset.onPlain || "";
+    }
+    if (typeof window.CustomEvent === "function") {
+      group.dispatchEvent(new window.CustomEvent("aipkit:developer-state", { bubbles: true }));
     }
   }
 
@@ -81,6 +121,7 @@
     if (toggle) {
       toggle.checked = enabled;
     }
+    updateRow(group);
   }
 
   async function updateCredential(group, operation) {
@@ -126,7 +167,8 @@
     } catch (error) {
       showError(
         error?.message ||
-          __("Unable to reveal the developer credential.", "gpt3-ai-content-generator")
+          __("Unable to reveal the developer credential.", "gpt3-ai-content-generator"),
+        group
       );
       return "";
     } finally {
@@ -135,23 +177,27 @@
   }
 
   async function applyCredentialAction(group, operation) {
+    showError("", group);
     setGroupBusy(group, true);
+    let updated = false;
     try {
       const response = await updateCredential(group, operation);
       setCredentialValue(group, response?.credential || "");
       syncGroupVisibility(group, Boolean(response?.enabled));
-      if (typeof window.aipkit_updateLastSavedData === "function") {
-        window.aipkit_updateLastSavedData();
-      }
+      updated = true;
       return true;
     } catch (error) {
       showError(
         error?.message ||
-          __("Unable to update the developer credential.", "gpt3-ai-content-generator")
+          __("Unable to update the developer credential.", "gpt3-ai-content-generator"),
+        group
       );
       return false;
     } finally {
       setGroupBusy(group, false);
+      if (updated && typeof window.aipkit_updateLastSavedData === "function") {
+        window.aipkit_updateLastSavedData();
+      }
     }
   }
 
@@ -183,12 +229,15 @@
       : button.dataset.aipkitDeveloperHideLabel ||
         __("Hide credential", "gpt3-ai-content-generator");
     button.setAttribute("aria-label", nextLabel);
-    button.title = nextLabel;
+    const text = button.querySelector("[data-aipkit-developer-reveal-text]");
+    if (text) {
+      text.textContent = (revealed ? text.dataset.show : text.dataset.hide) || text.textContent;
+    }
   }
 
   async function copyCredential(group, button) {
     const input = group.querySelector("[data-aipkit-developer-credential-input]");
-    const value = input?.dataset.credentialValue || (await loadCredential(group));
+    const value = button.dataset.aipkitDeveloperCopyValue || input?.dataset.credentialValue || (await loadCredential(group));
     if (!value) {
       return;
     }
@@ -197,7 +246,7 @@
       await navigator.clipboard.writeText(value);
       showCopyFeedback(button);
     } catch (error) {
-      showError(__("Could not copy the credential.", "gpt3-ai-content-generator"));
+      showError(__("Could not copy the credential.", "gpt3-ai-content-generator"), group);
     }
   }
 
@@ -222,9 +271,15 @@
 
     button.classList.add("is-copied");
     button.setAttribute("aria-label", copiedLabel);
-    button.title = copiedLabel;
     if (icon) {
       icon.className = "dashicons dashicons-yes-alt";
+    }
+    const text = button.querySelector("[data-aipkit-developer-copy-text]");
+    if (text && !text.dataset.copyText) {
+      text.dataset.copyText = text.textContent;
+    }
+    if (text) {
+      text.textContent = text.dataset.copied || copiedLabel;
     }
 
     const timer = window.setTimeout(() => {
@@ -233,7 +288,9 @@
         __("Copy credential", "gpt3-ai-content-generator");
       button.classList.remove("is-copied");
       button.setAttribute("aria-label", originalLabel);
-      button.title = originalLabel;
+      if (text) {
+        text.textContent = text.dataset.copyText || text.textContent;
+      }
       if (icon) {
         icon.className =
           icon.dataset.aipkitDeveloperCopyIcon ||
@@ -249,11 +306,11 @@
     const credentialType = group.dataset.aipkitDeveloperCredential || "";
     const isWebhook = credentialType === "webhook";
     const title = isWebhook
-      ? __("Regenerate signing secret?", "gpt3-ai-content-generator")
-      : __("Regenerate API key?", "gpt3-ai-content-generator");
+      ? __("Make a new signing secret?", "gpt3-ai-content-generator")
+      : __("Make a new API key?", "gpt3-ai-content-generator");
     const message = isWebhook
-      ? __("Existing webhook receivers will stop verifying requests until they use the new secret.", "gpt3-ai-content-generator")
-      : __("Existing clients will lose REST API access until they use the new key.", "gpt3-ai-content-generator");
+      ? __("The old secret stops working now. Your endpoints can’t check requests until they use the new one.", "gpt3-ai-content-generator")
+      : __("The old key stops working now. Apps and scripts that use it lose access until they use the new one.", "gpt3-ai-content-generator");
 
     const execute = () => {
       void applyCredentialAction(group, "regenerate");
@@ -262,7 +319,9 @@
     if (typeof window.aipkit_showConfirmModal === "function") {
       window.aipkit_showConfirmModal(message, {
         title,
-        confirmText: __("Regenerate", "gpt3-ai-content-generator"),
+        confirmText: isWebhook
+          ? __("Make a new secret", "gpt3-ai-content-generator")
+          : __("Make a new key", "gpt3-ai-content-generator"),
         cancelText: __("Cancel", "gpt3-ai-content-generator"),
         variant: "danger",
         onConfirm: execute,
@@ -299,7 +358,7 @@
         return;
       }
 
-      const copyButton = event.target.closest("[data-aipkit-developer-copy]");
+      const copyButton = event.target.closest("[data-aipkit-developer-copy], [data-aipkit-developer-copy-value]");
       if (copyButton) {
         void copyCredential(group, copyButton);
         return;

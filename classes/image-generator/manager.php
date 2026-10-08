@@ -410,7 +410,9 @@ function ajax_generate_image_logic(AIPKit_Image_Manager $managerInstance): void
         return;
     }
 
-    if ($is_logged_in && !AIPKit_Role_Manager::user_can_access_module($managerInstance::MODULE_SLUG)) {
+    // Published shortcode requests use their signed public policy, just like guest requests.
+    // Role permissions govern the dashboard tool, not whether a visitor is signed in.
+    if ($nonce_action === 'aipkit_nonce' && (!$is_logged_in || !AIPKit_Role_Manager::user_can_access_module($managerInstance::MODULE_SLUG))) {
         $error_response = new WP_Error('permission_denied', __('You do not have permission to use the Image Generator.', 'gpt3-ai-content-generator'), ['status' => 403]);
         $managerInstance->log_image_generation_attempt($conversation_uuid, $post_data['prompt'] ?? '', $post_data, $error_response, null, $user_id, $session_id_for_guest, $client_ip);
         $managerInstance->send_wp_error($error_response);

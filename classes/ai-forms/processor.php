@@ -105,6 +105,16 @@ function upload_and_parse_file_logic(AIPKit_AI_Form_Processor $processorInstance
 {
     check_ajax_referer('aipkit_ai_form_upload_nonce', '_ajax_nonce');
 
+    $rate_check = \WPAICG\Core\TokenManager\AIPKit_Token_Manager::check_public_request_rate();
+    if (is_wp_error($rate_check)) {
+        $error_data = $rate_check->get_error_data();
+        wp_send_json_error([
+            'message' => $rate_check->get_error_message(),
+            'code' => $rate_check->get_error_code(),
+        ], is_array($error_data) ? ($error_data['status'] ?? 403) : 403);
+        return;
+    }
+
     if (class_exists('\\WPAICG\\Lib\\AIForms\\Processor')) {
         \WPAICG\Lib\AIForms\Processor::upload_and_parse_file();
         return;

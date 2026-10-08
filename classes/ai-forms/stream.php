@@ -229,6 +229,11 @@ function validate_request_logic(
         return $form_config;
     }
 
+    $input_validation = validate_email_inputs_logic($form_config['structure'] ?? [], $submitted_fields);
+    if (is_wp_error($input_validation)) {
+        return $input_validation;
+    }
+
     if (!empty($image_inputs)) {
         $is_pro = class_exists('\WPAICG\aipkit_dashboard') && \WPAICG\aipkit_dashboard::is_pro_plan();
         if (!$is_pro || !class_exists(PaidProcessor::class)) {
@@ -370,12 +375,39 @@ function build_prompt_logic(array $form_config, array $submitted_fields)
 }
 
 /**
- * Builds a moderation-safe text string from submitted field values only.
+ * Rejects malformed email inputs before quota checks and provider requests.
  *
- * @param array $form_config
+ * @param array $structure
  * @param array $submitted_fields
- * @return string
+ * @return true|WP_Error
  */
+function validate_email_inputs_logic(array $structure, array $submitted_fields)
+{
+    foreach ($structure as $row) {
+        foreach (($row['columns'] ?? []) as $column) {
+            foreach (($column['elements'] ?? []) as $element) {
+                if (($element['type'] ?? '') !== 'text-input' || ($element['inputType'] ?? '') !== 'email') {
+                    continue;
+                }
+                $field_id = $element['fieldId'] ?? '';
+                // Conditional conversation steps omit their disabled inputs.
+                if (!array_key_exists($field_id, $submitted_fields)) {
+                    continue;
+                }
+                $value = $submitted_fields[$field_id];
+                if (!is_scalar($value) || (trim((string) $value) !== '' && !is_email(trim((string) $value)))) {
+                    return new WP_Error('invalid_email_ai_forms', __('Please enter a valid email address.', 'gpt3-ai-content-generator'), ['status' => 400]);
+                }
+                if (!empty($element['required']) && trim((string) $value) === '') {
+                    return new WP_Error('invalid_email_ai_forms', __('Please enter a valid email address.', 'gpt3-ai-content-generator'), ['status' => 400]);
+                }
+            }
+        }
+    }
+    return true;
+}
+
+/** Builds moderation text from submitted values without including the prompt. */
 function build_moderation_text_logic(array $form_config, array $submitted_fields): string
 {
     $form_structure = $form_config['structure'] ?? [];

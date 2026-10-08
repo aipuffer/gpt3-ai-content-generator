@@ -18,6 +18,11 @@ class AIPKit_Vector_Qdrant_Strategy extends AIPKit_Vector_Base_Provider_Strategy
     public function __construct() {
     }
 
+    /** Apply credentials locally; the next operation authenticates with the provider. */
+    public function configure(array $config) {
+        return \WPAICG\Vector\Providers\Qdrant\Methods\configure_logic($this, $config);
+    }
+
     /**
      * @return bool|\WP_Error
      */
@@ -72,6 +77,15 @@ class AIPKit_Vector_Qdrant_Strategy extends AIPKit_Vector_Base_Provider_Strategy
      */
     public function describe_index(string $index_name) {
         return \WPAICG\Vector\Providers\Qdrant\Methods\describe_index_logic($this, $index_name);
+    }
+
+    /** Reuse the same collection configuration for embedding preparation and search. */
+    public function describe_index_for_embeddings(string $index_name) {
+        $description = \WPAICG\Vector\Providers\Qdrant\Methods\collection_metadata_logic($this, $index_name);
+        if (is_wp_error($description)) { return $description; }
+        $vector = \WPAICG\Vector\Providers\Qdrant\Methods\collection_vector_config_logic($description);
+        if (!is_wp_error($vector)) { $description['dimensions'] = $vector['size']; }
+        return $description;
     }
 
     /**
@@ -176,13 +190,13 @@ function _request_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string 
 }
 
 /**
- * Logic for the connect method of AIPKit_Vector_Qdrant_Strategy.
+ * Initialize Qdrant credentials without a network probe.
  *
  * @param AIPKit_Vector_Qdrant_Strategy $strategyInstance The instance of the strategy class.
  * @param array $config Configuration array. Must include 'url' and 'api_key'.
  * @return bool|WP_Error True on success, WP_Error on failure.
  */
-function connect_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, array $config) {
+function configure_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, array $config) {
     if (empty($config['url'])) {
         return new WP_Error('missing_qdrant_url', __('Qdrant URL is required for connection.', 'gpt3-ai-content-generator'));
     }
@@ -191,7 +205,15 @@ function connect_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, array $c
     }
     $strategyInstance->set_qdrant_url($config['url']);
     $strategyInstance->set_api_key($config['api_key']);
-    $strategyInstance->set_is_connected_status(false); // Set to false initially, _request will test
+    $strategyInstance->set_is_connected_status(true);
+    return true;
+}
+
+/** Validate a connection explicitly, outside normal operations. */
+function connect_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, array $config) {
+    $configured = configure_logic($strategyInstance, $config);
+    if (is_wp_error($configured)) { return $configured; }
+    $strategyInstance->set_is_connected_status(false);
 
     // The _request method called by list_indexes will determine actual connectivity
     // List collections is used as a lightweight connection test
@@ -260,6 +282,7 @@ function create_index_if_not_exists_logic(AIPKit_Vector_Qdrant_Strategy $strateg
 function delete_index_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string $index_name) {
     $path = '/collections/' . urlencode($index_name);
     $response = _request_logic($strategyInstance, 'DELETE', $path);
+    delete_transient(collection_metadata_cache_key_logic($strategyInstance, $index_name));
 
     if (is_wp_error($response)) {
         return $response;
@@ -309,6 +332,69 @@ function delete_vectors_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, s
     return in_array($operation_status, ['acknowledged', 'completed'], true);
 }
 
+/** Resolve the sole dense vector without guessing between multiple vector spaces. */
+function collection_vector_config_logic(array $description, ?string $requested_name = null) {
+    $vectors = $description['config']['params']['vectors'] ?? null;
+    if (!is_array($vectors) || $vectors === []) {
+        return new WP_Error('qdrant_vector_config_missing', __('Could not read the collection vector configuration. Refresh the collection and try again.', 'gpt3-ai-content-generator'));
+    }
+    if (isset($vectors['size']) && is_numeric($vectors['size']) && (int) $vectors['size'] > 0) {
+        if ($requested_name !== null && $requested_name !== '') {
+            return new WP_Error('qdrant_vector_name_invalid', __('The selected vector name does not exist in this collection.', 'gpt3-ai-content-generator'));
+        }
+        return ['size' => (int) $vectors['size'], 'name' => null];
+    }
+    if ($requested_name === null) {
+        if (count($vectors) !== 1) {
+            return new WP_Error('qdrant_vector_config_ambiguous', __('This collection has multiple named vectors. Use a collection with one dense vector for this knowledge base.', 'gpt3-ai-content-generator'));
+        }
+        $requested_name = (string) array_key_first($vectors);
+    }
+    $config = $vectors[$requested_name] ?? null;
+    if (!is_array($config) || !isset($config['size']) || !is_numeric($config['size']) || (int) $config['size'] <= 0) {
+        return new WP_Error('qdrant_vector_config_missing', __('Could not read the collection vector configuration. Refresh the collection and try again.', 'gpt3-ai-content-generator'));
+    }
+    return ['size' => (int) $config['size'], 'name' => $requested_name];
+}
+
+/** Isolate metadata by server, credentials and collection without storing the API key. */
+function collection_metadata_cache_key_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string $index_name): string {
+    return 'aipkit_qdrant_meta_' . hash('sha256', wp_json_encode([
+        $strategyInstance->get_qdrant_url(), $strategyInstance->get_api_key(), $index_name,
+    ]));
+}
+
+/** Cache only valid vector configuration and payload indexes, never point counts or payloads. */
+function cache_collection_metadata_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string $index_name, array $description): void {
+    $key = collection_metadata_cache_key_logic($strategyInstance, $index_name);
+    $vectors = $description['config']['params']['vectors'] ?? [];
+    if (!is_array($vectors) || !$vectors) { delete_transient($key); return; }
+    $names = isset($vectors['size']) ? [null] : array_keys($vectors);
+    foreach ($names as $name) {
+        if (is_wp_error(collection_vector_config_logic($description, $name === null ? null : (string) $name))) {
+            delete_transient($key);
+            return;
+        }
+    }
+    set_transient($key, [
+        'config' => ['params' => ['vectors' => $vectors]],
+        'payload_schema' => is_array($description['payload_schema'] ?? null) ? $description['payload_schema'] : [],
+    ], 5 * MINUTE_IN_SECONDS);
+}
+
+/** Search and filter preparation do not need the expensive exact point count. */
+function collection_metadata_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string $index_name, bool $refresh = false, bool &$cache_hit = false) {
+    $key = collection_metadata_cache_key_logic($strategyInstance, $index_name);
+    $cached = $refresh ? false : get_transient($key);
+    $cache_hit = is_array($cached) && isset($cached['config']['params']['vectors']);
+    if ($cache_hit && $strategyInstance->get_is_connected_status()) { return $cached; }
+    $cache_hit = false;
+    if ($refresh) { delete_transient($key); }
+    $description = _request_logic($strategyInstance, 'GET', '/collections/' . urlencode($index_name));
+    if (!is_wp_error($description)) { cache_collection_metadata_logic($strategyInstance, $index_name, $description); }
+    return $description;
+}
+
 /**
  * Logic for the describe_index method of AIPKit_Vector_Qdrant_Strategy.
  * Describes a Qdrant collection.
@@ -320,6 +406,7 @@ function delete_vectors_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, s
 function describe_index_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, string $index_name) {
     // First, get the main collection info like config
     $path = '/collections/' . urlencode($index_name);
+    delete_transient(collection_metadata_cache_key_logic($strategyInstance, $index_name));
     $description_response = _request_logic($strategyInstance, 'GET', $path);
 
     if (is_wp_error($description_response)) {
@@ -330,6 +417,12 @@ function describe_index_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, s
 
     if (!is_array($result)) {
         return new WP_Error('qdrant_describe_malformed', __('Malformed response when describing Qdrant collection.', 'gpt3-ai-content-generator'));
+    }
+    cache_collection_metadata_logic($strategyInstance, $index_name, $result);
+
+    $vector_config = collection_vector_config_logic($result);
+    if (!is_wp_error($vector_config)) {
+        $result['dimensions'] = $vector_config['size'];
     }
 
     // Now, get the *exact* vector count using the dedicated count endpoint
@@ -402,22 +495,13 @@ function ensure_payload_indexes_for_filter_logic(AIPKit_Vector_Qdrant_Strategy $
         return true;
     }
 
-    static $known_indexed_fields = [];
-    $collection_cache_key = $collection_name;
-    if (!isset($known_indexed_fields[$collection_cache_key])) {
-        $known_indexed_fields[$collection_cache_key] = [];
-        $description = describe_index_logic($strategyInstance, $collection_name);
-        if (!is_wp_error($description)) {
-            $payload_schema = $description['payload_schema'] ?? [];
-            if (is_array($payload_schema)) {
-                $known_indexed_fields[$collection_cache_key] = array_fill_keys(array_keys($payload_schema), true);
-            }
-        }
-    }
+    $description = collection_metadata_logic($strategyInstance, $collection_name);
+    if (is_wp_error($description)) { return $description; }
+    $payload_schema = is_array($description['payload_schema'] ?? null) ? $description['payload_schema'] : [];
 
     foreach ($conditions as $condition) {
         $field_name = isset($condition['key']) && is_string($condition['key']) ? trim($condition['key']) : '';
-        if ($field_name === '' || isset($known_indexed_fields[$collection_cache_key][$field_name])) {
+        if ($field_name === '' || isset($payload_schema[$field_name])) {
             continue;
         }
 
@@ -436,14 +520,14 @@ function ensure_payload_indexes_for_filter_logic(AIPKit_Vector_Qdrant_Strategy $
 
         if (is_wp_error($response)) {
             $message = strtolower($response->get_error_message());
-            if (strpos($message, 'already exists') !== false || strpos($message, 'already has') !== false) {
-                $known_indexed_fields[$collection_cache_key][$field_name] = true;
-                continue;
+            if (strpos($message, 'already exists') === false && strpos($message, 'already has') === false) {
+                return $response;
             }
-            return $response;
         }
 
-        $known_indexed_fields[$collection_cache_key][$field_name] = true;
+        $payload_schema[$field_name] = ['data_type' => $schema];
+        $description['payload_schema'] = $payload_schema;
+        cache_collection_metadata_logic($strategyInstance, $collection_name, $description);
     }
 
     return true;
@@ -565,15 +649,11 @@ function query_vectors_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, st
         'with_payload' => true,
         'with_vector' => $query_vector_param['with_vector'] ?? false,
     ];
-    if (isset($query_vector_param['using']) && is_string($query_vector_param['using'])) {
-        $body['using'] = $query_vector_param['using'];
-    }
+    $cache_hit = false;
+    $description = collection_metadata_logic($strategyInstance, $index_name, false, $cache_hit);
+    if (is_wp_error($description)) { return $description; }
     if (!empty($filter)) {
         $body['filter'] = normalize_filter_payload_keys_logic($filter);
-        $ensure_indexes = ensure_payload_indexes_for_filter_logic($strategyInstance, $index_name, $body['filter']);
-        if (is_wp_error($ensure_indexes)) {
-            return $ensure_indexes;
-        }
     }
     if (isset($query_vector_param['score_threshold'])) $body['score_threshold'] = floatval($query_vector_param['score_threshold']);
     if (isset($query_vector_param['offset'])) $body['offset'] = absint($query_vector_param['offset']);
@@ -581,7 +661,29 @@ function query_vectors_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, st
         $body['prefetch'] = $query_vector_param['prefetch'];
     }
 
-    $response = _request_logic($strategyInstance, 'POST', $path, $body);
+    // A collection can be recreated or an alias changed externally. Refresh stale metadata
+    // once on a configuration error; never retry authentication, throttling or server errors.
+    for ($attempt = 0; $attempt < 2; ++$attempt) {
+        $vector_config = collection_vector_config_logic($description, isset($query_vector_param['using']) && is_string($query_vector_param['using']) ? $query_vector_param['using'] : null);
+        if (is_wp_error($vector_config)) {
+            $response = $vector_config;
+        } else {
+            $body['vector'] = $vector_config['name'] === null ? $vector_values : ['name' => $vector_config['name'], 'vector' => $vector_values];
+            if (!empty($body['filter'])) {
+                $ensure_indexes = ensure_payload_indexes_for_filter_logic($strategyInstance, $index_name, $body['filter']);
+                if (is_wp_error($ensure_indexes)) { return $ensure_indexes; }
+            }
+            $response = _request_logic($strategyInstance, 'POST', $path, $body);
+        }
+        $status = is_wp_error($response) ? ($response->get_error_data()['status'] ?? 0) : 0;
+        if (!is_wp_error($response) || !$cache_hit || $attempt > 0
+            || (!is_wp_error($vector_config) && !in_array($status, [400, 404], true))) { break; }
+        $fresh = collection_metadata_logic($strategyInstance, $index_name, true);
+        if (is_wp_error($fresh)) { return $fresh; }
+        if (($fresh['config']['params']['vectors'] ?? []) === ($description['config']['params']['vectors'] ?? [])
+            && ($fresh['payload_schema'] ?? []) === ($description['payload_schema'] ?? [])) { break; }
+        $description = $fresh;
+    }
     if (is_wp_error($response)) return $response;
 
     $points = (is_array($response) && isset($response['points']) && is_array($response['points'])) ? $response['points'] : ((is_array($response) && !isset($response['status'])) ? $response : []);
@@ -666,36 +768,22 @@ function upsert_vectors_logic(AIPKit_Vector_Qdrant_Strategy $strategyInstance, s
     }
     unset($point);
 
-    // Optional: dimension pre-validation via describe_index
     $desc = describe_index_logic($strategyInstance, $index_name);
-    if (!is_wp_error($desc)) {
-        $vectors_cfg = $desc['config']['params']['vectors'] ?? null;
-        $expected_size = null;
-        if (is_array($vectors_cfg) && isset($vectors_cfg['size'])) {
-            $expected_size = (int) $vectors_cfg['size'];
+    if (is_wp_error($desc)) { return $desc; }
+    $vector_config = collection_vector_config_logic($desc);
+    if (is_wp_error($vector_config)) { return $vector_config; }
+    foreach ($body['points'] as &$point) {
+        $values = $point['vector'] ?? null;
+        if ($vector_config['name'] !== null && is_array($values) && array_key_exists($vector_config['name'], $values)) {
+            $values = $values[$vector_config['name']];
         }
-        if ($expected_size && $expected_size > 0) {
-            foreach ($body['points'] as $p) {
-                $vals = $p['vector'] ?? null;
-                if (is_array($vals) && count($vals) !== $expected_size) {
-                    /* translators: %1$d: expected dimension, %2$d: actual dimension */
-                    return new WP_Error('qdrant_vector_dimension_mismatch', sprintf(__('Vector dimension mismatch. Expected %1$d, got %2$d.', 'gpt3-ai-content-generator'), $expected_size, count($vals)));
-                }
-            }
-        } else {
-            // Fallback: internal consistency
-            $first_len = null;
-            foreach ($body['points'] as $p) {
-                $vals = $p['vector'] ?? null;
-                if (!is_array($vals)) continue;
-                $len = count($vals);
-                if ($first_len === null) { $first_len = $len; }
-                if ($first_len !== $len) {
-                    return new WP_Error('qdrant_vector_dimension_inconsistent', __('Vectors have inconsistent dimensions in the upsert payload.', 'gpt3-ai-content-generator'));
-                }
-            }
+        if (!is_array($values) || count($values) !== $vector_config['size']) {
+            /* translators: 1: expected dimension; 2: actual dimension. */
+            return new WP_Error('qdrant_vector_dimension_mismatch', sprintf(__('Vector dimension mismatch. Expected %1$d, got %2$d.', 'gpt3-ai-content-generator'), $vector_config['size'], is_array($values) ? count($values) : 0));
         }
+        $point['vector'] = $vector_config['name'] === null ? $values : [$vector_config['name'] => $values];
     }
+    unset($point);
 
     // Add wait=true by default (filterable)
     $wait_default = apply_filters('aipkit_qdrant_upsert_wait', true, $index_name);

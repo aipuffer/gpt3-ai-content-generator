@@ -37,16 +37,21 @@ class AIPKit_Vector_OpenAI_Strategy extends AIPKit_Vector_Base_Provider_Strategy
     /**
      * @return bool|\WP_Error
      */
-    public function connect(array $config) {
-        // The main logic of setting properties is done here, the _logic file might do a test call.
+    public function configure(array $config) {
         if (empty($config['api_key'])) {
             return new WP_Error('missing_api_key', __('OpenAI API Key is required for connection.', 'gpt3-ai-content-generator'));
         }
         $this->api_key = $config['api_key'];
         $this->base_url = $config['base_url'] ?? $this->base_url;
         $this->api_version = $config['api_version'] ?? $this->api_version;
-        $this->is_connected = true; // Mark as connected before trying a test call in logic file
+        $this->is_connected = true;
+        return true;
+    }
 
+    /** Explicit connection tests still validate the credentials remotely. */
+    public function connect(array $config) {
+        $configured = $this->configure($config);
+        if (is_wp_error($configured)) { return $configured; }
         return \WPAICG\Vector\Providers\OpenAI\Methods\connect_logic($this, $config);
     }
 

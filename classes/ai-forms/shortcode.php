@@ -534,7 +534,8 @@ function render_field_logic(array $element, int $form_id): void
             echo '</label>';
             switch ($element['type']) {
                 case 'text-input':
-                    echo '<input type="text" id="' . esc_attr($field_id_attr) . '" name="' . esc_attr($field_name_attr) . '" class="aipkit_form-input" placeholder="' . esc_attr($element['placeholder'] ?? '') . '" ' . esc_attr($required_attr) . '>';
+                    $input_type = ($element['inputType'] ?? '') === 'email' ? 'email' : 'text';
+                    echo '<input type="' . esc_attr($input_type) . '" id="' . esc_attr($field_id_attr) . '" name="' . esc_attr($field_name_attr) . '" class="aipkit_form-input" placeholder="' . esc_attr($element['placeholder'] ?? '') . '" ' . esc_attr($required_attr) . '>';
                     break;
                 case 'textarea':
                     echo '<textarea id="' . esc_attr($field_id_attr) . '" name="' . esc_attr($field_name_attr) . '" class="aipkit_form-input" rows="4" placeholder="' . esc_attr($element['placeholder'] ?? '') . '" ' . esc_attr($required_attr) . '></textarea>';
