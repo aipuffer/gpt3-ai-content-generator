@@ -496,6 +496,25 @@ final class Connection
         return admin_url('admin.php?page=wpaicg&aipkit_module=stats&aipkit_stats_tab=cloud');
     }
 
+    /**
+     * Freemius sends email confirmation back to its Account page, which only exists once the SDK is opted in. Without
+     * the optional tracking opt-in WordPress would deny that page, so an admin who may manage settings is sent to the
+     * Cloud account view instead, where the nonce-protected "I've verified my email" check runs once. Routing only:
+     * this GET changes nothing, and anyone else still gets WordPress's denial.
+     */
+    public static function return_from_missing_account_page(): void
+    {
+        if (!function_exists('wpaicg_gacg_fs') || !AIPKit_Role_Manager::user_can_manage_settings()) { return; }
+        // Exact, unnormalized comparison: a look-alike such as `wpaicg-account!` keeps WordPress's denial.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing only; compared exactly, never output.
+        $page = isset($_GET['page']) && is_string($_GET['page']) ? wp_unslash($_GET['page']) : '';
+        if ($page === '' || $page !== wpaicg_gacg_fs()->get_menu_slug() . '-account') { return; }
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; no state changes here.
+        $action = sanitize_key(wp_unslash($_GET['fs_action'] ?? ''));
+        wp_safe_redirect(add_query_arg('aipkit_email_return', in_array($action, ['sync_user', 'verify_email'], true) ? '1' : '0', self::account_url()));
+        exit;
+    }
+
     public static function refresh_date(): string
     {
         $next = self::credit_state()['credits']['allowance']['nextRefresh'] ?? null;

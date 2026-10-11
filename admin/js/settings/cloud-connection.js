@@ -354,7 +354,23 @@ export function bindCloudConnection(root) {
         }
         return update(button.value, form, button);
     });
+    checkEmailOnReturn(root);
     return accountEmail;
+}
+
+/**
+ * Back from Freemius's email confirmation, routed here (marker `aipkit_email_return=1`) because its Account page
+ * doesn't exist while the SDK is anonymous: run the existing nonce-protected "I've verified my email" action once,
+ * which asks Cloud for a fresh, uncached verification status (status(true)). The marker is removed first, so a reload
+ * never repeats it. The page's own load refresh is cached and isn't enough on its own.
+ */
+function checkEmailOnReturn(root) {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('aipkit_email_return') !== '1') return;
+    url.searchParams.delete('aipkit_email_return');
+    window.history.replaceState(window.history.state, '', url.toString());
+    const verify = root?.querySelector('#aipkit_cloud_connection .aipkit_cloud_email_recovery button[name="cloud_action"][value="verify"]');
+    if (verify?.form) verify.form.requestSubmit(verify);
 }
 
 window.aipkit_initCloudConnection = () => bindCloudConnection(document.getElementById('aipkit_settings_container'));

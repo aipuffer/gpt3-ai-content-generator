@@ -50,6 +50,11 @@ class AIPKit_OpenAI_Reasoning
         return (bool) preg_match('/^gpt-6-(?:sol|luna)(?:-\d{4}-\d{2}-\d{2})?$/', strtolower($model));
     }
 
+    public static function is_gpt_6_1_sol(string $model): bool
+    {
+        return (bool) preg_match('/^gpt-6\.1-sol(?:-\d{4}-\d{2}-\d{2})?$/', strtolower($model));
+    }
+
     /**
      * Returns true if the model family supports reasoning controls.
      */
@@ -60,6 +65,7 @@ class AIPKit_OpenAI_Reasoning
             return false;
         }
         return self::is_gpt_6_astra($model_lower)
+            || self::is_gpt_6_1_sol($model_lower)
             || self::is_gpt_6_sol_or_luna($model_lower)
             || strpos($model_lower, 'gpt-5') !== false
             || strpos($model_lower, 'o1') !== false
@@ -107,7 +113,7 @@ class AIPKit_OpenAI_Reasoning
         if ($effort === '') {
             return '';
         }
-        if (self::is_gpt_6_astra($model_lower) && $effort === 'none') {
+        if ((self::is_gpt_6_astra($model_lower) || self::is_gpt_6_1_sol($model_lower)) && $effort === 'none') {
             $effort = 'low';
         }
 
@@ -138,7 +144,8 @@ class AIPKit_OpenAI_Reasoning
     public static function normalize_payload_for_model(array $payload, string $model, bool $chat_completions = false): array
     {
         $is_astra = self::is_gpt_6_astra($model);
-        $is_gpt_6 = $is_astra || self::is_gpt_6_sol_or_luna($model);
+        $requires_reasoning = $is_astra || self::is_gpt_6_1_sol($model);
+        $is_gpt_6 = $requires_reasoning || self::is_gpt_6_sol_or_luna($model);
         if ($is_gpt_6 && $chat_completions) {
             if (array_key_exists('reasoning_effort', $payload)) {
                 $effort = self::normalize_effort_for_model($model, $payload['reasoning_effort']);
@@ -161,7 +168,7 @@ class AIPKit_OpenAI_Reasoning
         }
 
         $effort = $chat_completions ? ($payload['reasoning_effort'] ?? '') : ($payload['reasoning']['effort'] ?? '');
-        $reasoning_active = $is_gpt_6 && ($is_astra || $effort !== 'none');
+        $reasoning_active = $is_gpt_6 && ($requires_reasoning || $effort !== 'none');
         if ($reasoning_active || (!$is_gpt_6 && !$chat_completions && !self::supports_sampling_controls($model))) {
             unset($payload['temperature'], $payload['top_p'], $payload['frequency_penalty'], $payload['presence_penalty']);
         }
@@ -200,6 +207,13 @@ class AIPKit_OpenAI_Reasoning
      */
     private static function get_reasoning_rule(string $model_lower): array
     {
+        if (self::is_gpt_6_1_sol($model_lower)) {
+            return [
+                'allowed' => ['low', 'medium', 'high', 'xhigh', 'max'],
+                'default' => 'medium',
+            ];
+        }
+
         if (self::is_gpt_6_astra($model_lower)) {
             return [
                 'allowed' => ['low', 'medium', 'high', 'xhigh', 'max'],

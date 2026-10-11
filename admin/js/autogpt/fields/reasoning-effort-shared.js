@@ -30,6 +30,10 @@
     return /^gpt-6-(?:sol|luna)(?:-\d{4}-\d{2}-\d{2})?$/.test(modelLower);
   }
 
+  function isGpt61Sol(modelLower) {
+    return /^gpt-6\.1-sol(?:-\d{4}-\d{2}-\d{2})?$/.test(modelLower);
+  }
+
   function isOpenAIReasoningModel(modelLower) {
     if (isChatVariantModel(modelLower)) {
       return false;
@@ -41,7 +45,7 @@
       modelLower.startsWith("o4");
     const isGpt5 = modelLower.includes("gpt-5");
 
-    return isOseries || isGpt5 || isGpt6Astra(modelLower) || isGpt6SolOrLuna(modelLower);
+    return isOseries || isGpt5 || isGpt6Astra(modelLower) || isGpt61Sol(modelLower) || isGpt6SolOrLuna(modelLower);
   }
 
   function isPostGpt51(modelLower) {
@@ -85,6 +89,12 @@
   }
 
   function getReasoningRule(modelLower) {
+    if (isGpt61Sol(modelLower)) {
+      return {
+        allowed: ["low", "medium", "high", "xhigh", "max"],
+        defaultValue: "medium",
+      };
+    }
     if (isGpt6Astra(modelLower)) {
       return {
         allowed: ["low", "medium", "high", "xhigh", "max"],

@@ -4,7 +4,7 @@ Tags: chatbot, chatgpt, ai writer, openai, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.97
+Stable tag: 2.4.98
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -205,6 +205,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.4.98 =
+Fixes Cloud email-verification return links and GPT-6.1 Sol requests rejected for unsupported Temperature and Top P settings.
+
 = 2.4.97 =
 Redesigned Settings, improved app connections and delivery logs, safer backups and visitor blocking, and fixes for AI Forms and Qdrant knowledge bases.
 
@@ -218,6 +221,11 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.4.98 =
+
+- Fixed Cloud email verification returning to an unavailable account page; authorized admins return to Usage and refresh verification status once.
+- Added GPT-6.1 Sol compatibility: omit unsupported sampling parameters and show its supported reasoning settings, including when using saved chatbot settings.
 
 = 2.4.97 =
 

@@ -2338,7 +2338,7 @@ function get_openai_specific_config_logic(int $bot_id, callable $get_meta_fn): a
     $reasoning_effort = AIPKit_OpenAI_Reasoning::sanitize_effort($settings['reasoning_effort']);
     $reasoning_model = (string) $get_meta_fn('_aipkit_model', '');
     $reasoning_provider = (string) $get_meta_fn('_aipkit_provider', 'OpenAI');
-    if ($reasoning_provider === 'OpenAI' && AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model)) {
+    if ($reasoning_provider === 'OpenAI' && (AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model) || AIPKit_OpenAI_Reasoning::is_gpt_6_1_sol($reasoning_model))) {
         $reasoning_effort = AIPKit_OpenAI_Reasoning::normalize_effort_for_model(
             $reasoning_model,
             $reasoning_effort !== '' ? $reasoning_effort : $default_reasoning_effort
@@ -2768,7 +2768,7 @@ function sanitize_settings_logic(array $raw_settings, int $bot_id): array
     $sanitized['max_messages'] = isset($raw_settings['max_messages']) ? absint($raw_settings['max_messages']) : BotSettingsManager::DEFAULT_MAX_MESSAGES;
     $reasoning_effort = AIPKit_OpenAI_Reasoning::sanitize_effort($raw_settings['reasoning_effort'] ?? '');
     $reasoning_model = sanitize_text_field((string) ($raw_settings['model'] ?? ''));
-    if ($sanitized['provider'] === 'OpenAI' && AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model)) {
+    if ($sanitized['provider'] === 'OpenAI' && (AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model) || AIPKit_OpenAI_Reasoning::is_gpt_6_1_sol($reasoning_model))) {
         $reasoning_effort = AIPKit_OpenAI_Reasoning::normalize_effort_for_model(
             $reasoning_model,
             $reasoning_effort !== '' ? $reasoning_effort : BotSettingsManager::DEFAULT_REASONING_EFFORT

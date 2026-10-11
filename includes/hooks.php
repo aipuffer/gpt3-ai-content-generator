@@ -78,6 +78,7 @@ class AIPKit_Hook_Manager
             add_action('wp_ajax_aipkit_cloud_connection', [\WPAICG\Cloud\Connection::class, 'handle']);
             if (is_admin()) {
                 add_action('admin_init', [\WPAICG\Cloud\Connection::class, 'remove_scheduled_sync']);
+                add_action('admin_page_access_denied', [\WPAICG\Cloud\Connection::class, 'return_from_missing_account_page']);
                 \WPAICG\Cloud\CreditNotice::register();
                 \WPAICG\Cloud\Announcement::register();
             }

@@ -799,7 +799,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $saved_reasoning_effort = AIPKit_OpenAI_Reasoning::sanitize_effort(
             get_post_meta($bot_id, '_aipkit_reasoning_effort', true)
         );
-        if ($provider === 'OpenAI' && AIPKit_OpenAI_Reasoning::is_gpt_6_astra($model)) {
+        if ($provider === 'OpenAI' && (AIPKit_OpenAI_Reasoning::is_gpt_6_astra($model) || AIPKit_OpenAI_Reasoning::is_gpt_6_1_sol($model))) {
             $next_reasoning_effort = AIPKit_OpenAI_Reasoning::normalize_effort_for_model(
                 $model,
                 $saved_reasoning_effort !== '' ? $saved_reasoning_effort : BotSettingsManager::DEFAULT_REASONING_EFFORT
@@ -896,7 +896,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $reasoning_model = isset($_POST['model'])
             ? sanitize_text_field(wp_unslash($_POST['model']))
             : (string) get_post_meta($bot_id, '_aipkit_model', true);
-        if ($provider === 'OpenAI' && AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model)) {
+        if ($provider === 'OpenAI' && (AIPKit_OpenAI_Reasoning::is_gpt_6_astra($reasoning_model) || AIPKit_OpenAI_Reasoning::is_gpt_6_1_sol($reasoning_model))) {
             $reasoning_effort = AIPKit_OpenAI_Reasoning::normalize_effort_for_model(
                 $reasoning_model,
                 $reasoning_effort !== '' ? $reasoning_effort : BotSettingsManager::DEFAULT_REASONING_EFFORT
