@@ -1,0 +1,452 @@
+/* The AI Puffer Cloud panel: one side panel, three tabs (Account, AI credits, Website), opened from every entry
+   point. It uses the provider sheet's shell; these rules add the tabs, the panes and the parts only it has. */
+
+#aipkit_settings_container .aipkit_cloud_panel_pill {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 999px;
+    background: #f0f2f5;
+    color: #5f6b7a;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1;
+}
+#aipkit_settings_container .aipkit_cloud_panel_pill:empty {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel_pill.is-ok {
+    background: #e8f7ed;
+    color: #18733b;
+}
+#aipkit_settings_container .aipkit_cloud_panel_pill.is-warn {
+    background: #fff4dc;
+    color: #8a5300;
+}
+#aipkit_settings_container .aipkit_cloud_panel_pill.is-bad {
+    background: #feeceb;
+    color: #b42318;
+}
+#aipkit_settings_container .aipkit_cloud_panel [data-cloud-panel-sub] {
+    overflow-wrap: anywhere;
+}
+
+/* Tabs sit on the header's bottom rule. */
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_settings_provider_panel_header:has(+ .aipkit_cloud_panel_tabs:not([hidden])) {
+    padding-bottom: 12px;
+    border-bottom: 0;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    padding: 0 24px;
+    border-bottom: 1px solid #e3e7ee;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tabs[hidden] {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 -1px;
+    padding: 8px 10px 10px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: none;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.3;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab:is(:hover, :focus-visible) {
+    outline: none;
+    color: #172033;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab:focus-visible span:first-child {
+    border-radius: 4px;
+    box-shadow: 0 0 0 2px #c9d4ff;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab[aria-selected="true"] {
+    border-bottom-color: #3f5fe8;
+    color: #172033;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab_dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #e0912a;
+}
+#aipkit_settings_container .aipkit_cloud_panel_tab_dot[hidden] {
+    display: none;
+}
+
+/* One tab's panes at a time. Before Cloud is connected the sign-up shows alone, with no tabs. */
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_connection.is-connected {
+    display: contents;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_pane {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_pane[hidden],
+#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="account"] .aipkit_cloud_pane:not([data-cloud-pane="account"]),
+#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="credits"] .aipkit_cloud_pane:not([data-cloud-pane="credits"]),
+#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] .aipkit_cloud_pane:not([data-cloud-pane="website"]),
+#aipkit_settings_container .aipkit_cloud_panel:not([data-cloud-state="connected"], [data-cloud-state="verify"], [data-cloud-state="revoked"]) .aipkit_cloud_pane {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_website {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-feedback]:focus {
+    outline: none;
+}
+
+/* The in-context connect dialog shows the same section without tabs: the balance first, then the account. */
+.aipkit_connect_dialog .aipkit_cloud_pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+.aipkit_connect_dialog .aipkit_cloud_pane[data-cloud-pane="credits"] {
+    order: -1;
+}
+
+/* Notices that ask for something carry their button below the words. */
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_notice {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_notice[hidden] {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_notice p {
+    margin: 0;
+}
+
+/* Account: the two balances side by side, each linking to its tab. Only the panel has tabs to link to. */
+.aipkit_cloud_tiles {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+#aipkit_settings_container .aipkit_cloud_tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+#aipkit_settings_container .aipkit_cloud_tile_label {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+}
+#aipkit_settings_container .aipkit_cloud_tile_value {
+    color: #172033;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+#aipkit_settings_container .aipkit_cloud_tile_meta {
+    color: #8a94a6;
+    font-size: 11.5px;
+}
+#aipkit_settings_container .aipkit_cloud_tile_link {
+    align-self: flex-start;
+    margin: 6px 0 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #2f49c9;
+    font-size: 12.5px;
+    font-weight: 650;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_cloud_tile_link:is(:hover, :focus-visible) {
+    outline: none;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* The last row of a tab: a rare, destructive action, set apart and quiet. Only the panel shows it. */
+.aipkit_cloud_quiet_row {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_quiet_row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed #dce3ec;
+    color: #64748b;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+#aipkit_settings_container .aipkit_cloud_quiet_action {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #b42318;
+    font-size: 12.5px;
+    font-weight: 700;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_cloud_quiet_action:is(:hover, :focus-visible) {
+    outline: none;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+/* While the email is being changed, the account isn't disconnected from under it. */
+#aipkit_settings_container .aipkit_cloud_panel:has([data-cloud-email-editor]:not([hidden])) .aipkit_cloud_panel_disconnect,
+#aipkit_settings_container .aipkit_cloud_connection:has([data-cloud-email-editor]:not([hidden])) .aipkit_cloud_quiet_row {
+    display: none;
+}
+
+/* AI credits: the balance, then where it comes from. */
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_value strong {
+    color: #172033;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions .aipkit_cloud_purchase {
+    margin: 0;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions a.aipkit_btn {
+    text-decoration: none;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown {
+    margin: 0;
+    border: 1px solid #dce3ec;
+    border-radius: 12px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #edf1f6;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown div:last-child {
+    border-bottom: 0;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown dt {
+    color: #475467;
+    font-size: 13px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown dd {
+    margin: 0;
+    color: #172033;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown small {
+    display: block;
+    color: #8a94a6;
+    font-size: 11.5px;
+    font-weight: 400;
+}
+#aipkit_settings_container .aipkit_cloud_default_row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* The sign-up's two free allowances, side by side. */
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid #ffe1d3;
+    border-radius: 12px;
+    background: #ffffff;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tile strong {
+    color: #172033;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tile_label {
+    color: #172033;
+    font-size: 13px;
+    font-weight: 700;
+}
+:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tile .aipkit_cloud_hero_text {
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+/* The footer is the same on every tab: when it was checked, with a refresh icon beside it; Disconnect and Done on the right. */
+#aipkit_settings_container .aipkit_cloud_panel_footer {
+    justify-content: flex-start;
+}
+#aipkit_settings_container .aipkit_cloud_panel_status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+#aipkit_settings_container .aipkit_cloud_panel_status[hidden] {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_panel_checked {
+    color: #64748b;
+    font-size: 12.5px;
+}
+#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: #64748b;
+    box-shadow: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh:is(:hover, :focus-visible) {
+    outline: none;
+    background: #f1f4f8;
+    color: #172033;
+}
+#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh[aria-busy="true"] .dashicons {
+    animation: aipkit_spin 0.9s linear infinite;
+}
+#aipkit_settings_container .aipkit_cloud_panel_actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    margin-left: auto;
+}
+#aipkit_settings_container .aipkit_cloud_panel_actions .aipkit_cloud_panel_disconnect[hidden] {
+    display: none;
+}
+
+@media (max-width: 480px) {
+    #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_tiles,
+    :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tiles {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_quiet_row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* Website tab, connecting: one line says what a one-click connection gets; "Change" unfolds the two choices. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    list-style: none;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options > summary::-webkit-details-marker {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options_toggle {
+    flex: 0 0 auto;
+    color: #3f5fe8;
+    font-size: 13px;
+    font-weight: 600;
+}
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options > summary:hover .aipkit_mcp_connect_options_toggle {
+    text-decoration: underline;
+}
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options[open] .is-closed,
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options:not([open]) .is-open {
+    display: none;
+}
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_connect_options > .aipkit_settings_provider_option_list {
+    margin-top: 10px;
+}
+
+/* Website tab, connecting: the assistant, safety level and WordPress user line up with one select width. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_cloud_connect .aipkit_settings_provider_option_control .aipkit_form-input {
+    width: 184px;
+    max-width: 100%;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 28px 0 10px;
+    text-overflow: ellipsis;
+}
+
+/* Website tab: each assistant's safety level, changed in place. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_level_select {
+    width: auto;
+    min-width: 116px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0 28px 0 10px;
+    font-size: 13px;
+}

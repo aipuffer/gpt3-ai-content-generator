@@ -5,8 +5,6 @@ namespace WPAICG\Usage;
 use WPAICG\Dashboard\Ajax\BaseDashboardAjaxHandler;
 use WPAICG\Core\AIPKit_Payload_Sanitizer;
 use WPAICG\Chat\Storage\LogStorage;
-use WPAICG\Chat\Storage\LogCronManager;
-use WPAICG\Chat\Utils\LogConfig;
 use WPAICG\Core\Moderation\AIPKit_Global_Security_Settings;
 use WPAICG\AIPKit_Role_Manager;
 use WPAICG\Stats\AIPKit_Stats;
@@ -22,7 +20,7 @@ abstract class AIPKit_Usage_Ajax_Handler extends BaseDashboardAjaxHandler
     protected function resolve_stats_days($raw_days): int
     {
         $days = absint($raw_days);
-        $allowed = [7, 30, 90];
+        $allowed = [1, 7, 30, 90];
         if (!in_array($days, $allowed, true)) {
             $days = 30;
         }
@@ -74,12 +72,16 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
 
         $days = in_array($post_data['days'] ?? 7, [0, '0'], true)
             ? 0 : $this->resolve_stats_days($post_data['days'] ?? 7);
+        $source = isset($post_data['source']) ? sanitize_key($post_data['source']) : 'all';
+        if (!in_array($source, ['all', 'cloud', 'provider'], true)) {
+            $source = 'all';
+        }
         $per_page = 20;
         $page = isset($post_data['page']) ? absint($post_data['page']) : 1;
         $page = max(1, min(intdiv(PHP_INT_MAX, $per_page), $page));
         $offset = ($page - 1) * $per_page;
         $stats = new AIPKit_Stats();
-        $requests = $stats->get_recent_provider_requests($days, $per_page + 1, $offset);
+        $requests = $stats->get_recent_provider_requests($days, $per_page + 1, $offset, $source);
         if (is_wp_error($requests)) {
             $this->send_wp_error($requests);
             return;
@@ -92,17 +94,33 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         ]);
     }
 
-    private function get_stats_time_range(int $days): array
+    /** Card totals and chip counts for the selected period. */
+    public function ajax_get_stats_overview()
     {
-        $wp_timezone = wp_timezone();
-        $end_datetime = new \DateTime('now', $wp_timezone);
-        $start_datetime = new \DateTime("-{$days} days", $wp_timezone);
-        $start_datetime->setTime(0, 0, 0);
+        $post_data = $this->get_stats_post_data();
+        if ($post_data === null) {
+            return;
+        }
+        $overview = (new AIPKit_Stats())->get_usage_overview($this->resolve_stats_days($post_data['days'] ?? 30));
+        if (is_wp_error($overview)) {
+            $this->send_wp_error($overview);
+            return;
+        }
+        wp_send_json_success($overview);
+    }
 
-        return [
-            'start_ts' => $start_datetime->getTimestamp(),
-            'end_ts' => $end_datetime->getTimestamp(),
-        ];
+    /** Shortens an IP for lists; the full address stays on the server. */
+    private function mask_stats_ip(string $ip_address): string
+    {
+        if (filter_var($ip_address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $parts = explode('.', $ip_address);
+            return $parts[0] . '.' . $parts[1] . '.x.x';
+        }
+        if (filter_var($ip_address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            $parts = explode(':', $ip_address);
+            return $parts[0] . ':' . ($parts[1] ?? '') . ':…';
+        }
+        return '';
     }
 
     /**
@@ -157,9 +175,6 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         if ($post_data === null) {
             return;
         }
-        $days = $this->resolve_stats_days($post_data['days'] ?? 30);
-        $range = $this->get_stats_time_range($days);
-
         $page = isset($post_data['page']) ? absint($post_data['page']) : 1;
         $per_page = isset($post_data['per_page']) ? absint($post_data['per_page']) : 20;
         if ($page < 1) {
@@ -172,26 +187,7 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
             $per_page = 100;
         }
         $offset = ($page - 1) * $per_page;
-
-        $filters = [
-            'start_ts' => $range['start_ts'],
-            'end_ts' => $range['end_ts'],
-        ];
-
-        $bot_id_raw = isset($post_data['bot_id']) ? sanitize_text_field($post_data['bot_id']) : '';
-        if ($bot_id_raw !== '') {
-            $filters['bot_id'] = $bot_id_raw;
-        }
-
-        $module = isset($post_data['module']) ? sanitize_key($post_data['module']) : '';
-        if ($module !== '') {
-            $filters['module'] = $module;
-        }
-
-        $search = isset($post_data['search']) ? sanitize_text_field($post_data['search']) : '';
-        if ($search !== '') {
-            $filters['search'] = $search;
-        }
+        $filters = $this->build_stats_log_filters($post_data);
 
         if (!class_exists(LogStorage::class)) {
             $this->send_wp_error(new WP_Error('missing_log_storage', __('Log storage is unavailable.', 'gpt3-ai-content-generator')));
@@ -202,6 +198,11 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         $logs = $log_storage->get_logs($filters, $per_page, $offset);
         $total_logs = $log_storage->count_logs($filters);
         $total_pages = $per_page > 0 ? (int) ceil($total_logs / $per_page) : 1;
+        foreach ($logs as &$log_row) {
+            $log_row['ip_masked'] = $this->mask_stats_ip(trim((string) ($log_row['ip_address'] ?? '')));
+            unset($log_row['ip_address']);
+        }
+        unset($log_row);
 
         wp_send_json_success([
             'logs' => $logs ?: [],
@@ -612,14 +613,13 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         ]);
     }
 
+    /** Visitor billing (legacy) customer links. Paid log retention saves through lib. */
     public function ajax_save_stats_settings()
     {
         $post_data = $this->get_stats_post_data();
         if ($post_data === null) {
             return;
         }
-        $enable_pruning = isset($post_data['enable_pruning']) && $post_data['enable_pruning'] === '1';
-        $retention_period = isset($post_data['retention_period_days']) ? floatval($post_data['retention_period_days']) : 90;
         $customer_dashboard_page_url = isset($post_data['customer_dashboard_page_url'])
             ? esc_url_raw(trim((string) $post_data['customer_dashboard_page_url']))
             : '';
@@ -627,23 +627,6 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
             ? esc_url_raw(trim((string) $post_data['customer_buycredits_url']))
             : '';
 
-        if (!LogConfig::is_valid_period($retention_period)) {
-            $retention_period = 90;
-        }
-
-        $is_pro = class_exists('\\WPAICG\\aipkit_dashboard')
-            ? \WPAICG\aipkit_dashboard::is_pro_plan()
-            : false;
-        if ($enable_pruning && !$is_pro) {
-            $this->send_wp_error(new WP_Error('pro_required', __('Auto-delete logs is a Pro feature.', 'gpt3-ai-content-generator')));
-            return;
-        }
-
-        $settings = [
-            'enable_pruning' => $enable_pruning && $is_pro,
-            'retention_period_days' => $retention_period,
-        ];
-        update_option('aipkit_log_settings', $settings, 'no');
         if ($customer_dashboard_page_url === '') {
             delete_option('aipkit_token_dashboard_page_url');
         } else {
@@ -655,79 +638,44 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
             update_option('aipkit_token_shop_page_url', $customer_buycredits_url, 'no');
         }
 
-        if (class_exists(LogCronManager::class)) {
-            if ($enable_pruning && $is_pro) {
-                LogCronManager::schedule_event();
-            } else {
-                LogCronManager::unschedule_event();
-            }
-        }
-
         wp_send_json_success([
             'message' => __('Settings saved.', 'gpt3-ai-content-generator'),
         ]);
     }
 
-    public function ajax_get_stats_log_cron_status()
+    /** How many logs are stored, for the Log retention dialog on every plan. */
+    public function ajax_get_stats_log_storage()
     {
         if (!$this->ensure_stats_access()) {
             return;
         }
-
-        $log_settings = LogConfig::get_log_settings();
-        $enable_pruning = (bool) ($log_settings['enable_pruning'] ?? false);
-        $is_pro = class_exists('\\WPAICG\\aipkit_dashboard') ? \WPAICG\aipkit_dashboard::is_pro_plan() : false;
-
-        $cron_hook = LogCronManager::HOOK_NAME;
-        $next_scheduled = wp_next_scheduled($cron_hook);
-
-        // Repair a missing event when pruning is enabled so the UI reflects an
-        // actionable schedule instead of contradicting the saved setting.
-        if ($enable_pruning && $is_pro && $next_scheduled === false) {
-            LogCronManager::schedule_event();
-            $next_scheduled = wp_next_scheduled($cron_hook);
+        $storage = (new AIPKit_Stats())->get_log_storage_summary();
+        if (is_wp_error($storage)) {
+            $this->send_wp_error($storage);
+            return;
+        }
+        $details = [];
+        if ($storage['oldest_ts'] > 0) {
+            /* translators: %s: date of the oldest saved log. */
+            $details[] = sprintf(__('Oldest from %s', 'gpt3-ai-content-generator'), wp_date(get_option('date_format'), $storage['oldest_ts']));
+        }
+        if ($storage['bytes'] > 0) {
+            /* translators: %s: approximate size of the saved logs, such as "12 MB". */
+            $details[] = sprintf(__('about %s', 'gpt3-ai-content-generator'), size_format($storage['bytes']));
         }
 
-        $is_cron_active = $next_scheduled !== false;
-
-        $state = 'disabled';
-        $status_text = __('Disabled', 'gpt3-ai-content-generator');
-        if ($enable_pruning) {
-            if ($is_cron_active) {
-                $state = 'scheduled';
-                $status_text = (int) $next_scheduled <= time()
-                    ? __('Next run is due', 'gpt3-ai-content-generator')
-                    : sprintf(
-                        /* translators: %s: time until the next log-pruning run. */
-                        __('Next run in %s', 'gpt3-ai-content-generator'),
-                        human_time_diff(time(), (int) $next_scheduled)
-                    );
-            } else {
-                $state = 'pending';
-                $status_text = __('Scheduling next run…', 'gpt3-ai-content-generator');
-            }
-        }
-
-        $last_run_option = get_option('aipkit_log_pruning_last_run', '');
-        $last_run_label = $last_run_option
-            ? sprintf(
-                /* translators: %s: last log-pruning run time. */
-                __('Last run %s', 'gpt3-ai-content-generator'),
-                wp_date(get_option('date_format') . ' ' . get_option('time_format'), strtotime($last_run_option))
-            )
-            : __('No cleanup has run yet', 'gpt3-ai-content-generator');
-
-        wp_send_json_success([
-            'state' => $state,
-            'status_text' => $status_text,
-            'last_run_label' => $last_run_label,
+        wp_send_json_success($storage + [
+            'summary' => $storage['count'] > 0
+                /* translators: %s: number of saved logs. */
+                ? sprintf(_n('%s log saved', '%s logs saved', $storage['count'], 'gpt3-ai-content-generator'), number_format_i18n($storage['count']))
+                : __('No logs saved yet', 'gpt3-ai-content-generator'),
+            'detail' => implode(' · ', $details),
         ]);
     }
 
     private function build_stats_log_filters(array $post_data): array
     {
-        $days = $this->resolve_stats_days($post_data['days'] ?? 30);
-        $range = $this->get_stats_time_range($days);
+        $range = AIPKit_Stats::period_range($this->resolve_stats_days($post_data['days'] ?? 30));
 
         $filters = [
             'start_ts' => $range['start_ts'],
@@ -747,6 +695,20 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
         $search = isset($post_data['search']) ? sanitize_text_field($post_data['search']) : '';
         if ($search !== '') {
             $filters['search'] = $search;
+        }
+
+        // Usage activity views: conversations, content & tasks (optionally one group) or errors.
+        $view = isset($post_data['view']) ? sanitize_key($post_data['view']) : '';
+        if ($view === 'conversations' || $view === 'tasks') {
+            $filters['log_scope'] = $view;
+        } elseif ($view === 'errors') {
+            $filters['has_error'] = true;
+        }
+        $group = isset($post_data['group']) ? sanitize_key($post_data['group']) : '';
+        if ($view === 'tasks' && isset(AIPKit_Stats::TASK_GROUPS[$group])) {
+            $filters['modules'] = AIPKit_Stats::TASK_GROUPS[$group];
+        } elseif ($view === 'tasks' && $group === 'other') {
+            $filters['exclude_modules'] = array_merge(...array_values(AIPKit_Stats::TASK_GROUPS));
         }
 
         return $filters;

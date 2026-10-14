@@ -1,20 +1,24 @@
 import { summarizeRequestPayload } from './request-payload-summary.js';
-import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-connection.js';
+import { bindCloudConnection, refreshCloudCredits, refreshWebsiteActions } from '../settings/cloud-connection.js';
+import { createWebsiteActivity } from './website-activity.js';
 
 (function () {
     'use strict';
 
-    const DEFAULT_DAYS = 7;
-    const DEFAULT_PER_PAGE = 10;
+    const DEFAULT_DAYS = 30;
+    const DEFAULT_PER_PAGE = 20;
+    const FEED_PER_PAGE = 20;
     const LOGS_PER_PAGE_STORAGE_KEY = 'aipkit_stats_logs_per_page';
-    const LOGS_PER_PAGE_OPTIONS = [5, 10, 20, 50];
+    const LOGS_PER_PAGE_OPTIONS = [10, 20, 50];
     const DAYS_STORAGE_KEY = 'aipkit_stats_days';
-    const REQUESTS_DAYS_STORAGE_KEY = 'aipkit_stats_requests_days';
-    const BOT_FILTER_STORAGE_KEY = 'aipkit_stats_bot_filter';
-    const MODULE_FILTER_STORAGE_KEY = 'aipkit_stats_module_filter';
-    const VALID_TABS = ['logs', 'requests', 'cloud', 'pricing', 'activity', 'balances', 'woocommerce'];
-    const VALID_DAY_VALUES = ['7', '30', '90'];
-    const REQUESTS_DAY_VALUES = [...VALID_DAY_VALUES, '0'];
+    const VIEW_STORAGE_KEY = 'aipkit_usage_view';
+    const VALID_TABS = ['logs', 'requests', 'website', 'cloud', 'pricing', 'activity', 'balances', 'woocommerce'];
+    const BILLING_TABS = ['pricing', 'activity', 'balances', 'woocommerce'];
+    const VALID_DAY_VALUES = ['1', '7', '30', '90'];
+    const VIEWS = ['everything', 'conversations', 'tasks', 'website', 'requests', 'errors'];
+    const CONVERSATION_MODULES = ['', 'chat', 'chatbot'];
+    const AUTOMATION_MODULES = ['content_writer_automation', 'autogpt'];
+    const REFUSAL_CODES = ['word_banned', 'ip_banned'];
     const PRICING_PROVIDER_ORDER = ['openai', 'google', 'claude', 'openrouter', 'azure', 'deepseek', 'xai', 'ollama', 'replicate'];
     const PRICING_PROVIDER_LABELS = {
         openai: 'OpenAI',
@@ -198,27 +202,43 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
         if (!container) {
             return;
         }
+        if (container.dataset.aipkitUsageBound === 'true') {
+            return;
+        }
+        container.dataset.aipkitUsageBound = 'true';
         bindCloudConnection(container);
-        const defaultTab = 'logs';
+        // Usage mounts the shared Cloud sheet, without the rest of Settings.
+        window.aipkit_initCloudPanel?.();
+        window.aipkit_initManageWebsite?.();
+        window.aipkit_initAiProviderCards?.();
+        window.aipkit_initSettingsSelectPickers?.();
+        window.aipkit_initSettingsSavedData?.();
+        window.aipkit_attachAutoSaveListeners?.();
 
         if (typeof window.aipkit_initContentWriterPopovers === 'function') {
             window.aipkit_initContentWriterPopovers(container);
         }
         const state = {
             days: parseInt(container.dataset.defaultDays || DEFAULT_DAYS, 10) || DEFAULT_DAYS,
+            view: 'everything',
+            group: '',
+            botId: '',
+            requestsSource: 'all',
             perPage: DEFAULT_PER_PAGE,
             page: 1,
+            feedPage: 1,
             search: '',
-            botId: '',
-            module: '',
+            overview: null,
+            overviewSequence: 0,
+            logsSequence: 0,
+            detailSequence: 0,
+            logRows: new Map(),
+            currentDetail: null,
             selectedLogId: null,
             selectedLogIds: new Set(),
             visibleLogs: [],
             pricingRules: [],
-            activeTab: defaultTab,
-            logsLoaded: false,
-            requestsDays: DEFAULT_DAYS,
-            requestsLoaded: false,
+            activeTab: 'pricing',
             requestsPage: 1,
             selectedRequestIds: new Set(),
             deletingRequests: false,
@@ -228,6 +248,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
         };
 
         const __ = (wp.i18n && wp.i18n.__) ? wp.i18n.__ : (text) => text;
+        const _n = (wp.i18n && wp.i18n._n) ? wp.i18n._n : (single, plural, number) => (Number(number) === 1 ? single : plural);
 
         const userCreditsState = {
             page: 1,
@@ -241,26 +262,31 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
         let balanceSaveTimer = null;
         let pricingModalResetTimer = null;
         let settingsSaveTimer = null;
-        let hasAutoSelected = false;
 
         const elements = {
             status: container.querySelector('#aipkit_stats_status'),
-            sectionButtons: container.querySelectorAll('[data-aipkit-stats-section]'),
-            sectionPanels: container.querySelectorAll('[data-aipkit-stats-section-panel]'),
             tabButtons: container.querySelectorAll('[data-aipkit-stats-tab]'),
             tabPanels: container.querySelectorAll('[data-aipkit-stats-panel]'),
-            daysFilters: container.querySelectorAll('[data-aipkit-stats-days-filter]'),
-            requestsDays: container.querySelector('#aipkit_stats_requests_days'),
-            botFilter: container.querySelector('#aipkit_stats_bot_filter'),
-            moduleFilter: container.querySelector('#aipkit_stats_module_filter'),
+            periodButtons: container.querySelectorAll('[data-aipkit-usage-days]'),
+            periodLabels: container.querySelectorAll('[data-aipkit-usage-period-label]'),
+            viewChips: container.querySelectorAll('[data-aipkit-usage-view]'),
+            viewPanels: container.querySelectorAll('[data-aipkit-usage-panel]'),
+            subchips: container.querySelector('[data-aipkit-usage-subchips]'),
+            announce: container.querySelector('[data-aipkit-usage-announce]'),
+            cards: container.querySelector('[data-aipkit-usage-cards]'),
+            ownCard: container.querySelector('[data-aipkit-usage-own-card]'),
+            ownTokens: container.querySelector('[data-aipkit-usage-own-tokens]'),
+            ownProviders: container.querySelector('[data-aipkit-usage-own-providers]'),
+            summaryCard: container.querySelector('[data-aipkit-usage-summary-card]'),
+            summaryValues: container.querySelectorAll('[data-aipkit-usage-summary]'),
+            feedList: container.querySelector('#aipkit_usage_feed_list'),
+            feedFooter: container.querySelector('[data-aipkit-usage-feed-footer]'),
+            feedMore: container.querySelector('#aipkit_usage_feed_more'),
             searchInput: container.querySelector('#aipkit_stats_search_input'),
             exportBtn: container.querySelector('#aipkit_stats_export_btn'),
             deleteAllBtn: container.querySelector('#aipkit_stats_delete_all_btn'),
             tableMenu: container.querySelector('#aipkit_stats_table_menu'),
             tableMenuTrigger: container.querySelector('#aipkit_stats_table_menu_trigger'),
-            filtersToggleBtn: container.querySelector('#aipkit_stats_filters_toggle'),
-            logsToolbar: container.querySelector('#aipkit_stats_logs_toolbar'),
-            filtersResetBtn: container.querySelector('#aipkit_stats_filters_reset_btn'),
             tableBody: container.querySelector('#aipkit_stats_table_body'),
             requestsBody: container.querySelector('#aipkit_stats_requests_body'),
             requestsPagination: container.querySelector('#aipkit_stats_requests_pagination'),
@@ -272,20 +298,20 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             requestsClear: container.querySelector('#aipkit_stats_requests_clear'),
             tableHeader: container.querySelector('#aipkit_stats_logs_table_header'),
             selectionHeader: container.querySelector('#aipkit_stats_logs_selection_header'),
-            selectAllLogs: container.querySelector('#aipkit_stats_logs_select_all'),
+            selectAllLogs: null,
             selectionCount: container.querySelector('#aipkit_stats_logs_selection_count'),
             bulkDeleteLogs: container.querySelector('#aipkit_stats_logs_bulk_delete'),
             clearLogSelection: container.querySelector('#aipkit_stats_logs_selection_clear'),
             pagination: container.querySelector('#aipkit_stats_pagination'),
-            detailIdentity: container.querySelector('#aipkit_stats_detail_identity'),
+            detailDrawer: container.querySelector('#aipkit_usage_detail_drawer'),
+            detailTitle: container.querySelector('#aipkit_usage_detail_title'),
+            detailStatus: container.querySelector('#aipkit_usage_detail_status'),
+            detailSub: container.querySelector('#aipkit_usage_detail_sub'),
+            detailMeta: container.querySelector('#aipkit_usage_detail_meta'),
             detailPanel: container.querySelector('#aipkit_stats_detail_panel'),
-            settingsToggle: document.getElementById('aipkit_stats_auto_delete_toggle'),
-            retentionSelect: document.getElementById('aipkit_stats_retention_days'),
-            retentionRow: container.querySelector('[data-aipkit-stats-retention-row]'),
-            cronRow: container.querySelector('[data-aipkit-stats-cron-row]'),
-            cronStatus: document.getElementById('aipkit_stats_cron_status'),
-            cronText: document.getElementById('aipkit_stats_cron_text'),
-            cronLastRun: document.getElementById('aipkit_stats_cron_last_run'),
+            detailFooter: container.querySelector('#aipkit_usage_detail_footer'),
+            billingDrawer: container.querySelector('#aipkit_usage_billing_drawer'),
+            ledgerDays: container.querySelector('#aipkit_stats_ledger_days_filter'),
             retentionOpen: document.getElementById('aipkit_stats_retention_open'),
             retentionModal: document.getElementById('aipkit_stats_retention_modal'),
             retentionModalClose: document.getElementById('aipkit_stats_retention_modal_close'),
@@ -681,7 +707,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             }
         };
 
-        const readActiveTab = () => {
+        const readRequestedTab = () => {
             try {
                 const params = new URLSearchParams(window.location.search || '');
                 const requestedTab = String(params.get('aipkit_stats_tab') || '').trim();
@@ -690,140 +716,95 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     const nextQuery = params.toString();
                     const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
                     window.history.replaceState(window.history.state, '', nextUrl);
-                    if (requestedTab === 'cloud') return 'logs';
-                    if (requestedTab === 'logs' || requestedTab === 'requests') return requestedTab;
-                    return container.querySelector('[data-aipkit-stats-section="billing"]:not([hidden])') ? requestedTab : defaultTab;
+                    return requestedTab;
                 }
             } catch (error) {
-                // Use the first available Usage section when the URL cannot be read.
+                // Open the remembered view when the URL cannot be read.
             }
-            return defaultTab;
+            return '';
         };
 
-        const readStoredDays = (fallbackDays) => {
-            const stored = getStoredValue(DAYS_STORAGE_KEY);
-            if (stored && VALID_DAY_VALUES.includes(stored)) {
-                return parseInt(stored, 10) || fallbackDays;
-            }
-            return fallbackDays;
-        };
-
-        const readStoredFilter = (storageKey) => {
-            const stored = getStoredValue(storageKey);
-            return stored === null ? '' : stored;
-        };
-
-        const syncSelectValue = (select, value, fallbackValue = '') => {
-            if (!select) {
-                return String(fallbackValue || '');
-            }
-
-            const nextValue = String(value ?? '');
-            const hasValue = Array.from(select.options).some((option) => String(option.value) === nextValue);
-            const resolvedValue = hasValue ? nextValue : String(fallbackValue ?? '');
-            select.value = resolvedValue;
-            return resolvedValue;
-        };
-
-        const syncDaysFilterControls = (value) => {
-            if (!elements.daysFilters || !elements.daysFilters.length) {
-                return String(DEFAULT_DAYS);
-            }
-
-            const fallbackValue = String(DEFAULT_DAYS);
-            let resolvedValue = fallbackValue;
-
-            elements.daysFilters.forEach((select, index) => {
-                const nextValue = syncSelectValue(select, String(value), fallbackValue);
-                if (index === 0) {
-                    resolvedValue = nextValue;
-                }
-            });
-
-            return resolvedValue;
-        };
-
-        state.days = readStoredDays(state.days);
-        state.botId = readStoredFilter(BOT_FILTER_STORAGE_KEY);
-        state.module = readStoredFilter(MODULE_FILTER_STORAGE_KEY);
+        const storedDays = getStoredValue(DAYS_STORAGE_KEY);
+        if (storedDays && VALID_DAY_VALUES.includes(storedDays)) {
+            state.days = parseInt(storedDays, 10);
+        }
+        const storedView = getStoredValue(VIEW_STORAGE_KEY);
+        if (storedView && VIEWS.includes(storedView)) {
+            state.view = storedView;
+        }
         const storedLogsPerPage = parseInt(getStoredValue(LOGS_PER_PAGE_STORAGE_KEY), 10);
         state.perPage = LOGS_PER_PAGE_OPTIONS.includes(storedLogsPerPage)
             ? storedLogsPerPage
             : DEFAULT_PER_PAGE;
-        if (elements.daysFilters && elements.daysFilters.length) {
-            state.days = parseInt(
-                syncDaysFilterControls(state.days),
-                10
-            ) || DEFAULT_DAYS;
-            setStoredValue(DAYS_STORAGE_KEY, state.days);
-        }
 
-        const storedRequestsDays = getStoredValue(REQUESTS_DAYS_STORAGE_KEY);
-        state.requestsDays = Number(REQUESTS_DAY_VALUES.includes(storedRequestsDays) ? storedRequestsDays : state.days);
-        syncSelectValue(elements.requestsDays, state.requestsDays, DEFAULT_DAYS);
-
-        if (elements.botFilter) {
-            state.botId = syncSelectValue(elements.botFilter, state.botId, '');
-            setStoredValue(BOT_FILTER_STORAGE_KEY, state.botId);
-        }
-
-        if (elements.moduleFilter) {
-            state.module = syncSelectValue(elements.moduleFilter, state.module, '');
-            setStoredValue(MODULE_FILTER_STORAGE_KEY, state.module);
-        }
-
-        const setLogFiltersExpanded = (expanded) => {
-            if (!elements.filtersToggleBtn || !elements.logsToolbar) {
+        const sprintf = (wp.i18n && wp.i18n.sprintf)
+            ? wp.i18n.sprintf
+            : (format, ...args) => {
+                let index = 0;
+                return String(format).replace(/%(\d+\$)?s/g, (match, position) => String(args[position ? parseInt(position, 10) - 1 : index++] ?? ''));
+            };
+        const PERIOD_LABELS = {
+            1: __('Today', 'gpt3-ai-content-generator'),
+            7: __('Last 7 days', 'gpt3-ai-content-generator'),
+            30: __('Last 30 days', 'gpt3-ai-content-generator'),
+            90: __('Last 90 days', 'gpt3-ai-content-generator'),
+        };
+        const EMPTY_TEXT = {
+            everything: [__('No activity today.', 'gpt3-ai-content-generator'), __('No activity in the last %s days.', 'gpt3-ai-content-generator')],
+            conversations: [__('No conversations today.', 'gpt3-ai-content-generator'), __('No conversations in the last %s days.', 'gpt3-ai-content-generator')],
+            tasks: [__('No content or task runs today.', 'gpt3-ai-content-generator'), __('No content or task runs in the last %s days.', 'gpt3-ai-content-generator')],
+            requests: [__('No AI requests today.', 'gpt3-ai-content-generator'), __('No AI requests in the last %s days.', 'gpt3-ai-content-generator')],
+            errors: [__('No errors today.', 'gpt3-ai-content-generator'), __('No errors in the last %s days.', 'gpt3-ai-content-generator')],
+        };
+        const emptyText = (view) => {
+            if (state.search && view !== 'requests') {
+                return __('Nothing matches your search.', 'gpt3-ai-content-generator');
+            }
+            const texts = EMPTY_TEXT[view] || EMPTY_TEXT.everything;
+            return state.days === 1 ? texts[0] : sprintf(texts[1], state.days);
+        };
+        const compactNumber = (value) => {
+            try {
+                return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0));
+            } catch (error) {
+                return formatNumber(value);
+            }
+        };
+        const plainText = (value) => String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const truncate = (value, length) => {
+            const text = plainText(value);
+            return text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text;
+        };
+        const timeHtml = (timestamp) => {
+            const ts = Number(timestamp);
+            return ts
+                ? `<time class="aipkit_stats_relative_time" datetime="${escapeHtml(new Date(ts * 1000).toISOString())}" title="${escapeHtml(formatTimestamp(ts))}">${escapeHtml(formatRelativeTimestamp(ts))}</time>`
+                : '—';
+        };
+        const loadErrorHtml = () => `
+            <div class="aipkit_usage_state is-error">
+                <p>${escapeHtml(__('Activity couldn’t load. Try again.', 'gpt3-ai-content-generator'))}</p>
+                <button type="button" class="aipkit_usage_btn aipkit_usage_btn--small" data-aipkit-usage-retry>${escapeHtml(__('Retry', 'gpt3-ai-content-generator'))}</button>
+            </div>
+        `;
+        const renderLoadError = (body, columns) => {
+            if (body) {
+                body.innerHTML = `<tr><td colspan="${columns}" class="aipkit_stats_table_placeholder">${loadErrorHtml()}</td></tr>`;
+            }
+        };
+        const renderSkeletonRows = (body, columns, rows = 5) => {
+            if (!body) {
                 return;
             }
-            const nextState = Boolean(expanded);
-            elements.logsToolbar.hidden = !nextState;
-            elements.filtersToggleBtn.setAttribute('aria-expanded', nextState ? 'true' : 'false');
+            body.innerHTML = Array.from({ length: rows }, () => `
+                <tr class="aipkit_usage_skeleton_row" aria-hidden="true">
+                    ${Array.from({ length: columns }, () => '<td><span class="aipkit_usage_skeleton"></span></td>').join('')}
+                </tr>
+            `).join('');
         };
-
-        const syncLogFiltersResetState = () => {
-            const hasActiveFilters = (
-                Number(state.days) !== Number(DEFAULT_DAYS)
-                || Boolean(state.botId)
-                || Boolean(state.module)
-                || Boolean(state.search)
-            );
-            if (elements.filtersResetBtn) {
-                elements.filtersResetBtn.disabled = !hasActiveFilters;
-                elements.filtersResetBtn.setAttribute('aria-disabled', hasActiveFilters ? 'false' : 'true');
-            }
-            if (elements.filtersToggleBtn) {
-                elements.filtersToggleBtn.classList.toggle('aipkit_has_active_filters', hasActiveFilters);
-            }
-            return hasActiveFilters;
-        };
-
-        setLogFiltersExpanded(syncLogFiltersResetState());
-
-        const updateSettingsVisibility = (enabled) => {
-            if (elements.retentionRow) {
-                elements.retentionRow.hidden = !enabled;
-            }
-            if (elements.cronRow) {
-                elements.cronRow.hidden = !enabled;
-            }
-            if (elements.retentionSelect) {
-                elements.retentionSelect.disabled = !enabled || !isPro;
-            }
-        };
-
-        const updateCronStatus = (data) => {
-            if (!data || !elements.cronStatus) {
-                return;
-            }
-            if (data.state) {
-                elements.cronStatus.setAttribute('data-state', data.state);
-            }
-            if (elements.cronText && data.status_text) {
-                elements.cronText.textContent = data.status_text;
-            }
-            if (elements.cronLastRun && data.last_run_label) {
-                elements.cronLastRun.textContent = data.last_run_label;
+        const announce = (message) => {
+            if (elements.announce) {
+                elements.announce.textContent = message || '';
             }
         };
 
@@ -1786,6 +1767,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
             elements.retentionModal.classList.remove('aipkit-active');
             elements.retentionModal.setAttribute('aria-hidden', 'true');
+            elements.tableMenuTrigger?.focus({ preventScroll: true });
         };
 
         const openRetentionModal = () => {
@@ -1795,19 +1777,34 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
             elements.retentionModal.classList.add('aipkit-active');
             elements.retentionModal.setAttribute('aria-hidden', 'false');
-            refreshCronStatus();
+            // The paid controls (lib) listen for this event to reset and refresh their state.
+            elements.retentionModal.dispatchEvent(new CustomEvent('aipkit:usage-retention-open', { bubbles: true }));
+            fetchLogStorage();
 
             window.setTimeout(() => {
-                if (elements.settingsToggle && !elements.settingsToggle.disabled) {
-                    elements.settingsToggle.focus();
-                    return;
-                }
-                if (elements.retentionSelect && !elements.retentionSelect.disabled) {
-                    elements.retentionSelect.focus();
-                    return;
-                }
-                elements.retentionModalClose?.focus();
+                const focusTarget = elements.retentionModal.querySelector('[data-aipkit-retention-focus]') || elements.retentionModalClose;
+                focusTarget?.focus();
             }, 0);
+        };
+
+        // Shared by the free promotion and the paid controls: how many logs are stored and how old they are.
+        const fetchLogStorage = async () => {
+            const targets = elements.retentionModal?.querySelectorAll('[data-aipkit-log-storage]') || [];
+            if (!targets.length || typeof window.aipkit_apiRequest !== 'function') {
+                return;
+            }
+            try {
+                const storage = await window.aipkit_apiRequest('aipkit_stats_get_log_storage', {});
+                targets.forEach((target) => {
+                    const field = target.dataset.aipkitLogStorage;
+                    target.textContent = String(storage?.[field] || '');
+                    target.hidden = !target.textContent;
+                });
+            } catch (error) {
+                targets.forEach((target) => {
+                    target.hidden = true;
+                });
+            }
         };
 
         const formatPricingRateValue = (value) => {
@@ -2133,14 +2130,18 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             state.requestsPage = page;
             state.selectedRequestIds.clear();
             syncRequestSelection();
-            renderTablePlaceholder(elements.requestsBody, 5, __('Loading requests...', 'gpt3-ai-content-generator'));
+            renderSkeletonRows(elements.requestsBody, 5);
             if (elements.requestsPagination) elements.requestsPagination.innerHTML = '';
             try {
-                const response = await window.aipkit_apiRequest('aipkit_stats_get_requests', { days: state.requestsDays, page });
+                const response = await window.aipkit_apiRequest('aipkit_stats_get_requests', {
+                    days: state.days,
+                    page,
+                    source: state.requestsSource,
+                });
                 if (sequence !== state.requestsSequence) return;
                 const requests = Array.isArray(response.requests) ? response.requests : [];
                 if (!requests.length) {
-                    renderTablePlaceholder(elements.requestsBody, 5, __('No recorded requests in this period.', 'gpt3-ai-content-generator'));
+                    renderTablePlaceholder(elements.requestsBody, 5, page > 1 ? __('No more requests.', 'gpt3-ai-content-generator') : emptyText('requests'));
                 } else {
                     elements.requestsBody.innerHTML = requests.map((request) => {
                         const provider = String(request.providerLabel || request.provider || __('Unknown provider', 'gpt3-ai-content-generator'));
@@ -2150,7 +2151,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                         const exactCredits = requestExactCredits(request);
                         return `<tr>
                             <td class="aipkit_stats_log_select_cell"><input type="checkbox" class="aipkit_stats_log_checkbox" data-request-id="${Number(request.id)}" aria-label="${escapeHtml(__('Select request', 'gpt3-ai-content-generator'))}" /></td>
-                            <td>${escapeHtml(Number.isFinite(time) ? formatTimestamp(time / 1000) : '—')}</td>
+                            <td>${Number.isFinite(time) ? timeHtml(time / 1000) : '—'}</td>
                             <td>${escapeHtml(requestFeature(request))}</td>
                             <td><div class="aipkit_stats_ledger_context_title">${escapeHtml(model || provider)}</div>${model ? `<div class="aipkit_stats_ledger_meta">${escapeHtml(provider)}</div>` : ''}</td>
                             <td><div>${escapeHtml(requestUsage(request))}</div>${cloudCredits !== '' ? `<div class="aipkit_stats_ledger_meta" title="${escapeHtml(exactCredits)}">${escapeHtml(__('Credits used:', 'gpt3-ai-content-generator'))} ${escapeHtml(cloudCredits)}</div>` : ''}</td>
@@ -2175,11 +2176,9 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     }
                 }
                 syncRequestSelection();
-                state.requestsLoaded = true;
             } catch (error) {
                 if (sequence !== state.requestsSequence) return;
-                state.requestsLoaded = false;
-                renderTablePlaceholder(elements.requestsBody, 5, error.message || __('Failed to load requests.', 'gpt3-ai-content-generator'), true);
+                renderLoadError(elements.requestsBody, 5);
             }
         };
 
@@ -2214,11 +2213,12 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     if (!confirmed) return;
                     await window.aipkit_apiRequest('aipkit_stats_delete_requests', { request_ids: ids });
                     await fetchRequests(1);
+                    fetchOverview();
                 } catch (error) {
                     showStatus(error.message || __('Could not delete request history.', 'gpt3-ai-content-generator'), 'error');
                 } finally {
                     state.deletingRequests = false;
-                    elements.requestsDelete.disabled = false;
+                    syncRequestSelection();
                 }
             });
         }
@@ -2233,7 +2233,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_get_pricing_management', {
-                    days: state.days,
+                    days: parseInt(elements.ledgerDays?.value, 10) || DEFAULT_DAYS,
                 });
                 renderPricingRules(response.pricing_rules || []);
                 renderLedgerSummary(response.ledger_summary || {});
@@ -2247,61 +2247,126 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
         };
 
         const ensureTabData = (tabKey) => {
-            if (tabKey === 'requests') {
-                if (!state.requestsLoaded) fetchRequests(state.requestsPage);
-                return;
-            }
             if (tabKey === 'balances') {
                 if (!state.creditsLoaded) {
                     fetchUserCredits(userCreditsState.page, userCreditsState.search);
                 }
                 return;
             }
-
-            if (tabKey === 'woocommerce') {
-                return;
-            }
-
             if ((tabKey === 'pricing' || tabKey === 'activity') && !state.pricingManagementLoaded) {
                 fetchPricingManagement();
-                return;
-            }
-
-            if (tabKey === 'logs' && !state.logsLoaded) {
-                fetchLogs();
             }
         };
 
-        const activateTab = (tabKey, refreshCredits = true) => {
-            const nextTab = tabKey === 'cloud' ? 'logs' : VALID_TABS.includes(tabKey) ? tabKey : defaultTab;
-            const section = nextTab === 'logs' || nextTab === 'requests' ? nextTab : 'billing';
+        // Visitor billing sections inside their drawer.
+        const activateTab = (tabKey) => {
+            const nextTab = BILLING_TABS.includes(tabKey) ? tabKey : 'pricing';
             state.activeTab = nextTab;
 
-            elements.sectionButtons.forEach((button) => {
-                const isActive = button.dataset.aipkitStatsSection === section;
-                button.classList.toggle('aipkit_active', isActive);
-                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
-                button.tabIndex = isActive ? 0 : -1;
-            });
-
-            elements.sectionPanels.forEach((panel) => {
-                panel.hidden = panel.dataset.aipkitStatsSectionPanel !== section;
-            });
-
             elements.tabButtons.forEach((button) => {
-                const isActive = button.dataset.aipkitStatsTab === (section === 'billing' ? nextTab : 'pricing');
+                const isActive = button.dataset.aipkitStatsTab === nextTab;
                 button.classList.toggle('aipkit_active', isActive);
                 button.setAttribute('aria-selected', isActive ? 'true' : 'false');
                 button.tabIndex = isActive ? 0 : -1;
             });
 
             elements.tabPanels.forEach((panel) => {
-                panel.hidden = panel.dataset.aipkitStatsPanel !== (section === 'billing' ? nextTab : 'pricing');
+                panel.hidden = panel.dataset.aipkitStatsPanel !== nextTab;
             });
 
             ensureTabData(nextTab);
-            if (nextTab === 'logs' && refreshCredits) refreshCloudCredits(container);
         };
+
+        // One drawer at a time: focus moves in, stays inside, and returns to the opener.
+        const globalListeners = new AbortController();
+        const listenGlobal = (target, event, handler, options = {}) => {
+            target.addEventListener(event, handler, { ...options, signal: globalListeners.signal });
+        };
+        listenGlobal(window, 'aipkit:module-rendered', () => {
+            if (!container.isConnected) {
+                globalListeners.abort();
+                window.removeEventListener('aipkit:cloud-connection-changed', handleCloudConnectionChanged);
+                ++state.overviewSequence;
+                ++state.logsSequence;
+                ++state.requestsSequence;
+                ++state.detailSequence;
+                window.clearTimeout(searchTimer);
+                window.clearTimeout(userSearchTimer);
+                window.clearTimeout(pricingModalResetTimer);
+                window.clearTimeout(settingsSaveTimer);
+                closeDrawer(false);
+            }
+        });
+
+        const DRAWER_BODY_CLASS = 'aipkit_usage_drawer_open';
+        const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const drawerState = { open: null, opener: null };
+        // Set once the helpers it needs exist (see createWebsiteActivity below); null when the Website view isn't shown.
+        let websiteActivity = null;
+
+        const openDrawer = (overlay, opener = null) => {
+            if (!overlay) {
+                return;
+            }
+            if (drawerState.open && drawerState.open !== overlay) {
+                closeDrawer(false);
+            }
+            drawerState.open = overlay;
+            drawerState.opener = opener || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+            overlay.hidden = false;
+            document.body.classList.add(DRAWER_BODY_CLASS);
+            window.requestAnimationFrame(() => {
+                overlay.classList.add('is-open');
+                const target = overlay.querySelector('[data-aipkit-usage-drawer-close]') || overlay.querySelector('[role="dialog"]');
+                target?.focus({ preventScroll: true });
+            });
+        };
+
+        const closeDrawer = (restoreFocus = true) => {
+            const overlay = drawerState.open;
+            if (!overlay) {
+                return;
+            }
+            const opener = drawerState.opener;
+            drawerState.open = null;
+            drawerState.opener = null;
+            overlay.classList.remove('is-open');
+            overlay.hidden = true;
+            document.body.classList.remove(DRAWER_BODY_CLASS);
+            if (overlay === elements.detailDrawer) {
+                state.detailSequence++;
+                state.selectedLogId = null;
+                state.currentDetail = null;
+                markActiveRow();
+                websiteActivity?.clearActive();
+            }
+            if (!restoreFocus) {
+                return;
+            }
+            if (opener && opener.isConnected) {
+                opener.focus({ preventScroll: true });
+            } else {
+                container.querySelector('.aipkit_usage_chip[aria-pressed="true"]')?.focus({ preventScroll: true });
+            }
+        };
+
+        const syncCards = () => {
+            const hasCloudCard = Boolean(elements.cards?.querySelector('#aipkit_usage_cloud_credits'));
+            const hasOwnCard = Number(state.overview?.requests?.own || 0) > 0;
+            if (elements.ownCard) {
+                elements.ownCard.hidden = !hasOwnCard;
+            }
+            const hasWebsiteCard = Boolean(elements.cards?.querySelector('[data-aipkit-website-usage="usage"]:not([hidden])'));
+            const shown = (hasCloudCard ? 1 : 0) + (hasOwnCard ? 1 : 0) + (hasWebsiteCard ? 1 : 0);
+            if (elements.summaryCard) {
+                elements.summaryCard.hidden = shown >= 2;
+            }
+            if (elements.cards) {
+                elements.cards.dataset.cards = String(shown >= 2 ? shown : shown + 1);
+            }
+        };
+
+        listenGlobal(window, 'aipkit:website-usage-changed', syncCards);
 
         const handleCloudConnectionChanged = (event) => {
             if (!container.isConnected) {
@@ -2309,38 +2374,36 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                 return;
             }
             const connected = Boolean(event.detail?.connected);
-            const button = container.querySelector('[data-aipkit-stats-section="logs"]');
-            const panel = container.querySelector('[data-aipkit-stats-section-panel="logs"]');
-            if (!button || !panel) return;
-
             const template = document.createElement('template');
             template.innerHTML = String(event.detail?.usageHtml || '');
-            const account = template.content.querySelector('#aipkit_cloud_connection');
+            const account = template.content.querySelector('#aipkit_usage_cloud_credits');
             if (connected && !account) return;
-            const currentAccount = panel.querySelector('#aipkit_cloud_connection');
+            const currentAccount = container.querySelector('#aipkit_usage_cloud_credits');
             if (currentAccount && account) currentAccount.replaceWith(account);
             else if (currentAccount) currentAccount.remove();
-            else if (account) panel.prepend(account);
+            else if (account && elements.cards) elements.cards.prepend(account);
+            container.dataset.cloudConnected = account ? '1' : '0';
+            syncCards();
 
             if (event.detail?.action === 'balance') return;
 
             const headerHint = container.querySelector('.aipkit_stats_header_hint');
-            if (headerHint) headerHint.textContent = connected
-                ? __('Manage your AI Puffer credits and review activity on this site.', 'gpt3-ai-content-generator')
-                : __('Review conversations and recorded AI requests on this site.', 'gpt3-ai-content-generator');
-            state.requestsSequence++;
-            state.requestsLoaded = false;
-            activateTab(state.activeTab, false);
-            if (!panel.hidden) {
-                if (event.detail?.action === 'disconnect') button.focus({ preventScroll: true });
-                else account?.querySelector('[name="cloud_action"][value="refresh"]')?.focus({ preventScroll: true });
+            if (headerHint) headerHint.textContent = account
+                ? __('Your balances and what happened on this site.', 'gpt3-ai-content-generator')
+                : __('What happened on this site.', 'gpt3-ai-content-generator');
+            fetchOverview();
+            if (state.view === 'requests') fetchRequests(1);
+            if (!account) {
+                container.querySelector('.aipkit_usage_period_option[aria-pressed="true"]')?.focus({ preventScroll: true });
+            } else {
+                account.querySelector('[name="cloud_action"][value="refresh"]')?.focus({ preventScroll: true });
             }
         };
         if (window.aipkit_statsCloudConnectionHandler) {
             window.removeEventListener('aipkit:cloud-connection-changed', window.aipkit_statsCloudConnectionHandler);
         }
         window.aipkit_statsCloudConnectionHandler = handleCloudConnectionChanged;
-        window.addEventListener('aipkit:cloud-connection-changed', handleCloudConnectionChanged);
+        listenGlobal(window, 'aipkit:cloud-connection-changed', handleCloudConnectionChanged);
 
         const fillPricingForm = (rule) => {
             if (!rule || !elements.pricingForm) {
@@ -2474,21 +2537,120 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             return moduleKey.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
         };
 
-        const getModuleIconClass = (moduleKey) => {
-            const iconMap = {
-                chat: 'dashicons-format-chat',
-                chatbot: 'dashicons-format-chat',
-                content_writer: 'dashicons-edit-page',
-                content_writer_automation: 'dashicons-controls-repeat',
-                image_generator: 'dashicons-format-image',
-                ai_forms: 'dashicons-feedback',
-                ai_form: 'dashicons-feedback',
-                forms: 'dashicons-feedback',
-                autogpt: 'dashicons-controls-repeat',
-                ai_post_enhancer: 'dashicons-edit',
-                wp_ai_client: 'dashicons-cloud',
+        const isConversationLog = (log) => CONVERSATION_MODULES.includes(String(log?.module || ''));
+
+        const getLogStatus = (log) => {
+            if (log?.error_message) {
+                return { label: __('Failed', 'gpt3-ai-content-generator'), tone: 'is-error' };
+            }
+            if (log?.blocked_message) {
+                return { label: __('Blocked', 'gpt3-ai-content-generator'), tone: 'is-warning' };
+            }
+            if (!isConversationLog(log)) {
+                return { label: __('Done', 'gpt3-ai-content-generator'), tone: 'is-ok' };
+            }
+            return String(log?.last_message_role || '') === 'user'
+                ? { label: __('No reply', 'gpt3-ai-content-generator'), tone: 'is-muted' }
+                : { label: __('Answered', 'gpt3-ai-content-generator'), tone: 'is-ok' };
+        };
+
+        // Signed-in users by name; automations without a user ran on a schedule; everyone else is a visitor.
+        const getLogWho = (log) => {
+            if (Number(log?.user_id) > 0 && String(log?.is_guest) !== '1') {
+                return String(log.user_display_name || __('(Deleted User)', 'gpt3-ai-content-generator'));
+            }
+            if (AUTOMATION_MODULES.includes(String(log?.module || ''))) {
+                return __('Schedule', 'gpt3-ai-content-generator');
+            }
+            return log?.ip_masked
+                ? `${__('Visitor', 'gpt3-ai-content-generator')} · ${log.ip_masked}`
+                : __('Visitor', 'gpt3-ai-content-generator');
+        };
+
+        const describeLog = (log) => {
+            const moduleKey = String(log?.module || '');
+            const who = getLogWho(log);
+            const preview = truncate(log?.last_message_content, 90);
+            const source = isConversationLog(log) ? (log.bot_name || getModuleLabel('chatbot')) : getModuleLabel(moduleKey);
+            const reason = (message) => truncate(String(message).replace(/^Error generating image:\s*/i, ''), 90);
+            if (log?.error_message) {
+                return sprintf(__('%1$s request failed: %2$s', 'gpt3-ai-content-generator'), source, reason(log.error_message));
+            }
+            if (log?.blocked_message && !isConversationLog(log)) {
+                return sprintf(__('%1$s request blocked: %2$s', 'gpt3-ai-content-generator'), source, reason(log.blocked_message));
+            }
+            if (isConversationLog(log)) {
+                return sprintf(__('%1$s asked “%2$s”', 'gpt3-ai-content-generator'), who, truncate(log.first_message_content || log.last_message_content, 90));
+            }
+            switch (moduleKey) {
+                case 'image_generator': {
+                    const prompt = String(log.last_message_content || '').match(/prompt:\s*"(.*?)(?:\.\.\.)?"\]?\s*$/);
+                    return prompt
+                        ? sprintf(__('%1$s generated an image “%2$s”', 'gpt3-ai-content-generator'), who, truncate(prompt[1], 80))
+                        : sprintf(__('%s generated an image', 'gpt3-ai-content-generator'), who);
+                }
+                case 'ai_forms':
+                    return sprintf(__('%s submitted a form', 'gpt3-ai-content-generator'), who);
+                case 'content_writer':
+                    return sprintf(__('Content Writer request “%s”', 'gpt3-ai-content-generator'), preview);
+                case 'content_writer_automation':
+                case 'autogpt':
+                    return sprintf(__('Automation ran “%s”', 'gpt3-ai-content-generator'), preview);
+                case 'ai_post_enhancer':
+                    return sprintf(__('Content Assistant suggested “%s”', 'gpt3-ai-content-generator'), preview);
+                default:
+                    return preview
+                        ? sprintf(__('%1$s request “%2$s”', 'gpt3-ai-content-generator'), getModuleLabel(moduleKey), preview)
+                        : sprintf(__('%s request', 'gpt3-ai-content-generator'), getModuleLabel(moduleKey));
+            }
+        };
+
+        const formatTokens = (tokens) => `${formatNumber(tokens)} ${__('tokens', 'gpt3-ai-content-generator')}`;
+        const formatMessages = (count) => `${formatNumber(count)} ${Number(count) === 1 ? __('message', 'gpt3-ai-content-generator') : __('messages', 'gpt3-ai-content-generator')}`;
+
+        const describeLogMeta = (log) => {
+            const tokens = Number(log?.total_conversation_tokens || 0);
+            const parts = isConversationLog(log)
+                ? [log.bot_name || getModuleLabel('chatbot'), formatMessages(log.message_count || 0)]
+                : [getModuleLabel(log?.module), getLogWho(log)];
+            if (tokens > 0) {
+                parts.push(formatTokens(tokens));
+            }
+            return parts.filter(Boolean).join(' · ');
+        };
+
+        const renderFeedRow = (log) => {
+            const status = getLogStatus(log);
+            const kind = log.error_message ? 'error' : (isConversationLog(log) ? 'conversation' : 'task');
+            const kinds = {
+                conversation: ['C', __('Conversation', 'gpt3-ai-content-generator')],
+                task: ['T', __('Content or task', 'gpt3-ai-content-generator')],
+                error: ['E', __('Error', 'gpt3-ai-content-generator')],
             };
-            return iconMap[moduleKey] || 'dashicons-admin-generic';
+            return `
+                <li>
+                    <button type="button" class="aipkit_usage_feed_row${state.selectedLogId === Number(log.id) ? ' is-active' : ''}" data-log-id="${escapeHtml(log.id)}">
+                        <span class="aipkit_usage_feed_icon is-${kind}" title="${escapeHtml(kinds[kind][1])}" aria-hidden="true">${kinds[kind][0]}</span>
+                        <span class="aipkit_usage_feed_main">
+                            <span class="aipkit_usage_feed_title"><span class="screen-reader-text">${escapeHtml(kinds[kind][1])}: </span>${escapeHtml(describeLog(log))}</span>
+                            <span class="aipkit_usage_feed_meta">${escapeHtml(describeLogMeta(log))}</span>
+                        </span>
+                        <span class="aipkit_usage_feed_side">
+                            <span class="aipkit_usage_pill ${status.tone}">${escapeHtml(status.label)}</span>
+                            ${timeHtml(log.last_message_ts)}
+                        </span>
+                    </button>
+                </li>
+            `;
+        };
+
+        const markActiveRow = () => {
+            container.querySelectorAll('tr[data-log-id]').forEach((row) => {
+                row.classList.toggle('aipkit_stats_row_active', Number(row.dataset.logId) === state.selectedLogId);
+            });
+            container.querySelectorAll('.aipkit_usage_feed_row[data-log-id]').forEach((row) => {
+                row.classList.toggle('is-active', Number(row.dataset.logId) === state.selectedLogId);
+            });
         };
 
         const syncLogSelectionUi = () => {
@@ -2505,9 +2667,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                 elements.selectionHeader.hidden = selectedCount === 0;
             }
             if (elements.selectionCount) {
-                elements.selectionCount.textContent = `${formatNumber(selectedCount)} ${selectedCount === 1
-                    ? __('conversation selected', 'gpt3-ai-content-generator')
-                    : __('conversations selected', 'gpt3-ai-content-generator')}`;
+                elements.selectionCount.textContent = sprintf(__('%s selected', 'gpt3-ai-content-generator'), formatNumber(selectedCount));
             }
             if (elements.selectAllLogs) {
                 elements.selectAllLogs.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
@@ -2531,71 +2691,82 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             syncLogSelectionUi();
         };
 
+        const renderLogsHeader = () => {
+            if (!elements.tableHeader) {
+                return;
+            }
+            const columns = state.view === 'tasks'
+                ? [__('When', 'gpt3-ai-content-generator'), __('What', 'gpt3-ai-content-generator'), __('Started by', 'gpt3-ai-content-generator'), __('Result', 'gpt3-ai-content-generator'), __('Tokens', 'gpt3-ai-content-generator')]
+                : [__('When', 'gpt3-ai-content-generator'), __('Who', 'gpt3-ai-content-generator'), __('Where', 'gpt3-ai-content-generator'), __('First message', 'gpt3-ai-content-generator'), __('Tokens', 'gpt3-ai-content-generator')];
+            elements.tableHeader.innerHTML = `
+                <th class="aipkit_stats_log_select_cell">
+                    <input type="checkbox" id="aipkit_stats_logs_select_all" aria-label="${escapeHtml(__('Select all on this page', 'gpt3-ai-content-generator'))}" />
+                </th>
+                ${columns.map((label, index) => `<th${index === columns.length - 1 ? ' class="aipkit_stats_log_tokens_cell"' : ''}>${escapeHtml(label)}</th>`).join('')}
+            `;
+            elements.tableHeader.parentElement?.parentElement?.classList.toggle('is-tasks', state.view === 'tasks');
+            elements.selectAllLogs = elements.tableHeader.querySelector('#aipkit_stats_logs_select_all');
+        };
+
         const renderLogs = (logs) => {
             if (!elements.tableBody) {
                 return;
             }
             state.visibleLogs = Array.isArray(logs) ? logs : [];
-            if (!Array.isArray(logs) || !logs.length) {
-                renderTablePlaceholder(elements.tableBody, 4, 'No logs found.');
+            if (!state.visibleLogs.length) {
+                renderTablePlaceholder(elements.tableBody, 6, emptyText(state.view));
                 state.selectedLogIds.clear();
                 syncLogSelectionUi();
                 return;
             }
 
-            const visibleIds = new Set(logs.map((log) => Number(log.id)).filter(Boolean));
+            const visibleIds = new Set(state.visibleLogs.map((log) => Number(log.id)).filter(Boolean));
             state.selectedLogIds = new Set(
                 Array.from(state.selectedLogIds).filter((logId) => visibleIds.has(logId))
             );
 
-            const rows = logs.map((log) => {
-                const preview = log.last_message_content ? String(log.last_message_content) : '';
-                const tokens = formatNumber(log.total_conversation_tokens || 0);
-                const relativeTime = formatRelativeTimestamp(log.last_message_ts) || '—';
+            elements.tableBody.innerHTML = state.visibleLogs.map((log) => {
                 const logId = Number(log.id);
-                const moduleKey = String(log.module || 'chatbot');
-                const moduleLabel = getModuleLabel(moduleKey);
-                const moduleIconClass = getModuleIconClass(moduleKey);
+                const tokens = Number(log.total_conversation_tokens || 0);
                 const isBulkSelected = state.selectedLogIds.has(logId);
+                const openButton = (text) => `<button type="button" class="aipkit_usage_row_link" data-log-open>${escapeHtml(text)}</button>`;
+                const status = getLogStatus(log);
+                const cells = state.view === 'tasks'
+                    ? [
+                        timeHtml(log.last_message_ts),
+                        `${openButton(describeLog(log))}<span class="aipkit_usage_cell_sub">${escapeHtml(getModuleLabel(log.module))}</span>`,
+                        escapeHtml(getLogWho(log)),
+                        `<span class="aipkit_usage_pill ${status.tone}">${escapeHtml(status.label)}</span>`,
+                    ]
+                    : [
+                        timeHtml(log.last_message_ts),
+                        escapeHtml(getLogWho(log)),
+                        escapeHtml(log.bot_name || getModuleLabel('chatbot')),
+                        `${openButton(truncate(log.first_message_content || log.last_message_content, 110) || '—')}${log.error_message ? `<span class="aipkit_usage_cell_sub is-error">${escapeHtml(__('Failed', 'gpt3-ai-content-generator'))}</span>` : ''}`,
+                    ];
+                cells.push(tokens > 0 ? escapeHtml(formatNumber(tokens)) : '—');
                 return `
                     <tr class="aipkit_stats_row${state.selectedLogId === logId ? ' aipkit_stats_row_active' : ''}${isBulkSelected ? ' aipkit_stats_row_bulk_selected' : ''}" data-log-id="${escapeHtml(log.id)}">
                         <td class="aipkit_stats_log_select_cell">
-                            <input
-                                type="checkbox"
-                                class="aipkit_stats_log_checkbox"
-                                aria-label="${escapeHtml(__('Select conversation', 'gpt3-ai-content-generator'))}"
-                                ${isBulkSelected ? 'checked' : ''}
-                            />
+                            <input type="checkbox" class="aipkit_stats_log_checkbox" aria-label="${escapeHtml(__('Select', 'gpt3-ai-content-generator'))}" ${isBulkSelected ? 'checked' : ''} />
                         </td>
-                        <td><span class="aipkit_stats_relative_time">${escapeHtml(relativeTime)}</span></td>
-                        <td>
-                            <div class="aipkit_stats_log_item">
-                                <span class="aipkit_stats_log_module_icon" title="${escapeHtml(moduleLabel)}" role="img" aria-label="${escapeHtml(moduleLabel)}">
-                                    <span class="dashicons ${escapeHtml(moduleIconClass)}" aria-hidden="true"></span>
-                                </span>
-                                <span class="aipkit_stats_log_item_text">
-                                    <strong class="aipkit_stats_log_user">${escapeHtml(log.user_display_name || '—')}</strong>
-                                    <span class="aipkit_stats_preview">${escapeHtml(preview)}</span>
-                                </span>
-                            </div>
-                        </td>
-                        <td class="aipkit_stats_log_tokens_cell">${escapeHtml(tokens)}</td>
+                        ${cells.map((cell, index) => `<td${index === cells.length - 1 ? ' class="aipkit_stats_log_tokens_cell"' : ''}>${cell}</td>`).join('')}
                     </tr>
                 `;
-            });
-            elements.tableBody.innerHTML = rows.join('');
+            }).join('');
             syncLogSelectionUi();
         };
 
         const buildFiltersPayload = () => ({
             days: state.days,
-            bot_id: state.botId,
-            module: state.module,
+            view: ['conversations', 'tasks', 'errors'].includes(state.view) ? state.view : '',
+            group: state.view === 'tasks' ? state.group : '',
+            bot_id: state.view === 'conversations' ? state.botId : '',
             search: state.search,
         });
 
-        const triggerCsvDownload = (csvContent, filename) => {
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const triggerDownload = (content, filename, type = 'text/csv;charset=utf-8;') => {
+            const blob = new Blob([content], { type });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -2622,35 +2793,40 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
         });
 
         const deleteSingleLog = async (logId) => {
-            if (!logId) {
+            const id = Number(logId);
+            if (!id) {
                 return;
             }
+            const isTask = !isConversationLog(state.currentDetail || state.logRows.get(id));
             const confirmed = await confirmDestructiveAction(
-                __('This permanently deletes the selected conversation and its saved messages. This cannot be undone.', 'gpt3-ai-content-generator'),
+                isTask
+                    ? __('This permanently deletes this log and its saved requests. This cannot be undone.', 'gpt3-ai-content-generator')
+                    : __('This permanently deletes the selected conversation and its saved messages. This cannot be undone.', 'gpt3-ai-content-generator'),
                 {
-                    title: __('Delete conversation', 'gpt3-ai-content-generator'),
+                    title: isTask ? __('Delete log', 'gpt3-ai-content-generator') : __('Delete conversation', 'gpt3-ai-content-generator'),
                     confirmText: __('Delete', 'gpt3-ai-content-generator'),
                 }
             );
             if (!confirmed) {
                 return;
             }
-            showStatus('Deleting conversation...');
+            showStatus(__('Deleting…', 'gpt3-ai-content-generator'), 'loading');
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_delete_log', {
-                    log_id: logId,
+                    log_id: id,
                 });
-                showStatus(response.message || 'Conversation deleted.');
-                if (state.selectedLogId === Number(logId)) {
-                    state.selectedLogId = null;
-                    renderDetail(null);
+                showStatus(response.message || __('Deleted.', 'gpt3-ai-content-generator'), 'success');
+                if (state.selectedLogId === id) {
+                    closeDrawer(false);
+                    container.querySelector('.aipkit_usage_chip[aria-pressed="true"]')?.focus({ preventScroll: true });
                 }
-                state.selectedLogIds.delete(Number(logId));
+                state.selectedLogIds.delete(id);
+                state.logRows.delete(id);
                 syncLogSelectionUi();
-                fetchLogs();
+                refreshActivity();
                 window.setTimeout(() => showStatus(''), 2000);
             } catch (error) {
-                showStatus(error.message || 'Failed to delete conversation.', 'error');
+                showStatus(error.message || __('The log couldn’t be deleted.', 'gpt3-ai-content-generator'), 'error');
             }
         };
 
@@ -2691,8 +2867,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     });
                     deletedCount += 1;
                     if (state.selectedLogId === Number(logId)) {
-                        state.selectedLogId = null;
-                        renderDetail(null);
+                        closeDrawer(false);
                     }
                 } catch (error) {
                     failedIds.push(logId);
@@ -2704,6 +2879,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                 state.page -= 1;
             }
             await fetchLogs();
+            fetchOverview();
 
             if (failedIds.length) {
                 showStatus(
@@ -2753,7 +2929,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     block_action: blockAction,
                 });
                 showStatus(response.message || (blockAction === 'block' ? __('IP address blocked.', 'gpt3-ai-content-generator') : __('IP address unblocked.', 'gpt3-ai-content-generator')));
-                await fetchDetail(logId);
+                await fetchDetail(logId, false);
                 window.setTimeout(() => showStatus(''), 2000);
             } catch (error) {
                 button.disabled = false;
@@ -2763,7 +2939,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
         const deleteAllLogs = async () => {
             const confirmed = await confirmDestructiveAction(
-                __('This permanently deletes every conversation matching the current filters. This cannot be undone.', 'gpt3-ai-content-generator'),
+                __('This permanently deletes every log in the current view and period, including your search. This cannot be undone.', 'gpt3-ai-content-generator'),
                 {
                     title: __('Delete filtered logs', 'gpt3-ai-content-generator'),
                     confirmText: __('Delete logs', 'gpt3-ai-content-generator'),
@@ -2772,69 +2948,33 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             if (!confirmed) {
                 return;
             }
-            showStatus('Deleting logs...');
+            showStatus(__('Deleting logs…', 'gpt3-ai-content-generator'), 'loading');
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_delete_logs', buildFiltersPayload());
-                showStatus(response.message || 'Logs deleted.');
-                state.selectedLogId = null;
+                showStatus(response.message || __('Logs deleted.', 'gpt3-ai-content-generator'), 'success');
                 state.selectedLogIds.clear();
                 syncLogSelectionUi();
-                renderDetail(null);
-                fetchLogs();
+                closeDrawer(false);
+                refreshActivity();
                 window.setTimeout(() => showStatus(''), 2500);
             } catch (error) {
-                showStatus(error.message || 'Failed to delete logs.', 'error');
+                showStatus(error.message || __('The logs couldn’t be deleted.', 'gpt3-ai-content-generator'), 'error');
             }
         };
 
         const exportLogs = async () => {
-            showStatus('Preparing export...');
+            showStatus(__('Preparing export…', 'gpt3-ai-content-generator'), 'loading');
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_export_logs', buildFiltersPayload());
                 if (!response || !response.csv) {
-                    throw new Error('Export failed.');
+                    throw new Error(__('Export failed.', 'gpt3-ai-content-generator'));
                 }
-                triggerCsvDownload(response.csv, response.filename);
-                showStatus(response.message || 'Export ready.');
+                triggerDownload(response.csv, response.filename);
+                showStatus(response.message || __('Export ready.', 'gpt3-ai-content-generator'), 'success');
                 window.setTimeout(() => showStatus(''), 2000);
             } catch (error) {
-                showStatus(error.message || 'Failed to export logs.', 'error');
+                showStatus(error.message || __('The export couldn’t be prepared.', 'gpt3-ai-content-generator'), 'error');
             }
-        };
-
-        const resetLogFilters = () => {
-            clearSelectedLogs();
-            state.days = DEFAULT_DAYS;
-            state.botId = '';
-            state.module = '';
-            state.search = '';
-            state.page = 1;
-
-            if (searchTimer) {
-                clearTimeout(searchTimer);
-                searchTimer = null;
-            }
-
-            syncDaysFilterControls(state.days);
-
-            if (elements.botFilter) {
-                elements.botFilter.value = '';
-            }
-
-            if (elements.moduleFilter) {
-                elements.moduleFilter.value = '';
-            }
-
-            if (elements.searchInput) {
-                elements.searchInput.value = '';
-            }
-
-            setStoredValue(DAYS_STORAGE_KEY, state.days);
-            setStoredValue(BOT_FILTER_STORAGE_KEY, state.botId);
-            setStoredValue(MODULE_FILTER_STORAGE_KEY, state.module);
-
-            syncLogFiltersResetState();
-            fetchLogs();
         };
 
         const positionTableMenu = () => {
@@ -2881,7 +3021,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             elements.tableMenuTrigger.setAttribute('aria-expanded', nextState ? 'true' : 'false');
             if (nextState) {
                 positionTableMenu();
-                const focusTarget = elements.retentionOpen || elements.exportBtn || elements.deleteAllBtn;
+                const focusTarget = Array.from(elements.tableMenu.querySelectorAll('[role="menuitem"]')).find((item) => !item.disabled);
                 if (focusTarget && typeof focusTarget.focus === 'function') {
                     window.requestAnimationFrame(() => focusTarget.focus());
                 }
@@ -2903,8 +3043,8 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     state.page = page;
                     fetchLogs();
                 }, {
-                    itemLabelSingular: __('conversation', 'gpt3-ai-content-generator'),
-                    itemLabelPlural: __('conversations', 'gpt3-ai-content-generator'),
+                    itemLabelSingular: state.view === 'conversations' ? __('conversation', 'gpt3-ai-content-generator') : __('item', 'gpt3-ai-content-generator'),
+                    itemLabelPlural: state.view === 'conversations' ? __('conversations', 'gpt3-ai-content-generator') : __('items', 'gpt3-ai-content-generator'),
                     compactControls: true,
                     perPage: state.perPage,
                     perPageOptions: LOGS_PER_PAGE_OPTIONS,
@@ -2924,142 +3064,302 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             elements.pagination.innerHTML = '';
         };
 
+        const resolveMessageRole = (role) => {
+            const normalized = (role || '').toLowerCase();
+            if (normalized === 'assistant' || normalized === 'model' || normalized === 'bot') {
+                return 'bot';
+            }
+            if (normalized === 'user') {
+                return 'user';
+            }
+            return normalized || 'unknown';
+        };
+
+        const findNextBotMessage = (messages, startIndex) => {
+            for (let index = startIndex + 1; index < messages.length; index += 1) {
+                if (resolveMessageRole(messages[index]?.role) === 'bot') {
+                    return messages[index];
+                }
+            }
+            return null;
+        };
+
+        const messageTokens = (message) => Number(message?.usage?.total_tokens ?? message?.usage?.totalTokenCount ?? 0) || 0;
+        const messageErrorCode = (message) => {
+            const code = message?.response_data?.error_code;
+            return typeof code === 'string' ? code : '';
+        };
+        const providerLabel = (provider) => (
+            normalizeProviderKey(provider) === 'aipuffercloud' ? 'AI Puffer Cloud' : getPricingProviderLabel(provider)
+        );
+
+        const buildScoreToneClass = (percent) => {
+            if (percent >= 70) {
+                return 'is-strong';
+            }
+            if (percent >= 40) {
+                return 'is-moderate';
+            }
+            return 'is-weak';
+        };
+
+        const getScoreSourceSummary = (scoreItem) => {
+            const provider = String(scoreItem?.provider || __('Unknown', 'gpt3-ai-content-generator'));
+            let source = '';
+            if (provider === 'OpenAI') {
+                source = scoreItem?.store_name || scoreItem?.store_id || '';
+            } else if (provider === 'Pinecone') {
+                source = scoreItem?.index_name || '';
+            } else if (provider === 'Qdrant' || provider === 'Chroma') {
+                source = scoreItem?.collection_name || '';
+            } else {
+                source = scoreItem?.index_name || scoreItem?.store_name || scoreItem?.collection_name || '';
+            }
+            return source ? `${provider} · ${source}` : provider;
+        };
+
+        const buildScoreChunkLabel = (scoreItem) => {
+            const total = Number(scoreItem?.total_chunks ?? 0);
+            let chunkNumber = Number(scoreItem?.chunk_number ?? 0);
+            if (!chunkNumber && scoreItem?.chunk_index !== undefined) {
+                chunkNumber = Number(scoreItem.chunk_index) + 1;
+            }
+            if (!Number.isFinite(chunkNumber) || !Number.isFinite(total) || chunkNumber < 1 || total <= 1) {
+                return '';
+            }
+            return `${__('Chunk', 'gpt3-ai-content-generator')} ${Math.round(chunkNumber)}/${Math.round(total)}`;
+        };
+
+        let markdownRenderer;
+        const renderMessageBody = (content) => {
+            if (markdownRenderer === undefined) {
+                markdownRenderer = null;
+                if (typeof window.markdownit === 'function') {
+                    markdownRenderer = window.markdownit({ html: false, linkify: true, typographer: true });
+                    if (window.hljs && typeof window.markdownitHighlight === 'function') {
+                        markdownRenderer.use(window.markdownitHighlight, { hljs: window.hljs });
+                    }
+                }
+            }
+            return markdownRenderer
+                ? { html: markdownRenderer.render(content), markdown: true }
+                : { html: escapeHtml(content), markdown: false };
+        };
+
+        const disclosureButton = (targetId, label) => `
+            <button type="button" class="aipkit_usage_disclosure" data-aipkit-stats-toggle="${targetId}" aria-controls="${targetId}" aria-expanded="false">
+                <span>${escapeHtml(label)}</span>
+                <span class="dashicons dashicons-arrow-down-alt2" aria-hidden="true"></span>
+            </button>
+        `;
+
+        const renderPayloadCard = (requestPayload, idBase) => {
+            const payloadId = `${idBase}_payload`;
+            const rawPayloadId = `${payloadId}_raw`;
+            const summary = summarizeRequestPayload(requestPayload, providerLabel);
+            const field = (label, value) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+            const section = (label, content, suffix) => {
+                const sectionId = `${payloadId}_${suffix}`;
+                const isLong = content.length > 280 || content.split('\n').length > 4;
+                return `
+                    <div class="aipkit_usage_payload_section">
+                        <div class="aipkit_usage_payload_label">${escapeHtml(label)}</div>
+                        <pre class="aipkit_usage_payload_text${isLong ? ' is-clamped' : ''}" id="${sectionId}">${escapeHtml(content)}</pre>
+                        ${isLong ? `<button type="button" class="aipkit_usage_link_btn" data-aipkit-usage-clamp="${sectionId}" aria-controls="${sectionId}" aria-expanded="false">${escapeHtml(__('Show all', 'gpt3-ai-content-generator'))}</button>` : ''}
+                    </div>
+                `;
+            };
+            return disclosureButton(payloadId, __('Request details', 'gpt3-ai-content-generator')) + `
+                <div class="aipkit_usage_expand" id="${payloadId}" hidden>
+                    <div class="aipkit_usage_xcard">
+                        <div class="aipkit_usage_xcard_head">
+                            <span class="aipkit_usage_xcard_title">${escapeHtml(__('Request payload', 'gpt3-ai-content-generator'))}</span>
+                            <button type="button" class="aipkit_usage_btn aipkit_usage_btn--small" data-aipkit-copy-payload="${rawPayloadId}">${escapeHtml(__('Copy JSON', 'gpt3-ai-content-generator'))}</button>
+                            <textarea id="${rawPayloadId}" hidden readonly>${escapeHtml(JSON.stringify(requestPayload, null, 2))}</textarea>
+                        </div>
+                        <dl class="aipkit_usage_kv">
+                            ${field(__('Provider', 'gpt3-ai-content-generator'), summary.provider)}
+                            ${field(__('Model', 'gpt3-ai-content-generator'), summary.model)}
+                            ${field(__('Max output', 'gpt3-ai-content-generator'), summary.maxOutputTokens)}
+                            ${field(__('Reasoning', 'gpt3-ai-content-generator'), summary.reasoning)}
+                        </dl>
+                        ${summary.systemPrompt ? section(__('System prompt', 'gpt3-ai-content-generator'), summary.systemPrompt, 'system') : ''}
+                        ${summary.userMessage ? section(__('User message', 'gpt3-ai-content-generator'), summary.userMessage, 'user') : ''}
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderKnowledgeCard = (scoreItems, idBase) => {
+            const sorted = [...scoreItems].sort((left, right) => Number(right?.score ?? 0) - Number(left?.score ?? 0));
+            const highest = sorted[0];
+            const topPercent = highest?.score !== undefined ? Math.round(Number(highest.score) * 100) : 0;
+            const label = sorted.length > 1
+                ? `${sorted.length} ${__('sources', 'gpt3-ai-content-generator')} · ${__('top', 'gpt3-ai-content-generator')} ${topPercent}%`
+                : `${topPercent}% ${__('match', 'gpt3-ai-content-generator')}`;
+            const scoresId = `${idBase}_scores`;
+            const rows = sorted.map((scoreItem, index) => {
+                const fileName = typeof scoreItem?.file_name === 'string' ? scoreItem.file_name.trim() : '';
+                const chunkLabel = buildScoreChunkLabel(scoreItem);
+                const percent = scoreItem?.score !== undefined ? Math.round(Number(scoreItem.score) * 100) : null;
+                const preview = scoreItem?.content_preview || '';
+                return `
+                    <div class="aipkit_usage_source">
+                        <div class="aipkit_usage_source_head">
+                            <strong>${escapeHtml(fileName || `${__('Result', 'gpt3-ai-content-generator')} ${index + 1}`)}</strong>
+                            ${chunkLabel ? `<span>${escapeHtml(chunkLabel)}</span>` : ''}
+                            <span class="aipkit_usage_score ${percent !== null ? buildScoreToneClass(percent) : 'is-weak'}">${percent !== null ? escapeHtml(`${percent}%`) : '—'}</span>
+                        </div>
+                        ${preview ? `<p>${escapeHtml(preview)}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
+            return disclosureButton(scoresId, label) + `
+                <div class="aipkit_usage_expand" id="${scoresId}" hidden>
+                    <div class="aipkit_usage_xcard">
+                        <div class="aipkit_usage_xcard_head">
+                            <span class="aipkit_usage_xcard_title">${escapeHtml(__('Knowledge used', 'gpt3-ai-content-generator'))}</span>
+                            <span class="aipkit_usage_xcard_note">${escapeHtml(getScoreSourceSummary(highest))}</span>
+                        </div>
+                        ${rows}
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderLiveUsage = (message) => {
+            const liveUsage = message.usage || {};
+            if (Number.isFinite(liveUsage.live_seconds)) {
+                return `<p class="aipkit_usage_msg_note">${escapeHtml(
+                    `${__('Reported voice duration', 'gpt3-ai-content-generator')}: ${formatNumber(liveUsage.live_seconds)} ${__('seconds', 'gpt3-ai-content-generator')} · `
+                    + `${__('Billable duration', 'gpt3-ai-content-generator')}: ${formatNumber(liveUsage.billable_seconds ?? Math.max(15, Math.ceil(liveUsage.live_seconds)))} ${__('seconds', 'gpt3-ai-content-generator')} · `
+                    + (liveUsage.live_usage_complete ? __('Final usage received', 'gpt3-ai-content-generator') : __('Partial usage — final report missing', 'gpt3-ai-content-generator'))
+                )}</p>`;
+            }
+            if (liveUsage.live_session_id && Number.isFinite(liveUsage.total_tokens)) {
+                return `<p class="aipkit_usage_msg_note">${escapeHtml(`${message.model || ''} · ${formatNumber(liveUsage.input_tokens || 0)} ${__('input tokens', 'gpt3-ai-content-generator')} · ${formatNumber(liveUsage.output_tokens || 0)} ${__('output tokens', 'gpt3-ai-content-generator')}`)}</p>`;
+            }
+            return '';
+        };
+
+        const renderConversationMessages = (messages, userLabel, botLabel) => messages.map((message, index) => {
+            const role = resolveMessageRole(message.role);
+            const idBase = `aipkit_usage_msg_${index}`;
+            const tokens = messageTokens(message);
+            const meta = [formatMessageTime(message.timestamp), role === 'bot' && tokens ? formatTokens(tokens) : ''].filter(Boolean).join(' · ');
+            const label = role === 'user' ? userLabel : role === 'bot' ? botLabel : role.charAt(0).toUpperCase() + role.slice(1);
+            let extras = '';
+            if (role === 'user') {
+                const requestPayload = findNextBotMessage(messages, index)?.request_payload;
+                if (requestPayload) {
+                    extras = renderPayloadCard(requestPayload, idBase);
+                }
+            } else if (role === 'bot' && Array.isArray(message.vector_search_scores) && message.vector_search_scores.length) {
+                extras = renderKnowledgeCard(message.vector_search_scores, idBase);
+            }
+            const code = messageErrorCode(message);
+            const body = renderMessageBody(normalizeMessageContent(message.content));
+            return `
+                <div class="aipkit_usage_msg aipkit_usage_msg--${escapeHtml(role)}${code && !REFUSAL_CODES.includes(code) ? ' is-failed' : ''}">
+                    <div class="aipkit_usage_msg_who">${escapeHtml(label)}${meta ? `<span>${escapeHtml(meta)}</span>` : ''}</div>
+                    <div class="aipkit_usage_bubble${body.markdown ? ' aipkit_stats_message_body--markdown' : ''}">${body.html}</div>
+                    ${renderLiveUsage(message)}
+                    ${extras}
+                </div>
+            `;
+        }).join('');
+
+        // One step per request and reply; logs without that structure list each reply as its own request.
+        const renderTaskSteps = (messages) => {
+            const steps = [];
+            let pending = null;
+            messages.forEach((message) => {
+                const role = resolveMessageRole(message.role);
+                if (role === 'user') {
+                    if (pending) {
+                        steps.push({ prompt: pending, reply: null });
+                    }
+                    pending = message;
+                } else if (role === 'bot') {
+                    steps.push({ prompt: pending, reply: message });
+                    pending = null;
+                }
+            });
+            if (pending) {
+                steps.push({ prompt: pending, reply: null });
+            }
+            return steps.map((step, index) => {
+                const source = String(step.prompt?.original_content || step.prompt?.content || '').trim();
+                const named = source.match(/^generate\s+(.{1,40})$/i);
+                const label = named
+                    ? named[1].charAt(0).toUpperCase() + named[1].slice(1)
+                    : sprintf(__('Request %s', 'gpt3-ai-content-generator'), index + 1);
+                const code = messageErrorCode(step.reply);
+                let status = { label: __('Done', 'gpt3-ai-content-generator'), tone: 'is-ok' };
+                if (!step.reply) {
+                    status = { label: __('No reply', 'gpt3-ai-content-generator'), tone: 'is-muted' };
+                } else if (code && REFUSAL_CODES.includes(code)) {
+                    status = { label: __('Blocked', 'gpt3-ai-content-generator'), tone: 'is-warning' };
+                } else if (code) {
+                    status = { label: __('Failed', 'gpt3-ai-content-generator'), tone: 'is-error' };
+                }
+                const tokens = messageTokens(step.reply);
+                const result = [truncate(normalizeMessageContent(step.reply?.content), 160), tokens ? formatTokens(tokens) : ''].filter(Boolean).join(' · ');
+                const requestPayload = step.reply?.request_payload || step.prompt?.request_payload;
+                return `
+                    <li class="aipkit_usage_step">
+                        <span class="aipkit_usage_step_num ${status.tone}" aria-hidden="true">${index + 1}</span>
+                        <div class="aipkit_usage_step_main">
+                            <div class="aipkit_usage_step_head">
+                                <strong>${escapeHtml(label)}</strong>
+                                <span class="aipkit_usage_pill ${status.tone}">${escapeHtml(status.label)}</span>
+                            </div>
+                            ${result ? `<p class="aipkit_usage_step_result">${escapeHtml(result)}</p>` : ''}
+                            ${requestPayload ? renderPayloadCard(requestPayload, `aipkit_usage_step_${index}`) : ''}
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        };
+
+        const formatDuration = (seconds) => {
+            const value = Math.max(0, Math.round(Number(seconds) || 0));
+            if (!value) {
+                return '';
+            }
+            if (value < 60) {
+                return sprintf(__('%s s', 'gpt3-ai-content-generator'), value);
+            }
+            if (value < 3600) {
+                return sprintf(__('%s min', 'gpt3-ai-content-generator'), Math.round(value / 60));
+            }
+            return sprintf(__('%s h', 'gpt3-ai-content-generator'), Math.round(value / 360) / 10);
+        };
+
         const renderDetail = (detail) => {
             if (!elements.detailPanel) {
                 return;
             }
-            if (!detail) {
-                if (elements.detailIdentity) {
-                    elements.detailIdentity.hidden = true;
-                    elements.detailIdentity.innerHTML = '';
-                }
-                elements.detailPanel.innerHTML = `
-                    <div class="aipkit_stats_detail_empty">
-                        ${escapeHtml('Select a conversation to view details.')}
-                    </div>
-                `;
-                return;
-            }
-
-            const resolveMessageRole = (role) => {
-                const normalized = (role || '').toLowerCase();
-                if (normalized === 'assistant' || normalized === 'model' || normalized === 'bot') {
-                    return 'bot';
-                }
-                if (normalized === 'user') {
-                    return 'user';
-                }
-                return normalized || 'unknown';
-            };
-
-            const findNextBotMessage = (messages, startIndex) => {
-                for (let index = startIndex + 1; index < messages.length; index += 1) {
-                    const nextRole = resolveMessageRole(messages[index]?.role);
-                    if (nextRole === 'bot') {
-                        return messages[index];
-                    }
-                }
-                return null;
-            };
-
-            const buildScoreToneClass = (percent) => {
-                if (percent >= 70) {
-                    return 'is-strong';
-                }
-                if (percent >= 40) {
-                    return 'is-moderate';
-                }
-                return 'is-weak';
-            };
-
-            const getScoreSourceSummary = (scoreItem) => {
-                const provider = String(scoreItem?.provider || __('Unknown', 'gpt3-ai-content-generator'));
-                let source = '';
-                if (provider === 'OpenAI') {
-                    source = scoreItem?.store_name || scoreItem?.store_id || '';
-                } else if (provider === 'Pinecone') {
-                    source = scoreItem?.index_name || '';
-                } else if (provider === 'Qdrant' || provider === 'Chroma') {
-                    source = scoreItem?.collection_name || '';
-                } else {
-                    source = scoreItem?.index_name || scoreItem?.store_name || scoreItem?.collection_name || '';
-                }
-                return source ? `${provider} · ${source}` : provider;
-            };
-
-            const buildScoreChunkLabel = (scoreItem) => {
-                const total = Number(scoreItem?.total_chunks ?? 0);
-                let chunkNumber = Number(scoreItem?.chunk_number ?? 0);
-                if (!chunkNumber && scoreItem?.chunk_index !== undefined) {
-                    chunkNumber = Number(scoreItem.chunk_index) + 1;
-                }
-                if (!Number.isFinite(chunkNumber) || !Number.isFinite(total) || chunkNumber < 1 || total <= 1) {
-                    return '';
-                }
-                return `Chunk ${Math.round(chunkNumber)}/${Math.round(total)}`;
-            };
-
-            const getScoreFileName = (scoreItem) => {
-                const fileName = scoreItem?.file_name;
-                return typeof fileName === 'string' ? fileName.trim() : '';
-            };
-
+            const row = state.logRows.get(Number(detail.id)) || {};
+            const log = { ...detail, ...row };
             const messages = Array.isArray(detail.messages) ? detail.messages : [];
-            const userDisplayName = String(detail.user_display_name || __('User', 'gpt3-ai-content-generator')).trim();
-            const conversationLabel = detail.bot_name || getModuleLabel(detail.module);
-            if (elements.detailIdentity) {
-                elements.detailIdentity.innerHTML = `
-                    <div class="aipkit_stats_detail_identity_name">${escapeHtml(userDisplayName)}</div>
-                    <div class="aipkit_stats_detail_identity_meta">
-                        ${escapeHtml(conversationLabel)}
-                        <span aria-hidden="true">·</span>
-                        ${escapeHtml(formatNumber(detail.message_count || messages.length))} ${escapeHtml(__('messages', 'gpt3-ai-content-generator'))}
-                    </div>
-                `;
-                elements.detailIdentity.hidden = false;
-            }
-            const moduleKey = String(detail.module || '')
-                .toLowerCase()
-                .replace(/[\s-]+/g, '_');
-            const markdownRenderer = (() => {
-                if (typeof window.markdownit !== 'function') {
-                    return null;
-                }
-                const renderer = window.markdownit({ html: false, linkify: true, typographer: true });
-                if (window.hljs && typeof window.markdownitHighlight === 'function') {
-                    renderer.use(window.markdownitHighlight, { hljs: window.hljs });
-                }
-                return renderer;
-            })();
+            const moduleKey = String(detail.module || '').toLowerCase().replace(/[\s-]+/g, '_');
 
             const isContentWriterPlaceholder = (content) => {
                 const trimmed = String(content || '').trim().toLowerCase();
-                if (!trimmed) {
-                    return false;
-                }
-                return trimmed.startsWith('generate ') || trimmed.startsWith('content writer request');
+                return Boolean(trimmed) && (trimmed.startsWith('generate ') || trimmed.startsWith('content writer request'));
             };
-
             const extractPromptFromPayload = (payload) => {
-                if (!payload || typeof payload !== 'object') {
-                    return null;
-                }
-                const sent = payload.payload_sent;
+                const sent = payload && typeof payload === 'object' ? payload.payload_sent : null;
                 if (!sent || typeof sent !== 'object') {
                     return null;
                 }
-                const messagesList = Array.isArray(sent.messages)
-                    ? sent.messages
-                    : Array.isArray(sent.input)
-                        ? sent.input
-                        : null;
-                if (!Array.isArray(messagesList)) {
-                    return null;
-                }
-                const userMessage = messagesList.find((entry) => entry && entry.role === 'user' && typeof entry.content === 'string' && entry.content.trim());
+                const messagesList = Array.isArray(sent.messages) ? sent.messages : (Array.isArray(sent.input) ? sent.input : null);
+                const userMessage = Array.isArray(messagesList)
+                    ? messagesList.find((entry) => entry && entry.role === 'user' && typeof entry.content === 'string' && entry.content.trim())
+                    : null;
                 return userMessage ? userMessage.content.trim() : null;
             };
-
             const findPromptField = (payload, content) => {
                 if (!payload || typeof payload !== 'object') {
                     return null;
@@ -3073,329 +3373,317 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     'generate featured image': 'featured_image_prompt',
                     'generate title': 'custom_title_prompt',
                 };
-                const key = String(content || '').trim().toLowerCase();
-                const field = mapping[key];
-                if (!field || typeof payload[field] !== 'string') {
-                    return null;
-                }
-                const value = payload[field].trim();
-                return value ? value : null;
+                const field = mapping[String(content || '').trim().toLowerCase()];
+                const value = field && typeof payload[field] === 'string' ? payload[field].trim() : '';
+                return value || null;
             };
-
             const findAnyPromptField = (payload) => {
                 if (!payload || typeof payload !== 'object') {
                     return null;
                 }
-                for (const key in payload) {
-                    if (!Object.prototype.hasOwnProperty.call(payload, key)) {
-                        continue;
-                    }
-                    if (!/_prompt$/i.test(key)) {
-                        continue;
-                    }
-                    const value = payload[key];
-                    if (typeof value === 'string' && value.trim()) {
-                        return value.trim();
-                    }
-                }
-                return null;
+                const key = Object.keys(payload).find((name) => /_prompt$/i.test(name) && typeof payload[name] === 'string' && payload[name].trim());
+                return key ? payload[key].trim() : null;
             };
 
-            if (moduleKey === 'content_writer' && Array.isArray(messages) && messages.length) {
-                for (let index = 0; index < messages.length; index += 1) {
-                    const message = messages[index];
-                    if (!message || message.role !== 'user' || typeof message.content !== 'string') {
-                        continue;
+            // Content Writer stores "Generate title"-style placeholders; show the prompt that was really sent.
+            if (moduleKey === 'content_writer') {
+                messages.forEach((message, index) => {
+                    if (!message || message.role !== 'user' || typeof message.content !== 'string' || !isContentWriterPlaceholder(message.content)) {
+                        return;
                     }
                     const rawContent = message.content.trim();
-                    if (!rawContent || !isContentWriterPlaceholder(rawContent)) {
-                        continue;
-                    }
-                    let replacement = null;
-                    const nextPayload = messages[index + 1]?.request_payload;
-                    if (nextPayload) {
-                        replacement = extractPromptFromPayload(nextPayload);
-                    }
-                    if (!replacement && message.request_payload) {
-                        replacement = extractPromptFromPayload(message.request_payload);
-                    }
-                    if (!replacement && message.request_payload) {
-                        replacement = findPromptField(message.request_payload, rawContent);
-                    }
-                    if (!replacement && message.request_payload) {
-                        replacement = findAnyPromptField(message.request_payload);
-                    }
+                    const replacement = extractPromptFromPayload(messages[index + 1]?.request_payload)
+                        || extractPromptFromPayload(message.request_payload)
+                        || findPromptField(message.request_payload, rawContent)
+                        || findAnyPromptField(message.request_payload);
                     if (replacement) {
                         message.original_content = message.content;
                         message.content = replacement;
                     }
-                }
+                });
             }
-            const renderPayloadField = (label, value) => `
-                <div class="aipkit_stats_payload_field">
-                    <span>${escapeHtml(label)}</span>
-                    <strong>${escapeHtml(value)}</strong>
-                </div>
-            `;
 
-            const renderPayloadSection = (label, content, modifier = '') => `
-                <div class="aipkit_stats_payload_section">
-                    <div class="aipkit_stats_payload_section_label">${escapeHtml(label)}</div>
-                    <pre class="aipkit_stats_payload_content${modifier}">${escapeHtml(content)}</pre>
-                </div>
-            `;
+            state.currentDetail = detail;
+            const isConversation = isConversationLog(detail);
+            const status = getLogStatus(log);
+            const who = getLogWho(log);
+            const lastBot = [...messages].reverse().find((message) => resolveMessageRole(message.role) === 'bot');
+            const totalTokens = messages.reduce((sum, message) => sum + messageTokens(message), 0);
+            const startedAt = formatTimestamp(detail.first_message_ts || detail.last_message_ts);
 
-            const messageItems = messages.map((message, index) => {
-                const role = resolveMessageRole(message.role);
-                const timestamp = formatMessageTime(message.timestamp);
-                const content = normalizeMessageContent(message.content);
-                const rawMessageId = String(message.message_id || `msg_${index}`);
-                const safeMessageId = rawMessageId.replace(/[^a-zA-Z0-9_-]/g, '') || `msg_${index}`;
-                let detailControlHtml = '';
-                let expandableHtml = '';
+            if (elements.detailTitle) {
+                elements.detailTitle.textContent = isConversation ? who : getModuleLabel(detail.module);
+            }
+            if (elements.detailStatus) {
+                elements.detailStatus.className = `aipkit_usage_pill ${status.tone}`;
+                elements.detailStatus.textContent = status.label;
+                elements.detailStatus.hidden = false;
+            }
+            if (elements.detailSub) {
+                elements.detailSub.textContent = (isConversation
+                    ? [detail.bot_name || getModuleLabel('chatbot'), startedAt, formatMessages(detail.message_count || messages.length)]
+                    : [sprintf(__('Started by %s', 'gpt3-ai-content-generator'), who), startedAt, formatDuration(Number(detail.last_message_ts) - Number(detail.first_message_ts))]
+                ).filter(Boolean).join(' · ');
+            }
+            if (elements.detailMeta) {
+                const metaItems = [
+                    [__('Model', 'gpt3-ai-content-generator'), lastBot?.model || ''],
+                    [__('Provider', 'gpt3-ai-content-generator'), lastBot?.provider ? providerLabel(lastBot.provider) : ''],
+                    [__('Tokens', 'gpt3-ai-content-generator'), totalTokens ? formatNumber(totalTokens) : ''],
+                ].filter((item) => item[1]);
+                elements.detailMeta.innerHTML = metaItems.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('');
+                elements.detailMeta.hidden = !metaItems.length;
+            }
 
-                if (role === 'user') {
-                    const nextBotMessage = findNextBotMessage(messages, index);
-                    const requestPayload = nextBotMessage?.request_payload || null;
-                    if (requestPayload) {
-                        const payloadId = `aipkit_stats_payload_${safeMessageId}`;
-                        const rawPayloadId = `${payloadId}_raw`;
-                        const payloadSummary = summarizeRequestPayload(requestPayload, getPricingProviderLabel);
-                        const rawPayload = JSON.stringify(requestPayload, null, 2);
-                        detailControlHtml = `
-                            <button
-                                type="button"
-                                class="aipkit_stats_disclosure aipkit_stats_disclosure--payload"
-                                data-aipkit-stats-toggle="${payloadId}"
-                                aria-controls="${payloadId}"
-                                aria-expanded="false"
-                                aria-label="${escapeHtml(__('View request payload', 'gpt3-ai-content-generator'))}"
-                            >
-                                <span class="dashicons dashicons-arrow-down-alt2 aipkit_stats_disclosure_chevron" aria-hidden="true"></span>
-                            </button>
-                        `;
-                        expandableHtml += `
-                            <div class="aipkit_stats_expandable aipkit_stats_expandable--payload" id="${payloadId}" hidden>
-                                <div class="aipkit_stats_expandable_body aipkit_stats_payload_card">
-                                    <div class="aipkit_stats_payload_header">
-                                        <div class="aipkit_stats_payload_title">${escapeHtml(__('Request payload', 'gpt3-ai-content-generator'))}</div>
-                                        <button
-                                            type="button"
-                                            class="aipkit_stats_payload_copy"
-                                            data-aipkit-copy-payload="${rawPayloadId}"
-                                            aria-label="${escapeHtml(__('Copy request payload', 'gpt3-ai-content-generator'))}"
-                                            title="${escapeHtml(__('Copy request payload', 'gpt3-ai-content-generator'))}"
-                                        >
-                                            <span class="aipkit_stats_payload_copy_icon" aria-hidden="true">
-                                                <svg viewBox="0 0 20 20" focusable="false">
-                                                    <rect x="7" y="7" width="10" height="10" rx="2"></rect>
-                                                    <path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path>
-                                                </svg>
-                                            </span>
-                                            <span class="dashicons dashicons-yes-alt aipkit_stats_payload_copy_success" aria-hidden="true"></span>
-                                        </button>
-                                        <textarea id="${rawPayloadId}" class="aipkit_stats_payload_raw" hidden readonly>${escapeHtml(rawPayload)}</textarea>
-                                    </div>
-                                    <div class="aipkit_stats_payload_grid">
-                                        ${renderPayloadField(__('Provider', 'gpt3-ai-content-generator'), payloadSummary.provider)}
-                                        ${renderPayloadField(__('Model', 'gpt3-ai-content-generator'), payloadSummary.model)}
-                                        ${renderPayloadField(__('Max output tokens', 'gpt3-ai-content-generator'), payloadSummary.maxOutputTokens)}
-                                        ${renderPayloadField(__('Reasoning effort', 'gpt3-ai-content-generator'), payloadSummary.reasoning)}
-                                    </div>
-                                    ${payloadSummary.systemPrompt ? renderPayloadSection(__('System prompt', 'gpt3-ai-content-generator'), payloadSummary.systemPrompt, ' aipkit_stats_payload_content--system') : ''}
-                                    ${payloadSummary.userMessage ? renderPayloadSection(__('User message', 'gpt3-ai-content-generator'), payloadSummary.userMessage) : ''}
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-
-                if (role === 'bot') {
-                    const scoreItems = Array.isArray(message.vector_search_scores) ? message.vector_search_scores : [];
-                    if (scoreItems.length > 0) {
-                        const sortedScoreItems = [...scoreItems].sort((left, right) => (
-                            Number(right?.score ?? 0) - Number(left?.score ?? 0)
-                        ));
-                        const highest = sortedScoreItems[0];
-                        const scorePercent = highest?.score !== undefined ? Math.round(Number(highest.score) * 100) : 0;
-                        const scoreCount = sortedScoreItems.length;
-                        const disclosureScore = scoreCount > 1
-                            ? `${scoreCount} ${__('sources', 'gpt3-ai-content-generator')} · ${__('top', 'gpt3-ai-content-generator')} ${scorePercent}%`
-                            : `${scorePercent}% ${__('match', 'gpt3-ai-content-generator')}`;
-                        const sourceSummary = getScoreSourceSummary(highest);
-                        const scoreId = `aipkit_stats_scores_${safeMessageId}`;
-                        detailControlHtml = `
-                            <button
-                                type="button"
-                                class="aipkit_stats_disclosure aipkit_stats_disclosure--vector"
-                                data-aipkit-stats-toggle="${scoreId}"
-                                aria-controls="${scoreId}"
-                                aria-expanded="false"
-                                aria-label="${escapeHtml(__('View vector match details', 'gpt3-ai-content-generator'))}"
-                            >
-                                <span class="aipkit_stats_disclosure_icon" aria-hidden="true"><span class="dashicons dashicons-database"></span></span>
-                                <span class="aipkit_stats_disclosure_score">${escapeHtml(disclosureScore)}</span>
-                                <span class="dashicons dashicons-arrow-down-alt2 aipkit_stats_disclosure_chevron" aria-hidden="true"></span>
-                            </button>
-                        `;
-
-                        const scoreDetails = sortedScoreItems.map((scoreItem, scoreIndex) => {
-                            const fileName = getScoreFileName(scoreItem);
-                            const chunkLabel = buildScoreChunkLabel(scoreItem);
-                            const itemScorePercent = scoreItem?.score !== undefined ? Math.round(Number(scoreItem.score) * 100) : null;
-                            const itemScoreClass = itemScorePercent !== null ? buildScoreToneClass(itemScorePercent) : 'is-weak';
-                            const preview = scoreItem?.content_preview || '';
-                            const resultMeta = [fileName, chunkLabel].filter(Boolean).join(' · ');
-                            return `
-                                <div class="aipkit_stats_score_item">
-                                    <div class="aipkit_stats_score_item_header">
-                                        <div class="aipkit_stats_score_result_identity">
-                                            <div class="aipkit_stats_score_result_label">${escapeHtml(`${__('Result', 'gpt3-ai-content-generator')} ${scoreIndex + 1}`)}</div>
-                                            ${resultMeta ? `<div class="aipkit_stats_score_result_meta">${escapeHtml(resultMeta)}</div>` : ''}
-                                        </div>
-                                        <div class="aipkit_stats_score_value ${itemScoreClass}">
-                                            ${itemScorePercent !== null ? escapeHtml(`${itemScorePercent}%`) : escapeHtml('—')}
-                                        </div>
-                                    </div>
-                                    <div class="aipkit_stats_score_preview">${escapeHtml(preview)}</div>
-                                </div>
-                            `;
-                        }).join('');
-
-                        expandableHtml += `
-                            <div class="aipkit_stats_expandable aipkit_stats_expandable--scores" id="${scoreId}" hidden>
-                                <div class="aipkit_stats_expandable_body aipkit_stats_scores_panel">
-                                    <div class="aipkit_stats_scores_header">
-                                        <div class="aipkit_stats_scores_title">${escapeHtml(__('Vector search results', 'gpt3-ai-content-generator'))}</div>
-                                        <div class="aipkit_stats_scores_source">${escapeHtml(sourceSummary)}</div>
-                                    </div>
-                                    <div class="aipkit_stats_scores_list">
-                                        ${scoreDetails}
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-
-                const isMarkdownBody = Boolean(markdownRenderer && typeof content === 'string');
-                const renderedBody = isMarkdownBody
-                    ? markdownRenderer.render(content)
-                    : escapeHtml(content);
-                const timestampHtml = timestamp
-                    ? `<span class="aipkit_stats_message_timestamp">${escapeHtml(timestamp)}</span>`
-                    : '';
-                const liveUsage = message.usage || {};
-                const liveUsageHtml = Number.isFinite(liveUsage.live_seconds)
-                    ? `<div class="aipkit_stats_message_caption">${escapeHtml(
-                        `${__('Reported voice duration', 'gpt3-ai-content-generator')}: ${formatNumber(liveUsage.live_seconds)} ${__('seconds', 'gpt3-ai-content-generator')} · `
-                        + `${__('Billable duration', 'gpt3-ai-content-generator')}: ${formatNumber(liveUsage.billable_seconds ?? Math.max(15, Math.ceil(liveUsage.live_seconds)))} ${__('seconds', 'gpt3-ai-content-generator')} · `
-                        + (liveUsage.live_usage_complete ? __('Final usage received', 'gpt3-ai-content-generator') : __('Partial usage — final report missing', 'gpt3-ai-content-generator'))
-                    )}</div>`
-                    : (liveUsage.live_session_id && Number.isFinite(liveUsage.total_tokens)
-                        ? `<div class="aipkit_stats_message_caption">${escapeHtml(`${message.model || ''} · ${formatNumber(liveUsage.input_tokens || 0)} ${__('input tokens', 'gpt3-ai-content-generator')} · ${formatNumber(liveUsage.output_tokens || 0)} ${__('output tokens', 'gpt3-ai-content-generator')}`)}</div>` : '');
-                const captionHtml = timestamp || detailControlHtml
-                    ? `
-                        <div class="aipkit_stats_message_caption">
-                            ${timestampHtml}
-                            ${timestamp && detailControlHtml && role !== 'user' ? '<span class="aipkit_stats_message_caption_separator" aria-hidden="true">·</span>' : ''}
-                            ${detailControlHtml}
-                        </div>
-                    `
-                    : '';
-                return `
-                    <div class="aipkit_stats_message aipkit_stats_message--${escapeHtml(role)}" style="animation-delay: ${index * 0.05}s">
-                        <div class="aipkit_stats_message_main">
-                            <div class="aipkit_stats_message_surface">
-                                <div class="aipkit_stats_message_body${isMarkdownBody ? ' aipkit_stats_message_body--markdown' : ''}">${renderedBody}</div>
-                                ${liveUsageHtml}
-                                ${captionHtml}
-                            </div>
-                        </div>
-                        ${expandableHtml}
-                    </div>
-                `;
-            }).join('');
+            if (!messages.length) {
+                elements.detailPanel.innerHTML = `<div class="aipkit_usage_state"><p>${escapeHtml(__('No messages were saved for this log.', 'gpt3-ai-content-generator'))}</p></div>`;
+            } else if (isConversation) {
+                elements.detailPanel.innerHTML = `<div class="aipkit_usage_messages">${renderConversationMessages(
+                    messages,
+                    who,
+                    detail.bot_name || getModuleLabel('chatbot')
+                )}</div>`;
+            } else {
+                elements.detailPanel.innerHTML = `<ol class="aipkit_usage_steps">${renderTaskSteps(messages)}</ol>`;
+            }
 
             const ipBlockState = detail.ip_block && typeof detail.ip_block === 'object' ? detail.ip_block : {};
-            const ipBlockActionHtml = ipBlockState.can_block
-                ? `
-                    <button
-                        type="button"
-                        class="aipkit_stats_detail_ip_action${ipBlockState.is_blocked ? ' is-unblock' : ' is-block'}"
-                        data-log-id="${escapeHtml(detail.id)}"
-                        data-ip-block-action="${ipBlockState.is_blocked ? 'unblock' : 'block'}"
-                    >
-                        <span class="dashicons ${ipBlockState.is_blocked ? 'dashicons-unlock' : 'dashicons-lock'}" aria-hidden="true"></span>
-                        ${escapeHtml(ipBlockState.is_blocked ? __('Unblock IP', 'gpt3-ai-content-generator') : __('Block IP', 'gpt3-ai-content-generator'))}
-                    </button>
-                `
-                : '';
-
-            elements.detailPanel.innerHTML = `
-                <div class="aipkit_stats_detail_content">
-                    <div class="aipkit_stats_detail_messages">
-                        ${messageItems || `<div class="aipkit_stats_table_placeholder">${escapeHtml('No messages found.')}</div>`}
-                    </div>
-                    <div class="aipkit_stats_detail_footer">
-                        ${ipBlockActionHtml}
-                        <button type="button" class="aipkit_btn aipkit_btn-danger aipkit_stats_detail_delete" data-log-id="${escapeHtml(detail.id)}">
-                            <span class="dashicons dashicons-trash" aria-hidden="true"></span>
-                            ${escapeHtml('Delete')}
+            if (elements.detailFooter) {
+                elements.detailFooter.innerHTML = `
+                    ${isConversation && ipBlockState.can_block ? `
+                        <button type="button" class="aipkit_usage_btn aipkit_stats_detail_ip_action" data-log-id="${escapeHtml(detail.id)}" data-ip-block-action="${ipBlockState.is_blocked ? 'unblock' : 'block'}">
+                            <span class="dashicons ${ipBlockState.is_blocked ? 'dashicons-unlock' : 'dashicons-lock'}" aria-hidden="true"></span>
+                            ${escapeHtml(ipBlockState.is_blocked ? __('Unblock IP', 'gpt3-ai-content-generator') : __('Block IP', 'gpt3-ai-content-generator'))}
                         </button>
-                    </div>
-                </div>
-            `;
+                    ` : ''}
+                    <button type="button" class="aipkit_usage_btn" data-aipkit-usage-export>
+                        <span class="dashicons dashicons-download" aria-hidden="true"></span>
+                        ${escapeHtml(__('Export', 'gpt3-ai-content-generator'))}
+                    </button>
+                    <button type="button" class="aipkit_usage_btn aipkit_usage_btn--danger aipkit_stats_detail_delete" data-log-id="${escapeHtml(detail.id)}">
+                        <span class="dashicons dashicons-trash" aria-hidden="true"></span>
+                        ${escapeHtml(isConversation ? __('Delete conversation', 'gpt3-ai-content-generator') : __('Delete log', 'gpt3-ai-content-generator'))}
+                    </button>
+                `;
+                elements.detailFooter.hidden = false;
+            }
+        };
+
+        const exportDetail = () => {
+            const detail = state.currentDetail;
+            if (!detail) {
+                return;
+            }
+            const toIso = (timestamp) => (Number(timestamp) ? new Date(Number(timestamp) * 1000).toISOString() : '');
+            const data = {
+                id: Number(detail.id),
+                source: detail.bot_name || getModuleLabel(detail.module),
+                module: detail.module || 'chatbot',
+                started: toIso(detail.first_message_ts),
+                updated: toIso(detail.last_message_ts),
+                messages: (Array.isArray(detail.messages) ? detail.messages : []).map((message) => ({
+                    role: resolveMessageRole(message.role),
+                    content: normalizeMessageContent(message.content),
+                    time: toIso(message.timestamp),
+                    provider: message.provider || '',
+                    model: message.model || '',
+                    tokens: messageTokens(message),
+                })),
+            };
+            triggerDownload(JSON.stringify(data, null, 2), `aipkit-log-${Number(detail.id)}.json`, 'application/json');
+        };
+
+        const VIEW_LABELS = {
+            everything: __('Everything', 'gpt3-ai-content-generator'),
+            conversations: __('Conversations', 'gpt3-ai-content-generator'),
+            tasks: __('Content & tasks', 'gpt3-ai-content-generator'),
+            requests: __('AI requests', 'gpt3-ai-content-generator'),
+            errors: __('Errors', 'gpt3-ai-content-generator'),
+        };
+        const TASK_GROUP_LABELS = {
+            content_writer: __('Content Writer', 'gpt3-ai-content-generator'),
+            automations: __('Automations', 'gpt3-ai-content-generator'),
+            assistant: __('Content Assistant', 'gpt3-ai-content-generator'),
+            images: __('Images', 'gpt3-ai-content-generator'),
+            forms: __('AI Forms', 'gpt3-ai-content-generator'),
+            other: __('Other', 'gpt3-ai-content-generator'),
+        };
+
+        const announceResults = (total) => {
+            announce(sprintf(__('%1$s: %2$s results', 'gpt3-ai-content-generator'), VIEW_LABELS[state.view] || '', formatNumber(total)));
         };
 
         const fetchLogs = async () => {
-            renderTablePlaceholder(elements.tableBody, 4, 'Loading logs...');
+            if (!elements.tableBody || typeof window.aipkit_apiRequest !== 'function') {
+                return;
+            }
+            const sequence = ++state.logsSequence;
+            state.logRows.clear();
+            renderLogsHeader();
+            renderSkeletonRows(elements.tableBody, 6);
+            if (elements.pagination) {
+                elements.pagination.innerHTML = '';
+            }
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_get_logs', {
-                    days: state.days,
+                    ...buildFiltersPayload(),
                     page: state.page,
                     per_page: state.perPage,
-                    bot_id: state.botId,
-                    module: state.module,
-                    search: state.search,
                 });
-                const logs = Array.isArray(response.logs) ? response.logs : [];
-                if (!state.selectedLogId && !hasAutoSelected && logs.length) {
-                    state.selectedLogId = Number(logs[0].id);
-                    hasAutoSelected = true;
+                if (sequence !== state.logsSequence) {
+                    return;
                 }
+                const logs = Array.isArray(response.logs) ? response.logs : [];
+                logs.forEach((log) => state.logRows.set(Number(log.id), log));
                 renderLogs(logs);
                 renderPagination(response.pagination || {});
-                if (state.selectedLogId && hasAutoSelected) {
-                    fetchDetail(state.selectedLogId);
-                }
-                state.logsLoaded = true;
+                announceResults(response.pagination?.total_logs ?? logs.length);
             } catch (error) {
-                state.logsLoaded = false;
+                if (sequence !== state.logsSequence) {
+                    return;
+                }
                 state.visibleLogs = [];
                 state.selectedLogIds.clear();
                 syncLogSelectionUi();
-                renderTablePlaceholder(elements.tableBody, 4, error.message || 'Failed to load logs.');
+                renderLoadError(elements.tableBody, 6);
             }
         };
 
-        const fetchDetail = async (logId) => {
-            if (!logId) {
-                renderDetail(null);
+        const renderFeedEmpty = () => `<li class="aipkit_usage_state"><p>${escapeHtml(emptyText(state.view))}</p></li>`;
+
+        const fetchFeed = async (reset = true) => {
+            if (!elements.feedList || typeof window.aipkit_apiRequest !== 'function') {
                 return;
             }
-            if (elements.detailIdentity) {
-                elements.detailIdentity.hidden = true;
-                elements.detailIdentity.innerHTML = '';
+            const sequence = ++state.logsSequence;
+            if (reset) {
+                state.logRows.clear();
+                state.feedPage = 1;
+                elements.feedList.setAttribute('aria-busy', 'true');
+                elements.feedList.innerHTML = Array.from({ length: 5 }, () => '<li class="aipkit_usage_feed_skeleton" aria-hidden="true"><span class="aipkit_usage_skeleton"></span><span class="aipkit_usage_skeleton"></span></li>').join('');
+                if (elements.feedFooter) {
+                    elements.feedFooter.hidden = true;
+                }
+            } else if (elements.feedMore) {
+                elements.feedMore.disabled = true;
             }
-            elements.detailPanel.innerHTML = `<div class="aipkit_stats_detail_content"><div class="aipkit_stats_table_placeholder">${escapeHtml('Loading conversation...')}</div></div>`;
+            try {
+                const response = await window.aipkit_apiRequest('aipkit_stats_get_logs', {
+                    ...buildFiltersPayload(),
+                    page: state.feedPage,
+                    per_page: FEED_PER_PAGE,
+                });
+                if (sequence !== state.logsSequence) {
+                    return;
+                }
+                const logs = Array.isArray(response.logs) ? response.logs : [];
+                logs.forEach((log) => state.logRows.set(Number(log.id), log));
+                const rowsHtml = logs.map(renderFeedRow).join('');
+                if (reset) {
+                    elements.feedList.innerHTML = rowsHtml || renderFeedEmpty();
+                } else {
+                    elements.feedList.insertAdjacentHTML('beforeend', rowsHtml);
+                }
+                const pagination = response.pagination || {};
+                if (elements.feedFooter) {
+                    elements.feedFooter.hidden = !(Number(pagination.current_page || 1) < Number(pagination.total_pages || 0));
+                }
+                if (reset) {
+                    announceResults(pagination.total_logs ?? logs.length);
+                }
+            } catch (error) {
+                if (sequence !== state.logsSequence) {
+                    return;
+                }
+                if (reset) {
+                    elements.feedList.innerHTML = `<li>${loadErrorHtml()}</li>`;
+                } else {
+                    state.feedPage = Math.max(1, state.feedPage - 1);
+                    showStatus(__('More activity couldn’t load. Try again.', 'gpt3-ai-content-generator'), 'error');
+                }
+            } finally {
+                if (sequence === state.logsSequence) {
+                    elements.feedList.removeAttribute('aria-busy');
+                    if (elements.feedMore) {
+                        elements.feedMore.disabled = false;
+                    }
+                }
+            }
+        };
+
+        const fetchDetail = async (logId, opener = null) => {
+            const id = Number(logId);
+            if (!id || !elements.detailDrawer || typeof window.aipkit_apiRequest !== 'function') {
+                return;
+            }
+            const sequence = ++state.detailSequence;
+            const refreshing = opener === false;
+            state.selectedLogId = id;
+            markActiveRow();
+            if (!refreshing) {
+                const row = state.logRows.get(id) || {};
+                if (elements.detailTitle) {
+                    elements.detailTitle.textContent = isConversationLog(row) ? getLogWho(row) : getModuleLabel(row.module);
+                }
+                if (elements.detailStatus) {
+                    elements.detailStatus.hidden = true;
+                }
+                if (elements.detailSub) {
+                    elements.detailSub.textContent = '';
+                }
+                if (elements.detailMeta) {
+                    elements.detailMeta.hidden = true;
+                }
+                if (elements.detailFooter) {
+                    elements.detailFooter.hidden = true;
+                }
+                elements.detailPanel.innerHTML = `<div class="aipkit_usage_state" role="status"><p>${escapeHtml(__('Loading…', 'gpt3-ai-content-generator'))}</p></div>`;
+                if (drawerState.open !== elements.detailDrawer) {
+                    openDrawer(elements.detailDrawer, opener);
+                }
+            }
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_get_log_detail', {
-                    log_id: logId,
+                    log_id: id,
                 });
+                if (sequence !== state.detailSequence) {
+                    return;
+                }
                 renderDetail(response);
+                if (refreshing) {
+                    elements.detailFooter?.querySelector('.aipkit_stats_detail_ip_action')?.focus({ preventScroll: true });
+                }
             } catch (error) {
-                elements.detailPanel.innerHTML = `<div class="aipkit_stats_detail_content"><div class="aipkit_stats_table_placeholder">${escapeHtml(error.message || 'Failed to load conversation.')}</div></div>`;
+                if (sequence !== state.detailSequence) {
+                    return;
+                }
+                elements.detailPanel.innerHTML = `
+                    <div class="aipkit_usage_state is-error">
+                        <p>${escapeHtml(error.message || __('This log couldn’t load.', 'gpt3-ai-content-generator'))}</p>
+                        <button type="button" class="aipkit_usage_btn aipkit_usage_btn--small" data-aipkit-usage-detail-retry="${id}">${escapeHtml(__('Try again', 'gpt3-ai-content-generator'))}</button>
+                    </div>
+                `;
+            }
+        };
+
+        // Website activity (website management): its own rows, sub-filters and drawer content inside this page's frame.
+        websiteActivity = createWebsiteActivity({
+            container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, loadErrorHtml,
+            getSearch: () => state.search,
+            onCounts: () => {
+                if (state.view === 'website') renderSubchips();
+            },
+        });
+
+        const loadActiveView = () => {
+            if (state.view === 'website') {
+                websiteActivity?.load(true);
+            } else if (state.view === 'requests') {
+                fetchRequests(1);
+            } else if (state.view === 'conversations' || state.view === 'tasks') {
+                fetchLogs();
+            } else {
+                fetchFeed(true);
             }
         };
 
@@ -3403,44 +3691,241 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             clearSelectedLogs();
             state.search = value.trim();
             state.page = 1;
-            syncLogFiltersResetState();
             if (searchTimer) {
                 clearTimeout(searchTimer);
             }
             searchTimer = window.setTimeout(() => {
-                fetchLogs();
+                if (state.view !== 'requests') {
+                    loadActiveView();
+                }
             }, 300);
         };
 
-        const refreshCronStatus = async () => {
-            if (!elements.cronStatus) {
+        const renderSubchips = () => {
+            const box = elements.subchips;
+            if (!box) {
                 return;
             }
-            try {
-                const response = await window.aipkit_apiRequest('aipkit_stats_get_log_cron_status', {});
-                updateCronStatus(response);
-            } catch (error) {
-                // Keep last known status when refresh fails.
+            const overview = state.overview;
+            let items = [];
+            let current = '';
+            let key = '';
+            if (state.view === 'conversations') {
+                key = 'bot';
+                current = state.botId;
+                const bots = Array.isArray(overview?.bots) ? overview.bots : [];
+                if (bots.length > 1 || current) {
+                    items = [{ value: '', label: __('All bots', 'gpt3-ai-content-generator') }]
+                        .concat(bots.map((bot) => ({ value: String(bot.id), label: bot.name, count: bot.count })));
+                }
+            } else if (state.view === 'tasks') {
+                key = 'group';
+                current = state.group;
+                const groups = overview?.task_groups || {};
+                const present = Object.keys(TASK_GROUP_LABELS).filter((group) => Number(groups[group] || 0) > 0 || group === current);
+                if (present.length > 1 || current) {
+                    items = [{ value: '', label: __('All', 'gpt3-ai-content-generator') }]
+                        .concat(present.map((group) => ({ value: group, label: TASK_GROUP_LABELS[group], count: Number(groups[group] || 0) })));
+                }
+            } else if (state.view === 'website' && websiteActivity) {
+                ({ key, current, items } = websiteActivity.subchips());
+            } else if (state.view === 'requests') {
+                key = 'source';
+                current = state.requestsSource === 'all' ? '' : state.requestsSource;
+                const requests = overview?.requests || {};
+                if ((Number(requests.cloud) > 0 && Number(requests.own) > 0) || current) {
+                    items = [
+                        { value: '', label: __('All sources', 'gpt3-ai-content-generator') },
+                        { value: 'cloud', label: __('AI Puffer Cloud', 'gpt3-ai-content-generator'), count: Number(requests.cloud || 0) },
+                        { value: 'provider', label: __('Own keys', 'gpt3-ai-content-generator'), count: Number(requests.own || 0) },
+                    ];
+                }
+            }
+            box.hidden = !items.length;
+            box.dataset.key = key;
+            if (!items.length) {
+                box.innerHTML = '';
+                return;
+            }
+            const labels = {
+                bot: __('Filter by chatbot', 'gpt3-ai-content-generator'),
+                group: __('Filter by type', 'gpt3-ai-content-generator'),
+                source: __('Filter by source', 'gpt3-ai-content-generator'),
+                website: __('Filter website activity', 'gpt3-ai-content-generator'),
+            };
+            box.setAttribute('aria-label', labels[key] || '');
+            const maxChips = 6;
+            const chips = key === 'bot' && items.length > maxChips + 1 ? items.slice(0, maxChips) : items;
+            const overflow = items.slice(chips.length);
+            const countHtml = (item) => (item.count !== undefined ? `<span class="aipkit_usage_chip_count">${escapeHtml(formatNumber(item.count))}</span>` : '');
+            box.innerHTML = chips.map((item) => `
+                <button type="button" class="aipkit_usage_subchip" data-aipkit-usage-sub="${escapeHtml(item.value)}" aria-pressed="${item.value === current ? 'true' : 'false'}">${escapeHtml(item.label)}${countHtml(item)}</button>
+            `).join('') + (overflow.length ? `
+                <label class="aipkit_usage_more_bots">
+                    <span class="screen-reader-text">${escapeHtml(__('More bots', 'gpt3-ai-content-generator'))}</span>
+                    <select data-aipkit-usage-sub-select>
+                        <option value="">${escapeHtml(__('More bots', 'gpt3-ai-content-generator'))}</option>
+                        ${overflow.map((item) => `<option value="${escapeHtml(item.value)}"${item.value === current ? ' selected' : ''}>${escapeHtml(`${item.label} (${formatNumber(item.count)})`)}</option>`).join('')}
+                    </select>
+                </label>
+            ` : '');
+        };
+
+        const applySubFilter = (value) => {
+            const key = elements.subchips?.dataset.key;
+            if (key === 'bot') {
+                state.botId = value;
+            } else if (key === 'group') {
+                state.group = value;
+            } else if (key === 'source') {
+                state.requestsSource = value || 'all';
+            } else if (key === 'website' && websiteActivity) {
+                websiteActivity.setFilter(value);
+            } else {
+                return;
+            }
+            state.page = 1;
+            clearSelectedLogs();
+            renderSubchips();
+            loadActiveView();
+        };
+
+        // Errors shows only when the period has failures (or they couldn't be counted), or while it is open.
+        const syncErrorsChip = () => {
+            const chip = container.querySelector('[data-aipkit-usage-view="errors"]');
+            const errors = state.overview?.errors;
+            if (chip) {
+                chip.hidden = state.view !== 'errors' && !(state.overview && (errors === null || Number(errors) > 0));
             }
         };
 
-        const saveSettings = async () => {
-            if (!elements.settingsToggle || !elements.retentionSelect) {
+        const renderOverview = () => {
+            const overview = state.overview;
+            elements.periodLabels.forEach((label) => {
+                label.textContent = PERIOD_LABELS[state.days] || '';
+            });
+            const counts = overview
+                ? { conversations: overview.conversations, tasks: overview.tasks, requests: overview.requests?.total, errors: overview.errors }
+                : {};
+            // Website activity has no period: its count covers the kept history.
+            counts.website = websiteActivity?.count() ?? null;
+            elements.viewChips.forEach((chip) => {
+                const view = chip.dataset.aipkitUsageView;
+                const countElement = chip.querySelector('[data-aipkit-usage-count]');
+                const count = counts[view];
+                if (countElement) {
+                    countElement.textContent = count === null || count === undefined ? '' : formatNumber(count);
+                }
+            });
+            syncErrorsChip();
+            const requests = overview?.requests || {};
+            if (elements.ownTokens) {
+                elements.ownTokens.textContent = compactNumber(requests.own_tokens || 0);
+                elements.ownTokens.title = `${formatNumber(requests.own_tokens || 0)} ${__('tokens', 'gpt3-ai-content-generator')}`;
+            }
+            if (elements.ownProviders) {
+                elements.ownProviders.textContent = (Array.isArray(requests.providers) ? requests.providers : [])
+                    .slice(0, 3)
+                    .map((provider) => `${provider.label} ${compactNumber(provider.tokens)}`)
+                    .join(' · ');
+            }
+            elements.summaryValues.forEach((value) => {
+                const key = value.dataset.aipkitUsageSummary;
+                const count = key === 'requests' ? requests.total : overview?.[key];
+                value.textContent = overview && count !== undefined && count !== null ? formatNumber(count) : '—';
+            });
+            syncCards();
+            renderSubchips();
+        };
+
+        const fetchOverview = async () => {
+            if (typeof window.aipkit_apiRequest !== 'function') {
                 return;
             }
-            const enable = elements.settingsToggle.checked ? '1' : '0';
-            const retention = parseInt(elements.retentionSelect.value, 10) || 90;
+            const sequence = ++state.overviewSequence;
+            container.classList.add('is-overview-loading');
+            elements.viewChips.forEach((chip) => {
+                const countElement = chip.querySelector('[data-aipkit-usage-count]');
+                if (countElement) {
+                    countElement.textContent = '';
+                }
+            });
+            try {
+                const overview = await window.aipkit_apiRequest('aipkit_stats_get_overview', { days: state.days });
+                if (sequence !== state.overviewSequence) {
+                    return;
+                }
+                state.overview = overview && typeof overview === 'object' ? overview : null;
+            } catch (error) {
+                if (sequence !== state.overviewSequence) {
+                    return;
+                }
+                state.overview = null;
+            }
+            container.classList.remove('is-overview-loading');
+            renderOverview();
+        };
+
+        const refreshActivity = () => {
+            fetchOverview();
+            loadActiveView();
+        };
+
+        const setView = (view, { load = true } = {}) => {
+            const nextView = VIEWS.includes(view) && (view !== 'website' || websiteActivity) ? view : 'everything';
+            if (nextView !== state.view) {
+                state.view = nextView;
+                state.page = 1;
+                state.group = '';
+                state.botId = '';
+                state.requestsSource = 'all';
+                clearSelectedLogs();
+            }
+            setStoredValue(VIEW_STORAGE_KEY, nextView);
+            elements.viewChips.forEach((chip) => {
+                const isActive = chip.dataset.aipkitUsageView === nextView;
+                chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+            syncErrorsChip();
+            const panel = nextView === 'requests' || nextView === 'website' ? nextView : (nextView === 'conversations' || nextView === 'tasks' ? 'logs' : 'feed');
+            elements.viewPanels.forEach((element) => {
+                element.hidden = element.dataset.aipkitUsagePanel !== panel;
+            });
+            const searchField = elements.searchInput?.closest('.aipkit_usage_search');
+            if (searchField) {
+                searchField.hidden = nextView === 'requests';
+            }
+            [elements.exportBtn, elements.deleteAllBtn].forEach((item) => {
+                if (item) {
+                    item.disabled = nextView === 'requests' || nextView === 'website';
+                }
+            });
+            renderSubchips();
+            if (load) {
+                loadActiveView();
+            }
+        };
+
+        const setPeriodUi = () => {
+            elements.periodButtons.forEach((button) => {
+                button.setAttribute('aria-pressed', Number(button.dataset.aipkitUsageDays) === state.days ? 'true' : 'false');
+            });
+            elements.periodLabels.forEach((label) => {
+                label.textContent = PERIOD_LABELS[state.days] || '';
+            });
+        };
+
+        // Visitor billing: the customer dashboard and buy-credits links.
+        const saveCustomerLinks = async () => {
             const customerDashboardUrl = elements.customerDashboardUrl
                 ? String(elements.customerDashboardUrl.value || '').trim()
                 : '';
             const customerBuyCreditsUrl = elements.customerBuyCreditsUrl
                 ? String(elements.customerBuyCreditsUrl.value || '').trim()
                 : '';
-            showStatus('Saving settings...', 'loading');
+            showStatus(__('Saving…', 'gpt3-ai-content-generator'), 'loading');
             try {
                 const response = await window.aipkit_apiRequest('aipkit_stats_save_settings', {
-                    enable_pruning: enable,
-                    retention_period_days: retention,
                     customer_dashboard_page_url: customerDashboardUrl,
                     customer_buycredits_url: customerBuyCreditsUrl,
                 });
@@ -3450,13 +3935,11 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                 if (elements.customerBuyCreditsUrl) {
                     elements.customerBuyCreditsUrl.dataset.defaultValue = customerBuyCreditsUrl;
                 }
-                updateSettingsVisibility(elements.settingsToggle.checked);
                 updateShortcodeSnippet();
-                showStatus(response.message || 'Settings saved.', 'success');
-                refreshCronStatus();
+                showStatus(response.message || __('Settings saved.', 'gpt3-ai-content-generator'), 'success');
                 window.setTimeout(() => showStatus(''), 2000);
             } catch (error) {
-                showStatus(error.message || 'Failed to save settings.', 'error');
+                showStatus(error.message || __('The settings couldn’t be saved.', 'gpt3-ai-content-generator'), 'error');
             }
         };
 
@@ -3466,61 +3949,128 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             }
             settingsSaveTimer = window.setTimeout(() => {
                 settingsSaveTimer = null;
-                saveSettings();
+                saveCustomerLinks();
             }, 450);
         };
 
-        if (elements.daysFilters && elements.daysFilters.length) {
-            elements.daysFilters.forEach((select) => {
-                select.addEventListener('change', () => {
-                    clearSelectedLogs();
-                    state.days = parseInt(select.value, 10) || DEFAULT_DAYS;
-                    syncDaysFilterControls(state.days);
-                    setStoredValue(DAYS_STORAGE_KEY, state.days);
-                    state.page = 1;
-                    state.pricingManagementLoaded = false;
-                    syncLogFiltersResetState();
-                    if (state.activeTab === 'activity') {
-                        fetchPricingManagement();
-                    } else if (state.activeTab === 'logs') {
-                        fetchLogs();
-                    }
-                });
+        elements.periodButtons.forEach((button) => {
+            button.addEventListener('click', () => {
+                const days = Number(button.dataset.aipkitUsageDays);
+                if (!VALID_DAY_VALUES.includes(String(days)) || days === state.days) {
+                    return;
+                }
+                state.days = days;
+                setStoredValue(DAYS_STORAGE_KEY, state.days);
+                state.page = 1;
+                clearSelectedLogs();
+                setPeriodUi();
+                refreshActivity();
             });
-        }
-
-        elements.requestsDays?.addEventListener('change', () => {
-            state.requestsDays = Number(REQUESTS_DAY_VALUES.includes(elements.requestsDays.value)
-                ? elements.requestsDays.value : DEFAULT_DAYS);
-            setStoredValue(REQUESTS_DAYS_STORAGE_KEY, state.requestsDays);
-            state.requestsLoaded = false;
-            fetchRequests(1);
         });
 
-        if (elements.sectionButtons && elements.sectionButtons.length) {
-            elements.sectionButtons.forEach((button) => {
-                button.addEventListener('click', () => {
-                    const section = button.dataset.aipkitStatsSection;
-                    activateTab(section === 'billing' ? 'pricing' : section || 'logs');
-                });
+        elements.viewChips.forEach((chip) => {
+            chip.addEventListener('click', () => {
+                setView(chip.dataset.aipkitUsageView);
+            });
+        });
 
-                button.addEventListener('keydown', (event) => {
-                    const buttons = Array.from(elements.sectionButtons).filter((item) => !item.hidden);
-                    const currentIndex = buttons.indexOf(button);
-                    const nextIndex = event.key === 'ArrowRight' ? (currentIndex + 1) % buttons.length
-                        : event.key === 'ArrowLeft' ? (currentIndex - 1 + buttons.length) % buttons.length
-                            : event.key === 'End' ? buttons.length - 1
-                                : event.key === 'Home' ? 0 : -1;
-                    if (currentIndex === -1 || nextIndex === -1) {
-                        return;
-                    }
-                    event.preventDefault();
-                    buttons[nextIndex].focus();
-                    const section = buttons[nextIndex].dataset.aipkitStatsSection;
-                    activateTab(section === 'billing' ? 'pricing' : section || 'logs');
-                });
+        if (elements.subchips) {
+            elements.subchips.addEventListener('click', (event) => {
+                const chip = event.target.closest('[data-aipkit-usage-sub]');
+                if (!chip) {
+                    return;
+                }
+                const value = chip.dataset.aipkitUsageSub || '';
+                applySubFilter(value);
+                Array.from(elements.subchips.querySelectorAll('[data-aipkit-usage-sub]'))
+                    .find((item) => item.dataset.aipkitUsageSub === value)
+                    ?.focus({ preventScroll: true });
+            });
+            elements.subchips.addEventListener('change', (event) => {
+                if (!event.target.matches('[data-aipkit-usage-sub-select]')) {
+                    return;
+                }
+                applySubFilter(event.target.value || '');
+                elements.subchips.querySelector('[data-aipkit-usage-sub-select]')?.focus({ preventScroll: true });
             });
         }
+
+        if (elements.feedList) {
+            elements.feedList.addEventListener('click', (event) => {
+                const row = event.target.closest('.aipkit_usage_feed_row[data-log-id]');
+                if (row) {
+                    fetchDetail(row.dataset.logId, row);
+                }
+            });
+        }
+
+        if (elements.feedMore) {
+            elements.feedMore.addEventListener('click', () => {
+                state.feedPage += 1;
+                fetchFeed(false);
+            });
+        }
+
+        if (elements.ledgerDays) {
+            elements.ledgerDays.addEventListener('change', () => {
+                state.pricingManagementLoaded = false;
+                fetchPricingManagement();
+            });
+        }
+
+        container.addEventListener('click', (event) => {
+            const drawerOpener = event.target.closest('[data-aipkit-usage-drawer-open]');
+            if (drawerOpener) {
+                const overlay = document.getElementById(drawerOpener.dataset.aipkitUsageDrawerOpen);
+                if (overlay && overlay === elements.billingDrawer) {
+                    toggleTableMenu(false);
+                    activateTab(state.activeTab);
+                    openDrawer(overlay, elements.tableMenuTrigger);
+                } else {
+                    openDrawer(overlay, drawerOpener);
+                }
+                return;
+            }
+            if (event.target.closest('[data-aipkit-usage-drawer-close]') || event.target.matches('[data-aipkit-usage-drawer]')) {
+                closeDrawer();
+                return;
+            }
+            if (event.target.closest('[data-aipkit-usage-retry]')) {
+                loadActiveView();
+            }
+        });
+
+        listenGlobal(document, 'keydown', (event) => {
+            const overlay = drawerState.open;
+            if (!overlay || !container.isConnected || document.querySelector('.aipkit-modal-overlay.aipkit-active')) {
+                return;
+            }
+            if (event.key === 'Escape') {
+                if (elements.tableMenu && !elements.tableMenu.hidden) {
+                    return;
+                }
+                event.preventDefault();
+                closeDrawer();
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+            const focusable = Array.from(overlay.querySelectorAll(FOCUSABLE_SELECTOR))
+                .filter((element) => element.getClientRects().length > 0);
+            if (!focusable.length) {
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !overlay.contains(document.activeElement))) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || !overlay.contains(document.activeElement))) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
 
         if (elements.tabButtons && elements.tabButtons.length) {
             elements.tabButtons.forEach((button) => {
@@ -3645,31 +4195,9 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
         if (elements.retentionModal) {
             elements.retentionModal.addEventListener('click', (event) => {
-                if (event.target === elements.retentionModal) {
+                if (event.target === elements.retentionModal || event.target.closest('[data-aipkit-retention-close]')) {
                     closeRetentionModal();
                 }
-            });
-        }
-
-        if (elements.botFilter) {
-            elements.botFilter.addEventListener('change', () => {
-                clearSelectedLogs();
-                state.botId = elements.botFilter.value;
-                setStoredValue(BOT_FILTER_STORAGE_KEY, state.botId);
-                state.page = 1;
-                syncLogFiltersResetState();
-                fetchLogs();
-            });
-        }
-
-        if (elements.moduleFilter) {
-            elements.moduleFilter.addEventListener('change', () => {
-                clearSelectedLogs();
-                state.module = elements.moduleFilter.value;
-                setStoredValue(MODULE_FILTER_STORAGE_KEY, state.module);
-                state.page = 1;
-                syncLogFiltersResetState();
-                fetchLogs();
             });
         }
 
@@ -3679,18 +4207,21 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             });
         }
 
-        if (elements.selectAllLogs) {
-            elements.selectAllLogs.addEventListener('change', () => {
-                const visibleIds = state.visibleLogs
+        if (elements.tableHeader) {
+            elements.tableHeader.addEventListener('change', (event) => {
+                if (event.target.id !== 'aipkit_stats_logs_select_all') {
+                    return;
+                }
+                state.visibleLogs
                     .map((log) => Number(log.id))
-                    .filter(Boolean);
-                visibleIds.forEach((logId) => {
-                    if (elements.selectAllLogs.checked) {
-                        state.selectedLogIds.add(logId);
-                    } else {
-                        state.selectedLogIds.delete(logId);
-                    }
-                });
+                    .filter(Boolean)
+                    .forEach((logId) => {
+                        if (event.target.checked) {
+                            state.selectedLogIds.add(logId);
+                        } else {
+                            state.selectedLogIds.delete(logId);
+                        }
+                    });
                 syncLogSelectionUi();
             });
         }
@@ -3723,45 +4254,32 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             });
 
             elements.tableBody.addEventListener('click', (event) => {
-                if (event.target.closest('.aipkit_stats_log_checkbox')) {
+                if (event.target.closest('.aipkit_stats_log_checkbox, .aipkit_stats_log_select_cell, a')) {
                     return;
                 }
                 const row = event.target.closest('tr[data-log-id]');
                 if (!row) {
                     return;
                 }
-                const logId = row.getAttribute('data-log-id');
-                if (!logId) {
-                    return;
-                }
-                state.selectedLogId = Number(logId);
-                elements.tableBody.querySelectorAll('tr').forEach((tableRow) => {
-                    tableRow.classList.toggle('aipkit_stats_row_active', tableRow === row);
-                });
-                fetchDetail(logId);
+                fetchDetail(row.getAttribute('data-log-id'), row.querySelector('[data-log-open]') || row);
             });
         }
 
-        if (elements.detailPanel) {
-            elements.detailPanel.addEventListener('click', (event) => {
+        if (elements.detailDrawer) {
+            elements.detailDrawer.addEventListener('click', (event) => {
                 const copyPayloadBtn = event.target.closest('[data-aipkit-copy-payload]');
                 if (copyPayloadBtn) {
-                    const rawPayloadElement = document.getElementById(copyPayloadBtn.getAttribute('data-aipkit-copy-payload'));
-                    const rawPayload = rawPayloadElement?.value || '';
+                    const rawPayload = document.getElementById(copyPayloadBtn.getAttribute('data-aipkit-copy-payload'))?.value || '';
                     if (!rawPayload) {
                         return;
                     }
                     copyTextToClipboard(rawPayload).then(() => {
-                        copyPayloadBtn.setAttribute('aria-label', __('Copied', 'gpt3-ai-content-generator'));
-                        copyPayloadBtn.setAttribute('title', __('Copied', 'gpt3-ai-content-generator'));
-                        copyPayloadBtn.classList.add('is-copied');
+                        copyPayloadBtn.textContent = __('Copied', 'gpt3-ai-content-generator');
                         window.setTimeout(() => {
-                            copyPayloadBtn.setAttribute('aria-label', __('Copy request payload', 'gpt3-ai-content-generator'));
-                            copyPayloadBtn.setAttribute('title', __('Copy request payload', 'gpt3-ai-content-generator'));
-                            copyPayloadBtn.classList.remove('is-copied');
+                            copyPayloadBtn.textContent = __('Copy JSON', 'gpt3-ai-content-generator');
                         }, 1400);
                     }).catch(() => {
-                        showStatus(__('The request payload could not be copied.', 'gpt3-ai-content-generator'), 'error');
+                        showStatus(__('The request payload couldn’t be copied.', 'gpt3-ai-content-generator'), 'error');
                     });
                     return;
                 }
@@ -3771,35 +4289,38 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                     return;
                 }
                 const deleteBtn = event.target.closest('.aipkit_stats_detail_delete');
-                if (!deleteBtn) {
-                    const toggleBtn = event.target.closest('[data-aipkit-stats-toggle]');
-                    if (!toggleBtn) {
-                        return;
-                    }
-                    const targetId = toggleBtn.getAttribute('data-aipkit-stats-toggle');
-                    if (!targetId) {
-                        return;
-                    }
-                    const targetElement = document.getElementById(targetId);
+                if (deleteBtn) {
+                    deleteSingleLog(deleteBtn.getAttribute('data-log-id'));
+                    return;
+                }
+                if (event.target.closest('[data-aipkit-usage-export]')) {
+                    exportDetail();
+                    return;
+                }
+                const retryBtn = event.target.closest('[data-aipkit-usage-detail-retry]');
+                if (retryBtn) {
+                    fetchDetail(retryBtn.getAttribute('data-aipkit-usage-detail-retry'), false);
+                    return;
+                }
+                const clampBtn = event.target.closest('[data-aipkit-usage-clamp]');
+                if (clampBtn) {
+                    const target = document.getElementById(clampBtn.getAttribute('data-aipkit-usage-clamp'));
+                    const expanded = clampBtn.getAttribute('aria-expanded') === 'true';
+                    target?.classList.toggle('is-clamped', expanded);
+                    clampBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                    clampBtn.textContent = expanded ? __('Show all', 'gpt3-ai-content-generator') : __('Show less', 'gpt3-ai-content-generator');
+                    return;
+                }
+                const toggleBtn = event.target.closest('[data-aipkit-stats-toggle]');
+                if (toggleBtn) {
+                    const targetElement = document.getElementById(toggleBtn.getAttribute('data-aipkit-stats-toggle'));
                     if (!targetElement) {
                         return;
                     }
                     const isExpanded = toggleBtn.getAttribute('aria-expanded') === 'true';
                     targetElement.hidden = isExpanded;
                     toggleBtn.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
-                    toggleBtn.classList.toggle('is-expanded', !isExpanded);
-                    if (isExpanded) {
-                        const messagesContainer = toggleBtn.closest('.aipkit_stats_detail_messages');
-                        if (messagesContainer) {
-                            messagesContainer.style.overflowY = 'hidden';
-                            window.requestAnimationFrame(() => {
-                                messagesContainer.style.removeProperty('overflow-y');
-                            });
-                        }
-                    }
-                    return;
                 }
-                deleteSingleLog(deleteBtn.getAttribute('data-log-id'));
             });
         }
 
@@ -3811,19 +4332,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             });
         }
 
-        if (elements.filtersToggleBtn && elements.logsToolbar) {
-            elements.filtersToggleBtn.addEventListener('click', () => {
-                setLogFiltersExpanded(elements.logsToolbar.hidden);
-            });
-        }
-
-        if (elements.filtersResetBtn) {
-            elements.filtersResetBtn.addEventListener('click', () => {
-                resetLogFilters();
-            });
-        }
-
-        document.addEventListener('click', (event) => {
+        listenGlobal(document, 'click', (event) => {
             if (!elements.tableMenu || elements.tableMenu.hidden) {
                 return;
             }
@@ -3833,23 +4342,23 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             toggleTableMenu(false);
         });
 
-        document.addEventListener('keydown', (event) => {
+        listenGlobal(document, 'keydown', (event) => {
             if (event.key !== 'Escape' || !elements.tableMenu || elements.tableMenu.hidden) {
                 return;
             }
             toggleTableMenu(false, true);
         });
 
-        window.addEventListener('resize', positionTableMenu);
-        window.addEventListener('scroll', positionTableMenu, { capture: true, passive: true });
+        listenGlobal(window, 'resize', positionTableMenu);
+        listenGlobal(window, 'scroll', positionTableMenu, { capture: true, passive: true });
 
-        document.addEventListener('keydown', (event) => {
+        listenGlobal(document, 'keydown', (event) => {
             if (event.key === 'Escape' && elements.pricingModal?.classList.contains('aipkit-active')) {
                 closePricingModal(true);
             }
         });
 
-        document.addEventListener('keydown', (event) => {
+        listenGlobal(document, 'keydown', (event) => {
             if (event.key === 'Escape' && elements.retentionModal?.classList.contains('aipkit-active')) {
                 closeRetentionModal();
             }
@@ -3900,27 +4409,6 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
             });
         }
 
-        if (elements.settingsToggle) {
-            elements.settingsToggle.addEventListener('change', () => {
-                if (!isPro) {
-                    elements.settingsToggle.checked = false;
-                    showStatus('Upgrade to Pro to enable auto-delete.', 'error');
-                    return;
-                }
-                updateSettingsVisibility(elements.settingsToggle.checked);
-                saveSettings();
-            });
-        }
-
-        if (elements.retentionSelect) {
-            elements.retentionSelect.addEventListener('change', () => {
-                if (!isPro) {
-                    return;
-                }
-                saveSettings();
-            });
-        }
-
         if (elements.shortcodeOptions && elements.shortcodeOptions.length) {
             elements.shortcodeOptions.forEach((option) => {
                 option.addEventListener('change', updateShortcodeSnippet);
@@ -3939,7 +4427,7 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
                             window.clearTimeout(settingsSaveTimer);
                             settingsSaveTimer = null;
                         }
-                        saveSettings();
+                        saveCustomerLinks();
                     });
                 }
             });
@@ -4042,8 +4530,30 @@ import { bindCloudConnection, refreshCloudCredits } from '../settings/cloud-conn
 
         resetPricingForm();
         closePricingModal(false);
-        activateTab(readActiveTab());
-        updateSettingsVisibility(!!elements.settingsToggle?.checked);
+
+        const requestedTab = readRequestedTab();
+        if (requestedTab === 'requests') {
+            state.view = 'requests';
+        } else if (requestedTab === 'logs') {
+            state.view = 'conversations';
+        } else if (requestedTab === 'website') {
+            state.view = 'website';
+        }
+        setPeriodUi();
+        setView(state.view, { load: false });
+        syncCards();
+        refreshActivity();
+        if (state.view !== 'website') {
+            websiteActivity?.prefetchCounts();
+        }
+        refreshCloudCredits(container);
+        refreshWebsiteActions(container);
+        if (BILLING_TABS.includes(requestedTab) && elements.billingDrawer) {
+            activateTab(requestedTab);
+            openDrawer(elements.billingDrawer, elements.tableMenuTrigger);
+        } else if (requestedTab === 'cloud') {
+            container.querySelector('#aipkit_usage_cloud_credits')?.scrollIntoView({ block: 'nearest' });
+        }
     }
 
     window.aipkit_initStats = aipkit_initStats;

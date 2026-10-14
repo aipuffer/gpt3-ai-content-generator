@@ -78,6 +78,14 @@ class AIPKit_Stats
     private const DEFAULT_MAX_BYTES_FOR_STATS = 64000000; // ~64 MB
     private const DEFAULT_MAX_ROWS_FOR_STATS  = 5000;       // cap rows to scan
     public const TOP_N_MODULES_FOR_CHART = 4; // Number of top modules to display individually in the chart
+    /** Usage "Content & tasks" sub-filters; modules outside these lists count as Other. */
+    public const TASK_GROUPS = [
+        'content_writer' => ['content_writer'],
+        'automations' => ['content_writer_automation', 'autogpt'],
+        'assistant' => ['ai_post_enhancer'],
+        'images' => ['image_generator'],
+        'forms' => ['ai_forms'],
+    ];
 
     public function __construct()
     {
@@ -92,14 +100,29 @@ class AIPKit_Stats
      */
     private function get_ledger_date_range(int $days): array
     {
+        $range = self::period_range($days);
+
+        return [
+            'start_utc' => gmdate('Y-m-d H:i:s', $range['start_ts']),
+            'end_utc' => gmdate('Y-m-d H:i:s', $range['end_ts']),
+        ];
+    }
+
+    /**
+     * Usage periods start at local midnight; 1 means today only.
+     *
+     * @return array{start_ts:int,end_ts:int}
+     */
+    public static function period_range(int $days): array
+    {
         $wp_timezone = wp_timezone();
         $end_datetime = new DateTime('now', $wp_timezone);
-        $start_datetime = new DateTime("-{$days} days", $wp_timezone);
+        $start_datetime = new DateTime($days === 1 ? 'today' : "-{$days} days", $wp_timezone);
         $start_datetime->setTime(0, 0, 0);
 
         return [
-            'start_utc' => gmdate('Y-m-d H:i:s', $start_datetime->getTimestamp()),
-            'end_utc' => gmdate('Y-m-d H:i:s', $end_datetime->getTimestamp()),
+            'start_ts' => $start_datetime->getTimestamp(),
+            'end_ts' => $end_datetime->getTimestamp(),
         ];
     }
 
@@ -378,12 +401,13 @@ class AIPKit_Stats
                 COALESCE(SUM(CASE WHEN credits_delta > 0 THEN credits_delta ELSE 0 END), 0) AS credits_added,
                 COALESCE(ABS(SUM(CASE WHEN credits_delta < 0 THEN credits_delta ELSE 0 END)), 0) AS credits_spent,
                 COALESCE(SUM(CASE WHEN entry_type = 'usage' AND credits_delta = 0 AND usage_total_units > 0
-                    AND (operation <> 'live_voice' OR meta REGEXP '\"quota_recorded\"[[:space:]]*:[[:space:]]*true')
+                    AND (operation <> 'live_voice' OR meta REGEXP %s)
                     THEN 1 ELSE 0 END), 0) AS quota_only_usage_count,
                 COALESCE(SUM(CASE WHEN entry_type = 'usage' THEN 1 ELSE 0 END), 0) AS usage_entry_count,
                 COUNT(*) AS total_entries
              FROM {$this->ledger_table_name}
              WHERE entry_type <> 'request' AND created_at >= %s AND created_at <= %s",
+            '"quota_recorded"[[:space:]]*:[[:space:]]*true',
             $range['start_utc'],
             $range['end_utc']
         );
@@ -504,8 +528,23 @@ class AIPKit_Stats
         return $deleted + $hidden;
     }
 
+    /** Rows shown as AI requests: provider usage plus completed Cloud receipts, optionally one source. */
+    private function provider_request_where(string $source = 'all'): string
+    {
+        $where = "(entry_type = 'request' OR (entry_type = 'usage'
+               AND LOWER(COALESCE(provider, '')) NOT IN ('aipuffercloud', 'ai puffer cloud')))
+               AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(meta) THEN meta ELSE '{}' END, '$.request_history_deleted')), 'false') NOT IN ('true', '1')
+               AND created_at >= %s AND created_at <= %s";
+        if ($source === 'cloud') {
+            $where .= " AND LOWER(COALESCE(provider, '')) IN ('aipuffercloud', 'ai puffer cloud')";
+        } elseif ($source === 'provider') {
+            $where .= " AND LOWER(COALESCE(provider, '')) NOT IN ('aipuffercloud', 'ai puffer cloud')";
+        }
+        return $where;
+    }
+
     /** Locally recorded provider usage and completed Cloud receipts. */
-    public function get_recent_provider_requests(int $days, int $limit, int $offset = 0)
+    public function get_recent_provider_requests(int $days, int $limit, int $offset = 0, string $source = 'all')
     {
         if (!$this->ledger_table_exists()) {
             return [];
@@ -513,13 +552,11 @@ class AIPKit_Stats
 
         $range = $this->get_ledger_date_range($days);
         if ($days === 0) { $range['start_utc'] = '1970-01-01 00:00:00'; }
+        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- provider_request_where() supplies the two date placeholders; LIMIT/OFFSET add the other two, all prepared below.
         $query = $this->wpdb->prepare(
             "SELECT id, created_at, module, provider, model, operation, usage_input_units, usage_output_units, usage_total_units, meta
              FROM {$this->ledger_table_name}
-             WHERE (entry_type = 'request' OR (entry_type = 'usage'
-               AND LOWER(COALESCE(provider, '')) NOT IN ('aipuffercloud', 'ai puffer cloud')))
-               AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(meta) THEN meta ELSE '{}' END, '$.request_history_deleted')), 'false') NOT IN ('true', '1')
-               AND created_at >= %s AND created_at <= %s
+             WHERE {$this->provider_request_where($source)}
              ORDER BY created_at DESC, id DESC LIMIT %d OFFSET %d",
             $range['start_utc'],
             $range['end_utc'],
@@ -534,7 +571,7 @@ class AIPKit_Stats
 
         return array_map(static function ($row) {
             $meta = json_decode($row['meta'] ?? '', true);
-            $cloud = strtolower($row['provider'] ?? '') === 'aipuffercloud';
+            $cloud = in_array(strtolower($row['provider'] ?? ''), ['aipuffercloud', 'ai puffer cloud'], true);
             return [
                 'id' => (int) $row['id'],
                 'source' => $cloud ? 'cloud' : 'provider',
@@ -553,5 +590,151 @@ class AIPKit_Stats
                 'chargedUnits' => $cloud ? ($meta['cloud_charged_units'] ?? null) : null,
             ];
         }, $rows ?: []);
+    }
+
+    /**
+     * Saved logs, the oldest one and the table size, for the Log retention dialog.
+     *
+     * @return array{count:int,oldest_ts:int,bytes:int}|WP_Error
+     */
+    public function get_log_storage_summary()
+    {
+        $summary_sql = "SELECT COUNT(*) AS cnt, COALESCE(MIN(last_message_ts), 0) AS oldest FROM {$this->log_table_name}";
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Fixed aggregate of the plugin-owned log table.
+        $row = $this->wpdb->get_row($summary_sql, ARRAY_A);
+        if ($this->wpdb->last_error) {
+            return new WP_Error('db_query_error', __('Database error reading saved logs.', 'gpt3-ai-content-generator'));
+        }
+        $size_sql = $this->wpdb->prepare(
+            'SELECT COALESCE(DATA_LENGTH + INDEX_LENGTH, 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s',
+            $this->log_table_name
+        );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared metadata read; no table data is scanned.
+        $bytes = (int) $this->wpdb->get_var($size_sql);
+
+        return [
+            'count' => (int) ($row['cnt'] ?? 0),
+            'oldest_ts' => (int) ($row['oldest'] ?? 0),
+            'bytes' => max(0, $bytes),
+        ];
+    }
+
+    /**
+     * Counts and totals for the Usage cards and activity chips in one period.
+     *
+     * @return array<string, mixed>|WP_Error
+     */
+    public function get_usage_overview(int $days)
+    {
+        $range = self::period_range($days);
+        $count_sql = $this->wpdb->prepare(
+            "SELECT module, bot_id, COUNT(*) AS cnt FROM {$this->log_table_name} WHERE last_message_ts >= %d AND last_message_ts <= %d GROUP BY module, bot_id",
+            $range['start_ts'],
+            $range['end_ts']
+        );
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared aggregate of the plugin-owned log table.
+        $rows = $this->wpdb->get_results($count_sql, ARRAY_A);
+        if ($this->wpdb->last_error) {
+            return new WP_Error('db_query_error', __('Database error fetching usage counts.', 'gpt3-ai-content-generator'));
+        }
+
+        $groups = array_fill_keys(array_merge(array_keys(self::TASK_GROUPS), ['other']), 0);
+        $bots = [];
+        $conversations = 0;
+        $tasks = 0;
+        foreach ($rows ?: [] as $row) {
+            $module = (string) ($row['module'] ?? '');
+            $count = (int) $row['cnt'];
+            if (in_array($module, ['', 'chat', 'chatbot'], true)) {
+                $conversations += $count;
+                $bot_id = (int) ($row['bot_id'] ?? 0);
+                $bots[$bot_id] = ($bots[$bot_id] ?? 0) + $count;
+                continue;
+            }
+            $tasks += $count;
+            $group = 'other';
+            foreach (self::TASK_GROUPS as $group_key => $modules) {
+                if (in_array($module, $modules, true)) {
+                    $group = $group_key;
+                    break;
+                }
+            }
+            $groups[$group] += $count;
+        }
+        arsort($bots);
+        $bot_list = [];
+        foreach ($bots as $bot_id => $count) {
+            $bot_list[] = [
+                'id' => (string) $bot_id,
+                'name' => $bot_id ? (get_the_title($bot_id) ?: __('(Deleted Bot)', 'gpt3-ai-content-generator')) : __('(No Bot)', 'gpt3-ai-content-generator'),
+                'count' => $count,
+            ];
+        }
+
+        // Errors scan message JSON, so skip the count when the period is too large to read safely.
+        $errors = null;
+        $volume = $this->estimate_volume($range['start_ts'], $range['end_ts']);
+        if (!is_wp_error($volume) && $volume['bytes'] <= self::DEFAULT_MAX_BYTES_FOR_STATS && $volume['rows'] <= self::DEFAULT_MAX_ROWS_FOR_STATS) {
+            $error_condition = \WPAICG\Chat\Storage\LogQueryHelper::error_condition('messages');
+            $error_sql = $this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->log_table_name} WHERE last_message_ts >= %d AND last_message_ts <= %d AND {$error_condition}",
+                $range['start_ts'],
+                $range['end_ts']
+            );
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared count of the plugin-owned log table.
+            $error_count = $this->wpdb->get_var($error_sql);
+            $errors = $this->wpdb->last_error ? null : (int) $error_count;
+        }
+
+        $requests = ['total' => 0, 'cloud' => 0, 'own' => 0, 'own_tokens' => 0, 'providers' => []];
+        if ($this->ledger_table_exists()) {
+            $ledger_range = $this->get_ledger_date_range($days);
+            // phpcs:disable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- provider_request_where() supplies the two date placeholders, both prepared below.
+            $provider_sql = $this->wpdb->prepare(
+                "SELECT provider, COUNT(*) AS cnt,
+                    COALESCE(SUM(CASE WHEN operation <> 'live_voice'
+                        AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(CASE WHEN JSON_VALID(meta) THEN meta ELSE '{}' END, '$.usage_unit')), 'token') = 'token'
+                        THEN usage_total_units ELSE 0 END), 0) AS tokens
+                 FROM {$this->ledger_table_name}
+                 WHERE {$this->provider_request_where()}
+                 GROUP BY provider",
+                $ledger_range['start_utc'],
+                $ledger_range['end_utc']
+            );
+            // phpcs:enable WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Prepared aggregate of the plugin-owned ledger.
+            $provider_rows = $this->wpdb->get_results($provider_sql, ARRAY_A);
+            if ($this->wpdb->last_error) {
+                return new WP_Error('db_query_error', __('Database error fetching request totals.', 'gpt3-ai-content-generator'));
+            }
+            $providers = [];
+            foreach ($provider_rows ?: [] as $row) {
+                $provider = (string) ($row['provider'] ?? '');
+                $count = (int) $row['cnt'];
+                $requests['total'] += $count;
+                if (in_array(strtolower($provider), ['aipuffercloud', 'ai puffer cloud'], true)) {
+                    $requests['cloud'] += $count;
+                    continue;
+                }
+                $requests['own'] += $count;
+                $requests['own_tokens'] += (int) $row['tokens'];
+                $label = $provider !== '' ? \WPAICG\AIPKit_Providers::get_provider_display_name($provider) : __('Unknown provider', 'gpt3-ai-content-generator');
+                $providers[$label] = ($providers[$label] ?? 0) + (int) $row['tokens'];
+            }
+            arsort($providers);
+            foreach ($providers as $label => $tokens) {
+                $requests['providers'][] = ['label' => $label, 'tokens' => $tokens];
+            }
+        }
+
+        return [
+            'days' => $days,
+            'conversations' => $conversations,
+            'tasks' => $tasks,
+            'task_groups' => $groups,
+            'bots' => $bot_list,
+            'errors' => $errors,
+            'requests' => $requests,
+        ];
     }
 }

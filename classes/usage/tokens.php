@@ -34,7 +34,7 @@ function ConstructorLogic(AIPKit_Token_Manager $managerInstance): void {
     $managerInstance->set_guest_table_name($wpdb->prefix . GuestTableConstants::GUEST_TABLE_NAME_SUFFIX);
 
     // Initialize BotStorage dependency
-    if (!class_exists(BotStorage::class) && !defined('AIPKIT_TESTING_ENV')) {
+    if (!class_exists(BotStorage::class)) {
         $bot_storage_path = WPAICG_PLUGIN_DIR . 'classes/chatbot/bots.php';
         if (file_exists($bot_storage_path)) {
             require_once $bot_storage_path;
@@ -51,7 +51,7 @@ function ConstructorLogic(AIPKit_Token_Manager $managerInstance): void {
 
     // Ensure AIPKit_Image_Settings_Ajax_Handler is loaded as it's used by PerformTokenResetLogic
     // This is more of a check; actual loading should be handled by the main plugin dependency loader.
-    if (!class_exists(AIPKit_Image_Settings_Ajax_Handler::class) && !defined('AIPKIT_TESTING_ENV')) {
+    if (!class_exists(AIPKit_Image_Settings_Ajax_Handler::class)) {
          $image_settings_handler_path = WPAICG_PLUGIN_DIR . 'classes/image-generator/settings-actions.php';
          if (file_exists($image_settings_handler_path)) {
              require_once $image_settings_handler_path;

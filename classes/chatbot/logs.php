@@ -546,6 +546,15 @@ class LogQueryHelper
         $this->table_name = $table_name;
     }
 
+    /** Match actual response failures, including conversations that also contain a refusal.
+     * The column is supplied only by plugin-owned query builders, never request data.
+     */
+    public static function error_condition(string $column): string
+    {
+        $codes = "JSON_EXTRACT(CASE WHEN JSON_VALID({$column}) THEN {$column} ELSE '[]' END, '$[*].response_data.error_code')";
+        return "REPLACE(REPLACE({$codes}, '\"word_banned\"', ''), '\"ip_banned\"', '') REGEXP '\"[^\"]+\"'";
+    }
+
     /**
      * Builds SQL query parts for fetching conversation log rows based on filters.
      *
@@ -646,6 +655,28 @@ class LogQueryHelper
                 $where_clauses[] = "{$this->table_name}.module = %s";
                 $params[] = $module_filter;
             }
+        }
+
+        // Usage views: chatbot conversations versus every other module ("tasks").
+        $conversation_sql = "({$this->table_name}.module IS NULL OR {$this->table_name}.module IN ('', 'chat', 'chatbot'))";
+        if (($filters['log_scope'] ?? '') === 'conversations') {
+            $where_clauses[] = $conversation_sql;
+        } elseif (($filters['log_scope'] ?? '') === 'tasks') {
+            $where_clauses[] = "NOT {$conversation_sql}";
+        }
+        foreach (['modules' => 'IN', 'exclude_modules' => 'NOT IN'] as $filter_key => $operator) {
+            $module_list = !empty($filters[$filter_key]) && is_array($filters[$filter_key])
+                ? array_values(array_unique(array_filter(array_map('sanitize_key', $filters[$filter_key]))))
+                : [];
+            if ($module_list) {
+                $where_clauses[] = "{$this->table_name}.module {$operator} (" . implode(', ', array_fill(0, count($module_list), '%s')) . ')';
+                array_push($params, ...$module_list);
+            }
+        }
+
+        // Failed requests store an error_code on the bot reply; blocked words and IPs are refusals, not errors.
+        if (!empty($filters['has_error'])) {
+            $where_clauses[] = self::error_condition("{$this->table_name}.messages");
         }
 
         if (!empty($filters['start_ts'])) {
@@ -1300,7 +1331,19 @@ class LogManager
                         }
                     }
 
+                    $log_row['first_message_content'] = '';
+                    $log_row['error_message'] = '';
+                    $log_row['blocked_message'] = '';
                     foreach ($messages_array as $msg) {
+                        if ($log_row['first_message_content'] === '' && ($msg['role'] ?? '') === 'user' && is_string($msg['content'] ?? null)) {
+                            $log_row['first_message_content'] = trim(wp_strip_all_tags($msg['content']));
+                        }
+                        // Usage separates failed requests from refusals (blocked words or IPs).
+                        $error_code = $msg['response_data']['error_code'] ?? '';
+                        if (is_string($error_code) && $error_code !== '') {
+                            $error_field = in_array($error_code, ['word_banned', 'ip_banned'], true) ? 'blocked_message' : 'error_message';
+                            $log_row[$error_field] = is_string($msg['content'] ?? null) ? trim(wp_strip_all_tags($msg['content'])) : $error_code;
+                        }
                         if (isset($msg['feedback']) && ($msg['feedback'] === 'up' || $msg['feedback'] === 'down')) {
                             $has_feedback = true;
                         }

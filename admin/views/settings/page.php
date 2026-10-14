@@ -183,6 +183,11 @@ $aipkit_render_section_start = static function (string $key) use ($aipkit_settin
             </section>
 
             <?php $aipkit_render_section_start('connections'); ?>
+                <?php // The card only: its settings live in the AI Puffer Cloud panel's Website tab. ?>
+                <?php (static function (): void {
+                    $aipkit_mcp_part = 'card';
+                    include WPAICG_PLUGIN_DIR . 'admin/views/settings/manage-website.php';
+                })(); ?>
                 <div class="aipkit_settings_scope" data-aipkit-settings-page="integrations">
                     <?php $aipkit_integration_part = 'services'; include WPAICG_PLUGIN_DIR . 'admin/views/settings/integrations.php'; ?>
                 </div>
@@ -219,4 +224,5 @@ $aipkit_render_section_start = static function (string $key) use ($aipkit_settin
             </section>
         </div>
     </div>
+    <?php include __DIR__ . '/cloud-panel.php'; ?>
 </div>

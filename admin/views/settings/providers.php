@@ -14,120 +14,9 @@ if (!defined('ABSPATH')) {
 
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template-local schema and renderer helpers.
 
-$aipkit_render_account_fields = static function (string $aipkit_cloud_notice = ''): void {
-    $aipkit_cloud_display = Connection::display();
-    $aipkit_cloud_is_error = in_array($aipkit_cloud_notice, ['unavailable', 'busy', 'forbidden', 'freemius_failed', 'installation_inactive', 'site_mismatch', 'account_unavailable', 'invalid_email', 'registration_wait', 'account_changed', 'verification_pending', 'verification_unavailable'], true);
-    ?>
-    <section class="aipkit_cloud_connection<?php echo $aipkit_cloud_display['connected'] ? ' is-connected' : ''; ?>" id="aipkit_cloud_connection" data-aipkit-settings-autosave-exclude="true">
-        <p class="aipkit_model_sync_status aipkit_cloud_feedback <?php echo $aipkit_cloud_is_error ? 'error' : 'success'; ?>" data-aipkit-cloud-feedback role="status" aria-live="polite"><?php echo esc_html(Connection::connection_message($aipkit_cloud_notice)); ?></p>
-
-        <?php if ($aipkit_cloud_display['connected']) :
-            $aipkit_cloud_credits = is_array($aipkit_cloud_display['credits']) ? $aipkit_cloud_display['credits'] : null;
-            $aipkit_cloud_available = $aipkit_cloud_credits['available'] ?? null;
-            // Whole credits, as on the Usage page.
-            $aipkit_cloud_to_credits = static function ($units): int { return (int) floor(max(0, (float) $units) / 1000); };
-            $aipkit_cloud_allowance = $aipkit_cloud_credits['allowance']['total'] ?? null;
-            $aipkit_cloud_refresh = $aipkit_cloud_credits['allowance']['nextRefresh'] ?? null;
-            ?>
-            <div class="aipkit_cloud_panel_group aipkit_cloud_panel_group--credits">
-                <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Credits', 'gpt3-ai-content-generator'); ?></h3>
-                <div class="aipkit_cloud_panel_credits">
-                    <div class="aipkit_cloud_panel_credits_top">
-                        <div class="aipkit_cloud_panel_credits_copy">
-                            <span class="aipkit_cloud_panel_credits_label"><?php esc_html_e('Credits left', 'gpt3-ai-content-generator'); ?></span>
-                            <span class="aipkit_cloud_panel_credits_value"><?php
-                                // Whole credits like the top-bar chip; fractions only below one credit.
-                                $aipkit_cloud_units = $aipkit_cloud_available === null ? null : max(0, (int) $aipkit_cloud_available);
-                                echo esc_html($aipkit_cloud_units === null ? '—' : ($aipkit_cloud_units >= 1000 ? number_format_i18n(intdiv($aipkit_cloud_units, 1000)) : Connection::format_credits($aipkit_cloud_units)));
-                            ?></span>
-                        </div>
-                        <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_purchase">
-                            <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
-                            <input type="hidden" name="action" value="aipkit_cloud_connection">
-                            <button type="submit" class="aipkit_btn aipkit_cloud_btn" name="cloud_action" value="checkout"><?php esc_html_e('Buy credits', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
-                        </form>
-                    </div>
-                    <?php if ($aipkit_cloud_credits !== null) : ?>
-                        <dl class="aipkit_cloud_panel_split">
-                            <div class="aipkit_cloud_panel_split_item">
-                                <dt><?php esc_html_e('Free this month', 'gpt3-ai-content-generator'); ?></dt>
-                                <dd><?php echo esc_html($aipkit_cloud_allowance !== null
-                                    /* translators: 1: free credits left, 2: free credits each month. */
-                                    ? sprintf(__('%1$s of %2$s', 'gpt3-ai-content-generator'), number_format_i18n($aipkit_cloud_to_credits($aipkit_cloud_credits['free'] ?? 0)), number_format_i18n($aipkit_cloud_to_credits($aipkit_cloud_allowance)))
-                                    : number_format_i18n($aipkit_cloud_to_credits($aipkit_cloud_credits['free'] ?? 0))); ?></dd>
-                                <?php if ($aipkit_cloud_refresh) : ?>
-                                    <?php /* translators: %s: date the free credits renew, e.g. "Oct 28". */ ?>
-                                    <small><?php echo esc_html(sprintf(__('Renews %s', 'gpt3-ai-content-generator'), wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), strtotime((string) $aipkit_cloud_refresh)))); ?></small>
-                                <?php endif; ?>
-                            </div>
-                            <div class="aipkit_cloud_panel_split_item">
-                                <dt><?php esc_html_e('Purchased', 'gpt3-ai-content-generator'); ?></dt>
-                                <dd><?php echo esc_html(number_format_i18n($aipkit_cloud_to_credits((int) ($aipkit_cloud_credits['purchased'] ?? 0) + (int) ($aipkit_cloud_credits['adjustments'] ?? 0)))); ?></dd>
-                                <small><?php esc_html_e('Never expire', 'gpt3-ai-content-generator'); ?></small>
-                            </div>
-                        </dl>
-                    <?php endif; ?>
-                    <a class="aipkit_cloud_panel_credits_link" href="<?php echo esc_url(Connection::account_url()); ?>" data-aipkit-open-module="stats"><?php esc_html_e('See usage and history', 'gpt3-ai-content-generator'); ?></a>
-                </div>
-            </div>
-            <div class="aipkit_cloud_panel_group aipkit_cloud_panel_group--account">
-                <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Account', 'gpt3-ai-content-generator'); ?></h3>
-                <?php echo Connection::email_recovery_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?>
-                <?php echo Connection::account_email_html(false, true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?>
-            </div>
-        <?php elseif ($aipkit_cloud_display['recovery']) : ?>
-            <div class="aipkit_cloud_notice aipkit_cloud_notice--warning">
-                <p><?php esc_html_e('The saved connection cannot be used after a security-key or site-address change. Reset it, then connect again. Your Cloud balance is kept.', 'gpt3-ai-content-generator'); ?></p>
-            </div>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_footer">
-                <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
-                <input type="hidden" name="action" value="aipkit_cloud_connection">
-                <button class="aipkit_btn aipkit_cloud_btn aipkit_cloud_btn--primary" name="cloud_action" value="reset"><?php esc_html_e('Reset local connection', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
-            </form>
-
-        <?php else : ?>
-            <div class="aipkit_cloud_hero">
-                <span class="aipkit_cloud_hero_eyebrow"><?php esc_html_e('Free every month', 'gpt3-ai-content-generator'); ?></span>
-                <p class="aipkit_cloud_hero_title"><?php esc_html_e('25 credits, no API key', 'gpt3-ai-content-generator'); ?></p>
-                <p class="aipkit_cloud_hero_text"><?php esc_html_e('Leading models from OpenAI, Anthropic, Google and more, in Chatbots, Content Writer, AI Forms and Automations.', 'gpt3-ai-content-generator'); ?></p>
-            </div>
-            <?php echo Connection::account_email_html(false, true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_connect">
-                <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
-                <input type="hidden" name="action" value="aipkit_cloud_connection">
-                <?php if (!$aipkit_cloud_display['registered']) : ?>
-                    <label class="aipkit_settings_provider_model_label"><?php esc_html_e('Email', 'gpt3-ai-content-generator'); ?>
-                        <input class="aipkit_form-input" type="email" name="cloud_email" autocomplete="email" value="<?php echo esc_attr($aipkit_cloud_display['email']); ?>" required>
-                    </label>
-                <?php endif; ?>
-                <?php if ($aipkit_cloud_display['confirm_email']) : ?>
-                    <div class="aipkit_cloud_notice aipkit_cloud_notice--info">
-                        <p><?php echo esc_html(sprintf(
-                            /* translators: %s: email address that must be confirmed. */
-                            __('Check your inbox for a confirmation link sent to %s. Open it, then return here to check again.', 'gpt3-ai-content-generator'),
-                            $aipkit_cloud_display['email']
-                        )); ?></p>
-                    </div>
-                <?php endif; ?>
-                <label class="aipkit_cloud_check"><input type="checkbox" name="cloud_consent" value="yes" required> <span><?php printf(
-                    /* translators: 1: AI Puffer terms link. 2: AI Puffer privacy policy link. */
-                    esc_html__('I agree to connect this site to AI Puffer Cloud under the %1$s and %2$s.', 'gpt3-ai-content-generator'),
-                    '<a href="' . esc_url(Connection::TERMS_URL) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('terms', 'gpt3-ai-content-generator') . '</a>',
-                    '<a href="' . esc_url(Connection::PRIVACY_URL) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('privacy policy', 'gpt3-ai-content-generator') . '</a>'
-                ); ?></span></label>
-                <?php echo Connection::privacy_details_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Renderer escapes all values. ?>
-                <?php if (!$aipkit_cloud_display['registered'] && !$aipkit_cloud_display['confirm_email']) : ?>
-                    <label class="aipkit_cloud_check"><input type="checkbox" name="cloud_marketing" value="yes"> <span><?php esc_html_e('Email me product news and tips (optional).', 'gpt3-ai-content-generator'); ?></span></label>
-                <?php endif; ?>
-                <?php if ($aipkit_cloud_display['confirm_email']) : ?>
-                    <button class="aipkit_btn aipkit_cloud_btn aipkit_cloud_btn--primary" name="cloud_action" value="check_email" disabled><?php esc_html_e('Check again', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
-                <?php endif; ?>
-                <button class="aipkit_btn aipkit_cloud_btn<?php echo $aipkit_cloud_display['confirm_email'] ? '' : ' aipkit_cloud_btn--primary aipkit_cloud_btn--block'; ?>" name="cloud_action" value="connect" disabled><?php echo esc_html($aipkit_cloud_display['confirm_email'] ? __('Resend email', 'gpt3-ai-content-generator') : __('Get 25 free credits', 'gpt3-ai-content-generator')); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
-            </form>
-        <?php endif; ?>
-    </section>
-    <?php
-};
+$aipkit_cloud_renderers_only = true;
+include __DIR__ . '/cloud-panel.php';
+unset($aipkit_cloud_renderers_only);
 if (!empty($aipkit_account_fields_only)) {
     $aipkit_render_account_fields($aipkit_cloud_notice ?? '');
     return;
@@ -875,6 +764,8 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
             data-aipkit-provider-card="<?php echo esc_attr($aipkit_provider); ?>"
             data-aipkit-provider-connected="<?php echo $aipkit_connected ? 'true' : 'false'; ?>"
             data-aipkit-provider-default="<?php echo $aipkit_is_default ? 'true' : 'false'; ?>"
+            <?php // Cloud's sheet is the shared panel; card state reaches into it for the model and default controls. ?>
+            <?php if ($aipkit_account_provider) : ?>data-aipkit-provider-panel="aipkit_cloud_panel"<?php endif; ?>
             style="--aipkit-provider-accent: <?php echo esc_attr((string) $aipkit_config['accent']); ?>;"
         >
             <?php
@@ -920,9 +811,11 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
                 <button
                     type="button"
                     class="aipkit_settings_provider_card_action"
-                    data-aipkit-provider-settings-open="<?php echo esc_attr($aipkit_provider); ?>"
+                    <?php // AI Puffer Cloud opens the shared Cloud panel on its AI credits tab. ?>
+                    data-aipkit-provider-settings-open="<?php echo esc_attr($aipkit_account_provider ? 'cloud' : $aipkit_provider); ?>"
+                    <?php if ($aipkit_account_provider) : ?>data-aipkit-cloud-open="credits"<?php endif; ?>
                     aria-haspopup="dialog"
-                    aria-controls="<?php echo esc_attr($aipkit_modal_id); ?>"
+                    aria-controls="<?php echo esc_attr($aipkit_account_provider ? 'aipkit_cloud_panel' : $aipkit_modal_id); ?>"
                 >
                     <span class="aipkit_settings_provider_card_manage">
                         <?php /* translators: %s: AI provider name. */ ?>
@@ -936,6 +829,7 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
                 </button>
             </div>
 
+            <?php if (!$aipkit_account_provider) : ?>
             <div
                 class="aipkit-modal-overlay aipkit_settings_provider_modal"
                 id="<?php echo esc_attr($aipkit_modal_id); ?>"
@@ -959,158 +853,91 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
                     </div>
 
                     <div class="aipkit_settings_provider_panel_body">
-                        <section class="aipkit_settings_provider_panel_section aipkit_settings_provider_connection_fields<?php echo $aipkit_account_provider ? ' aipkit_settings_cloud_fields' : ''; ?>">
-                            <?php if (!$aipkit_account_provider) : ?>
-                                <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Connection', 'gpt3-ai-content-generator'); ?></h3>
-                            <?php endif; ?>
-                            <?php if ($aipkit_account_provider) : ?>
-                                <?php $aipkit_render_account_fields(); ?>
-                            <?php else : ?>
-                                <?php // The key always comes first, with Connect beside it and its get-a-key link; fields a provider also needs (Azure's endpoint) follow. ?>
-                                <div class="aipkit_settings_provider_field">
-                                    <label class="aipkit_settings_provider_option_label" for="<?php echo esc_attr($aipkit_credential_id); ?>"><?php echo esc_html($aipkit_credential_label); ?></label>
-                                    <div class="aipkit_settings_provider_credential_row">
-                                        <div class="aipkit_settings_provider_credential_wrap">
-                                            <?php // A saved key shows masked; clicking the field shows it, and clicking away masks it again. ?>
-                                            <input
-                                                type="<?php echo esc_attr((string) $aipkit_config['credential_type']); ?>"
-                                                id="<?php echo esc_attr($aipkit_credential_id); ?>"
-                                                name="<?php echo esc_attr($aipkit_credential_input_name); ?>"
-                                                class="aipkit_form-input aipkit_autosave_trigger aipkit_settings_provider_credential<?php echo $aipkit_is_secret ? ' is-secret' : ''; ?><?php echo $aipkit_credential_mask !== '' ? ' is-visually-masked' : ''; ?>"
-                                                value="<?php echo esc_attr($aipkit_credential_input_value); ?>"
-                                                placeholder="<?php echo esc_attr((string) $aipkit_config['credential_placeholder']); ?>"
-                                                data-aipkit-provider-credential="<?php echo esc_attr($aipkit_provider); ?>"
-                                                data-aipkit-credential-name="<?php echo esc_attr((string) $aipkit_config['credential_name']); ?>"
-                                                <?php if ($aipkit_config['credential_type'] === 'url') : ?>data-aipkit-provider-connection-field="<?php echo esc_attr((string) $aipkit_config['credential_key']); ?>"<?php endif; ?>
-                                                data-aipkit-has-credential="<?php echo $aipkit_connected ? 'true' : 'false'; ?>"
-                                                autocomplete="off"
-                                                autocorrect="off"
-                                                autocapitalize="off"
-                                                spellcheck="false"
-                                                data-lpignore="true"
-                                                data-1p-ignore="true"
-                                                data-form-type="other"
-                                                <?php echo $aipkit_credential_mask !== '' ? 'readonly' : ''; ?>
-                                            />
-                                            <?php if ($aipkit_is_secret) : ?>
-                                                <span
-                                                    class="aipkit_settings_provider_credential_mask"
-                                                    data-aipkit-provider-credential-mask
-                                                    aria-hidden="true"
-                                                    <?php echo $aipkit_credential_mask === '' ? 'hidden' : ''; ?>
-                                                ><?php echo esc_html($aipkit_credential_mask); ?></span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            class="aipkit_btn aipkit_btn-primary aipkit_settings_provider_connect"
-                                            data-aipkit-provider-connect="<?php echo esc_attr($aipkit_provider); ?>"
-                                            <?php echo $aipkit_connected ? 'hidden' : ''; ?>
-                                        ><?php esc_html_e('Connect', 'gpt3-ai-content-generator'); ?></button>
-                                    </div>
-                                    <?php if (!empty($aipkit_config['credential_help'])) : ?>
-                                        <span class="aipkit_settings_provider_option_help"><?php echo esc_html((string) $aipkit_config['credential_help']); ?></span>
-                                    <?php endif; ?>
-                                    <?php // The get-a-key link always sits by the field; once a key is saved, how to replace it sits beside it. Disconnect is in the footer. ?>
-                                    <div class="aipkit_settings_provider_field_links">
+                        <section class="aipkit_settings_provider_panel_section aipkit_settings_provider_connection_fields">
+                            <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Connection', 'gpt3-ai-content-generator'); ?></h3>
+                            <?php // The key always comes first, with Connect beside it and its get-a-key link; fields a provider also needs (Azure's endpoint) follow. ?>
+                            <div class="aipkit_settings_provider_field">
+                                <label class="aipkit_settings_provider_option_label" for="<?php echo esc_attr($aipkit_credential_id); ?>"><?php echo esc_html($aipkit_credential_label); ?></label>
+                                <div class="aipkit_settings_provider_credential_row">
+                                    <div class="aipkit_settings_provider_credential_wrap">
+                                        <?php // A saved key shows masked; clicking the field shows it, and clicking away masks it again. ?>
+                                        <input
+                                            type="<?php echo esc_attr((string) $aipkit_config['credential_type']); ?>"
+                                            id="<?php echo esc_attr($aipkit_credential_id); ?>"
+                                            name="<?php echo esc_attr($aipkit_credential_input_name); ?>"
+                                            class="aipkit_form-input aipkit_autosave_trigger aipkit_settings_provider_credential<?php echo $aipkit_is_secret ? ' is-secret' : ''; ?><?php echo $aipkit_credential_mask !== '' ? ' is-visually-masked' : ''; ?>"
+                                            value="<?php echo esc_attr($aipkit_credential_input_value); ?>"
+                                            placeholder="<?php echo esc_attr((string) $aipkit_config['credential_placeholder']); ?>"
+                                            data-aipkit-provider-credential="<?php echo esc_attr($aipkit_provider); ?>"
+                                            data-aipkit-credential-name="<?php echo esc_attr((string) $aipkit_config['credential_name']); ?>"
+                                            <?php if ($aipkit_config['credential_type'] === 'url') : ?>data-aipkit-provider-connection-field="<?php echo esc_attr((string) $aipkit_config['credential_key']); ?>"<?php endif; ?>
+                                            data-aipkit-has-credential="<?php echo $aipkit_connected ? 'true' : 'false'; ?>"
+                                            autocomplete="off"
+                                            autocorrect="off"
+                                            autocapitalize="off"
+                                            spellcheck="false"
+                                            data-lpignore="true"
+                                            data-1p-ignore="true"
+                                            data-form-type="other"
+                                            <?php echo $aipkit_credential_mask !== '' ? 'readonly' : ''; ?>
+                                        />
                                         <?php if ($aipkit_is_secret) : ?>
-                                            <span class="aipkit_settings_provider_option_help" data-aipkit-provider-connected-only <?php echo $aipkit_connected ? '' : 'hidden'; ?>><?php esc_html_e('Paste a new key to replace it. It saves by itself.', 'gpt3-ai-content-generator'); ?></span>
+                                            <span
+                                                class="aipkit_settings_provider_credential_mask"
+                                                data-aipkit-provider-credential-mask
+                                                aria-hidden="true"
+                                                <?php echo $aipkit_credential_mask === '' ? 'hidden' : ''; ?>
+                                            ><?php echo esc_html($aipkit_credential_mask); ?></span>
                                         <?php endif; ?>
-                                        <a class="aipkit_settings_provider_key_link" href="<?php echo esc_url((string) $aipkit_config['key_url']); ?>" target="_blank" rel="noopener noreferrer">
-                                            <span><?php echo esc_html((string) $aipkit_config['key_link']); ?></span>
-                                            <span class="dashicons dashicons-external" aria-hidden="true"></span>
-                                        </a>
                                     </div>
+                                    <button
+                                        type="button"
+                                        class="aipkit_btn aipkit_btn-primary aipkit_settings_provider_connect"
+                                        data-aipkit-provider-connect="<?php echo esc_attr($aipkit_provider); ?>"
+                                        <?php echo $aipkit_connected ? 'hidden' : ''; ?>
+                                    ><?php esc_html_e('Connect', 'gpt3-ai-content-generator'); ?></button>
                                 </div>
-                                <?php foreach ($aipkit_field_groups['connection'] as $aipkit_field) {
-                                    $aipkit_render_option_field($aipkit_field, $aipkit_slug);
-                                } ?>
-                                <div
-                                    class="aipkit_settings_provider_error"
-                                    data-aipkit-provider-error
-                                    <?php /* translators: %s: AI provider display name. */ ?>
-                                    data-invalid-message="<?php echo esc_attr(sprintf(__('%s rejected this key. It may be wrong, revoked or out of credit. Check it or create a new one, then paste it again.', 'gpt3-ai-content-generator'), (string) $aipkit_config['display_name'])); ?>"
-                                    <?php /* translators: %s: AI provider display name. */ ?>
-                                    data-sync-message="<?php echo esc_attr(sprintf(__('We couldn’t reach %s. Check the connection and try again.', 'gpt3-ai-content-generator'), (string) $aipkit_config['display_name'])); ?>"
-                                    role="alert"
-                                    hidden
-                                >
-                                    <span class="dashicons dashicons-warning" aria-hidden="true"></span>
-                                    <div class="aipkit_settings_provider_error_content">
-                                        <p data-aipkit-provider-error-message></p>
-                                        <details class="aipkit_settings_provider_error_details" data-aipkit-provider-error-details hidden>
-                                            <summary><?php esc_html_e('View details', 'gpt3-ai-content-generator'); ?></summary>
-                                            <p data-aipkit-provider-error-technical></p>
-                                        </details>
-                                    </div>
+                                <?php if (!empty($aipkit_config['credential_help'])) : ?>
+                                    <span class="aipkit_settings_provider_option_help"><?php echo esc_html((string) $aipkit_config['credential_help']); ?></span>
+                                <?php endif; ?>
+                                <?php // The get-a-key link always sits by the field; once a key is saved, how to replace it sits beside it. Disconnect is in the footer. ?>
+                                <div class="aipkit_settings_provider_field_links">
+                                    <?php if ($aipkit_is_secret) : ?>
+                                        <span class="aipkit_settings_provider_option_help" data-aipkit-provider-connected-only <?php echo $aipkit_connected ? '' : 'hidden'; ?>><?php esc_html_e('Paste a new key to replace it. It saves by itself.', 'gpt3-ai-content-generator'); ?></span>
+                                    <?php endif; ?>
+                                    <a class="aipkit_settings_provider_key_link" href="<?php echo esc_url((string) $aipkit_config['key_url']); ?>" target="_blank" rel="noopener noreferrer">
+                                        <span><?php echo esc_html((string) $aipkit_config['key_link']); ?></span>
+                                        <span class="dashicons dashicons-external" aria-hidden="true"></span>
+                                    </a>
                                 </div>
-                            <?php endif; ?>
+                            </div>
+                            <?php foreach ($aipkit_field_groups['connection'] as $aipkit_field) {
+                                $aipkit_render_option_field($aipkit_field, $aipkit_slug);
+                            } ?>
+                            <div
+                                class="aipkit_settings_provider_error"
+                                data-aipkit-provider-error
+                                <?php /* translators: %s: AI provider display name. */ ?>
+                                data-invalid-message="<?php echo esc_attr(sprintf(__('%s rejected this key. It may be wrong, revoked or out of credit. Check it or create a new one, then paste it again.', 'gpt3-ai-content-generator'), (string) $aipkit_config['display_name'])); ?>"
+                                <?php /* translators: %s: AI provider display name. */ ?>
+                                data-sync-message="<?php echo esc_attr(sprintf(__('We couldn’t reach %s. Check the connection and try again.', 'gpt3-ai-content-generator'), (string) $aipkit_config['display_name'])); ?>"
+                                role="alert"
+                                hidden
+                            >
+                                <span class="dashicons dashicons-warning" aria-hidden="true"></span>
+                                <div class="aipkit_settings_provider_error_content">
+                                    <p data-aipkit-provider-error-message></p>
+                                    <details class="aipkit_settings_provider_error_details" data-aipkit-provider-error-details hidden>
+                                        <summary><?php esc_html_e('View details', 'gpt3-ai-content-generator'); ?></summary>
+                                        <p data-aipkit-provider-error-technical></p>
+                                    </details>
+                                </div>
+                            </div>
                         </section>
 
-                        <?php if ($aipkit_model_field) :
-                            $aipkit_model_field_id = 'aipkit_' . $aipkit_slug . '_' . ($aipkit_provider === 'Azure' ? 'deployment' : 'model');
-                            ?>
-                            <section
-                                class="aipkit_settings_provider_panel_section aipkit_settings_provider_model_block"
-                                data-aipkit-provider-model-block
-                                <?php echo $aipkit_connected ? '' : 'hidden'; ?>
-                            >
-                                <label class="aipkit_settings_provider_panel_section_title" for="<?php echo esc_attr($aipkit_model_field_id); ?>_trigger"><?php echo esc_html((string) $aipkit_model_field['label']); ?></label>
-                                <div class="aipkit_settings_provider_model_control">
-                                    <div class="aipkit_settings_provider_model_select_row">
-                                        <select
-                                            id="<?php echo esc_attr($aipkit_model_field_id); ?>"
-                                            name="<?php echo esc_attr((string) $aipkit_model_field['name']); ?>"
-                                            class="aipkit_settings_provider_model_select aipkit_autosave_trigger"
-                                            data-aipkit-settings-provider-model="<?php echo esc_attr($aipkit_provider); ?>"
-                                            hidden
-                                            aria-hidden="true"
-                                            tabindex="-1"
-                                        >
-                                            <?php \WPAICG\AIPKit_Provider_Model_List_Builder::render_model_options($aipkit_provider, (string) $aipkit_model_field['value']); ?>
-                                        </select>
-                                        <?php
-                                        $aipkit_unified_model_selector_config = [
-                                            'trigger_id' => $aipkit_model_field_id . '_trigger',
-                                            'initial_label' => (string) $aipkit_model_field['value'] !== ''
-                                                ? (string) $aipkit_model_field['value']
-                                                : __('Select model', 'gpt3-ai-content-generator'),
-                                            'source_id' => $aipkit_model_field_id,
-                                            'class_name' => 'aipkit_settings_provider_unified_model_selector',
-                                            'show_manage_link' => false,
-                                            'simple' => true,
-                                        ];
-                                        include WPAICG_PLUGIN_DIR . 'admin/views/shared/unified-model-selector.php';
-                                        unset($aipkit_unified_model_selector_config);
-                                        ?>
-                                        <button
-                                            type="<?php echo $aipkit_account_provider ? 'submit' : 'button'; ?>"
-                                            <?php if ($aipkit_account_provider) : ?>form="aipkit_cloud_account_form" name="cloud_action" value="sync"<?php endif; ?>
-                                            id="aipkit_sync_<?php echo esc_attr($aipkit_slug); ?>_models"
-                                            class="aipkit_sync_btn aipkit_settings_compact_sync_btn"
-                                            data-provider="<?php echo esc_attr($aipkit_provider); ?>"
-                                            aria-label="<?php esc_attr_e('Refresh the model list', 'gpt3-ai-content-generator'); ?>"
-                                            title="<?php esc_attr_e('Refresh the model list', 'gpt3-ai-content-generator'); ?>"
-                                            aria-busy="false"
-                                        >
-                                            <span class="dashicons dashicons-update" aria-hidden="true"></span>
-                                        </button>
-                                    </div>
-                                    <div class="aipkit_settings_provider_model_meta">
-                                        <span class="aipkit_settings_provider_option_help"><?php echo esc_html((string) $aipkit_model_field['description']); ?></span>
-                                        <?php if (!$aipkit_account_provider) : ?>
-                                            <span
-                                                class="aipkit_settings_provider_model_last_synced"
-                                                data-aipkit-provider-last-synced="<?php echo esc_attr($aipkit_provider); ?>"
-                                                data-synced-at="<?php echo esc_attr((string) ($aipkit_model_sync_timestamps[$aipkit_provider] ?? '')); ?>"
-                                                aria-live="polite"
-                                                hidden
-                                            ></span>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </section>
-                        <?php endif; ?>
+                        <?php if ($aipkit_model_field) {
+                            $aipkit_render_model_block($aipkit_provider, $aipkit_slug, $aipkit_model_field, $aipkit_connected, false);
+                        } ?>
 
                         <?php foreach ($aipkit_option_groups as $aipkit_group_key => $aipkit_group) :
                             $aipkit_group_fields = $aipkit_field_groups[$aipkit_group_key] ?? [];
@@ -1162,17 +989,10 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
                     </div>
 
                     <div class="aipkit_settings_provider_modal_footer">
-                        <?php // Disconnecting sits apart from the key, the same for every provider. Cloud submits its account form. ?>
+                        <?php // Disconnecting sits apart from the key, the same for every provider. ?>
                         <button
-                            <?php if ($aipkit_account_provider) : ?>
-                                type="submit"
-                                form="aipkit_cloud_account_form"
-                                name="cloud_action"
-                                value="disconnect"
-                            <?php else : ?>
-                                type="button"
-                                data-aipkit-provider-remove="<?php echo esc_attr($aipkit_provider); ?>"
-                            <?php endif; ?>
+                            type="button"
+                            data-aipkit-provider-remove="<?php echo esc_attr($aipkit_provider); ?>"
                             class="aipkit_settings_provider_remove"
                             data-aipkit-provider-connected-only
                             <?php /* translators: %s: AI provider name. */ ?>
@@ -1199,6 +1019,7 @@ $aipkit_ai_state = $aipkit_ai_connected ? 'ready' : 'empty';
                     </div>
                 </div>
             </div>
+            <?php endif; ?>
         </article>
     <?php endforeach; ?>
     <div class="aipkit_settings_provider_list_footer">

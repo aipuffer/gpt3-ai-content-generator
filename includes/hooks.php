@@ -71,6 +71,14 @@ class AIPKit_Hook_Manager
             wpaicg_gacg_fs()->add_filter('is_pricing_page_visible', '__return_true');
         }
         if (class_exists(\WPAICG\Cloud\Connection::class)) {
+            \WPAICG\Mcp\Executor::register();
+            \WPAICG\Mcp\Settings::register();
+            \WPAICG\Mcp\Screens::register();
+            \WPAICG\Mcp\Activity::register();
+            \WPAICG\Mcp\Registry::register_hooks();
+            \WPAICG\Mcp\Levels::register_hooks();
+            \WPAICG\Mcp\Abilities::register_hooks();
+            add_action('aipkit_cloud_credential_ending', [\WPAICG\Mcp\Identity::class, 'credential_ending']);
             wpaicg_gacg_fs()->add_action('after_account_connection', [\WPAICG\Cloud\Connection::class, 'account_changed']);
             wpaicg_gacg_fs()->add_action('after_account_user_sync', [\WPAICG\Cloud\Connection::class, 'sync_verified_account']);
             wpaicg_gacg_fs()->add_action('after_account_delete', [\WPAICG\Cloud\Connection::class, 'forget_connection']);
@@ -730,6 +738,7 @@ class Ajax_Hooks_Registrar
             ]],
             [$log_ajax_handler, [
                 'aipkit_stats_get_logs' => 'ajax_get_stats_logs',
+                'aipkit_stats_get_overview' => 'ajax_get_stats_overview',
                 'aipkit_stats_get_requests' => 'ajax_get_stats_requests',
                 'aipkit_stats_delete_requests' => 'ajax_delete_stats_requests',
                 'aipkit_stats_get_log_detail' => 'ajax_get_stats_log_detail',
@@ -738,7 +747,7 @@ class Ajax_Hooks_Registrar
                 'aipkit_stats_delete_log' => 'ajax_delete_stats_log',
                 'aipkit_stats_delete_logs' => 'ajax_delete_stats_logs',
                 'aipkit_stats_save_settings' => 'ajax_save_stats_settings',
-                'aipkit_stats_get_log_cron_status' => 'ajax_get_stats_log_cron_status',
+                'aipkit_stats_get_log_storage' => 'ajax_get_stats_log_storage',
             ]],
             [$pricing_ajax_handler, [
                 'aipkit_stats_get_pricing_management' => 'ajax_get_stats_pricing_management',

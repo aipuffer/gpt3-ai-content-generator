@@ -34,6 +34,8 @@
   function aipkit_initSettings() {
     aipkit_disableSettingsLabelClickForwarding();
     window.aipkit_initCloudConnection?.();
+    window.aipkit_initManageWebsite?.();
+    window.aipkit_initCloudPanel?.();
 
     if (typeof window.aipkit_attachRangeValueHandlers === "function") {
       window.aipkit_attachRangeValueHandlers("#aipkit_settings_container");

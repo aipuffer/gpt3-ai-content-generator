@@ -210,7 +210,7 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
         find('[data-email-message]').hidden = true;
         button.setAttribute('aria-expanded', 'true');
         clear();
-        const scope = active.closest('#aipkit_cloud_connection') || root;
+        const scope = active.closest('.aipkit_cloud_connection') || root;
         paused = [...scope.querySelectorAll('[name="cloud_action"]')].filter(control => !control.disabled);
         paused.forEach(control => { control.disabled = true; });
         find('[data-field="account_email"]').value = find('[data-cloud-email]').textContent;

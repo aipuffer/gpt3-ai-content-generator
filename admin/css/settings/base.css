@@ -2453,6 +2453,22 @@ hr.aipkit_hr {
 .aipkit_settings_provider_cards .aipkit_settings_provider_card.has-provider-error .aipkit_settings_provider_card_main .aipkit_settings_provider_logo::after {
     background: #d92d20;
 }
+/* Manage my website: something needs the owner (an approval, paused changes, a connection in progress). */
+.aipkit_settings_provider_cards .aipkit_settings_provider_card .aipkit_settings_provider_card_main .aipkit_settings_provider_logo.is-attention::after {
+    content: "";
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: #d97706;
+}
+.aipkit_settings_provider_card_status .aipkit_settings_provider_summary.is-attention {
+    color: #a15c00;
+}
 .aipkit_settings_provider_card_main .aipkit_settings_provider_logo .dashicons {
     width: 20px;
     height: 20px;
@@ -3053,7 +3069,8 @@ hr.aipkit_hr {
     font-size: 16px;
     line-height: 16px;
 }
-#aipkit_settings_container .aipkit_settings_provider_secondary_action {
+#aipkit_settings_container .aipkit_settings_provider_secondary_action,
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions .aipkit_btn:not(.aipkit_btn-primary) {
     height: 36px;
     min-height: 36px;
     margin: 0;
@@ -3069,11 +3086,13 @@ hr.aipkit_hr {
     box-shadow: none;
     cursor: pointer;
 }
-#aipkit_settings_container .aipkit_settings_provider_secondary_action:hover:not(:disabled) {
+#aipkit_settings_container .aipkit_settings_provider_secondary_action:hover:not(:disabled),
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions .aipkit_btn:not(.aipkit_btn-primary):hover {
     border-color: #c3cddb;
     background: #f8fafc;
 }
-#aipkit_settings_container .aipkit_settings_provider_done {
+#aipkit_settings_container .aipkit_settings_provider_done,
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions .aipkit_btn-primary {
     height: 36px;
     min-height: 36px;
     margin: 0;
@@ -3484,7 +3503,6 @@ hr.aipkit_hr {
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_feedback:empty {
     display: none;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_muted,
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_hint {
     color: var(--aipkit-builder-muted, #6b778c);
     font-size: 12.5px;
@@ -3505,57 +3523,6 @@ hr.aipkit_hr {
     border: 1px solid #f5dfb3;
     background: #fff8eb;
     color: #7a4b00;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 16px;
-    border: 1px solid #e3e8ef;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance_label {
-    color: var(--aipkit-builder-muted, #6b778c);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_balance_value {
-    color: #1f2a3a;
-    font-size: 32px;
-    font-weight: 700;
-    line-height: 1.15;
-    font-variant-numeric: tabular-nums;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_split {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-    margin: 10px 0 0;
-    padding-top: 12px;
-    border-top: 1px solid #e8edf3;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_split > div {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_split dt {
-    color: var(--aipkit-builder-muted, #6b778c);
-    font-size: 11.5px;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_split dd {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_split small {
-    color: #8a94a3;
-    font-size: 11px;
 }
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_section {
     display: flex;
@@ -3665,13 +3632,6 @@ hr.aipkit_hr {
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_title {
-    margin: 0;
-    color: #172033;
-    font-size: 22px;
-    font-weight: 800;
-    line-height: 1.2;
-}
 :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_text {
     margin: 0;
     color: #475467;
@@ -3702,11 +3662,6 @@ hr.aipkit_hr {
     display: flex;
     flex-direction: column;
     gap: 12px;
-}
-/* In the panel, connected, the Cloud groups join the panel body so the model picker sits between them. */
-.aipkit_settings_cloud_fields,
-#aipkit_settings_container .aipkit_settings_provider_panel .aipkit_cloud_connection.is-connected {
-    display: contents;
 }
 :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_connect details {
     margin: 0;
@@ -3763,110 +3718,8 @@ hr.aipkit_hr {
     gap: 10px;
     min-width: 0;
 }
-.aipkit_cloud_panel_group--credits {
-    order: 1;
-}
-[data-aipkit-provider-modal="AIPufferCloud"] .aipkit_settings_provider_model_block {
-    order: 2;
-}
-.aipkit_cloud_panel_group--account {
-    order: 3;
-}
 :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_account_controls {
     margin-bottom: 0;
-}
-.aipkit_cloud_panel_credits {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    border: 1px solid #dce3ec;
-    border-radius: 14px;
-}
-.aipkit_cloud_panel_credits_top {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-}
-.aipkit_cloud_panel_credits_copy {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-.aipkit_cloud_panel_credits_label {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 700;
-}
-.aipkit_cloud_panel_credits_value {
-    color: #172033;
-    font-size: 28px;
-    font-weight: 800;
-    line-height: 1.1;
-    font-variant-numeric: tabular-nums;
-}
-.aipkit_cloud_panel_split {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin: 0;
-}
-.aipkit_cloud_panel_split_item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: #f8fafc;
-}
-.aipkit_cloud_panel_split_item dt {
-    color: #64748b;
-    font-size: 11.5px;
-    font-weight: 700;
-}
-.aipkit_cloud_panel_split_item dd {
-    margin: 0;
-    color: #172033;
-    font-size: 18px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-}
-.aipkit_cloud_panel_split_item small {
-    color: #8a94a6;
-    font-size: 11.5px;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits_link {
-    align-self: flex-start;
-    color: #2f49c9;
-    font-size: 12.5px;
-    font-weight: 650;
-    text-decoration: none;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits_link:is(:hover, :focus-visible) {
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-.aipkit_cloud_panel_credits .aipkit_cloud_purchase {
-    margin: 0;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits .aipkit_cloud_btn {
-    height: 36px;
-    min-height: 36px;
-    margin: 0;
-    padding: 0 14px;
-    border: 1px solid #d7dee8;
-    border-radius: 9px;
-    background: #ffffff;
-    color: #172033;
-    font-size: 13px;
-    font-weight: 700;
-    box-shadow: none;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_panel_credits .aipkit_cloud_btn:hover:not(:disabled) {
-    border-color: #c3cddb;
-    background: #f8fafc;
 }
 /* The account is one card; the email editor opens inside it. */
 :is(.aipkit_settings_provider_panel, .aipkit_connect_dialog) .aipkit_cloud_account_controls:has(.aipkit_cloud_account_avatar) {
@@ -3932,9 +3785,6 @@ hr.aipkit_hr {
     text-underline-offset: 2px;
 }
 /* Cloud's footer Disconnect waits while the account email is being changed. */
-.aipkit_settings_provider_panel:has([data-cloud-email-editor]:not([hidden])) .aipkit_settings_provider_modal_footer [name="cloud_action"][value="disconnect"] {
-    display: none;
-}
 
 /* Shared account email row/editor, including dynamically opened provider dialogs. */
 .aipkit_cloud_account_controls { flex: 1; min-width: 0; margin-bottom: 16px; }
@@ -4030,3 +3880,5 @@ hr.aipkit_hr {
 #aipkit_stats_container .aipkit_cloud_email_editor input[type="email"] { box-sizing: border-box; min-height: 40px; margin-top: 6px; padding: 8px 10px; border: 1px solid #d6e0ea; border-radius: 8px; background: #fff; font: inherit; }
 .aipkit_cloud_account_controls [data-email-error] { color: #b32d2e; }
 .aipkit_cloud_account_controls [hidden] { display: none !important; }
+
+[data-aipkit-website-usage][hidden] { display: none !important; }

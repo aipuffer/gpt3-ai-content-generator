@@ -5,7 +5,9 @@
 @import 'shared/tables.css';
 @import 'shared/status.css';
 @import 'settings/base.css';
+@import 'settings/cloud-panel.css';
 @import 'usage/base.css';
+@import 'mcp/screens.css';
 @import 'shared/module-action-buttons.css';
 @import 'shared/modals.css';
 @import 'role-manager/base.css';

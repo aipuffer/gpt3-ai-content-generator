@@ -11,6 +11,25 @@
   const getContainer = () =>
     document.getElementById("aipkit_settings_container");
 
+  // AI Puffer Cloud's sheet is the shared Cloud panel, outside its card; card state reaches into it.
+  const cardQuery = (card, selector) => {
+    const panel = card?.dataset.aipkitProviderPanel
+      ? document.getElementById(card.dataset.aipkitProviderPanel)
+      : null;
+    return card?.querySelector(selector) || panel?.querySelector(selector) || null;
+  };
+
+  const ownerCard = (element) => {
+    const card = element?.closest("[data-aipkit-provider-card]");
+    if (card) {
+      return card;
+    }
+    const owner = element?.closest("[data-aipkit-provider-owner]")?.dataset.aipkitProviderOwner;
+    return owner
+      ? getContainer()?.querySelector(`[data-aipkit-provider-card="${CSS.escape(owner)}"]`) || null
+      : null;
+  };
+
   const focusRequestedProviderCard = (container) => {
     let requestedProvider = String(
       window.__aipkitRequestedProviderCard || ""
@@ -42,7 +61,7 @@
       card.scrollIntoView({ behavior: "smooth", block: "center" });
       const trigger = card.querySelector("[data-aipkit-provider-settings-open]");
       if (trigger) {
-        openModal(container, card.dataset.aipkitProviderCard, trigger);
+        openModal(container, trigger.dataset.aipkitProviderSettingsOpen || card.dataset.aipkitProviderCard, trigger);
       } else {
         card.querySelector("button, a")?.focus({ preventScroll: true });
       }
@@ -293,7 +312,7 @@
     const summary = card?.querySelector("[data-aipkit-provider-summary]");
     if (!summary) return;
     const connected = card.dataset.aipkitProviderConnected === "true";
-    const select = card.querySelector("[data-aipkit-provider-model-block] select");
+    const select = cardQuery(card, "[data-aipkit-provider-model-block] select");
     summary.hidden = !connected;
     summary.textContent = select?.value
       ? select.selectedOptions[0]?.textContent || select.value
@@ -331,9 +350,7 @@
     const connectButton = card.querySelector(
       "[data-aipkit-provider-connect]"
     );
-    const modelBlock = card.querySelector(
-      "[data-aipkit-provider-model-block]"
-    );
+    const modelBlock = cardQuery(card, "[data-aipkit-provider-model-block]");
 
     clearCardSyncError(card);
     if (connectedStatus) connectedStatus.hidden = !connected;
@@ -359,9 +376,9 @@
     cards.forEach((card) => {
       const isDefault = card.dataset.aipkitProviderCard === provider;
       card.dataset.aipkitProviderDefault = isDefault ? "true" : "false";
-      const status = card.querySelector("[data-aipkit-provider-default-status]");
-      const action = card.querySelector("[data-aipkit-provider-set-default]");
-      const note = card.querySelector("[data-aipkit-provider-default-note]");
+      const status = cardQuery(card, "[data-aipkit-provider-default-status]");
+      const action = cardQuery(card, "[data-aipkit-provider-set-default]");
+      const note = cardQuery(card, "[data-aipkit-provider-default-note]");
       if (status) {
         status.hidden = !isDefault;
       }
@@ -373,17 +390,30 @@
       }
     });
 
+    const cloudPanel = container?.querySelector('#aipkit_cloud_panel');
+    if (cloudPanel) {
+      const isDefault = provider === 'AIPufferCloud';
+      cloudPanel.querySelector('[data-aipkit-provider-set-default]').hidden = isDefault;
+    }
+
     const cardsContainer = container?.querySelector(
       ".aipkit_settings_provider_cards"
     );
     if (cardsContainer) {
       cardsContainer.dataset.aipkitCurrentProvider = provider;
     }
+    // The AI page and the Cloud panel each save their own copy of the default.
+    container?.querySelectorAll("[data-aipkit-default-provider-input]").forEach((input) => {
+      input.value = provider;
+    });
     updateAiOverview(container);
   };
 
   const saveDefaultProvider = async (container, button) => {
-    const input = container?.querySelector("[data-aipkit-default-provider-input]");
+    // The copy in the button's own settings scope is the one its save sends.
+    const input =
+      button?.closest(".aipkit_settings_scope")?.querySelector("[data-aipkit-default-provider-input]") ||
+      container?.querySelector("[data-aipkit-default-provider-input]");
     const provider = button?.dataset.aipkitProviderSetDefault || "";
     if (
       !input ||
@@ -669,6 +699,7 @@
     syncOpenAIApiModeControls(container);
     modal.classList.add("aipkit-active");
     modal.setAttribute("aria-hidden", "false");
+    window.dispatchEvent(new CustomEvent("aipkit:provider-modal-opened", { detail: { modal } }));
 
     if (typeof window.aipkit_refreshSettingsSelectPickers === "function") {
       window.aipkit_refreshSettingsSelectPickers();
@@ -712,10 +743,8 @@
     const card = container?.querySelector(
       `[data-aipkit-provider-card="${CSS.escape(provider)}"]`
     );
-    const select = card?.querySelector("[data-aipkit-settings-provider-model]");
-    const selector = card?.querySelector(
-      ".aipkit_settings_provider_unified_model_selector"
-    );
+    const select = cardQuery(card, "[data-aipkit-settings-provider-model]");
+    const selector = cardQuery(card, ".aipkit_settings_provider_unified_model_selector");
     if (!select || !selector) {
       return;
     }
@@ -754,11 +783,11 @@
         select.addEventListener("change", () => {
           prepareProviderModelOptions(select);
           controller.sync();
-          updateCardSummary(select.closest("[data-aipkit-provider-card]"));
+          updateCardSummary(ownerCard(select));
         });
         select.dataset.aipkitSettingsUnifiedModelBound = "1";
         controller.sync();
-        updateCardSummary(select.closest("[data-aipkit-provider-card]"));
+        updateCardSummary(ownerCard(select));
       });
   };
 

@@ -196,6 +196,9 @@ trait AIPKit_Plugin_Updates
             'aipkit_recipe_delivery_logs',
             'aipkit_pricing_rules',
             'aipkit_token_ledger',
+            'aipkit_mcp_operations',
+            'aipkit_mcp_grants',
+            'aipkit_mcp_nonces',
         ];
 
         $recipe_log_store_path = WPAICG_PLUGIN_DIR . 'lib/integrations/delivery-log.php';
@@ -401,6 +404,8 @@ class WP_AI_Content_Generator_Activator
             return;
         }
         require_once $db_schema_path;
+        require_once WPAICG_PLUGIN_DIR . 'classes/mcp/schema.php';
+        \WPAICG\Mcp\Schema::install();
 
         if (function_exists('aipkit_create_logs_table')) {
             aipkit_create_logs_table();

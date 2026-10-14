@@ -60,6 +60,21 @@ final class Connection
         $key = hash('sha256', wp_salt('auth'), true);
         $aad = 'aipuffer-cloud-connection-v1:' . untrailingslashit(home_url());
         if ($value !== null) {
+            // Ordinary Cloud refreshes preserve MCP custody. A credential replacement
+            // invalidates it; only update() may alter MCP registration itself.
+            try { $current = self::state(); }
+            catch (\Throwable $error) {
+                do_action('aipkit_cloud_credential_ending', 'storage_unreadable');
+                $current = [];
+            }
+            unset($value['mcp']);
+            if (!empty($current['mcp']) && !empty($current['token']) && ($value['token'] ?? null) === $current['token']
+                && ($value['identity'] ?? null) === ($current['identity'] ?? null)
+                && ($value['site'] ?? null) === ($current['site'] ?? null)) {
+                $value['mcp'] = $current['mcp'];
+            } elseif (!empty($current['mcp'])) {
+                do_action('aipkit_cloud_credential_ending', 'credential_changed');
+            }
             $iv = random_bytes(12);
             $tag = '';
             $cipher = openssl_encrypt(wp_json_encode($value), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
@@ -99,6 +114,43 @@ final class Connection
         }
         self::$state_cache = $decoded;
         return $decoded;
+    }
+
+    /** Merge against current encrypted custody, refusing a concurrent writer. */
+    public static function update(callable $merge): array
+    {
+        global $wpdb;
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap requires current ciphertext; WordPress owns the table, values are prepared and option caches are invalidated after writes.
+            $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::OPTION));
+            if (!is_string($stored) || $stored === '') { throw new RuntimeException('cloud_connection_required'); }
+            wp_cache_delete(self::OPTION, 'options');
+            wp_cache_delete('alloptions', 'options');
+            $current = self::state();
+            // The read must describe the ciphertext on which this CAS is based.
+            if (get_option(self::OPTION) !== $stored) { continue; }
+            $value = $merge($current);
+            if (!is_array($value) || ($value['token'] ?? null) !== ($current['token'] ?? null)
+                || ($value['identity'] ?? null) !== ($current['identity'] ?? null)
+                || ($value['site'] ?? null) !== ($current['site'] ?? null)) {
+                throw new RuntimeException('cloud_identity_changed');
+            }
+            $iv = random_bytes(12);
+            $tag = '';
+            $cipher = openssl_encrypt(wp_json_encode($value), 'aes-256-gcm', hash('sha256', wp_salt('auth'), true), OPENSSL_RAW_DATA, $iv, $tag, 'aipuffer-cloud-connection-v1:' . untrailingslashit(home_url()));
+            if ($cipher === false) { throw new RuntimeException('cloud_storage_unavailable'); }
+            $encoded = base64_encode($iv . $tag . $cipher);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Compare-and-swap requires current ciphertext; WordPress owns the table, values are prepared and option caches are invalidated after writes.
+            $changed = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND BINARY option_value = BINARY %s", $encoded, self::OPTION, $stored));
+            if ($changed === false) { throw new RuntimeException('cloud_storage_unavailable'); }
+            if ($changed === 1) {
+                wp_cache_delete(self::OPTION, 'options');
+                wp_cache_delete('alloptions', 'options');
+                self::$state_cache_key = null;
+                return $value;
+            }
+        }
+        throw new RuntimeException('cloud_storage_busy');
     }
 
     /** POST JSON to Cloud. Errors keep Cloud's machine code (never its message) for the caller. */
@@ -230,6 +282,7 @@ final class Connection
 
     public static function forget_connection(): void
     {
+        do_action('aipkit_cloud_credential_ending', 'disconnected');
         try {
             $state = self::state();
             if (!empty($state['token'])) {
@@ -940,6 +993,7 @@ final class Connection
                 return self::sync_catalog($state);
             }
             if ($action === 'disconnect' && isset($state['token'])) {
+                do_action('aipkit_cloud_credential_ending', 'disconnected');
                 // A credential Cloud no longer accepts is already useless: remove it locally anyway.
                 // Any other failure keeps the connection so a valid credential is never orphaned.
                 try { self::call('disconnect'); }
@@ -986,13 +1040,31 @@ final class Connection
             if ($email === '') { $email = (string) (get_option(self::REGISTRATION, [])['email'] ?? wp_get_current_user()->user_email); }
             if (!is_email($email)) { return 'invalid_email'; }
             if (!self::lock(self::REGISTRATION_COOLDOWN, 60)) { return 'registration_wait'; }
-            update_option(self::REGISTRATION, ['email' => $email], false);
+            $choice = ['email' => $email, 'marketing' => $marketing];
+            update_option(self::REGISTRATION, $choice, false);
+            if (get_option(self::REGISTRATION) !== $choice) { return 'freemius_failed'; }
             try {
                 self::disable_optional_registration_tracking();
                 ConnectionDiagnostics::sdk_result($fs->opt_in($email, false, false, false, false, false, true, $marketing, [], false));
             }
             catch (\Throwable $error) { ConnectionDiagnostics::error($error->getMessage()); return 'freemius_failed'; }
             if (!$fs->is_registered(true)) { return $fs->is_pending_activation() ? 'confirm_email' : 'freemius_failed'; }
+        }
+        $registration = get_option(self::REGISTRATION, []);
+        if (is_array($registration) && is_bool($registration['marketing'] ?? null)
+            && strcasecmp((string) ($registration['email'] ?? ''), (string) ($fs->get_user()->email ?? '')) === 0) {
+            // The registration service can default this preference to true even when opt_in receives
+            // false. Save the explicit choice through the SDK's authenticated product-scoped API.
+            // Pending activation retains the choice above until this user is registered.
+            try {
+                $preference = $fs->get_api_user_scope()->call('?plugin_id=' . self::PRODUCT, 'put', [
+                    'is_marketing_allowed' => $registration['marketing'],
+                ]);
+                if (!is_object($preference) || ($preference->is_marketing_allowed ?? null) !== $registration['marketing']) {
+                    ConnectionDiagnostics::error('marketing_preference_unconfirmed');
+                    return 'freemius_failed';
+                }
+            } catch (\Throwable $error) { ConnectionDiagnostics::error('marketing_preference_unconfirmed'); return 'freemius_failed'; }
         }
         if ($registered) {
             // Reinstall activation queues this update in cron. Explicit Connect must not depend on cron running.
@@ -1133,6 +1205,7 @@ final class Connection
 
     private static function uninstall_site(float $deadline): void
     {
+        do_action('aipkit_cloud_credential_ending', 'uninstalled');
         try {
             $timeout = min(3, (int) floor($deadline - microtime(true)));
             if ($timeout > 0 && !empty(self::state()['token'])) { self::call('disconnect', $timeout); }
@@ -1192,12 +1265,17 @@ final class Connection
     private static function credit_view_response(string $aipkit_cloud_notice = ''): array
     {
         ob_start();
+        $aipkit_account_fields_only = true;
+        include dirname(__DIR__, 2) . '/admin/views/settings/providers.php';
+        $account_html = ob_get_clean();
+        ob_start();
         include dirname(__DIR__, 2) . '/admin/views/usage/cloud-account.php';
         $usage_html = ob_get_clean();
         ob_start();
         CreditNotice::render(true);
         $credit_notice_html = ob_get_clean();
         return [
+            'html' => $account_html,
             'usageHtml' => $usage_html,
             'creditNoticeHtml' => $credit_notice_html,
             'navStatusHtml' => StatusChip::html(),
@@ -1209,13 +1287,8 @@ final class Connection
     /** Safe account views and catalogs for every manual connection or sync action. */
     public static function view_response(string $aipkit_cloud_notice = ''): array
     {
-        ob_start();
-        $aipkit_account_fields_only = true;
-        include dirname(__DIR__, 2) . '/admin/views/settings/providers.php';
-        $html = ob_get_clean();
         $states = \WPAICG\AIPKit_Providers::get_provider_connection_states();
         return self::credit_view_response($aipkit_cloud_notice) + [
-            'html' => $html,
             'connectionDiagnostic' => ConnectionDiagnostics::report(),
             'emailVerified' => self::display()['email_verified'],
             'emailRecoveryHtml' => self::email_recovery_html(),

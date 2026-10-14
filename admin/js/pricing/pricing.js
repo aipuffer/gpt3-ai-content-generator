@@ -41,15 +41,17 @@ function initPricing() {
     const cards = Array.from(root.querySelectorAll('.fs-package'));
     // The SDK renders inherited features as placeholders on Plus and Max.
     const sources = cards.filter((card) => card.classList.contains('fs-free-plan') || /^(professional|pro|single site|2 sites)$/i.test(card.querySelector('.fs-plan-title')?.textContent.trim() || ''));
-    const baseFeatures = [...new Set(sources.flatMap((card) => Array.from(card.querySelectorAll('.fs-plan-features > li .fs-feature-title')).map((item) => item.textContent.trim()).slice(1)))];
+    const baseFeatures = [...new Set(sources.flatMap((card) => Array.from(card.querySelectorAll('.fs-plan-features > li .fs-feature-title')).map((item) => item.textContent.trim()).slice(1)))].filter((title) => !/monthly\s+(?:(?:cloud|ai)\s+)?credits|website actions/i.test(title));
     cards.forEach((card) => {
       const content = card.querySelector('.fs-package-content');
       const nativeTitle = card.querySelector('.fs-plan-title')?.textContent.trim() || '';
       const tier = /pro plus/i.test(nativeTitle) ? 'plus' : /pro max/i.test(nativeTitle) ? 'max' : /^(professional|pro|single site|2 sites)$/i.test(nativeTitle) ? 'pro' : null;
       if (!content || !tier || !baseFeatures.length) return;
       const name = tier === 'plus' ? 'Pro Plus' : tier === 'max' ? 'Pro Max' : 'Pro';
-      const creditValue = card.querySelector('.fs-plan-features-with-value strong')?.textContent || '';
-      const credits = Number(creditValue.replace(/[^0-9]/g, ''));
+      const creditFeature = Array.from(card.querySelectorAll('.fs-plan-features-with-value > li')).find((item) => /monthly\s+(?:(?:cloud|ai)\s+)?credits/i.test(item.textContent));
+      const creditValue = creditFeature?.querySelector('strong')?.textContent || '';
+      const credits = tier === 'pro' ? 1000 : Number(creditValue.replace(/[^0-9]/g, ''));
+      const websiteActions = tier === 'pro' ? 10000 : tier === 'plus' ? 25000 : 50000;
       const selected = card.querySelector('.fs-license-quantity-selected');
       const quantity = selected?.querySelector('.fs-license-quantity')?.textContent.trim() || '';
       const nativeCycle = card.querySelector('.fs-selected-pricing-cycle')?.textContent.trim() || '';
@@ -67,14 +69,17 @@ function initPricing() {
           header = element('div', 'aipkit-pricing-card-header');
           content.prepend(header);
         }
-        const subtitle = tier === 'plus' ? __('Pro, plus AI credits to get started.', 'gpt3-ai-content-generator') : tier === 'max' ? __('Pro, plus AI credits for heavy use.', 'gpt3-ai-content-generator') : __('All Pro features, with your own keys or Cloud.', 'gpt3-ai-content-generator');
+        const subtitle = tier === 'plus' ? __('More monthly AI credits, with all Pro features.', 'gpt3-ai-content-generator') : tier === 'max' ? __('All Pro features, for heavier AI use.', 'gpt3-ai-content-generator') : __('All Pro features, plus monthly AI credits.', 'gpt3-ai-content-generator');
         const panel = element('div', 'aipkit-pricing-credit-panel');
         panel.append(icon(credits ? 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM15 8h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9M12 6v2m0 8v2' : 'M15 4a5 5 0 1 1-3 9l-7 7H2v-3l7-7a5 5 0 0 1 6-6ZM16 7h.01'));
         const copy = element('div');
         copy.append(element('strong', '', credits
-          ? sprintf(__('%s AI credits monthly', 'gpt3-ai-content-generator'), new Intl.NumberFormat(document.documentElement.lang || 'en').format(credits))
+          ? sprintf(__('%s AI credits', 'gpt3-ai-content-generator'), new Intl.NumberFormat(document.documentElement.lang || 'en').format(credits))
           : __('Your own API keys', 'gpt3-ai-content-generator')));
         copy.append(element('span', '', credits ? __('Renews monthly', 'gpt3-ai-content-generator') : __('No monthly plan credits', 'gpt3-ai-content-generator')));
+        const actions = element('div', 'aipkit-pricing-actions');
+        actions.append(element('strong', '', sprintf(__('%s website actions', 'gpt3-ai-content-generator'), new Intl.NumberFormat(document.documentElement.lang || 'en').format(websiteActions))), element('span', '', __('Renews monthly', 'gpt3-ai-content-generator')));
+        copy.append(actions);
         panel.append(copy);
         header.replaceChildren(element('h2', '', name), element('p', '', subtitle), panel);
 
@@ -168,6 +173,10 @@ function initPricing() {
     frame = 0;
     enhanceSiteSelector();
     enhanceCards();
+    const packages = root.querySelector('.fs-section--packages');
+    if (packages && !root.querySelector('.aipkit-pricing-credit-note')) {
+      packages.after(element('p', 'aipkit-pricing-credit-note', __('AI credits require a connected Cloud account with a verified email. Allowances are shared across your sites. Free credits are subject to account eligibility. You can also use your own API keys. Website actions are a separate account allowance on every plan, including Free. Enable Manage my website under Settings > Connections. Your assistant’s own charges are separate.', 'gpt3-ai-content-generator')));
+    }
     root.querySelectorAll('[data-billing-cycle]').forEach((tab) => {
       tab.setAttribute('role', 'button');
       tab.tabIndex = 0;

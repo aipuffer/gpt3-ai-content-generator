@@ -1,0 +1,306 @@
+/* AI Puffer: assistant request screens in wp-admin (approvals, results, interrupted-change review). */
+.aipkit_mcp_screen {
+    --aipkit-mcp-ink: #172033;
+    --aipkit-mcp-muted: #5f6b7a;
+    --aipkit-mcp-line: #e3e7ee;
+    --aipkit-mcp-blue: #3f5fe8;
+    --aipkit-mcp-soft: #f6f8fb;
+    max-width: 600px;
+    margin: 32px auto 0;
+    color: var(--aipkit-mcp-ink);
+}
+
+.aipkit_mcp_screen .notice {
+    margin: 0 0 14px;
+}
+
+.aipkit_mcp_screen .wp-header-end {
+    display: none;
+}
+
+.aipkit_mcp_card {
+    margin-bottom: 16px;
+    padding: 20px 22px;
+    border: 1px solid var(--aipkit-mcp-line);
+    border-radius: 12px;
+    background: #ffffff;
+    font-size: 13px;
+}
+
+.aipkit_mcp_card--message {
+    text-align: center;
+}
+
+.aipkit_mcp_card_head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.aipkit_mcp_card_head > div {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.aipkit_mcp_card_icon {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    color: var(--aipkit-mcp-blue);
+    font-size: 24px;
+}
+
+.aipkit_mcp_card_icon.is-warning {
+    color: #b45309;
+}
+
+.aipkit_mcp_screen .aipkit_mcp_title {
+    margin: 0 0 2px;
+    padding: 0;
+    color: var(--aipkit-mcp-ink);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.aipkit_mcp_meta {
+    margin: 4px 0 0;
+    color: var(--aipkit-mcp-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.aipkit_mcp_pill {
+    flex: 0 0 auto;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #fff4d6;
+    color: #8a5a00;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.aipkit_mcp_post {
+    margin: 16px 0 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--aipkit-mcp-line);
+    border-radius: 8px;
+}
+
+.aipkit_mcp_screen .aipkit_mcp_post h2 {
+    margin: 0;
+    padding: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.aipkit_mcp_kv {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    margin: 12px 0 0;
+}
+
+.aipkit_mcp_kv dt {
+    color: var(--aipkit-mcp-muted);
+}
+
+.aipkit_mcp_kv dd {
+    margin: 0;
+    font-weight: 500;
+}
+
+.aipkit_mcp_code {
+    max-height: 320px;
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid var(--aipkit-mcp-line);
+    border-radius: 6px;
+    background: var(--aipkit-mcp-soft);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.aipkit_mcp_links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 12px 0 0;
+}
+
+.aipkit_mcp_links .dashicons {
+    width: 14px;
+    height: 14px;
+    font-size: 14px;
+    vertical-align: -2px;
+}
+
+.aipkit_mcp_note {
+    margin: 0;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: #f7f8fa;
+    color: var(--aipkit-mcp-muted);
+}
+
+.aipkit_mcp_actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 16px 0 0;
+}
+
+.aipkit_mcp_card--message .aipkit_mcp_actions {
+    justify-content: center;
+}
+
+.aipkit_mcp_screen .aipkit_usage_btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 16px;
+    border: 1px solid #d7dee8;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--aipkit-mcp-ink);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.aipkit_mcp_screen .aipkit_usage_btn:hover {
+    border-color: #c4cfdd;
+    background: #f6f8fb;
+    color: var(--aipkit-mcp-ink);
+}
+
+.aipkit_mcp_screen .aipkit_usage_btn--primary,
+.aipkit_mcp_screen .aipkit_usage_btn--primary:hover {
+    border-color: var(--aipkit-mcp-blue);
+    background: var(--aipkit-mcp-blue);
+    color: #ffffff;
+}
+
+.aipkit_mcp_screen .aipkit_usage_btn--primary:hover {
+    border-color: #3450d0;
+    background: #3450d0;
+}
+
+.aipkit_mcp_screen .aipkit_usage_btn:focus-visible,
+.aipkit_mcp_screen a:focus-visible {
+    outline: 2px solid rgba(63, 95, 232, 0.45);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+.aipkit_mcp_badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    background: #fff4d6;
+    color: #8a5a00;
+}
+
+.aipkit_mcp_badge .dashicons {
+    width: 24px;
+    height: 24px;
+    font-size: 24px;
+}
+
+.aipkit_mcp_badge.is-ok {
+    background: #eaf7ee;
+    color: #16733a;
+}
+
+.aipkit_mcp_badge.is-muted {
+    background: #f0f2f5;
+    color: #5f6b7a;
+}
+
+.aipkit_mcp_option {
+    margin: 12px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.aipkit_mcp_choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 11px 12px;
+    border: 1px solid var(--aipkit-mcp-line);
+    border-radius: 8px;
+}
+
+.aipkit_mcp_choice:has(> input:checked) {
+    border-color: #b9c6ff;
+    background: #f4f6ff;
+}
+
+.aipkit_mcp_choice > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.aipkit_mcp_choice .aipkit_mcp_meta {
+    margin: 0;
+}
+
+.aipkit_mcp_choice > input {
+    margin-top: 2px;
+}
+
+.aipkit_mcp_choice strong {
+    font-weight: 600;
+}
+
+.aipkit_mcp_candidates {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.aipkit_mcp_confirm {
+    display: block;
+    margin-top: 14px;
+    color: var(--aipkit-mcp-muted);
+}
+
+/* Usage page: things that need the owner. */
+#aipkit_stats_container .aipkit_usage_attention {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+
+#aipkit_stats_container .aipkit_usage_attention_item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid #f5dfb3;
+    border-radius: 10px;
+    background: #fff4d6;
+    color: #7a4b00;
+    font-size: 13px;
+}
+
+#aipkit_stats_container .aipkit_usage_attention_item > span:nth-child(2) {
+    flex: 1 1 auto;
+}

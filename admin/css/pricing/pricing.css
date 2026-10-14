@@ -107,8 +107,7 @@ body[class*="page_wpaicg-pricing"] { background: #f4f6fa; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-recommended { position: absolute; top: -14px; left: 24px; padding: 5px 12px; border-radius: 999px; background: var(--aipkit-pricing-blue); color: white; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-card-header { order: 0; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-card-header h2 { margin: 0 0 8px; color: var(--aipkit-pricing-ink); font-size: 24px; line-height: 1.3; text-align: left; }
-#fs_pricing #fs_pricing_app .aipkit-pricing-card-header > p { min-height: 42px; margin: 0 0 20px; color: var(--aipkit-pricing-muted); font-size: 14px; line-height: 1.5; }
-#fs_pricing #fs_pricing_app .aipkit-pricing-credit-panel { display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 18px; border-radius: 14px; background: #eef0ff; color: var(--aipkit-pricing-ink); }
+#fs_pricing #fs_pricing_app .aipkit-pricing-credit-panel { display: flex; align-items: center; gap: 14px; min-height: 112px; padding: 18px; border-radius: 14px; background: #eef0ff; color: var(--aipkit-pricing-ink); }
 #fs_pricing #fs_pricing_app [data-aipkit-pricing-tier="pro"] .aipkit-pricing-credit-panel { background: #f4f5f9; }
 #fs_pricing #fs_pricing_app .aipkit-pricing-credit-panel svg { flex: 0 0 24px; width: 24px; height: 24px; color: var(--aipkit-pricing-blue); }
 #fs_pricing #fs_pricing_app .aipkit-pricing-credit-panel strong { display: block; font-size: 18px; line-height: 1.4; }
@@ -122,6 +121,7 @@ body[class*="page_wpaicg-pricing"] { background: #f4f6fa; }
 #fs_pricing #fs_pricing_app .fs-button { min-height: 46px; padding: 12px 18px; border: 1px solid var(--aipkit-pricing-blue); border-radius: 10px; background: var(--aipkit-pricing-blue); color: white; font: inherit; font-weight: 600; text-transform: none; box-shadow: none; }
 #fs_pricing #fs_pricing_app .fs-button:hover:not(:disabled) { border-color: #304bd6; background: #304bd6; color: white; }
 #fs_pricing #fs_pricing_app .fs-button:disabled { opacity: .6; cursor: default; }
+#fs_pricing #fs_pricing_app .aipkit-pricing-credit-note { flex: 0 0 100%; margin: 0; color: var(--aipkit-pricing-muted); text-align: center; }
 #fs_pricing #fs_pricing_app .fs-upgrade-button { width: 100%; margin: 0; background: white; color: var(--aipkit-pricing-blue); }
 #fs_pricing #fs_pricing_app [data-aipkit-pricing-tier="plus"] .fs-upgrade-button:not(:disabled) { background: var(--aipkit-pricing-blue); color: white; }
 #fs_pricing #fs_pricing_app .fs-upgrade-button[data-aipkit-action-label] { font-size: 0; }
@@ -173,3 +173,5 @@ body[class*="page_wpaicg-pricing"] { background: #f4f6fa; }
   #fs_pricing #fs_pricing_app .fs-testimonials-nav .fs-nav-prev { left: 0; margin-left: 0; }
   #fs_pricing #fs_pricing_app .fs-testimonials-nav .fs-nav-next { right: 0; }
 }
+
+#fs_pricing #fs_pricing_app .aipkit-pricing-actions { margin-top: 12px; padding-top: 12px; border-top: 1px solid #d6daeb; }
