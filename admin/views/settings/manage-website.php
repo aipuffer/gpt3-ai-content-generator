@@ -20,7 +20,11 @@ $aipkit_mcp_card_attention = false;
 if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_active && Schema::ready()) {
     $aipkit_mcp_card_instance = $aipkit_mcp_registration['instance_id'] ?? '';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Display current assistant/approval state; Schema allowlists tables and IDs are prepared; caching would hide new approvals or revocations.
-    $aipkit_mcp_card_grants = (array) $wpdb->get_results($wpdb->prepare("SELECT client_name, client_hint, access_level, state, last_used_at FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND state IN ('active','paused','pending') ORDER BY created_at DESC LIMIT 20", $aipkit_mcp_card_instance), ARRAY_A);
+    $aipkit_mcp_card_grants = (array) $wpdb->get_results($wpdb->prepare("SELECT grant_id, client_name, client_hint, access_level, state, last_used_at FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND state IN ('active','paused','pending') ORDER BY created_at DESC LIMIT 20", $aipkit_mcp_card_instance), ARRAY_A);
+    foreach ($aipkit_mcp_card_grants as &$aipkit_mcp_card_grant) {
+        $aipkit_mcp_card_grant['unattended'] = \WPAICG\Mcp\Levels::unattended($aipkit_mcp_card_grant['grant_id']);
+    }
+    unset($aipkit_mcp_card_grant);
     $aipkit_mcp_card_name = static function (array $aipkit_mcp_row): string {
         $aipkit_mcp_hints = ['chatgpt' => 'ChatGPT', 'claude' => 'Claude'];
         return $aipkit_mcp_row['client_name'] ?: ($aipkit_mcp_hints[$aipkit_mcp_row['client_hint']] ?? __('Your assistant', 'gpt3-ai-content-generator'));
@@ -57,6 +61,9 @@ if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_active && Schema::ready()) {
             'content_editor' => __('can create drafts', 'gpt3-ai-content-generator'),
             'publisher' => __('asks before publishing', 'gpt3-ai-content-generator'),
         ];
+        if (count($aipkit_mcp_card_live) === 1 && !empty($aipkit_mcp_card_live[0]['unattended'])) {
+            $aipkit_mcp_card_access['trusted'] = __('runs supported changes without asking', 'gpt3-ai-content-generator');
+        }
         $aipkit_mcp_card_parts = [wp_sprintf_l('%l', $aipkit_mcp_card_names)];
         if (count($aipkit_mcp_card_live) === 1 && isset($aipkit_mcp_card_access[$aipkit_mcp_card_live[0]['access_level']])) {
             $aipkit_mcp_card_parts[] = $aipkit_mcp_card_access[$aipkit_mcp_card_live[0]['access_level']];
@@ -113,6 +120,10 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
         // $aipkit_mcp_where_retry contains only generated %s placeholders; every grant ID is supplied separately to prepare().
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Display current assistant/approval state; Schema allowlists tables and IDs are prepared; caching would hide new approvals or revocations.
         $aipkit_mcp_rows = (array) $wpdb->get_results($wpdb->prepare("SELECT grant_id, client_name, client_hint, access_level, state, wp_user_id, wp_user_login FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND (state != 'revoked'" . $aipkit_mcp_where_retry . ') ORDER BY created_at DESC LIMIT 20', array_merge([$aipkit_mcp_registration['instance_id'] ?? ''], $aipkit_mcp_retry)), ARRAY_A);
+        foreach ($aipkit_mcp_rows as &$aipkit_mcp_pane_grant) {
+            $aipkit_mcp_pane_grant['unattended'] = \WPAICG\Mcp\Levels::unattended($aipkit_mcp_pane_grant['grant_id']);
+        }
+        unset($aipkit_mcp_pane_grant);
     }
     ?>
 
@@ -158,6 +169,11 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                         /* translators: %s: safety level, such as "Read only". */
                         $aipkit_mcp_detail .= ' · ' . sprintf(__('%s not confirmed yet, select Check', 'gpt3-ai-content-generator'), \WPAICG\Mcp\Registry::level_label($aipkit_mcp_level_shown));
                     }
+                    $aipkit_mcp_previous_trusted = $aipkit_mcp_live && !$aipkit_mcp_level_pending
+                        && $aipkit_mcp_row['access_level'] === 'trusted' && empty($aipkit_mcp_row['unattended']);
+                    if ($aipkit_mcp_previous_trusted) {
+                        $aipkit_mcp_detail .= ' · ' . __('Previous approvals kept. Select Trusted to run supported changes and deletes without asking.', 'gpt3-ai-content-generator');
+                    }
                     $aipkit_mcp_continue = $aipkit_mcp_state === 'pending' && (int) $aipkit_mcp_row['wp_user_id'] === get_current_user_id() ? get_transient('aipkit_mcp_connect_' . $aipkit_mcp_row['grant_id']) : '';
                     ?>
                     <div class="aipkit_settings_provider_option is-inline">
@@ -173,11 +189,14 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                                 <?php if ($aipkit_mcp_live) : ?>
                                     <?php /* translators: %s: assistant name, e.g. ChatGPT. */ ?>
                                     <select class="aipkit_form-input aipkit_mcp_level_select" data-mcp-level data-mcp-grant="<?php echo esc_attr($aipkit_mcp_row['grant_id']); ?>" aria-label="<?php echo esc_attr(sprintf(__('Safety level for %s', 'gpt3-ai-content-generator'), $aipkit_mcp_name)); ?>">
+                                        <?php if ($aipkit_mcp_previous_trusted) : ?>
+                                            <option value="" selected disabled><?php esc_html_e('Trusted · previous approvals', 'gpt3-ai-content-generator'); ?></option>
+                                        <?php endif; ?>
                                         <?php if (!in_array($aipkit_mcp_level_shown, \WPAICG\Mcp\Registry::LEVELS, true)) : ?>
                                             <option value="<?php echo esc_attr($aipkit_mcp_level_shown); ?>" selected disabled><?php echo esc_html(\WPAICG\Mcp\Registry::level_label($aipkit_mcp_level_shown)); ?></option>
                                         <?php endif; ?>
                                         <?php foreach (\WPAICG\Mcp\Registry::LEVELS as $aipkit_mcp_level_option) : ?>
-                                            <option value="<?php echo esc_attr($aipkit_mcp_level_option); ?>" <?php selected($aipkit_mcp_level_shown, $aipkit_mcp_level_option); ?> title="<?php echo esc_attr(\WPAICG\Mcp\Registry::level_help($aipkit_mcp_level_option)); ?>"><?php echo esc_html(\WPAICG\Mcp\Registry::level_label($aipkit_mcp_level_option)); ?></option>
+                                            <option value="<?php echo esc_attr($aipkit_mcp_level_option); ?>" <?php selected(!$aipkit_mcp_previous_trusted ? $aipkit_mcp_level_shown : '', $aipkit_mcp_level_option); ?> title="<?php echo esc_attr(\WPAICG\Mcp\Registry::level_help($aipkit_mcp_level_option)); ?>"><?php echo esc_html(\WPAICG\Mcp\Registry::level_label($aipkit_mcp_level_option)); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                 <?php endif; ?>
@@ -257,9 +276,10 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                     </div>
                 </div>
                 <?php
-                // One click connects: Standard, as the current user. The two choices stay folded behind one line.
+                // One click connects: Trusted, as the current user. The two choices stay folded behind one line.
                 $aipkit_mcp_connect_user = wp_get_current_user();
                 ?>
+                <p class="aipkit_settings_provider_option_help"><?php echo esc_html(\WPAICG\Mcp\Registry::level_help(\WPAICG\Mcp\Registry::DEFAULT_LEVEL)); ?></p>
                 <details class="aipkit_mcp_connect_options">
                     <summary>
                         <span class="aipkit_settings_provider_option_help" data-mcp-connect-summary data-user-name="<?php echo esc_attr($aipkit_mcp_connect_user->display_name); ?>"><?php echo esc_html(sprintf(

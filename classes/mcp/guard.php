@@ -1,7 +1,9 @@
 <?php
 /**
- * Domains no assistant operation may be registered for, whatever its safety level or the WordPress user's role.
+ * Domain names unavailable to generic bridge declarations and name-based REST/ability access.
  *
+ * First-party typed adapters such as WP-CLI use an explicit command whitelist and native WordPress capabilities.
+ * They do not open these blocked generic routes or execute shell/PHP input.
  * This is a check on the registry's declarations, not a sandbox: it refuses to register an operation that declares
  * a blocked domain, and the generic engines (abilities, REST) ask it before every call. A handler itself is plain PHP,
  * so what keeps it inside its domain is review of that handler and the acting user's own capabilities, which
@@ -9,7 +11,7 @@
  *
  * For the generic engines it is a filter on names only: it reads an ability's name and category and a route's
  * segments, never what the callback behind them does. A plugin can name a route "preferences" and change site options
- * in it. That is why every generic change waits for the owner (Registry::needs_approval), who sees the exact request.
+ * in it. Registry applies the owner’s selected approval policy; these name checks are not a guarantee about a callback.
  */
 namespace WPAICG\Mcp;
 
@@ -54,6 +56,9 @@ final class Guard
     public static function allows_ability(string $name, string $category, string $risk): bool
     {
         if ($risk === 'read') { return true; }
+        // WPForms uses "settings" for a form's title, description and submit-button text. Its native typed
+        // action changes form content, not WordPress site settings; WPForms permissions and opt-in still apply.
+        if ($name === 'wpforms/update-form-settings' && $category === 'wpforms-forms') { return true; }
         $words = preg_split('/[\/_-]+/', strtolower($name . '/' . $category), -1, PREG_SPLIT_NO_EMPTY);
         return !array_intersect($words, array_merge(self::BLOCKED_WORDS, self::COMPOSITE_WORDS));
     }

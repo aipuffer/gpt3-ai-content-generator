@@ -4,15 +4,15 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.4.99
+Stable tag: 2.5.11
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Let ChatGPT or Claude read, draft and publish through MCP, with your approval. Also an AI chatbot, writer, automations, forms and images.
+Let ChatGPT or Claude read, draft and publish through MCP, using your chosen safety level. Also an AI chatbot, writer, automations, forms and images.
 
 == Description ==
 
-**AI Puffer** (formerly AI Power) lets ChatGPT and Claude work on your WordPress site through MCP, with your approval. It also brings an AI chatbot, content writer, automations, AI forms and image generation to your dashboard.
+**AI Puffer** (formerly AI Power) lets ChatGPT and Claude work on your WordPress site through MCP, using your chosen safety level. It also brings an AI chatbot, content writer, automations, AI forms and image generation to your dashboard.
 
 **Start with 25 free AI credits monthly.** Connect AI Puffer Cloud with no API key. Free credits are available to eligible accounts with a verified email. You can also use your own OpenAI, Anthropic Claude, Google Gemini, xAI Grok, DeepSeek, OpenRouter or Azure OpenAI key.
 
@@ -20,7 +20,9 @@ Let ChatGPT or Claude read, draft and publish through MCP, with your approval. A
 
 ### Manage your site from ChatGPT or Claude (MCP)
 
-Open Settings → Connections → Manage my website to connect ChatGPT, Claude or another MCP client. Assistants can read and search content, create drafts and publish posts. Standard access asks you to approve publication in WordPress; Trusted access can publish posts directly. Supported actions from other plugins, including WooCommerce product changes, always ask for approval. The available actions depend on the site’s installed plugins and the permissions you grant. Access follows the connecting WordPress user’s permissions and can be paused or disconnected. Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate. This feature is off until you explicitly connect it.
+Open Settings → Connections → Manage my website to connect ChatGPT, Claude or another MCP client. Assistants can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. Trusted is the default for new connections and runs supported changes directly, including publication, plugin changes and deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. The available actions depend on the site’s installed plugins and the permissions you grant. Access follows the connecting WordPress user’s permissions and can be paused or disconnected. Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate. This feature is off until you explicitly connect it.
+
+Supported WP-CLI-compatible commands let assistants inspect the site and manage posts, images, categories, tags, comments, classic navigation menus, settings, users, roles, cache and scheduled events without SSH or a WP-CLI installation. Official plugin/theme/core administration and bounded database inspection/search-replace commands are included. Ask your assistant for `wp help` to see the supported subset and flags. Commands use the same permissions, approval settings and website-action allowance as other website tools; shell scripts and full WP-CLI compatibility are not included.
 
 ### Cloud or your own API keys
 
@@ -108,7 +110,7 @@ AI requests are sent when you use a connected provider. Visitor messages go to t
 
 = How do ChatGPT and Claude manage my site? =
 
-Connect them in Settings → Connections → Manage my website. Through MCP they can read and search content, create drafts and publish posts. Standard access asks for WordPress approval before publishing; Trusted access can publish posts directly. Changes through other plugins’ supported abilities or REST routes require approval at either level. You can pause or disconnect access anytime. The chatbot, content writer, automations, forms and images work as before, with or without this connection.
+Connect them in Settings → Connections → Manage my website. Through MCP they can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. New connections default to Trusted, which runs supported changes directly, including deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. You can pause or disconnect access anytime. The chatbot, content writer, automations, forms and images work as before, with or without this connection.
 
 = Do I need an API key? =
 
@@ -207,6 +209,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.11 =
+Expands optional MCP website operations, image workflows, supported WP-CLI commands and Premium theme tools, with improved approvals and recovery.
+
 = 2.4.99 =
 Adds optional MCP.
 
@@ -226,6 +231,13 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.11 =
+
+- Expanded MCP website management with richer site information, post/page editing and scheduling, media uploads and image details.
+- Added image understanding and missing-only bulk alt text, captions and titles while preserving existing text.
+- Added Gutenberg layouts, Elementor document editing, Yoast SEO fields, sitemaps, redirects and public-page inspection through supported website tools.
+- Updated Trusted approvals, interrupted-change recovery, activity reporting and assistant guidance.
 
 = 2.4.99 =
 

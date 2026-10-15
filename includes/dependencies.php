@@ -103,7 +103,7 @@ class AIPKit_Dependency_Loader
         Security_Dependencies_Loader::load();
         require_once WPAICG_PLUGIN_DIR . 'classes/cloud/connection-diagnostics.php';
         require_once WPAICG_PLUGIN_DIR . 'classes/cloud/connection.php';
-        foreach (['canonical', 'schema', 'identity', 'store', 'bridge-client', 'journal', 'guard', 'registry', 'levels', 'operations', 'engines', 'abilities', 'verifier', 'executor', 'settings', 'screens', 'activity'] as $mcp_module) {
+        foreach (['canonical', 'schema', 'identity', 'store', 'bridge-client', 'journal', 'guard', 'registry', 'levels', 'operations', 'engines', 'cli', 'elementor', 'content', 'abilities', 'verifier', 'executor', 'settings', 'screens', 'activity'] as $mcp_module) {
             require_once WPAICG_PLUGIN_DIR . 'classes/mcp/' . $mcp_module . '.php';
         }
         require_once WPAICG_PLUGIN_DIR . 'classes/cloud/credit-notice.php';

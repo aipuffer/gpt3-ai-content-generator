@@ -1,7 +1,7 @@
 <?php
 /**
  * AI Puffer's own abilities, registered with the WordPress Abilities API so any assistant connected through website
- * management (or another Abilities client) can see what this site runs. Read-only, for administrators.
+ * management (or another Abilities client) can discover supported site integrations and read-only plugin information.
  */
 namespace WPAICG\Mcp;
 
@@ -13,6 +13,8 @@ final class Abilities
 
     public static function register_hooks(): void
     {
+        add_filter('aipkit_mcp_ability_result', [Cli::class, 'dispatch'], 10, 4);
+        add_filter('aipkit_mcp_ability_result', [Content::class, 'dispatch'], 10, 4);
         if (!Engines::abilities_available()) { return; }
         add_action('wp_abilities_api_categories_init', [self::class, 'register_category']);
         add_action('wp_abilities_api_init', [self::class, 'register']);
@@ -22,7 +24,7 @@ final class Abilities
     {
         if (!function_exists('wp_register_ability_category')) { return; }
         wp_register_ability_category(self::CATEGORY, ['label' => __('AI Puffer', 'gpt3-ai-content-generator'),
-            'description' => __('Chatbots, AI forms and other AI Puffer features on this site.', 'gpt3-ai-content-generator')]);
+            'description' => __('Website integrations and read-only AI Puffer information on this site.', 'gpt3-ai-content-generator')]);
     }
 
     public static function register(): void
@@ -47,6 +49,14 @@ final class Abilities
             'permission_callback' => [self::class, 'can_view'],
             'execute_callback' => static function ($input = null) { return self::items('aipkit_ai_form', $input); },
         ]);
+        Elementor::register_abilities();
+        Cli::register_abilities();
+        Content::register_abilities();
+        if (defined('WPSEO_VERSION') && class_exists('WPSEO_Meta')) {
+            require_once __DIR__ . '/../seo/contracts.php';
+            require_once __DIR__ . '/../seo/yoast.php';
+            \WPAICG\SEO\Yoast\register_mcp_focus_ability_logic();
+        }
     }
 
     public static function can_view(): bool

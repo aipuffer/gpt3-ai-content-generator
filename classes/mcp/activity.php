@@ -110,12 +110,13 @@ final class Activity
             'tool' => $row['tool'],
             'category' => Registry::category($row['tool']),
             'kind' => Registry::is_write($row['tool']) ? 'change' : 'read',
-            'title' => self::title($row['tool'], $state, $assistant, $subject),
+            'title' => self::title($row['tool'], $state, $assistant, $subject, $args),
             'assistant' => $assistant,
             'acting_user' => $user ? $user->user_login : '',
             'level' => $grant ? Registry::level_label((string) $grant['access_level']) : '',
             'state' => $state,
-            'pill' => self::pill($row['tool'], $state),
+            'pill' => $state === 'succeeded' && $row['tool'] === 'publish_content' && isset($args->publish_at)
+                ? ['label' => __('Scheduled', 'gpt3-ai-content-generator'), 'tone' => 'ok'] : self::pill($row['tool'], $state),
             'actions' => (int) ($response['actions_used'] ?? 0),
             'owner_review' => isset($response['owner_review']),
             'created_at' => (int) $row['created_at'],
@@ -129,17 +130,17 @@ final class Activity
     /** The post an operation acted on, when there is one. */
     private static function post(string $tool, object $args, array $response): ?\WP_Post
     {
-        $id = in_array($tool, ['get_content', 'publish_content'], true) ? ($args->id ?? null)
-            : ($tool === 'create_draft' ? ($response['result']['id'] ?? null) : null);
+        $id = in_array($tool, ['get_content', 'publish_content', 'update_content', 'get_media', 'update_media', 'inspect_media', 'fill_media_text'], true) ? ($args->id ?? null)
+            : (in_array($tool, ['create_draft', 'upload_media', 'upload_image_file'], true) ? ($response['result']['id'] ?? null) : null);
         $post = is_int($id) && $id > 0 ? get_post($id) : null;
-        return $post instanceof \WP_Post && $post->post_type === 'post' ? $post : null;
+        return $post instanceof \WP_Post && in_array($post->post_type, ['post', 'page', 'attachment'], true) ? $post : null;
     }
 
     /** What the operation was about, in a few words: a post title, a search, an ability or a route. */
     private static function subject(string $tool, object $args, ?\WP_Post $post): string
     {
         if ($post) { return $post->post_title !== '' ? $post->post_title : __('(no title)', 'gpt3-ai-content-generator'); }
-        if (in_array($tool, ['get_content', 'publish_content'], true) && is_int($args->id ?? null)) {
+        if (in_array($tool, ['get_content', 'publish_content', 'update_content', 'get_media', 'update_media', 'inspect_media', 'fill_media_text'], true) && is_int($args->id ?? null)) {
             /* translators: %d: post ID of a post that no longer exists. */
             return sprintf(__('post #%d', 'gpt3-ai-content-generator'), $args->id);
         }
@@ -161,7 +162,7 @@ final class Activity
         return '';
     }
 
-    private static function title(string $tool, string $state, string $assistant, string $subject): string
+    private static function title(string $tool, string $state, string $assistant, string $subject, object $args): string
     {
         $quoted = $subject !== '' ? '“' . $subject . '”' : '';
         if (in_array($state, ['received', 'executing', 'unknown'], true) && Registry::is_write($tool)) {
@@ -195,14 +196,41 @@ final class Activity
             return sprintf(__('%1$s couldn’t complete %2$s', 'gpt3-ai-content-generator'), $assistant, $subject !== '' ? $subject : $tool);
         }
         $titles = [
+            /* translators: 1: assistant name, 2: image title. */
+            'upload_media' => __('%1$s uploaded %2$s', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: image title. */
+            'upload_image_file' => __('%1$s uploaded %2$s', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: image title. */
+            'update_media' => __('%1$s updated image alt text for %2$s', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: image title. */
+            'fill_media_text' => __('%1$s filled missing image text for %2$s', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: image title. */
+            'inspect_media' => __('%1$s viewed %2$s', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
+            'find_media_missing_text' => __('%1$s checked images for missing text', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: image title. */
+            'get_media' => __('%1$s read image details for %2$s', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
+            'search_media' => __('%1$s searched images', 'gpt3-ai-content-generator'),
             /* translators: 1: assistant name, 2: post title. */
             'create_draft' => __('%1$s created the draft %2$s', 'gpt3-ai-content-generator'),
             /* translators: 1: assistant name, 2: post title. */
-            'publish_content' => __('%1$s published %2$s', 'gpt3-ai-content-generator'),
+            'publish_content' => isset($args->publish_at) ? __('%1$s scheduled publication of %2$s', 'gpt3-ai-content-generator') : __('%1$s published %2$s', 'gpt3-ai-content-generator'),
+            /* translators: 1: assistant name, 2: content title. */
+            'update_content' => __('%1$s updated %2$s', 'gpt3-ai-content-generator'),
             /* translators: 1: assistant name, 2: post title. */
             'get_content' => __('%1$s read %2$s', 'gpt3-ai-content-generator'),
-            /* translators: 1: assistant name, 2: search words. */
-            'search_content' => $subject !== '' ? __('%1$s searched posts for %2$s', 'gpt3-ai-content-generator') : __('%1$s listed posts', 'gpt3-ai-content-generator'),
+            'search_content' => ($args->post_type ?? 'post') === 'page'
+                ? ($subject !== ''
+                    /* translators: 1: assistant name, 2: search words. */
+                    ? __('%1$s searched pages for %2$s', 'gpt3-ai-content-generator')
+                    /* translators: %1$s: assistant name. */
+                    : __('%1$s listed pages', 'gpt3-ai-content-generator'))
+                : ($subject !== ''
+                    /* translators: 1: assistant name, 2: search words. */
+                    ? __('%1$s searched posts for %2$s', 'gpt3-ai-content-generator')
+                    /* translators: %1$s: assistant name. */
+                    : __('%1$s listed posts', 'gpt3-ai-content-generator')),
             /* translators: %1$s: assistant name. */
             'get_site_overview' => __('%1$s read the site overview', 'gpt3-ai-content-generator'),
             /* translators: %1$s: assistant name. */
@@ -216,7 +244,7 @@ final class Activity
             /* translators: 1: assistant name, 2: REST method and route. */
             'write_rest_route' => __('%1$s sent %2$s', 'gpt3-ai-content-generator'),
         ];
-        $quoted_tools = ['create_draft', 'publish_content', 'get_content', 'search_content'];
+        $quoted_tools = ['create_draft', 'publish_content', 'update_content', 'get_content', 'search_content'];
         return sprintf($titles[$tool] ?? '%1$s: %2$s', $assistant, in_array($tool, $quoted_tools, true) ? $quoted : $subject);
     }
 
@@ -234,8 +262,8 @@ final class Activity
             'conflict' => [__('Not applied', 'gpt3-ai-content-generator'), 'bad'],
         ];
         if (isset($pills[$state])) { return ['label' => $pills[$state][0], 'tone' => $pills[$state][1]]; }
-        $done = ['create_draft' => __('Draft created', 'gpt3-ai-content-generator'), 'publish_content' => __('Published', 'gpt3-ai-content-generator'),
-            'run_ability' => __('Done', 'gpt3-ai-content-generator'), 'write_rest_route' => __('Done', 'gpt3-ai-content-generator')];
+        $done = ['fill_media_text' => __('Missing text updated', 'gpt3-ai-content-generator'), 'upload_image_file' => __('Image uploaded', 'gpt3-ai-content-generator'), 'upload_media' => __('Image uploaded', 'gpt3-ai-content-generator'), 'update_media' => __('Alt text updated', 'gpt3-ai-content-generator'), 'create_draft' => __('Draft created', 'gpt3-ai-content-generator'), 'publish_content' => __('Published', 'gpt3-ai-content-generator'),
+            'update_content' => __('Updated', 'gpt3-ai-content-generator'), 'run_ability' => __('Done', 'gpt3-ai-content-generator'), 'write_rest_route' => __('Done', 'gpt3-ai-content-generator')];
         return isset($done[$tool]) ? ['label' => $done[$tool], 'tone' => 'ok'] : ['label' => __('Read', 'gpt3-ai-content-generator'), 'tone' => 'grey'];
     }
 }

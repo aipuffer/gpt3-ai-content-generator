@@ -71,13 +71,21 @@ final class Journal
     {
         global $wpdb;
         $table = Schema::table('operations');
+        // Uploads run directly from the verified body, never from a later approval. Keep the file identity,
+        // not its short-lived bearer download URL, in history. The signed intent hash still binds the full body.
+        $stored_args = $body->args;
+        if ($body->tool === 'upload_image_file' && is_object($body->args->file ?? null)) {
+            $stored_args = clone $body->args;
+            $stored_args->file = clone $body->args->file;
+            unset($stored_args->file->download_url);
+        }
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
         return $wpdb->query($wpdb->prepare("INSERT IGNORE INTO $table
             (operation_id, account_id, site_id, instance_id, connection_id, acting_user, grant_id, tool, intent_hash, args, state, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %d, %s, %s, %s, %s, 'received', %d, %d)",
             $body->operation_id, $body->account_id, $body->site_id, Identity::registration()['instance_id'],
             $body->connection_id, $body->acting_user, $grant['grant_id'], $body->tool, $body->intent_hash,
-            wp_json_encode($body->args), time(), time())) === 1 && self::prune();
+            wp_json_encode($stored_args), time(), time())) === 1 && self::prune();
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
 
@@ -150,6 +158,18 @@ final class Journal
         return $count === null || (int) $count > 0;
     }
 
+    /** Durable itemized progress while the parent stays executing; replay never resumes a half-finished set. */
+    public static function checkpoint(string $id, array $items): bool
+    {
+        global $wpdb;
+        $table = Schema::table('operations');
+        $response = wp_json_encode(['state' => 'unknown', 'actions_used' => 0, 'result' => ['data_json' => wp_json_encode(['items' => $items, 'complete' => false])]]);
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Existing allowlisted journal table, prepared values; durable progress must bypass caches.
+        $changed = $wpdb->query($wpdb->prepare("UPDATE $table SET response = %s, updated_at = %d WHERE operation_id = %s AND state = 'executing' AND acting_user = %d", $response, time(), $id, get_current_user_id()));
+        $row = self::get($id);
+        return $changed !== false && $row && $row['state'] === 'executing' && (int) $row['acting_user'] === get_current_user_id() && $row['response'] === $response;
+    }
+
     public static function finish(string $id, array $response): bool
     {
         global $wpdb;
@@ -175,6 +195,13 @@ final class Journal
     {
         global $wpdb;
         $table = Schema::table('operations');
+        $progress = Content::recorded_progress($row);
+        if ($progress !== null) {
+            if (($response['state'] ?? '') === 'failed' && Content::has_completed_items($row)) { return false; }
+            $progress['owner_reviewed'] = true;
+            $progress['owner_decision'] = $response['state'];
+            $response['result']['data_json'] = wp_json_encode($progress);
+        }
         $response['owner_review'] = ['user_id' => get_current_user_id(), 'at' => time()];
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
         return $wpdb->query($wpdb->prepare("UPDATE $table SET state = %s, response = %s, updated_at = %d
@@ -182,11 +209,11 @@ final class Journal
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
 
-    public static function lock(): bool
+    public static function lock(int $wait_seconds = 0): bool
     {
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        return (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 0)', self::lock_name())) === '1';
+        return (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', self::lock_name(), max(0, min(5, $wait_seconds)))) === '1';
     }
 
     public static function unlock(): void

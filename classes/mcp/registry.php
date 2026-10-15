@@ -8,7 +8,7 @@
  * bridge all read this list, so a new operation is one entry here plus its handler.
  *
  * Generic operations (the abilities and REST engines) run other plugins' code, whose effects can't be verified from
- * outside: a generic change needs the publish scope (it may publish) and always waits for the owner, at every level.
+ * outside: a generic change needs the publish scope (it may publish). Standard asks; owner-authorized Trusted runs it.
  * Each call's own risk (Engines::risk) can only raise that, to destructive when it may delete.
  */
 namespace WPAICG\Mcp;
@@ -50,7 +50,10 @@ final class Registry
         'search_content' => 'content_reads',
         'get_content' => 'content_reads',
         'create_draft' => 'content_creation',
+        'update_content' => 'content_updates',
         'publish_content' => 'publishing',
+        'search_media' => 'media_reads', 'get_media' => 'media_reads', 'inspect_media' => 'media_reads', 'find_media_missing_text' => 'media_reads',
+        'upload_media' => 'media_uploads', 'upload_image_file' => 'media_uploads', 'update_media' => 'media_updates', 'fill_media_text' => 'media_updates',
         'find_abilities' => 'plugin_data_reads',
         'read_ability' => 'plugin_data_reads',
         'read_rest_route' => 'plugin_data_reads',
@@ -77,8 +80,20 @@ final class Registry
                 'search_content' => ['domain' => 'content', 'risk' => 'read', 'run' => [Operations::class, 'search_content']],
                 'get_content' => ['domain' => 'content', 'risk' => 'read', 'run' => [Operations::class, 'get_content']],
                 'create_draft' => ['domain' => 'content', 'risk' => 'write', 'run' => [Operations::class, 'create_draft']],
+                'update_content' => ['domain' => 'content', 'risk' => 'publish', 'run' => [Operations::class, 'update'],
+                    'prepare' => [Operations::class, 'update_preview'], 'approve_cap' => 'read'],
                 'publish_content' => ['domain' => 'content', 'risk' => 'publish', 'run' => [Operations::class, 'publish'],
-                    'prepare' => [Operations::class, 'publish_preview'], 'approve_cap' => 'publish_posts'],
+                    'prepare' => [Operations::class, 'publish_preview'], 'approve_cap' => 'read'],
+                'search_media' => ['domain' => 'media', 'risk' => 'read', 'run' => [Operations::class, 'search_media']],
+                'get_media' => ['domain' => 'media', 'risk' => 'read', 'run' => [Operations::class, 'get_media']],
+                'inspect_media' => ['domain' => 'media', 'risk' => 'read', 'run' => [Operations::class, 'inspect_media']],
+                'find_media_missing_text' => ['domain' => 'media', 'risk' => 'read', 'run' => [Operations::class, 'find_media_missing_text']],
+                'fill_media_text' => ['domain' => 'media', 'risk' => 'publish', 'run' => [Operations::class, 'fill_media_text'],
+                    'prepare' => [Operations::class, 'media_text_preview'], 'approve_cap' => 'upload_files'],
+                'upload_media' => ['domain' => 'media', 'risk' => 'write', 'run' => [Operations::class, 'upload_media']],
+                'upload_image_file' => ['domain' => 'media', 'risk' => 'write', 'run' => [Operations::class, 'upload_image_file']],
+                'update_media' => ['domain' => 'media', 'risk' => 'publish', 'run' => [Operations::class, 'update_media'],
+                    'prepare' => [Operations::class, 'media_preview'], 'approve_cap' => 'upload_files'],
                 'find_abilities' => ['domain' => 'abilities', 'risk' => 'read', 'run' => [Engines::class, 'find_abilities'], 'available' => [Engines::class, 'abilities_available']],
                 'read_ability' => ['domain' => 'abilities', 'risk' => 'read', 'run' => [Engines::class, 'read_ability'], 'available' => [Engines::class, 'abilities_available']],
                 'run_ability' => ['domain' => 'abilities', 'risk' => 'publish', 'generic' => true, 'run' => [Engines::class, 'run_ability'],
@@ -135,17 +150,30 @@ final class Registry
     }
 
     /**
-     * Whether this call waits for the owner. Destructive changes always wait, and so does every generic change at
-     * every level, Trusted included: what another plugin's callback does can't be classified reliably (it may publish,
-     * delete, change prices or send mail whatever its name or method says), so the owner sees the exact request.
-     * Publishing a post waits unless the connection is Trusted. Reading and writing drafts never wait.
+     * Standard asks before generic changes, including deletes. Trusted runs supported changes unattended only
+     * after this site's owner chose the current policy. Existing Trusted grants keep their previous approvals.
+     * The handler still validates the request and enforces the acting user's WordPress capabilities.
      */
     public static function needs_approval(string $name, array $grant, ?object $args = null): bool
     {
         $operation = self::get($name);
-        if ($operation === null || !empty($operation['generic'])) { return $operation === null || $operation['risk'] !== 'read'; }
-        if ($operation['risk'] === 'destructive') { return true; }
+        if ($operation === null) { return true; }
         if ($operation['risk'] === 'read') { return false; }
+        if ($name === 'run_ability' && ($args->name ?? '') === 'ai-puffer/wp-cli-write') {
+            $input = is_string($args->input_json ?? null) ? json_decode($args->input_json, true) : [];
+            try {
+                $plan = Cli::plan($input['command'] ?? '');
+                if ($plan['tool'] === 'cli_native') { return ($grant['access_level'] ?? '') !== 'trusted' || empty($grant['unattended']); }
+                return self::needs_approval($plan['tool'], $grant, $plan['args']);
+            } catch (\InvalidArgumentException $error) { return true; }
+        }
+        $unattended = ($grant['access_level'] ?? '') === 'trusted' && ($grant['unattended'] ?? false) === true;
+        if (!empty($operation['generic']) || $operation['risk'] === 'destructive') { return !$unattended; }
+        // Existing published/private/scheduled content changes ask at Standard; edits to drafts run directly.
+        if ($name === 'update_content' && ($grant['access_level'] ?? '') !== 'trusted') {
+            $post = $args && is_int($args->id ?? null) ? get_post($args->id) : null;
+            return !$post || !in_array($post->post_status, ['draft', 'pending'], true);
+        }
         return $operation['risk'] === 'publish' && ($grant['access_level'] ?? '') !== 'trusted';
     }
 
@@ -169,6 +197,19 @@ final class Registry
         $cap = $operation['approve_cap'] ?? 'manage_options';
         $actor = get_userdata((int) $row['acting_user']);
         if (!$actor || !user_can($actor, $cap) || !current_user_can($cap)) { return false; }
+        if (in_array($row['tool'], ['publish_content', 'update_content'], true)) {
+            $args = json_decode((string) ($row['args'] ?? '{}'));
+            $post = is_int($args->id ?? null) ? get_post($args->id) : null;
+            if (!$post || !in_array($post->post_type, ['post', 'page'], true)
+                || !user_can($actor, 'edit_post', $post->ID) || !current_user_can('edit_post', $post->ID)) { return false; }
+            $publish = $post->post_type === 'page' ? 'publish_pages' : 'publish_posts';
+            if (($row['tool'] === 'publish_content' || in_array($post->post_status, ['publish', 'private', 'future'], true))
+                && (!user_can($actor, $publish) || !current_user_can($publish))) { return false; }
+        }
+        if ($row['tool'] === 'update_media') {
+            $args = json_decode((string) ($row['args'] ?? '{}'));
+            if (!is_int($args->id ?? null) || !user_can($actor, 'edit_post', $args->id) || !current_user_can('edit_post', $args->id)) { return false; }
+        }
         return (int) $actor->ID === get_current_user_id() || current_user_can('manage_options');
     }
 
@@ -210,7 +251,7 @@ final class Registry
         $help = [
             'read_only' => __('Reads the site. Never changes anything.', 'gpt3-ai-content-generator'),
             'standard' => __('Reads the site and writes drafts. Asks you before publishing or any other change.', 'gpt3-ai-content-generator'),
-            'trusted' => __('Reads, writes drafts and publishes posts without asking. Changes through other plugins and deleting still need your approval.', 'gpt3-ai-content-generator'),
+            'trusted' => __('Runs supported website changes without asking, including publishing, plugin changes and deletion. Only use with an assistant you trust.', 'gpt3-ai-content-generator'),
             'content_editor' => __('Reads the site and writes drafts. Can’t publish.', 'gpt3-ai-content-generator'),
             'publisher' => __('Reads the site and writes drafts. Asks you before publishing or any other change.', 'gpt3-ai-content-generator'),
         ];

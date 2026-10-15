@@ -137,7 +137,17 @@ final class Executor
             Journal::reported($body->operation_id);
             return Journal::response($row);
         }
-        if (!Journal::lock()) { return ['state' => 'unknown', 'operation_id' => $body->operation_id, 'actions_used' => 0]; }
+        if (!Journal::lock(5)) {
+            // This delivery inserted the row but has not called a handler. Close it atomically so a busy site
+            // does not leave a never-started request looking like an uncertain website change.
+            $response = ['state' => 'failed', 'actions_used' => 0,
+                'error' => ['code' => 'site_busy', 'message' => 'The website is busy. Nothing ran and no action was charged. Try a new request shortly.']];
+            if (!Journal::claim($body->operation_id, 'received') || !Journal::finish($body->operation_id, $response)) {
+                return ['state' => 'unknown', 'operation_id' => $body->operation_id, 'actions_used' => 0];
+            }
+            Journal::reported($body->operation_id);
+            return ['operation_id' => $body->operation_id] + $response;
+        }
         try {
             if (!Journal::claim($body->operation_id, 'received')) { return ['state' => 'unknown', 'actions_used' => 0]; }
             $current = Store::grant($grant['grant_id']);
@@ -150,13 +160,18 @@ final class Executor
                 $response = Operations::error('outcome_unknown');
             } else {
                 Operations::$mutation_started = false;
+                Operations::$operation_id = $body->operation_id;
                 try { $response = Operations::run($body->tool, $body->args, $current); }
                 catch (\Throwable $error) { $response = Operations::$mutation_started ? ['state' => 'unknown', 'actions_used' => 0] : Operations::error('site_unavailable'); }
+                finally { Operations::$operation_id = ''; }
             }
             if ($response['state'] === 'pending_approval') {
                 $response['approval_url'] = admin_url('admin-post.php?action=aipkit_mcp_confirm&operation_id=' . rawurlencode($body->operation_id));
             }
-            if (!Journal::finish($body->operation_id, $response)) { $response = ['state' => 'unknown', 'actions_used' => 0]; }
+            // Keep preview bytes transient; recovery/history retains image identity and dimensions only.
+            $recorded = $response;
+            if ($body->tool === 'inspect_media') { unset($recorded['result']['image_preview']['data']); }
+            if (!Journal::finish($body->operation_id, $recorded)) { $response = ['state' => 'unknown', 'actions_used' => 0]; }
             Journal::reported($body->operation_id);
             return ['operation_id' => $body->operation_id] + $response;
         } finally { Journal::unlock(); }
@@ -194,7 +209,11 @@ final class Executor
                 else {
                     Operations::$mutation_started = false;
                     // Runs as the acting user: their current role is the ceiling, not the approver's.
-                    try { $response = Registry::as_actor($row, static function () use ($row) { return call_user_func(Registry::get($row['tool'])['run'], json_decode($row['args'])); }); }
+                    try { $response = Registry::as_actor($row, static function () use ($row) {
+                        Operations::$operation_id = $row['operation_id'];
+                        try { return call_user_func(Registry::get($row['tool'])['run'], json_decode($row['args'])); }
+                        finally { Operations::$operation_id = ''; }
+                    }); }
                     catch (\Throwable $error) { $response = Operations::$mutation_started ? ['state' => 'unknown', 'actions_used' => 0] : Operations::error('site_unavailable'); }
                 }
                 Journal::finish($id, $response);
@@ -237,13 +256,16 @@ final class Executor
                 $post_id = isset($_POST['post_id']) ? absint($_POST['post_id']) : 0;
                 $post = get_post($post_id);
                 $args = json_decode($row['args']);
-                if (!empty(Registry::get((string) $row['tool'])['generic'])) {
+                if (in_array($row['tool'], ['upload_media', 'upload_image_file', 'update_media', 'fill_media_text'], true) || !empty(Registry::get((string) $row['tool'])['generic'])) {
                     // A generic change has no single post to point to; the owner's attestation is the record.
                     $response = ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['reviewed' => true]];
-                } elseif (!$post || $post->post_type !== 'post' || !current_user_can('edit_post', $post_id)
-                    || !in_array($row['tool'], ['create_draft', 'publish_content'], true)
+                } elseif (!$post || !in_array($post->post_type, ['post', 'page'], true) || !current_user_can('edit_post', $post_id)
+                    || !in_array($row['tool'], ['create_draft', 'publish_content', 'update_content'], true)
                     || ($row['tool'] === 'create_draft' && (int) $post->post_author !== (int) $row['acting_user'])
-                    || ($row['tool'] === 'publish_content' && ($post->ID !== ($args->id ?? null) || $post->post_status !== 'publish'))) {
+                    || ($row['tool'] === 'create_draft' && $post->post_type !== ($args->post_type ?? 'post'))
+                    || ($row['tool'] === 'publish_content' && ($post->ID !== ($args->id ?? null)
+                        || !in_array($post->post_status, isset($args->publish_at) ? ['future', 'publish'] : ['publish'], true)))
+                    || ($row['tool'] === 'update_content' && $post->ID !== ($args->id ?? null))) {
                     $notice = 'pick_post';
                 } else {
                     $response = ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['id' => $post_id, 'status' => $post->post_status, 'version' => Operations::version($post)]];

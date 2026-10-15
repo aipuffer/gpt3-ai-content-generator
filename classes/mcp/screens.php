@@ -128,12 +128,14 @@ final class Screens
         $row = Journal::expire($row);
         $grant = Store::grant($row['grant_id']);
         $assistant = self::client_label($grant);
-        if (!empty(Registry::get((string) $row['tool'])['generic'])) {
+        if (in_array($row['tool'], ['upload_media', 'upload_image_file', 'update_media', 'fill_media_text'], true) || !empty(Registry::get((string) $row['tool'])['generic'])) {
             self::generic_request($row, $assistant);
             echo '</div>';
             return;
         }
         $args = json_decode((string) $row['args']);
+        $updating = $row['tool'] === 'update_content';
+        $scheduled = !$updating && isset($args->publish_at);
         $post = is_object($args) && is_int($args->id ?? null) ? get_post($args->id) : null;
         $title = $post ? ($post->post_title !== '' ? $post->post_title : __('(no title)', 'gpt3-ai-content-generator')) : __('this post', 'gpt3-ai-content-generator');
         $current_status = $post ? (get_post_status_object($post->post_status)->label ?? $post->post_status) : __('Post no longer exists', 'gpt3-ai-content-generator');
@@ -154,33 +156,33 @@ final class Screens
                 self::approval($row, $post, $assistant);
                 break;
             case 'succeeded':
-                self::message('yes-alt', __('Publication completed', 'gpt3-ai-content-generator'), sprintf(
+                self::message('yes-alt', $updating ? __('Content updated', 'gpt3-ai-content-generator') : ($scheduled ? __('Publication scheduled', 'gpt3-ai-content-generator') : __('Publication completed', 'gpt3-ai-content-generator')), sprintf(
                     /* translators: 1: post title, 2: assistant name. */
-                    __('This request published “%1$s”. %2$s can check the result.', 'gpt3-ai-content-generator'),
+                    $updating ? __('This request updated “%1$s”. %2$s can check the result.', 'gpt3-ai-content-generator') : ($scheduled ? __('This request scheduled “%1$s” for publication. %2$s can check the result.', 'gpt3-ai-content-generator') : __('This request published “%1$s”. %2$s can check the result.', 'gpt3-ai-content-generator')),
                     $title,
                     ucfirst($assistant)
                 ), array_filter([$post && $post->post_status === 'publish' ? [__('View post', 'gpt3-ai-content-generator'), get_permalink($post), true] : $edit, $dashboard]), $close, 'ok');
                 break;
             case 'declined':
-                self::message('dismiss', __('Request declined', 'gpt3-ai-content-generator'), __('This request did not publish the post.', 'gpt3-ai-content-generator'), array_filter([$edit, $dashboard]), $close, 'muted');
+                self::message('dismiss', __('Request declined', 'gpt3-ai-content-generator'), __('This request did not make the requested change.', 'gpt3-ai-content-generator'), array_filter([$edit, $dashboard]), $close, 'muted');
                 break;
             case 'expired':
                 self::message('clock', __('This request expired', 'gpt3-ai-content-generator'), sprintf(
                     /* translators: %s: assistant name. */
-                    __('Approvals stay open for 15 minutes. This request did not publish the post. Ask %s to check its current status.', 'gpt3-ai-content-generator'),
+                    __('Approvals stay open for 15 minutes. This request did not make the requested change. Ask %s to check its current status.', 'gpt3-ai-content-generator'),
                     $assistant
                 ), array_filter([$edit, $dashboard]), $close);
                 break;
             case 'failed':
             case 'conflict':
-                self::message('warning', __('Publication didn’t complete', 'gpt3-ai-content-generator'), sprintf(
+                self::message('warning', __('The change didn’t complete', 'gpt3-ai-content-generator'), sprintf(
                     /* translators: %s: assistant name. */
-                    __('This request did not publish the post. It may have changed since %s asked. Ask it to check its current status.', 'gpt3-ai-content-generator'),
+                    __('This request did not make the requested change. The content may have changed since %s asked. Ask it to check its current status.', 'gpt3-ai-content-generator'),
                     $assistant
                 ), array_filter([$edit, $dashboard]), $close);
                 break;
             default:
-                self::message('warning', __('We couldn’t confirm the result', 'gpt3-ai-content-generator'), __('The publication was interrupted. Check the post, then record what happened so it never runs twice.', 'gpt3-ai-content-generator'), [[__('Review the change', 'gpt3-ai-content-generator'), self::review_url(), true], $dashboard]);
+                self::message('warning', __('We couldn’t confirm the result', 'gpt3-ai-content-generator'), __('The change was interrupted. Check the content, then record what happened so it never runs twice.', 'gpt3-ai-content-generator'), [[__('Review the change', 'gpt3-ai-content-generator'), self::review_url(), true], $dashboard]);
         }
         echo '</div>';
     }
@@ -197,6 +199,8 @@ final class Screens
             ), array_filter([$post ? [__('Open the post', 'gpt3-ai-content-generator'), get_edit_post_link($post->ID, 'raw'), false] : null, [__('Back to dashboard', 'gpt3-ai-content-generator'), admin_url(), false]]));
             return;
         }
+        $updating = $row['tool'] === 'update_content';
+        $scheduled = !$updating && !empty($preview['preview']['scheduled']);
         $user = get_userdata((int) $row['acting_user']);
         $minutes = max(1, (int) ceil(((int) $row['expires_at'] - time()) / 60));
         $categories = wp_get_post_categories($post->ID, ['fields' => 'names']);
@@ -209,7 +213,7 @@ final class Screens
                 <div>
                     <h1 class="aipkit_mcp_title"><?php echo esc_html(sprintf(
                         /* translators: %s: assistant name, such as "ChatGPT". */
-                        __('%s wants to publish a post', 'gpt3-ai-content-generator'),
+                        $updating ? __('%s wants to update content', 'gpt3-ai-content-generator') : ($scheduled ? __('%s wants to schedule publication', 'gpt3-ai-content-generator') : __('%s wants to publish content', 'gpt3-ai-content-generator')),
                         ucfirst($assistant)
                     )); ?></h1>
                     <p class="aipkit_mcp_meta"><?php echo esc_html(sprintf(
@@ -229,26 +233,33 @@ final class Screens
                 <h2><?php echo esc_html($post->post_title !== '' ? $post->post_title : __('(no title)', 'gpt3-ai-content-generator')); ?></h2>
                 <?php if ($excerpt !== '') : ?><p class="aipkit_mcp_meta"><?php echo esc_html($excerpt); ?></p><?php endif; ?>
                 <dl class="aipkit_mcp_kv">
-                    <dt><?php esc_html_e('Status', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html(sprintf(
-                        /* translators: %s: current post status, such as "Draft". */
-                        __('%s → Published', 'gpt3-ai-content-generator'),
-                        get_post_status_object($post->post_status)->label ?? $post->post_status
-                    )); ?></dd>
+                    <dt><?php esc_html_e('Status', 'gpt3-ai-content-generator'); ?></dt><dd><?php
+                        $status_label = get_post_status_object($post->post_status)->label ?? $post->post_status;
+                        echo esc_html($updating ? $status_label : sprintf(
+                            /* translators: 1: current content status, 2: status after approval. */
+                            __('%1$s → %2$s', 'gpt3-ai-content-generator'),
+                            $status_label, $scheduled ? __('Scheduled', 'gpt3-ai-content-generator') : __('Published', 'gpt3-ai-content-generator')
+                        ));
+                    ?></dd>
                     <?php if ($categories) : ?><dt><?php esc_html_e('Category', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html(implode(', ', $categories)); ?></dd><?php endif; ?>
                     <dt><?php esc_html_e('Author', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html($author ? $author->display_name : '—'); ?></dd>
                     <dt><?php esc_html_e('Last edited', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html(get_the_modified_date(get_option('date_format') . ' ' . get_option('time_format'), $post)); ?></dd>
                 </dl>
+                <?php if ($scheduled) : ?><p class="aipkit_mcp_meta"><?php echo esc_html(sprintf(
+                    /* translators: %s: scheduled publication date in UTC. */
+                    __('Publishes at %s UTC', 'gpt3-ai-content-generator'), $preview['preview']['publication_date_gmt'])); ?></p><?php endif; ?>
+                <?php if ($updating) : ?><p class="aipkit_mcp_meta"><?php esc_html_e('Proposed changes', 'gpt3-ai-content-generator'); ?></p><?php self::content_changes($preview['preview']['changes']); ?><?php endif; ?>
                 <p class="aipkit_mcp_links">
                     <a href="<?php echo esc_url($preview['preview']['preview_url']); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Preview the post', 'gpt3-ai-content-generator'); ?><span class="dashicons dashicons-external" aria-hidden="true"></span></a>
                     <a href="<?php echo esc_url(get_edit_post_link($post->ID, 'raw')); ?>"><?php esc_html_e('Open in editor', 'gpt3-ai-content-generator'); ?></a>
                 </p>
             </div>
-            <p class="aipkit_mcp_note"><?php esc_html_e('Publishing makes this post public right away and uses 1 website action. Nothing changes if you decline.', 'gpt3-ai-content-generator'); ?></p>
+            <p class="aipkit_mcp_note"><?php echo esc_html($updating ? __('Approving saves the changes and uses 1 website action. The publication status stays unchanged.', 'gpt3-ai-content-generator') : ($scheduled ? __('Approving schedules publication and uses 1 website action. WordPress publishes it at the chosen time.', 'gpt3-ai-content-generator') : __('Publishing makes this content public right away and uses 1 website action. Nothing changes if you decline.', 'gpt3-ai-content-generator'))); ?></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="aipkit_mcp_actions">
                 <input type="hidden" name="action" value="aipkit_mcp_confirm">
                 <input type="hidden" name="operation_id" value="<?php echo esc_attr($row['operation_id']); ?>">
                 <?php wp_nonce_field('aipkit_mcp_confirm_' . $row['operation_id']); ?>
-                <button type="submit" class="aipkit_usage_btn aipkit_usage_btn--primary" name="decision" value="publish"><?php esc_html_e('Publish', 'gpt3-ai-content-generator'); ?></button>
+                <button type="submit" class="aipkit_usage_btn aipkit_usage_btn--primary" name="decision" value="publish"><?php echo esc_html($updating ? __('Approve changes', 'gpt3-ai-content-generator') : ($scheduled ? __('Schedule', 'gpt3-ai-content-generator') : __('Publish', 'gpt3-ai-content-generator'))); ?></button>
                 <button type="submit" class="aipkit_usage_btn" name="decision" value="decline"><?php esc_html_e('Decline', 'gpt3-ai-content-generator'); ?></button>
             </form>
             <p class="aipkit_mcp_meta"><?php esc_html_e('Didn’t expect this? Decline, then pause changes in Settings › Connections › Manage my website.', 'gpt3-ai-content-generator'); ?></p>
@@ -256,11 +267,34 @@ final class Screens
         <?php
     }
 
+    private static function content_changes(array $fields): void
+    {
+        $labels = ['post_title' => __('Title', 'gpt3-ai-content-generator'), 'post_content' => __('Content', 'gpt3-ai-content-generator'),
+            'post_excerpt' => __('Excerpt', 'gpt3-ai-content-generator'), 'post_name' => __('URL slug', 'gpt3-ai-content-generator')];
+        foreach ($fields as $name => $value) {
+            if ($name === 'tax_input') {
+                foreach ($value as $taxonomy => $ids) {
+                    $names = [];
+                    foreach ($ids as $id) { $term = get_term($id, $taxonomy); $names[] = $term && !is_wp_error($term) ? $term->name : (string) $id; }
+                    echo '<p class="aipkit_mcp_meta">' . esc_html($taxonomy === 'category' ? __('Categories', 'gpt3-ai-content-generator') : __('Tags', 'gpt3-ai-content-generator')) . '</p><p>' . esc_html(implode(', ', $names)) . '</p>';
+                }
+            } elseif ($name === 'meta_input' && isset($value['_thumbnail_id'])) {
+                $image = (int) $value['_thumbnail_id'];
+                echo '<p class="aipkit_mcp_meta">' . esc_html(__('Featured image', 'gpt3-ai-content-generator')) . '</p>';
+                echo '<p>' . esc_html($image > 0 ? get_the_title($image) : __('Remove featured image', 'gpt3-ai-content-generator')) . '</p>';
+                if ($image > 0) { echo wp_kses_post(wp_get_attachment_image($image, 'thumbnail')); }
+            } elseif (isset($labels[$name])) {
+                echo '<p class="aipkit_mcp_meta">' . esc_html($labels[$name]) . '</p><pre class="aipkit_mcp_code">' . esc_html($value) . '</pre>';
+            }
+        }
+    }
+
     /** What a generic request asks for, in a few words: the ability's name, or the REST method and route. */
     private static function generic_subject(array $row): string
     {
         $args = json_decode((string) $row['args']);
         if (!is_object($args)) { return '—'; }
+        if (in_array($row['tool'], ['upload_media', 'upload_image_file', 'update_media', 'fill_media_text'], true)) { return $row['tool'] . (isset($args->id) ? ' #' . (int) $args->id : ''); }
         if ($row['tool'] === 'run_ability') { return is_string($args->name ?? null) ? $args->name : '—'; }
         return strtoupper(is_string($args->method ?? null) ? $args->method : '') . ' ' . (is_string($args->route ?? null) ? $args->route : '');
     }
@@ -302,6 +336,7 @@ final class Screens
             return;
         }
         $item = $preview['preview'];
+        $content_set = ($item['name'] ?? '') === 'ai-puffer/content-apply-changes';
         $user = get_userdata((int) $row['acting_user']);
         $minutes = max(1, (int) ceil(((int) $row['expires_at'] - time()) / 60));
         ?>
@@ -331,19 +366,31 @@ final class Screens
                 <h2><?php echo esc_html($item['title']); ?></h2>
                 <?php if (($item['description'] ?? '') !== '') : ?><p class="aipkit_mcp_meta"><?php echo esc_html($item['description']); ?></p><?php endif; ?>
                 <dl class="aipkit_mcp_kv">
-                    <dt><?php esc_html_e('Type', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html($item['kind'] === 'ability' ? __('Ability', 'gpt3-ai-content-generator') : __('REST request', 'gpt3-ai-content-generator')); ?></dd>
+                    <dt><?php esc_html_e('Type', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html($item['kind'] === 'media' ? __('Image alt text', 'gpt3-ai-content-generator') : ($item['kind'] === 'ability' ? __('Ability', 'gpt3-ai-content-generator') : __('REST request', 'gpt3-ai-content-generator'))); ?></dd>
                     <?php if (($item['name'] ?? '') !== '') : ?><dt><?php esc_html_e('Name', 'gpt3-ai-content-generator'); ?></dt><dd><code><?php echo esc_html($item['name']); ?></code></dd><?php endif; ?>
                     <dt><?php esc_html_e('Effect', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html($item['risk'] === 'destructive' ? __('May delete or replace something', 'gpt3-ai-content-generator') : __('Changes the site', 'gpt3-ai-content-generator')); ?></dd>
                     <dt><?php esc_html_e('Runs as', 'gpt3-ai-content-generator'); ?></dt><dd><?php echo esc_html($user ? $user->user_login : '—'); ?></dd>
                 </dl>
-                <?php if (($item['input'] ?? '') !== '') : ?>
+                <?php if ($content_set) : ?>
+                    <?php foreach (json_decode($item['input'], true) as $edit) : ?>
+                        <h3><a href="<?php echo esc_url($edit['edit_url']); ?>"><?php echo esc_html($edit['title'] . ' (#' . $edit['id'] . ')'); ?></a></h3>
+                        <dl class="aipkit_mcp_kv">
+                        <?php foreach ($edit['changes'] as $field => $value) :
+                            $labels = ['post_title' => __('New title', 'gpt3-ai-content-generator'), 'post_excerpt' => __('New excerpt', 'gpt3-ai-content-generator'), 'post_content' => __('New content', 'gpt3-ai-content-generator'), 'post_name' => __('New slug', 'gpt3-ai-content-generator'), 'tax_input' => __('Categories and tags', 'gpt3-ai-content-generator'), 'meta_input' => __('Featured image', 'gpt3-ai-content-generator')]; ?>
+                            <dt><?php echo esc_html($labels[$field] ?? $field); ?></dt><dd><?php echo esc_html(is_array($value) ? wp_json_encode($value) : (string) $value); ?></dd>
+                        <?php endforeach; ?>
+                        </dl>
+                    <?php endforeach; ?>
+                <?php elseif (($item['input'] ?? '') !== '') : ?>
                     <p class="aipkit_mcp_meta"><?php esc_html_e('What it sends', 'gpt3-ai-content-generator'); ?></p>
                     <pre class="aipkit_mcp_code"><?php echo esc_html($item['input']); ?></pre>
                 <?php endif; ?>
             </div>
             <p class="aipkit_mcp_note"><?php esc_html_e('Approving runs this change right away with that WordPress user’s permissions and uses 1 website action. Nothing changes if you decline.', 'gpt3-ai-content-generator'); ?></p>
+            <?php if ($row['tool'] !== 'update_media' && !$content_set) : ?>
             <?php // Honest about generic changes: the request is what the assistant sent, the effect is up to the plugin. ?>
             <p class="aipkit_mcp_meta"><?php esc_html_e('This request goes to another plugin’s code. AI Puffer can show what is sent, but not what that plugin will do with it. Approve only a change you expect.', 'gpt3-ai-content-generator'); ?></p>
+            <?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="aipkit_mcp_actions">
                 <input type="hidden" name="action" value="aipkit_mcp_confirm">
                 <input type="hidden" name="operation_id" value="<?php echo esc_attr($row['operation_id']); ?>">
@@ -390,7 +437,7 @@ final class Screens
 
     private static function review_card(array $row): void
     {
-        if (!empty(Registry::get((string) $row['tool'])['generic'])) {
+        if (in_array($row['tool'], ['upload_media', 'upload_image_file', 'update_media', 'fill_media_text'], true) || !empty(Registry::get((string) $row['tool'])['generic'])) {
             self::generic_review_card($row);
             return;
         }
@@ -503,6 +550,9 @@ final class Screens
         $assistant = ucfirst(self::client_label(Store::grant($row['grant_id'])));
         $user = get_userdata((int) $row['acting_user']);
         $form_id = 'aipkit_mcp_review_' . substr(md5($row['operation_id']), 0, 8);
+        $progress = Content::recorded_progress($row);
+        $completed = Content::has_completed_items($row);
+        $item_states = ['succeeded' => __('Completed', 'gpt3-ai-content-generator'), 'not_started' => __('Not started', 'gpt3-ai-content-generator'), 'conflict' => __('Changed elsewhere', 'gpt3-ai-content-generator'), 'failed' => __('Refused', 'gpt3-ai-content-generator')];
         /* translators: 1: assistant name, 2: ability name or REST method and route, 3: time, 4: WordPress user. */
         $summary = sprintf(__('%1$s asked to run %2$s at %3$s, as %4$s.', 'gpt3-ai-content-generator'), $assistant, self::generic_subject($row), wp_date(get_option('time_format'), (int) $row['created_at']), $user ? $user->user_login : '—');
         ?>
@@ -515,6 +565,15 @@ final class Screens
                 </div>
             </div>
             <p class="aipkit_mcp_meta"><?php esc_html_e('Check the site, then tell us what happened. This keeps the request from running twice. Assistants can’t answer this for you.', 'gpt3-ai-content-generator'); ?></p>
+            <?php if ($progress !== null) : ?>
+                <p class="aipkit_mcp_meta"><?php esc_html_e('Completed edits stay saved. Check every item below; this request will not run again.', 'gpt3-ai-content-generator'); ?></p>
+                <table class="widefat striped">
+                    <thead><tr><th><?php esc_html_e('Post or page', 'gpt3-ai-content-generator'); ?></th><th><?php esc_html_e('Last recorded result', 'gpt3-ai-content-generator'); ?></th></tr></thead>
+                    <tbody><?php foreach ($progress['items'] as $item) : ?>
+                        <tr><td><a href="<?php echo esc_url(admin_url('post.php?post=' . absint($item['id']) . '&action=edit')); ?>"><?php echo esc_html((string) absint($item['id'])); ?></a></td><td><?php echo esc_html($item_states[$item['state']] ?? __('Needs checking', 'gpt3-ai-content-generator')); ?></td></tr>
+                    <?php endforeach; ?></tbody>
+                </table>
+            <?php endif; ?>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="aipkit_mcp_review" id="<?php echo esc_attr($form_id); ?>">
                 <input type="hidden" name="action" value="aipkit_mcp_resolve">
                 <input type="hidden" name="operation_id" value="<?php echo esc_attr($row['operation_id']); ?>">
@@ -523,13 +582,13 @@ final class Screens
                     <legend class="screen-reader-text"><?php esc_html_e('What happened', 'gpt3-ai-content-generator'); ?></legend>
                     <div class="aipkit_mcp_choice">
                         <input type="radio" id="<?php echo esc_attr($form_id); ?>_done" name="decision" value="succeeded">
-                        <span><label for="<?php echo esc_attr($form_id); ?>_done"><strong><?php esc_html_e('It went through', 'gpt3-ai-content-generator'); ?></strong></label>
-                        <span class="aipkit_mcp_meta"><?php esc_html_e('The change is on the site.', 'gpt3-ai-content-generator'); ?></span></span>
+                        <span><label for="<?php echo esc_attr($form_id); ?>_done"><strong><?php echo esc_html($progress !== null ? __('Keep the completed edits and close this request', 'gpt3-ai-content-generator') : __('It went through', 'gpt3-ai-content-generator')); ?></strong></label>
+                        <span class="aipkit_mcp_meta"><?php echo esc_html($progress !== null ? __('I checked each item. Any remaining edits need a new preview with current versions.', 'gpt3-ai-content-generator') : __('The change is on the site.', 'gpt3-ai-content-generator')); ?></span></span>
                     </div>
                     <div class="aipkit_mcp_choice">
-                        <input type="radio" id="<?php echo esc_attr($form_id); ?>_none" name="decision" value="not_run" checked>
+                        <input type="radio" id="<?php echo esc_attr($form_id); ?>_none" name="decision" value="not_run" <?php checked(!$completed); ?> <?php disabled($completed); ?>>
                         <span><label for="<?php echo esc_attr($form_id); ?>_none"><strong><?php esc_html_e('It didn’t run', 'gpt3-ai-content-generator'); ?></strong></label>
-                        <span class="aipkit_mcp_meta"><?php esc_html_e('Nothing changed. Your assistant can safely try again.', 'gpt3-ai-content-generator'); ?></span></span>
+                        <span class="aipkit_mcp_meta"><?php echo esc_html($completed ? __('Unavailable: at least one edit is already recorded as completed.', 'gpt3-ai-content-generator') : __('Nothing changed. Your assistant can safely try again.', 'gpt3-ai-content-generator')); ?></span></span>
                     </div>
                 </fieldset>
                 <label class="aipkit_mcp_confirm"><input type="checkbox" name="confirm_reviewed" value="yes" required> <?php esc_html_e('I checked the website before choosing', 'gpt3-ai-content-generator'); ?></label>

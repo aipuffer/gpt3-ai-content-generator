@@ -78,6 +78,7 @@ class AIPKit_Hook_Manager
             \WPAICG\Mcp\Registry::register_hooks();
             \WPAICG\Mcp\Levels::register_hooks();
             \WPAICG\Mcp\Abilities::register_hooks();
+            \WPAICG\Mcp\Elementor::register_hooks();
             add_action('aipkit_cloud_credential_ending', [\WPAICG\Mcp\Identity::class, 'credential_ending']);
             wpaicg_gacg_fs()->add_action('after_account_connection', [\WPAICG\Cloud\Connection::class, 'account_changed']);
             wpaicg_gacg_fs()->add_action('after_account_user_sync', [\WPAICG\Cloud\Connection::class, 'sync_verified_account']);

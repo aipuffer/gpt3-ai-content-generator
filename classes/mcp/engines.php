@@ -5,8 +5,8 @@
  * Plugins that register abilities or REST routes become usable with no code here. What a plugin's callback actually
  * does can't be read from outside: names, annotations and HTTP methods are its author's description, not a guarantee.
  * So the rules are conservative:
- * - every change needs the publish scope (it may publish) and waits for the owner, at every level (Registry);
- * - a change that may delete is marked destructive, so the approval says so;
+ * - every change needs the publish scope (it may publish) and follows the owner's selected approval policy (Registry);
+ * - a change that may delete is marked destructive, for reporting and the Standard approval preview;
  * - Guard refuses blocked domains and batch requests by name before anything runs;
  * - content goes through the same rules as create_draft: no scripts, comments, blocks, shortcodes or protected
  *   metadata in the request, and WordPress filters saved HTML as for a user without unfiltered_html;
@@ -56,8 +56,12 @@ final class Engines
     /** Abilities their authors made available to clients, and not in a blocked domain for what they do. */
     private static function offered(?\WP_Ability $ability): bool
     {
-        if (!$ability || ($ability->get_meta_item('public', false) !== true && $ability->get_meta_item('show_in_rest', false) !== true)) { return false; }
-        return Guard::allows_ability($ability->get_name(), $ability->get_category(), self::ability_risk($ability));
+        if (!$ability) { return false; }
+        // Plugins may opt into MCP without exposing a second public REST execution surface.
+        $mcp = $ability->get_meta_item('mcp', []);
+        $mcp_public = is_array($mcp) && ($mcp['public'] ?? null) === true;
+        if (!$mcp_public && $ability->get_meta_item('public', false) !== true && $ability->get_meta_item('show_in_rest', false) !== true) { return false; }
+        return (bool) apply_filters('aipkit_mcp_ability_offered', Guard::allows_ability($ability->get_name(), $ability->get_category(), self::ability_risk($ability)), $ability);
     }
 
     private static function ability(object $args): ?\WP_Ability
@@ -137,7 +141,13 @@ final class Engines
                 foreach ($value as $key => $item) {
                     // A protected field by name, or a metadata entry naming one ({"key": "_price", "value": ...}).
                     if ((is_string($key) && strpos($key, '_') === 0) || ($key === 'key' && is_string($item) && strpos($item, '_') === 0)) {
-                        return self::refuse('unsupported_content', 'Protected fields (names starting with "_") can’t be changed through this tool.');
+                        $field = is_string($key) && strpos($key, '_') === 0 ? $key : $item;
+                        $message = $field === '_yoast_wpseo_focuskw'
+                            ? 'Protected metadata cannot be edited directly. Discover Yoast with find_abilities (query "yoast"); if offered, use run_ability "ai-puffer/yoast-set-focus-keyphrase" with post_id and focus_keyphrase. Verify using Yoast SEO data. Scores are not recalculated.'
+                            : (strpos($field, '_yoast_wpseo_') === 0
+                            ? 'Protected metadata cannot be edited directly. Discover Yoast with find_abilities (query "yoast"); if offered, use run_ability "yoast-seo/update-post-seo-data" with post_id and seo_title/meta_description. Verify using read_ability "yoast-seo/get-post-seo-data".'
+                            : 'Protected fields (names starting with "_") can’t be changed through this tool. Discover a supported native plugin action with find_abilities; do not bypass this restriction.');
+                        return self::refuse('unsupported_content', $message);
                     }
                     $stack[] = $item;
                 }
@@ -175,24 +185,39 @@ final class Engines
         foreach (['page' => 100, 'per_page' => 50] as $key => $max) {
             if (isset($args->$key) && (!is_int($args->$key) || $args->$key < 1 || $args->$key > $max)) { return Operations::error('invalid_input'); }
         }
-        $query = strtolower($args->query ?? '');
+        // Search punctuation is interchangeable: assistants commonly ask for wp cli rather than wp-cli.
+        $normalize = static function (string $text): string { return trim(preg_replace('/\s+/', ' ', preg_replace('/[-_\/]+/', ' ', strtolower($text)))); };
+        $query = $normalize($args->query ?? '');
         $items = [];
         foreach (wp_get_abilities() as $ability) {
             if (!self::offered($ability) || (isset($args->category) && $ability->get_category() !== $args->category)) { continue; }
-            $text = strtolower($ability->get_name() . ' ' . $ability->get_label() . ' ' . $ability->get_description());
+            $text = $normalize($ability->get_name() . ' ' . $ability->get_label() . ' ' . $ability->get_description());
             if ($query !== '' && strpos($text, $query) === false) { continue; }
             $risk = self::ability_risk($ability);
-            $encoded = (string) wp_json_encode($ability->get_input_schema() ?: (object) []);
-            $items[] = ['name' => $ability->get_name(), 'label' => $ability->get_label(),
+            $items[] = ['name' => $ability->get_name(), 'label' => mb_substr($ability->get_label(), 0, 300),
                 'description' => mb_substr($ability->get_description(), 0, 600), 'category' => $ability->get_category(),
-                'risk' => $risk, 'tool' => $risk === 'read' ? 'read_ability' : 'run_ability']
-                + (strlen($encoded) <= 6000 ? ['input_schema_json' => $encoded] : ['input_schema_omitted' => true]);
+                'risk' => $risk, 'tool' => $risk === 'read' ? 'read_ability' : 'run_ability'];
         }
         usort($items, static function (array $a, array $b): int { return strcmp($a['name'], $b['name']); });
         $per_page = $args->per_page ?? 20;
         $page = $args->page ?? 1;
-        return self::ok(['items' => array_slice($items, ($page - 1) * $per_page, $per_page), 'page' => $page,
-            'has_more' => count($items) > $page * $per_page, 'total' => count($items)]);
+        $result = ['items' => array_slice($items, ($page - 1) * $per_page, $per_page), 'page' => $page,
+            'has_more' => count($items) > $page * $per_page, 'total' => count($items)];
+        // Broad discovery stays compact. An exact-name search can return a larger native schema (for example
+        // WooCommerce's product-type alternatives), so clients never have to guess its required input fields.
+        foreach ($result['items'] as $index => $item) {
+            $encoded = (string) wp_json_encode(wp_get_ability($item['name'])->get_input_schema() ?: (object) []);
+            $limit = $query === $normalize($item['name']) ? 50000 : 6000;
+            $result['items'][$index]['input_schema_json'] = $encoded;
+            if (strlen($encoded) > $limit || strlen((string) wp_json_encode($result)) > self::MAX_RESULT - 1024) {
+                unset($result['items'][$index]['input_schema_json']);
+                $result['items'][$index]['input_schema_omitted'] = true;
+                $result['items'][$index]['description'] .= $limit === 6000
+                    ? ' Full input schema omitted. Before calling, repeat find_abilities with query "' . $item['name'] . '" and per_page 1.'
+                    : ' Input schema exceeds the discovery response limit; do not guess its inputs.';
+            }
+        }
+        return self::ok($result);
     }
 
     public static function read_ability(object $args): array
@@ -213,7 +238,7 @@ final class Engines
         if (self::ability_risk($ability) === 'read') { return self::refuse('use_read_ability', 'This ability only reads. Use read_ability.'); }
         $input = self::input($args, $ability);
         if ($input === false) { return Operations::error('invalid_input'); }
-        $unsafe = self::unsafe_content($input);
+        $unsafe = apply_filters('aipkit_mcp_ability_content_error', self::unsafe_content($input), $ability->get_name(), $input);
         if ($unsafe) { return $unsafe; }
         $input = $ability->normalize_input($input);
         if (is_wp_error($input)) { return self::refuse('invalid_input', $input->get_error_message()); }
@@ -227,6 +252,9 @@ final class Engines
     {
         $ability = self::check_ability($args);
         if (is_array($ability)) { return $ability; }
+        if (class_exists(Elementor::class) && Elementor::handles($args->name)) { return Elementor::preview($args->name, (array) self::input($args, $ability)); }
+        $extension = apply_filters('aipkit_mcp_ability_result', null, $args->name, self::input($args, $ability), true);
+        if (is_array($extension)) { return $extension; }
         return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability',
             'title' => $ability->get_label(), 'name' => $ability->get_name(), 'description' => mb_substr($ability->get_description(), 0, 600),
             'risk' => (string) self::risk('run_ability', $args), 'input' => self::excerpt(self::input($args, $ability))]];
@@ -236,6 +264,9 @@ final class Engines
     {
         $ability = self::check_ability($args);
         if (is_array($ability)) { return $ability; }
+        if (class_exists(Elementor::class) && Elementor::handles($args->name)) { return Elementor::run($args->name, (array) self::input($args, $ability)); }
+        $extension = apply_filters('aipkit_mcp_ability_result', null, $args->name, self::input($args, $ability), false);
+        if (is_array($extension)) { return $extension; }
         $entered = false;
         $mark = static function (string $name) use ($ability, &$entered): void { if ($name === $ability->get_name()) { $entered = true; } };
         add_action('wp_before_execute_ability', $mark, PHP_INT_MIN, 1);

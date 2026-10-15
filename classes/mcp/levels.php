@@ -26,6 +26,24 @@ final class Levels
         add_action(self::RETRY_HOOK, [self::class, 'retry_pending']);
     }
 
+    /** Existing connections have no policy marker: an update alone never widens their authority. */
+    public static function unattended(string $grant_id): bool
+    {
+        $entry = self::entries()[$grant_id] ?? null;
+        return is_array($entry) && ($entry['target'] ?? '') === 'trusted'
+            && !empty($entry['synced']) && ($entry['unattended'] ?? false) === true;
+    }
+
+    /** Record the policy shown at new connection consent, before handing the pending grant to the bridge. */
+    public static function authorize_new(string $grant_id, string $level): bool
+    {
+        return self::locked(static function () use ($grant_id, $level): bool {
+            $grant = self::grant($grant_id);
+            return $grant['state'] === 'pending' && $grant['access_level'] === $level
+                && self::save($grant_id, ['target' => $level, 'revision' => 0, 'synced' => true, 'unattended' => $level === 'trusted']);
+        });
+    }
+
     /** The pending change for a grant, or null when everything is confirmed. */
     public static function pending(string $grant_id): ?array
     {
@@ -45,10 +63,12 @@ final class Levels
             $entries = self::entries();
             $entry = $entries[$grant_id] ?? null;
             // The same level again: finish an unconfirmed change, or there is nothing to do.
-            if ($grant['access_level'] === $level && (!is_array($entry) || !empty($entry['synced']) || $entry['target'] === $level)) {
+            $policy_chosen = $level !== 'trusted' || self::unattended($grant_id)
+                || (is_array($entry) && empty($entry['synced']) && ($entry['target'] ?? '') === 'trusted' && !empty($entry['unattended']));
+            if ($policy_chosen && $grant['access_level'] === $level && (!is_array($entry) || !empty($entry['synced']) || $entry['target'] === $level)) {
                 return is_array($entry) && empty($entry['synced']) ? self::queue_retry(self::send($grant, $entry)) : ['state' => 'synced', 'level' => $level];
             }
-            $entry = ['target' => $level, 'revision' => (int) ($entry['revision'] ?? 0) + 1, 'synced' => false];
+            $entry = ['target' => $level, 'revision' => (int) ($entry['revision'] ?? 0) + 1, 'synced' => false, 'unattended' => $level === 'trusted'];
             // Nothing reaches the bridge unless the change is safely recorded here, so Check can always finish it.
             if (!self::save($grant_id, $entry)) { throw new \RuntimeException('mcp_storage_unavailable'); }
             // Lowering takes effect here at once; raising waits for the bridge.

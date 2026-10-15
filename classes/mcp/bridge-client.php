@@ -10,6 +10,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 final class BridgeClient {
+    /** The existing site credential and callback signature authenticate a bounded browser inspection. */
+    public static function inspect_page(string $url, string $viewport, string $operation_id) {
+        return self::request('POST', '/site/v1/inspect', ['url' => $url, 'viewport' => $viewport, 'operation_id' => $operation_id], 20);
+    }
 	/**
 	 * The site's Ed25519 key pair for signing requests to the bridge, created once; the secret key is stored
 	 * encrypted. Registration sends the public key; the Cloud site token authorizes replacing it.
@@ -192,6 +196,13 @@ final class BridgeClient {
 		if ( ! Store::insert_grant( $grant ) ) {
 			return new WP_Error( 'storage', 'Could not store the new grant.' );
 		}
+        try { $authorized = Levels::authorize_new($grant['grant_id'], $access_level); }
+        catch (\Throwable $error) { $authorized = false; }
+        if (!$authorized) {
+            Store::set_state($grant['grant_id'], 'revoked');
+            Levels::forget($grant['grant_id']);
+            return new WP_Error('storage', 'Could not store the assistant approval policy.');
+        }
 		$data = self::request(
 			'POST',
 			'/site/v1/pairing',
@@ -207,6 +218,7 @@ final class BridgeClient {
 		);
 		if ( is_wp_error( $data ) ) {
 			Store::set_state( $grant['grant_id'], 'revoked' );
+            Levels::forget($grant['grant_id']);
 			return $data;
 		}
         $url = $data['connect_url'] ?? '';

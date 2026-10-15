@@ -79,6 +79,7 @@ final class Store {
 		$row['created_at']   = (int) $row['created_at'];
 		$row['last_used_at'] = $row['last_used_at'] ? (int) $row['last_used_at'] : null;
 		$row['scopes']       = json_decode( (string) $row['scopes'], true );
+        $row['unattended'] = Levels::unattended((string) $row['grant_id']);
 		return $row;
 	}
 
