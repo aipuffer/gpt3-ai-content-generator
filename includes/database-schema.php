@@ -176,7 +176,7 @@ function aipkit_create_local_vector_tables()
         created_at datetime NOT NULL,
         updated_at datetime NOT NULL,
         PRIMARY KEY  (id)
-    ) $charset_collate;");
+    ) ENGINE=InnoDB $charset_collate;");
     dbDelta("CREATE TABLE $vectors (
         id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
         store_id varchar(64) NOT NULL,
@@ -190,9 +190,9 @@ function aipkit_create_local_vector_tables()
         created_at datetime NOT NULL,
         PRIMARY KEY  (id),
         UNIQUE KEY store_vector (store_id,vector_id),
-        KEY store_parent (store_id,parent_id),
+        KEY store_parent (store_id,parent_id(127)),
         KEY store_post (store_id,post_id)
-    ) $charset_collate;");
+    ) ENGINE=InnoDB $charset_collate;");
 }
 
 function aipkit_create_automated_tasks_table()

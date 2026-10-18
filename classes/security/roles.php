@@ -67,7 +67,7 @@ class AIPKit_Role_Manager
                         'label' => __('Knowledge Base', 'gpt3-ai-content-generator'),
                     ],
                     'stats' => [
-                        'label' => __('Usage', 'gpt3-ai-content-generator'),
+                        'label' => __('Dashboard', 'gpt3-ai-content-generator'),
                     ],
                 ],
             ],

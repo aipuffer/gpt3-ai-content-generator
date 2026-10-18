@@ -21,11 +21,10 @@ final class Onboarding
 
     /** Goal -> modules it needs (keys of aipkit_dashboard::$default_module_settings) and where it lands. */
     private const GOALS = [
+        'website'  => ['modules' => [], 'module' => ''],
         'chatbot'  => ['modules' => ['chat_bot'], 'module' => 'chatbot'],
-        'write'    => ['modules' => ['content_writer'], 'module' => 'content-writer'],
-        'products' => ['modules' => ['content_writer'], 'module' => 'content-writer'],
-        'auto'     => ['modules' => ['content_writer', 'autogpt'], 'module' => 'autogpt'],
         'forms'    => ['modules' => ['ai_forms'], 'module' => 'ai-forms'],
+        'write'    => ['modules' => ['content_writer', 'autogpt'], 'module' => 'content-writer'],
     ];
     /** Byok providers offered during setup (keys of AIPKit_Providers defaults). */
     public const KEY_PROVIDERS = ['OpenAI' => 'OpenAI', 'Claude' => 'Anthropic', 'Google' => 'Google', 'OpenRouter' => 'OpenRouter', 'DeepSeek' => 'DeepSeek', 'xAI' => 'xAI'];
@@ -34,6 +33,7 @@ final class Onboarding
     {
         add_action('admin_menu', [self::class, 'add_page'], 20);
         add_action('admin_init', [self::class, 'maybe_redirect']);
+        add_action('admin_enqueue_scripts', [self::class, 'enqueue_assets']);
         add_action('wp_ajax_aipkit_onboarding', [self::class, 'handle']);
         add_filter('admin_body_class', [self::class, 'body_class']);
         add_filter('admin_title', [self::class, 'admin_title']);
@@ -51,7 +51,14 @@ final class Onboarding
     public static function state(): array
     {
         $state = get_option(self::OPTION, []);
-        return is_array($state) ? $state : [];
+        if (!is_array($state)) { return []; }
+        // Unfinished setups from the released six-card screen keep their writing intent.
+        if (isset($state['goals']) && is_array($state['goals'])) {
+            $state['goals'] = array_values(array_unique(array_intersect(array_map(static function ($goal) {
+                return in_array($goal, ['products', 'auto'], true) ? 'write' : $goal;
+            }, $state['goals']), array_keys(self::GOALS))));
+        }
+        return $state;
     }
 
     private static function save(array $changes): void
@@ -73,9 +80,11 @@ final class Onboarding
         $action = sanitize_key(wp_unslash($_GET['fs_action'] ?? ''));
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only, after the SDK handles the account action.
         $state = sanitize_key(wp_unslash($_GET['state'] ?? ''));
-        if ($action !== 'change_owner' || !in_array($state, ['owner_confirmed', 'candidate_confirmed'], true)) { return; }
+        // A resend must render the SDK's response so the caller can confirm success. Only confirmation returns here.
+        if ($action !== 'sync_user'
+            && ($action !== 'change_owner' || !in_array($state, ['owner_confirmed', 'candidate_confirmed'], true))) { return; }
         // This is an informational hint, not proof of a completed transfer.
-        $pending = $state === 'owner_confirmed';
+        $pending = $action === 'change_owner' && $state === 'owner_confirmed';
         wp_safe_redirect(($pending ? add_query_arg('aipkit_account_change', 'pending', self::url()) : self::url()) . '#connect');
         exit;
     }
@@ -121,11 +130,16 @@ final class Onboarding
         return sprintf(__('Set up AI Puffer ‹ %s', 'gpt3-ai-content-generator'), get_bloginfo('name'));
     }
 
-    public static function render(): void
+    private static function resume(): bool
     {
-        if (!AIPKit_Role_Manager::user_can_manage_settings()) {
-            wp_die(esc_html__('You do not have permission to set up AI Puffer.', 'gpt3-ai-content-generator'), 403);
-        }
+        $state = self::state();
+        return ($state['status'] ?? '') === 'pending' && !empty($state['goals']);
+    }
+
+    /** Queue screen styles before WordPress prints the document head, avoiding an unstyled first paint. */
+    public static function enqueue_assets(string $hook): void
+    {
+        if ($hook !== 'admin_page_' . self::PAGE || !AIPKit_Role_Manager::user_can_manage_settings()) { return; }
         $css = WPAICG_PLUGIN_DIR . 'dist/css/admin-onboarding.bundle.css';
         $js = WPAICG_PLUGIN_DIR . 'dist/js/admin-onboarding.bundle.js';
         wp_enqueue_style('aipkit-onboarding', WPAICG_PLUGIN_URL . 'dist/css/admin-onboarding.bundle.css', [], file_exists($css) ? (string) filemtime($css) : WPAICG_VERSION);
@@ -143,13 +157,24 @@ final class Onboarding
         if (class_exists(\WPAICG\Includes\AIPKit_Shared_Assets_Manager::class)) {
             \WPAICG\Includes\AIPKit_Shared_Assets_Manager::attach_public_asset_urls('aipkit-public-main');
         }
+    }
+
+    public static function render(): void
+    {
+        if (!AIPKit_Role_Manager::user_can_manage_settings()) {
+            wp_die(esc_html__('You do not have permission to set up AI Puffer.', 'gpt3-ai-content-generator'), 403);
+        }
         wp_localize_script('aipkit-onboarding', 'aipkitSetup', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce(self::NONCE),
             'syncNonce' => wp_create_nonce('aipkit_nonce'),
             'dashboardUrl' => admin_url('admin.php?page=wpaicg'),
             'cloudConnected' => !empty(Connection::display()['connected']),
-            'goals' => array_values(array_intersect((array) (self::state()['goals'] ?? []), array_merge(array_keys(self::GOALS), ['explore']))),
+            'resume' => self::resume(),
+            'cloudConsent' => self::pending_cloud_consent(),
+            'mcpNonce' => wp_create_nonce('aipkit_mcp_settings'),
+            'assistants' => \WPAICG\Mcp\Settings::onboarding_connections(),
+            'goals' => array_values(array_intersect((array) (self::state()['goals'] ?? []), array_keys(self::GOALS))),
         ]);
         include WPAICG_PLUGIN_DIR . 'admin/views/onboarding/page.php';
     }
@@ -165,12 +190,43 @@ final class Onboarding
         return [
             // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Display-only hint after the SDK's ownership callback.
             'account_change_pending' => sanitize_key(wp_unslash($_GET['aipkit_account_change'] ?? '')) === 'pending',
-            'woocommerce' => class_exists('WooCommerce'),
+            'resume' => self::resume(),
             'cloud' => $cloud,
             'registered' => $cloud['registered'],
             'providers' => self::KEY_PROVIDERS,
             'has_provider_key' => $provider_keys,
             'products' => self::products(),
+        ];
+    }
+
+    /** Reuse confirmed cached allowances; rendering must never fetch usage or infer a plan. */
+    public static function allowance_offer(): array
+    {
+        $display = Connection::display();
+        return self::format_allowance_offer($display['connected'] ? $display['credits'] : null, \WPAICG\Mcp\Settings::usage_data());
+    }
+
+    private static function format_allowance_offer(?array $credits, ?array $usage): array
+    {
+        $free = $credits['allowance']['total'] ?? null;
+        $included = $credits['includedAllowance']['total'] ?? '0';
+        $actions = $usage['monthly_allowance'] ?? null;
+        $included_known = is_string($included) && ctype_digit($included);
+        $confirmed = ((is_string($free) && ctype_digit($free)) || ($included_known && (int) $included > 0)) && $included_known && is_int($actions) && $actions >= 0;
+        return [
+            'label' => $confirmed ? __('Included every month', 'gpt3-ai-content-generator') : __('Free monthly allowances', 'gpt3-ai-content-generator'),
+            'amounts' => $confirmed
+                /* translators: 1: monthly AI credit allowance. 2: monthly website action allowance. */
+                ? sprintf(__('%1$s AI credits + %2$s website actions', 'gpt3-ai-content-generator'), Connection::format_credits((int) $free + (int) $included), number_format_i18n($actions))
+                : __('25 AI credits + 2,000 website actions', 'gpt3-ai-content-generator'),
+            'credits' => $confirmed
+                /* translators: %s: monthly AI credit allowance. */
+                ? sprintf(__('%s AI credits a month', 'gpt3-ai-content-generator'), Connection::format_credits((int) $free + (int) $included))
+                : __('25 free AI credits a month', 'gpt3-ai-content-generator'),
+            'actions' => $confirmed
+                /* translators: %s: monthly website action allowance. */
+                ? sprintf(__('%s website actions a month', 'gpt3-ai-content-generator'), number_format_i18n($actions))
+                : __('2,000 free website actions a month', 'gpt3-ai-content-generator'),
         ];
     }
 
@@ -184,34 +240,40 @@ final class Onboarding
         $model = Connection::default_model();
         $models_ready = $models_ready && $model !== '' && in_array($model, array_column(Connection::models(), 'id'), true);
         $ready = $connected && $has_credits && $models_ready;
-        $pending = !empty($display['confirm_email']);
+        // The SDK may finish email confirmation before Cloud connects. Keep this user's
+        // consented signup pending so the return page performs its one-time reconciliation.
+        $pending = !empty($display['confirm_email']) || ($connected && $display['email_verified'] === false)
+            || (!$connected && !empty($display['registered']) && self::pending_cloud_consent());
         $message = '';
         if ($pending) {
             /* translators: %s: email address awaiting confirmation. */
-            $message = sprintf(__('Check your inbox for a confirmation link sent to %s. Open it, then return here to check again.', 'gpt3-ai-content-generator'), $display['email']);
+            $message = sprintf(__('Open the confirmation link sent to %s, then return here. Your place is saved.', 'gpt3-ai-content-generator'), $display['email']);
         } elseif ($connected) {
             if (!$credits_ready || !is_array($credits)) {
                 $message = Connection::verification_message('balance_unavailable');
             } elseif (!$has_credits) {
                 $message = Connection::allowance_message($credits);
                 if ($message === '' && $display['email_verified'] === true) {
-                    $message = __('You have no available credits. Add credits in Usage, use your own API key, or set this up later.', 'gpt3-ai-content-generator');
+                    $message = __('You have no available credits. Add credits in Dashboard, use your own API key, or set this up later.', 'gpt3-ai-content-generator');
                 }
             } elseif (!$models_ready) {
                 $message = __('Cloud is connected, but its models could not be loaded. Try again.', 'gpt3-ai-content-generator');
-            } else {
-                $message = __('Connected to AI Puffer Cloud.', 'gpt3-ai-content-generator');
             }
         }
+        if ($connected && $display['email_verified'] === null && $message === '') {
+            $message = Connection::verification_message('verification_unavailable');
+        }
         return [
+            'websiteReady' => $connected && $display['email_verified'] === true,
             'connected' => $connected, 'registered' => !empty($display['registered']), 'pendingEmail' => $pending,
             'email' => (string) ($display['email'] ?? ''), 'manageEmailUrl' => (string) ($display['manage_email_url'] ?? ''),
             'emailVerified' => $display['email_verified'] === true,
             'accountChangeMessage' => Connection::account_change_message(),
             'emailUpdate' => $display['email_update'] ?? null,
             'connectionDiagnostic' => \WPAICG\Cloud\ConnectionDiagnostics::report(),
-            'emailRecoveryHtml' => Connection::email_recovery_html(), 'ready' => $ready, 'message' => $message,
-            'retry' => $connected && !$ready && (!$credits_ready || !is_array($credits) || $display['email_verified'] === true || $has_credits),
+            'allowanceOffer' => self::allowance_offer(),
+            'resendEmailUrl' => (string) ($display['resend_email_url'] ?? ''), 'ready' => $ready, 'message' => $message,
+            'retry' => $connected && ($display['email_verified'] === null || (!$ready && (!$credits_ready || !is_array($credits) || $display['email_verified'] === true || $has_credits))),
         ];
     }
 
@@ -235,12 +297,23 @@ final class Onboarding
                 }
                 wp_send_json_success();
                 break;
+            case 'website_verification': self::op_website_verification(); break;
             case 'cloud': self::op_cloud(); break;
-            case 'cloud_state': wp_send_json_success(self::cloud_view_data()); break;
+            case 'cloud_state':
+                // Explicit email-editor actions reconcile verification without reconnecting
+                // a transferred account or changing the site's selected AI provider.
+                $display = Connection::display();
+                $credits_ready = true;
+                if (self::post('verify_email') === 'yes' && $display['connected'] && $display['email_verified'] !== true) {
+                    $credits_ready = Connection::transition('verify') !== 'balance_unavailable';
+                }
+                wp_send_json_success(self::cloud_view_data(true, $credits_ready));
+                break;
             case 'cloud_disconnect':
                 if (Connection::transition('disconnect') !== 'disconnected') {
                     wp_send_json_error(['message' => __('Could not disconnect. Your connection has been preserved. Try again.', 'gpt3-ai-content-generator')], 400);
                 }
+                self::save(['cloud_consent' => null]);
                 wp_send_json_success(self::cloud_view_data());
                 break;
             case 'use_key': self::op_use_key(); break;
@@ -268,29 +341,35 @@ final class Onboarding
     private static function op_goals(): void
     {
         $raw = isset($_POST['goals']) && is_array($_POST['goals']) ? array_map('sanitize_key', wp_unslash($_POST['goals'])) : [];
-        $goals = array_values(array_unique(array_intersect($raw, array_merge(array_keys(self::GOALS), ['explore']))));
+        $goals = array_values(array_unique(array_intersect($raw, array_keys(self::GOALS))));
         if (!$goals) { wp_send_json_error(['message' => __('Choose at least one option.', 'gpt3-ai-content-generator')], 400); }
-        $explore = in_array('explore', $goals, true);
-        if ($explore) { $goals = ['explore']; }
         if (class_exists('\\WPAICG\\aipkit_dashboard')) {
-            $modules = array_fill_keys(array_keys(\WPAICG\aipkit_dashboard::$default_module_settings), $explore);
+            $modules = array_fill_keys(array_keys(\WPAICG\aipkit_dashboard::$default_module_settings), false);
             $modules['stats_viewer'] = true;
             $modules['sources'] = true;
-            if (!$explore) { foreach ($goals as $goal) { foreach (self::GOALS[$goal]['modules'] as $module) { $modules[$module] = true; } } }
+            foreach ($goals as $goal) { foreach (self::GOALS[$goal]['modules'] as $module) { $modules[$module] = true; } }
             $opts = get_option('aipkit_options');
             $opts = is_array($opts) ? $opts : [];
             $opts['module_settings'] = $modules;
             update_option('aipkit_options', $opts, 'no');
         }
-        self::save(['goals' => $goals]);
+        self::save(['goals' => $goals, 'status' => 'pending']);
         wp_send_json_success(['goals' => $goals]);
+    }
+
+    /** Resume only the consent this administrator gave for this exact pending account. */
+    private static function pending_cloud_consent(): bool
+    {
+        $consent = self::state()['cloud_consent'] ?? null;
+        return is_array($consent) && ($consent['version'] ?? '') === Connection::CONSENT_VERSION && ($consent['user'] ?? 0) === get_current_user_id()
+            && ($consent['email'] ?? '') !== '' && ($consent['email'] ?? '') === Connection::display()['email'];
     }
 
     /** One-click Cloud connect (same rules and consent as Settings), then make Cloud the default. */
     private static function op_cloud(): void
     {
         if (!class_exists(Connection::class)) { wp_send_json_error(['message' => __('AI Puffer Cloud is not available.', 'gpt3-ai-content-generator')], 400); }
-        $consent = self::post('consent') === 'yes';
+        $consent = self::post('consent') === 'yes' || (self::post('check_email') === 'yes' && self::post('consent') !== 'no' && self::pending_cloud_consent());
         $display = Connection::display();
         $connected = $display['connected'];
         // Confirmation returns through Freemius's own activation handler. Checking never resends email.
@@ -298,11 +377,14 @@ final class Onboarding
             wp_send_json_success(self::cloud_view_data());
         }
         $status = $connected ? 'connected' : Connection::transition('connect', $consent, self::post('marketing') === 'yes', self::post('email'), 'onboarding');
-        if ($status === 'confirm_email') { self::save(['power' => 'cloud']); wp_send_json_success(self::cloud_view_data()); }
+        if ($status === 'confirm_email') {
+            self::save(['power' => 'cloud', 'cloud_consent' => $consent ? ['version' => Connection::CONSENT_VERSION, 'user' => get_current_user_id(), 'email' => Connection::display()['email']] : null]);
+            wp_send_json_success(self::cloud_view_data());
+        }
         if ($status !== 'connected') {
             wp_send_json_error(['status' => $status, 'connectionDiagnostic' => \WPAICG\Cloud\ConnectionDiagnostics::report(), 'message' => Connection::connection_message($status) ?: __('Could not connect to AI Puffer Cloud. Please try again.', 'gpt3-ai-content-generator')], 400);
         }
-        self::save(['power' => 'cloud']);
+        self::save(['power' => 'cloud', 'cloud_consent' => null]);
         $credits_ready = !$connected || Connection::transition('verify') !== 'balance_unavailable';
         // Re-entry and an explicit retry refresh the catalog before making Cloud active.
         $synced = !$connected || Connection::transition('sync') === 'synced';
@@ -369,6 +451,51 @@ final class Onboarding
     {
         $state = self::state();
         return !empty($state['provider']) && !empty($state['model']) ? [$state['provider'], $state['model']] : null;
+    }
+
+    /** Local journal evidence only: polling never calls Cloud, the bridge or an AI provider. */
+    private static function op_website_verification(): void
+    {
+        $mode = self::post('mode');
+        $grant_id = self::post('grant_id');
+        $state = self::state();
+        $grant = \WPAICG\Mcp\Store::grant($grant_id);
+        $registration = \WPAICG\Mcp\Identity::registration();
+        if (!in_array($mode, ['start', 'check', 'retry'], true) || ($state['goals'] ?? []) !== ['website']
+            || !\WPAICG\Mcp\Identity::active() || !$grant || $grant['state'] !== 'active'
+            || (int) $grant['wp_user_id'] !== get_current_user_id() || $grant['instance_id'] !== ($registration['instance_id'] ?? '')) {
+            wp_send_json_error(['message' => __('This assistant connection is no longer available. Return to Connect and check it again.', 'gpt3-ai-content-generator')], 409);
+        }
+        $config = \WPAICG\Mcp\Store::config();
+        $binding = hash('sha256', serialize([$registration['instance_id'] ?? '', (int) ($registration['epoch'] ?? 0), $registration['consent_version'] ?? '', $config['account_id'] ?? '', $config['site_id'] ?? '', $config['registered_token_hash'] ?? '', $grant_id, $grant['connection_id'], get_current_user_id()]));
+        $attempt = $state['website_verification'] ?? [];
+        global $wpdb;
+        $table = \WPAICG\Mcp\Schema::table('operations');
+        if ($mode === 'retry' || ($mode === 'start' && ($attempt['binding'] ?? '') !== $binding)) {
+            $started = time();
+            // Exclude even an older request from the same second, including an unfinished request.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Local indexed journal snapshot; table is fixed and values prepared.
+            $baseline = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND tool = 'get_site_overview' AND created_at >= %d LIMIT 101", $grant_id, $started));
+            if ($wpdb->last_error !== '' || count($baseline) > 100) { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
+            $attempt = ['id' => wp_generate_uuid4(), 'binding' => $binding, 'started' => $started, 'expires' => $started + 600, 'baseline' => $baseline, 'verified' => false];
+            self::save(['website_verification' => $attempt]);
+            if ((self::state()['website_verification'] ?? []) !== $attempt) { wp_send_json_error(['message' => __('The verification could not be saved. Try again.', 'gpt3-ai-content-generator')], 503); }
+        }
+        if (($attempt['binding'] ?? '') !== $binding || ($mode === 'check' && self::post('attempt_id') !== ($attempt['id'] ?? ''))) {
+            wp_send_json_error(['message' => __('This verification changed. Start it again.', 'gpt3-ai-content-generator')], 409);
+        }
+        if (empty($attempt['verified'])) {
+            // A successful read must belong to this account, site, instance, assistant and WordPress user.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fresh indexed verification evidence; fixed table, prepared values, no request/response content exposed.
+            $rows = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND account_id = %s AND site_id = %s AND instance_id = %s AND connection_id = %s AND acting_user = %d AND tool = 'get_site_overview' AND state = 'succeeded' AND created_at >= %d AND updated_at <= %d ORDER BY created_at DESC LIMIT 101", $grant_id, $config['account_id'] ?? '', $config['site_id'] ?? '', $registration['instance_id'], $grant['connection_id'], get_current_user_id(), $attempt['started'], $attempt['expires']));
+            if ($wpdb->last_error !== '') { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
+            if (array_diff($rows, $attempt['baseline'])) {
+                $attempt['verified'] = true;
+                self::save(['website_verification' => $attempt]);
+                self::record_result('website');
+            }
+        }
+        wp_send_json_success(['attempt_id' => $attempt['id'], 'expires_at' => $attempt['expires'], 'status' => !empty($attempt['verified']) ? 'verified' : (time() >= $attempt['expires'] ? 'timeout' : 'waiting')]);
     }
 
     /** Save outcomes locally after successful actions; never store prompts or generated text here. */
@@ -673,12 +800,28 @@ final class Onboarding
         wp_send_json_success(['registered' => (bool) $fs->is_registered(), 'confirm_email' => !$fs->is_registered() && (bool) $fs->is_pending_activation()]);
     }
 
-    /** Leave setup: done (after the steps) or skipped. Lands in the first chosen tool. */
+    /** Finish in the selected tool, or skip with all tools available on the dashboard. */
     private static function op_finish(string $status): void
     {
         $state = self::state();
+        if ($status === 'skipped') {
+            if (class_exists('\\WPAICG\\aipkit_dashboard')) {
+                $opts = get_option('aipkit_options');
+                $opts = is_array($opts) ? $opts : [];
+                $opts['module_settings'] = array_fill_keys(array_keys(\WPAICG\aipkit_dashboard::$default_module_settings), true);
+                update_option('aipkit_options', $opts, 'no');
+            }
+            self::save(['status' => $status, 'finished' => time(), 'goals' => []]);
+            wp_send_json_success(['url' => admin_url('admin.php?page=wpaicg')]);
+        }
         self::save(['status' => $status, 'finished' => time()]);
-        $first = $state['goals'][0] ?? 'explore';
+        $goals = $state['goals'] ?? [];
+        $other_goals = array_values(array_diff($goals, ['website']));
+        $first = $other_goals[0] ?? ($goals[0] ?? '');
+        if ($goals === ['website']) {
+            $connected = array_filter(\WPAICG\Mcp\Settings::onboarding_connections(), static fn (array $item): bool => $item['state'] === 'active');
+            wp_send_json_success(['url' => admin_url($connected ? 'admin.php?page=wpaicg&aipkit_module=stats&aipkit_stats_tab=website' : 'admin.php?page=wpaicg&aipkit_module=settings&aipkit_settings_page=connections')]);
+        }
         $module = self::GOALS[$first]['module'] ?? '';
         wp_send_json_success(['url' => $module ? admin_url('admin.php?page=wpaicg&aipkit_module=' . $module) : admin_url('admin.php?page=wpaicg')]);
     }

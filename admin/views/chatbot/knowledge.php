@@ -32,11 +32,14 @@ if (!defined('ABSPATH')) {
         </div>
 
         <?php // One sentence on what it answers from; Knowledge scripts fill it from the training status and sources. ?>
-        <div class="aipkit_knowledge_strip" data-aipkit-knowledge-strip data-tone="neutral" hidden>
+        <div class="aipkit_knowledge_strip" data-aipkit-knowledge-strip data-user-id="<?php echo esc_attr(get_current_user_id()); ?>" data-tone="neutral" hidden>
             <span class="aipkit_knowledge_strip_dot" aria-hidden="true"></span>
             <span class="aipkit_knowledge_strip_text" data-aipkit-knowledge-strip-text aria-live="polite"></span>
             <button type="button" class="aipkit_knowledge_strip_action" data-aipkit-knowledge-strip-action hidden></button>
+            <button type="button" class="aipkit_knowledge_strip_action" data-aipkit-knowledge-dismiss hidden><?php esc_html_e('Dismiss', 'gpt3-ai-content-generator'); ?></button>
         </div>
+
+        <button type="button" class="aipkit_knowledge_failure_review" data-aipkit-knowledge-failure-review hidden></button>
 
         <?php
         $aipkit_default_training_post_types = ['page', 'post'];

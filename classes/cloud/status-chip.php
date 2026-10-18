@@ -1,24 +1,16 @@
 <?php
 namespace WPAICG\Cloud;
 
-use WPAICG\AIPKit_Providers;
 use WPAICG\AIPKit_Role_Manager;
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
-/**
- * Top-bar AI status: Cloud credits, or a prompt to connect when no AI is connected. Sites on their own
- * provider key see nothing here; their provider is in Settings. Reads stored state only; rendering never
- * calls Cloud or a provider.
- */
+/** Dashboard navigation and cached balances. Rendering never contacts external services. */
 final class StatusChip
 {
-    /** Text-generation providers that make the plugin usable without Cloud. */
-    private const TEXT_PROVIDERS = ['openai', 'claude', 'google', 'openrouter', 'azure', 'deepseek', 'xai', 'ollama'];
-
-    /** Markup for AJAX responses that can change the connection; empty for users who cannot manage settings. */
+    /** Markup for AJAX responses; account balances are restricted to settings managers. */
     public static function html(): string
     {
         ob_start();
@@ -29,93 +21,84 @@ final class StatusChip
     public static function render(): void
     {
         echo '<div class="aipkit_nav-status" data-aipkit-nav-status>';
+        if (!AIPKit_Role_Manager::user_can_access_module('stats')) { echo '</div>'; return; }
+        $parts = [];
+        $warning = false;
         if (AIPKit_Role_Manager::user_can_manage_settings()) {
             $display = Connection::display();
-            if (!empty($display['connected'])) {
-                self::render_cloud();
-            } elseif (!self::has_own_key()) {
-                self::render_connect();
+            if (!empty($display['revoked'])) {
+                $parts[] = ['text' => __('Reconnect Cloud', 'gpt3-ai-content-generator'), 'warn' => true];
+            } elseif (!empty($display['connected']) && ($display['email_verified'] ?? false) !== true) {
+                $parts[] = ['text' => __('Verify email', 'gpt3-ai-content-generator'), 'warn' => true];
+            } elseif (!empty($display['connected'])) {
+                $credits = Connection::credit_state()['credits'] ?? null;
+                $available = is_array($credits) && is_numeric($credits['available'] ?? null) ? max(0, (int) $credits['available']) : null;
+                $parts[] = [
+                    // translators: %s: remaining AI credits, not the monthly allowance.
+                    'text' => $available === null ? __('Balance unavailable', 'gpt3-ai-content-generator') : sprintf(__('%s AI credits', 'gpt3-ai-content-generator'), Connection::format_credits($available)),
+                    'warn' => $available === null || Connection::credits_exhausted() || Connection::credits_low(),
+                    'balance' => 'credits',
+                    'short' => $available === null ? '—' : ($available >= 10000000 ? self::short_number($available / 1000) : Connection::format_credits($available)),
+                ];
+                if (class_exists('\WPAICG\Mcp\Settings') && \WPAICG\Mcp\Identity::active()) {
+                    $usage = \WPAICG\Mcp\Settings::usage_data();
+                    $parts[] = [
+                        // translators: %s: remaining website actions.
+                        'text' => $usage === null ? __('Actions unavailable', 'gpt3-ai-content-generator') : sprintf(__('%s actions', 'gpt3-ai-content-generator'), number_format_i18n($usage['remaining'])),
+                        'warn' => $usage === null || $usage['remaining'] === 0,
+                        'balance' => 'actions',
+                        'short' => $usage === null ? '—' : ($usage['remaining'] >= 10000 ? self::short_number($usage['remaining']) : number_format_i18n($usage['remaining'])),
+                    ];
+                }
             }
         }
+        foreach ($parts as $part) { $warning = $warning || $part['warn']; }
+        $label = __('Dashboard', 'gpt3-ai-content-generator');
+        $full_label = implode(' · ', array_merge([$label], array_column($parts, 'text')));
+        ?>
+        <a class="aipkit_nav-status_chip" href="<?php echo esc_url(admin_url('admin.php?page=wpaicg&aipkit_module=stats')); ?>"
+            data-module="stats" data-aipkit-open-module="stats" aria-label="<?php echo esc_attr($full_label); ?>" title="<?php echo esc_attr($full_label); ?>">
+            <span><?php echo esc_html($label); ?></span>
+            <?php // Balances as an icon and a short number; account steps as a word. The label above reads them in full. ?>
+            <?php if ($parts) : ?><span class="aipkit_nav-status_sep" aria-hidden="true"></span><?php endif; ?>
+            <?php foreach ($parts as $part) : ?>
+                <?php if (!empty($part['balance'])) : ?>
+                    <span class="aipkit_nav-status_balance aipkit_nav-status_balance--<?php echo esc_attr($part['balance']); ?><?php echo $part['warn'] ? ' aipkit_nav-status_balance--warning' : ''; ?>" aria-hidden="true"><?php echo self::icon($part['balance']); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed markup. ?><?php echo esc_html($part['short']); ?></span>
+                <?php else : ?>
+                    <span class="aipkit_nav-status_detail<?php echo $part['warn'] ? ' aipkit_nav-status_detail--warning' : ''; ?>" aria-hidden="true"><?php echo esc_html($part['text']); ?></span>
+                <?php endif; ?>
+            <?php endforeach; ?>
+            <?php if ($warning) : ?><span class="aipkit_nav-status_dot" aria-hidden="true"></span><?php endif; ?>
+        </a>
+        <?php
         echo '</div>';
     }
 
-    private static function render_cloud(): void
+    /** 19,564 as "19.6K" and 2,500,000 as "2.5M", to one decimal. */
+    private static function short_number(float $value): string
     {
-        $credits = Connection::credit_state()['credits'] ?? null;
-        $available = is_array($credits) && is_string($credits['available'] ?? null) ? max(0, (int) $credits['available']) : null;
-        $total = is_array($credits) && is_string($credits['includedAllowance']['total'] ?? null) ? (int) $credits['includedAllowance']['total'] : 0;
-        $state = Connection::credits_exhausted() ? 'empty' : (Connection::credits_low() ? 'low' : 'ok');
-
-        if ($available === null) {
-            $label = __('AI Puffer Cloud', 'gpt3-ai-content-generator');
-            $aria = $label;
-        } elseif ($state === 'empty') {
-            $label = __('Out of credits', 'gpt3-ai-content-generator');
-            $aria = __('AI Puffer Cloud: out of credits', 'gpt3-ai-content-generator');
-        } else {
-            // Whole credits keep the bar compact; fractions matter only below one credit.
-            $amount = $available >= 1000 ? number_format_i18n(intdiv($available, 1000)) : Connection::format_credits($available);
-            $label = $state === 'low'
-                /* translators: %s: number of AI Puffer Cloud credits left. */
-                ? sprintf(__('%s credits left', 'gpt3-ai-content-generator'), $amount)
-                /* translators: %s: number of AI Puffer Cloud credits left. */
-                : sprintf(__('%s credits', 'gpt3-ai-content-generator'), $amount);
-            /* translators: %s: number of AI Puffer Cloud credits left. */
-            $aria = sprintf(__('AI Puffer Cloud: %s credits left', 'gpt3-ai-content-generator'), $amount);
-        }
-        // The meter compares the balance with the monthly free allowance when Cloud reports one.
-        $percent = ($available !== null && $total > 0) ? (int) min(100, round($available / $total * 100)) : null;
-        ?>
-        <a class="aipkit_nav-status_chip aipkit_nav-status_chip--<?php echo esc_attr($state); ?>"
-            href="<?php echo esc_url(Connection::account_url()); ?>"
-            data-module="stats" data-aipkit-open-module="stats"
-            aria-label="<?php echo esc_attr($aria); ?>" title="<?php echo esc_attr($aria); ?>">
-            <?php self::icon($state === 'ok' ? 'cloud' : 'alert'); ?>
-            <span class="aipkit_nav-status_text">
-                <span class="aipkit_nav-status_label"><?php echo esc_html($label); ?></span>
-                <?php if ($percent !== null && $state === 'ok') : ?>
-                    <span class="aipkit_nav-status_meter" aria-hidden="true"><span style="width: <?php echo esc_attr((string) $percent); ?>%"></span></span>
-                <?php endif; ?>
-            </span>
-        </a>
-        <?php
-    }
-
-    private static function render_connect(): void
-    {
-        ?>
-        <button type="button" class="aipkit_nav-status_chip aipkit_nav-status_chip--connect" data-aipkit-nav-connect
-            aria-label="<?php esc_attr_e('Connect AI', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Connect AI', 'gpt3-ai-content-generator'); ?>">
-            <?php self::icon('cloud'); ?>
-            <span class="aipkit_nav-status_text"><span class="aipkit_nav-status_label"><?php esc_html_e('Connect AI', 'gpt3-ai-content-generator'); ?></span></span>
-        </button>
-        <?php
-    }
-
-    /** Whether a text provider is connected with the site's own key. */
-    private static function has_own_key(): bool
-    {
-        if (!class_exists(AIPKit_Providers::class)) {
-            return false;
-        }
-        $status = AIPKit_Providers::get_provider_status_map();
-        foreach (self::TEXT_PROVIDERS as $provider) {
-            if (!empty($status[$provider])) {
-                return true;
+        $formats = [
+            /* translators: %s: a number in millions, for example 2.5 for 2,500,000. */
+            1000000 => __('%sM', 'gpt3-ai-content-generator'),
+            /* translators: %s: a number in thousands, for example 19.6 for 19,564. */
+            1000 => __('%sK', 'gpt3-ai-content-generator'),
+        ];
+        foreach ($formats as $size => $format) {
+            // 999,950 rounds to 1,000K, so it reads as 1M instead.
+            if ($value >= $size || ($size === 1000000 && round($value / 1000, 1) >= 1000)) {
+                $short = round($value / $size, 1);
+                return sprintf($format, number_format_i18n($short, fmod($short, 1.0) === 0.0 ? 0 : 1));
             }
         }
-        return false;
+        return number_format_i18n($value);
     }
 
-    private static function icon(string $name): void
+    /** A sparkle for AI credits, a globe for website actions. */
+    private static function icon(string $kind): string
     {
-        $paths = [
-            'cloud' => '<path d="M7 18a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.75 8.5z"></path>',
-            'alert' => '<path d="M12 3 2 20h20z"></path><path d="M12 10v4M12 17h.01"></path>',
-        ];
-        echo '<svg class="aipkit_nav-status_icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
-            . wp_kses($paths[$name], ['path' => ['d' => true]])
-            . '</svg>';
+        return $kind === 'credits'
+            ? '<svg class="aipkit_nav-status_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.5l1.6 4.1 4.1 1.6-4.1 1.6L8 12.9 6.4 8.8 2.3 7.2l4.1-1.6L8 1.5z" fill="currentColor"/><circle cx="13" cy="12.5" r="1.4" fill="currentColor"/></svg>'
+            : '<svg class="aipkit_nav-status_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 8h12.4M8 1.8c1.9 2 1.9 10.4 0 12.4M8 1.8c-1.9 2-1.9 10.4 0 12.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
     }
+
 }

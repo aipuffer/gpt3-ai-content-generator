@@ -1,17 +1,213 @@
 <?php
-/** Native content documents, itemized changes and sitemap discovery, shared by Free and Premium. */
+/** Native content definitions, documents, itemized changes and sitemap discovery, shared by Free and Premium. */
 namespace WPAICG\Mcp;
 
 if (!defined('ABSPATH')) { exit; }
 
 final class Content
 {
+    /** Native content definitions survive assistant disconnects and are registered on each normal WP request. */
     private const PREFIX = 'ai-puffer/gutenberg-';
     private const BLOCKS = ['paragraph', 'heading', 'group', 'columns', 'column', 'buttons', 'button', 'list', 'list-item', 'quote', 'image', 'separator', 'spacer'];
+    private const DEFINITIONS = 'aipkit_mcp_content_definitions';
+    private static $defined_types = [];
+    private static $defined_fields = [];
+
+    public static function register_definitions(): void
+    {
+        $model = get_option(self::DEFINITIONS, []);
+        foreach (($model['types'] ?? []) as $name => $definition) {
+            if (post_type_exists($name)) { continue; } // Never replace a type registered by another plugin.
+            $registered = register_post_type($name, [
+                'labels' => ['name' => $definition['plural'], 'singular_name' => $definition['singular'],
+                    /* translators: %s: singular custom post type name supplied by the site administrator. */
+                    'add_new' => sprintf(__('Add %s', 'gpt3-ai-content-generator'), $definition['singular']),
+                    /* translators: %s: singular custom post type name supplied by the site administrator. */
+                    'add_new_item' => sprintf(__('Add %s', 'gpt3-ai-content-generator'), $definition['singular']),
+                    /* translators: %s: singular custom post type name supplied by the site administrator. */
+                    'edit_item' => sprintf(__('Edit %s', 'gpt3-ai-content-generator'), $definition['singular']),
+                    /* translators: %s: singular custom post type name supplied by the site administrator. */
+                    'view_item' => sprintf(__('View %s', 'gpt3-ai-content-generator'), $definition['singular'])],
+                'public' => $definition['public'], 'show_ui' => true, 'show_in_rest' => true,
+                'rest_base' => $name, 'has_archive' => $definition['public'], 'hierarchical' => $definition['hierarchical'],
+                'rewrite' => ['slug' => $name], 'capability_type' => 'post', 'map_meta_cap' => true,
+                'supports' => ['title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions'],
+            ]);
+            if (!is_wp_error($registered)) { self::$defined_types[$name] = $registered; }
+        }
+        foreach (($model['fields'] ?? []) as $type => $fields) {
+            if (!post_type_exists($type) || !post_type_supports($type, 'custom-fields')) { continue; }
+            foreach ($fields as $key => $definition) {
+                $existing = get_registered_meta_keys('post', $type) + get_registered_meta_keys('post');
+                if (isset($existing[$key])) { continue; }
+                if (register_post_meta($type, $key, ['type' => $definition['type'], 'single' => true,
+                    'description' => $definition['description'], 'show_in_rest' => ['schema' => ['type' => $definition['type'], 'context' => ['edit']]],
+                    'auth_callback' => static function ($allowed, $meta_key, $post_id): bool { return current_user_can('edit_post', (int) $post_id); },
+                ])) { self::$defined_fields[$type][$key] = get_registered_meta_keys('post', $type)[$key]; }
+            }
+        }
+    }
+
+    /** A non-public type must not become public merely because it has a REST controller. */
+    public static function protect_private_types($result, $server, $request)
+    {
+        if (preg_match('#^/wp/v2/([a-z][a-z0-9_-]{0,19})(?:/|$)#D', $request->get_route(), $match) && self::owns_type($match[1])) {
+            $type = get_post_type_object($match[1]);
+            if (!$type->public && !current_user_can($type->cap->edit_posts)) {
+                return new \WP_Error('rest_forbidden', 'Editing permission is required for this non-public content type.', ['status' => rest_authorization_required_code()]);
+            }
+        }
+        return $result;
+    }
+
+    private static function owns_type(string $name): bool
+    {
+        return isset(self::$defined_types[$name]) && get_post_type_object($name) === self::$defined_types[$name];
+    }
+
+    private static function owns_field(string $type, string $key): bool
+    {
+        return isset(self::$defined_fields[$type][$key]) && (get_registered_meta_keys('post', $type)[$key] ?? null) === self::$defined_fields[$type][$key];
+    }
+
+    private static function register_definition_abilities(): void
+    {
+        $slug = ['type' => 'string', 'pattern' => '^[a-z][a-z0-9_-]{0,19}$', 'maxLength' => 20];
+        $definitions = [
+            'list-content-definitions' => [true, 'List custom post type and field definitions', [
+                'page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'default' => 1],
+                'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20],
+            ], []],
+            'register-content-type' => [false, 'Register a persistent custom post type', [
+                'post_type' => $slug,
+                'singular' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 80],
+                'plural' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 80],
+                'public' => ['type' => 'boolean', 'default' => true],
+                'hierarchical' => ['type' => 'boolean', 'default' => false],
+            ], ['post_type', 'singular', 'plural']],
+            'register-content-field' => [false, 'Register a typed custom field for a post type', [
+                'post_type' => $slug,
+                'key' => ['type' => 'string', 'pattern' => '^[a-z][a-z0-9_-]{0,63}$', 'maxLength' => 64],
+                'type' => ['type' => 'string', 'enum' => ['string', 'integer', 'number', 'boolean']],
+                'description' => ['type' => 'string', 'maxLength' => 300, 'default' => ''],
+            ], ['post_type', 'key', 'type']],
+        ];
+        foreach ($definitions as $action => [$read, $label, $properties, $required]) {
+            wp_register_ability('ai-puffer/' . $action, [
+                'label' => $label, 'category' => Abilities::CATEGORY,
+                'description' => $label . '. Custom post types and custom fields are native WordPress definitions saved by AI Puffer, available in Free and Premium. Administrator manage_options required. Standard previews writes; Trusted runs directly. Types include the normal editor and REST API. After registering, use a NEW read_rest_route/write_rest_route call at /wp/v2/POST_TYPE to create/edit items and their meta. Read field values using authenticated REST context=edit; they are omitted from public REST views. Theme code can display them deliberately. Scalar string/integer/number/boolean fields only. Does not replace existing plugin types/fields, change field types, delete definitions or erase content. Identical definitions are a free no-op. Definitions remain when assistants disconnect; deactivating AI Puffer hides its types until reactivated, without deleting posts.',
+                'input_schema' => ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false],
+                'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
+                'permission_callback' => static function (): bool { return current_user_can('manage_options'); },
+                'execute_callback' => static function ($input = []) use ($read) {
+                    if (!$read) { return new \WP_Error('managed_execution_required', 'Use the connected assistant run_ability tool.'); }
+                    return self::content_definitions((array) $input);
+                },
+            ]);
+        }
+    }
+
+    public static function content_definitions(array $input = [])
+    {
+        if (!current_user_can('manage_options')) { return new \WP_Error('permission_denied', 'Administrator permission is required.'); }
+        $model = get_option(self::DEFINITIONS, []);
+        $names = array_unique(array_merge(array_keys($model['types'] ?? []), array_keys($model['fields'] ?? [])));
+        sort($names);
+        $page = max(1, min(1000, (int) ($input['page'] ?? 1))); $per_page = max(1, min(50, (int) ($input['per_page'] ?? 20)));
+        $items = [];
+        foreach (array_slice($names, ($page - 1) * $per_page, $per_page) as $name) {
+            $type = get_post_type_object($name);
+            $items[] = ['post_type' => $name, 'definition' => $model['types'][$name] ?? null,
+                'registered' => isset($model['types'][$name]) ? self::owns_type($name) : (bool) $type,
+                'rest_route' => $type && $type->show_in_rest ? '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $name) : null,
+                'fields' => array_values($model['fields'][$name] ?? []),
+                'registered_fields' => array_values(array_filter(array_keys(self::$defined_fields[$name] ?? []), static function ($key) use ($name): bool { return self::owns_field($name, $key); }))];
+        }
+        return ['items' => $items, 'page' => $page, 'has_more' => count($names) > $page * $per_page];
+    }
+
+    public static function define_content(string $action, array $input, bool $preview): array
+    {
+        if (!current_user_can('manage_options')) { return Operations::error('permission_denied'); }
+        $type = $input['post_type'] ?? '';
+        $is_type = $action === 'register-content-type';
+        $allowed = $is_type ? ['post_type', 'singular', 'plural', 'public', 'hierarchical'] : ['post_type', 'key', 'type', 'description'];
+        if (!in_array($action, ['register-content-type', 'register-content-field'], true) || array_diff(array_keys($input), $allowed)
+            || !is_string($type) || !preg_match('/^[a-z][a-z0-9_-]{0,19}$/D', $type)) { return Operations::error('invalid_input'); }
+        $before = get_option(self::DEFINITIONS, []);
+        $after = $before;
+        if ($is_type) {
+            foreach (['singular', 'plural'] as $label) {
+                if (!is_string($input[$label] ?? null) || trim($input[$label]) === '' || mb_strlen($input[$label]) > 80 || sanitize_text_field($input[$label]) !== $input[$label]) { return Operations::error('invalid_input'); }
+            }
+            if (!is_bool($input['public'] ?? true) || !is_bool($input['hierarchical'] ?? false)) { return Operations::error('invalid_input'); }
+            $definition = ['post_type' => $type, 'singular' => $input['singular'], 'plural' => $input['plural'], 'public' => $input['public'] ?? true, 'hierarchical' => $input['hierarchical'] ?? false];
+            $existing = $before['types'][$type] ?? null;
+            if ($existing !== null && $existing !== $definition) { return Operations::error('definition_conflict', 'This type already has a different definition. Existing content is preserved.'); }
+            if ((post_type_exists($type) && !self::owns_type($type)) || strpos($type, 'wp_') === 0 || strpos($type, 'aipkit_') === 0
+                || in_array($type, $GLOBALS['wp']->public_query_vars, true) || taxonomy_exists($type) || !Guard::allows_rest('POST', '/wp/v2/' . $type)
+                || get_page_by_path($type) || isset(rest_get_server()->get_routes()['/wp/v2/' . $type])) {
+                // The REST route of our own already-loaded type is expected on an identical repeat.
+                if ($existing === null || !self::owns_type($type)) { return Operations::error('definition_conflict', 'That name is already used by WordPress, an existing page, taxonomy or plugin route.'); }
+            }
+            if ($existing === null) {
+                global $wpdb;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A deactivated plugin may leave content under an unregistered type; never adopt it implicitly.
+                $has_posts = $wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_type = %s LIMIT 1", $type));
+                if ($wpdb->last_error !== '') { return Operations::error('storage_unavailable'); }
+                if ($has_posts) { return Operations::error('definition_conflict', 'Existing posts already use that type name. Restore their original registration or choose a new name.'); }
+            }
+            if (count($before['types'] ?? []) >= 30 && $existing === null) { return Operations::error('definition_limit'); }
+            $after['types'][$type] = $definition;
+        } else {
+            $key = $input['key'] ?? '';
+            $post_type = get_post_type_object($type);
+            if (!$post_type || !$post_type->show_in_rest || !post_type_supports($type, 'custom-fields')) { return Operations::error('invalid_post_type', 'Choose an existing REST-enabled post type with custom-fields support.'); }
+            if (!is_string($key) || !preg_match('/^[a-z][a-z0-9_-]{0,63}$/D', $key) || strpos($key, 'wp_') === 0 || strpos($key, 'aipkit_') === 0
+                || !in_array($input['type'] ?? '', ['string', 'integer', 'number', 'boolean'], true)
+                || !is_string($input['description'] ?? '') || mb_strlen($input['description'] ?? '') > 300 || sanitize_text_field($input['description'] ?? '') !== ($input['description'] ?? '')) { return Operations::error('invalid_input'); }
+            $definition = ['post_type' => $type, 'key' => $key, 'type' => $input['type'], 'description' => $input['description'] ?? ''];
+            $existing = $before['fields'][$type][$key] ?? null;
+            if ($existing !== null && $existing !== $definition) { return Operations::error('definition_conflict', 'This field already has a different definition; values were not changed.'); }
+            $registered = get_registered_meta_keys('post', $type) + get_registered_meta_keys('post');
+            if (isset($registered[$key]) && !self::owns_field($type, $key)) { return Operations::error('definition_conflict', 'Another plugin already owns this field.'); }
+            if ($existing === null) {
+                global $wpdb;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Before exposing a new REST field, refuse pre-existing unregistered private values; names are prepared.
+                $has_values = $wpdb->get_var($wpdb->prepare("SELECT pm.meta_id FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.post_type = %s AND pm.meta_key = %s LIMIT 1", $type, $key));
+                if ($wpdb->last_error !== '') { return Operations::error('storage_unavailable'); }
+                if ($has_values) { return Operations::error('definition_conflict', 'This key already contains data. Choose a new key; registering must not unexpectedly expose existing values.'); }
+                if (count($before['fields'][$type] ?? []) >= 100) { return Operations::error('definition_limit'); }
+            }
+            $after['fields'][$type][$key] = $definition;
+        }
+        if ($after === $before) { $out = self::ok(['definition' => $definition, 'unchanged' => true]); $out['actions_used'] = 0; return $out; }
+        if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'publish',
+            'title' => $is_type ? 'Register custom post type' : 'Register custom field', 'name' => 'ai-puffer/' . $action,
+            'description' => 'Persistent native WordPress definition. Existing content and values are preserved. Field values are available in authenticated REST editing views; public REST views omit them.', 'input' => wp_json_encode($definition, JSON_PRETTY_PRINT)]]; }
+        Operations::$mutation_started = true;
+        try {
+            $saved = update_option(self::DEFINITIONS, $after, false);
+            wp_cache_delete(self::DEFINITIONS, 'options');
+            $actual = get_option(self::DEFINITIONS, []);
+            if (!$saved && $actual === $before) { Operations::$mutation_started = false; return Operations::error('storage_unavailable'); }
+            if ($actual !== $after) { throw new \RuntimeException('Definition readback failed.'); }
+            self::register_definitions();
+            if ($is_type) {
+                if (!self::owns_type($type)) { throw new \RuntimeException('Type did not register.'); }
+                flush_rewrite_rules(false); // Once after a real type creation, never on page loads or repeats.
+            } elseif (!self::owns_field($type, $key)) { throw new \RuntimeException('Field did not register.'); }
+            return self::ok(['definition' => $definition, 'rest_route' => $is_type ? '/wp/v2/' . $type : '/' . ($post_type->rest_namespace ?: 'wp/v2') . '/' . ($post_type->rest_base ?: $type), 'unchanged' => false]);
+        } catch (\Throwable $error) {
+            return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'definition_unconfirmed', 'message' => 'Definition storage or registration could not be confirmed. Read list-content-definitions before retrying; existing content was not removed.']];
+        }
+    }
+
 
     public static function register_abilities(): void
     {
         if (!function_exists('wp_register_ability')) { return; }
+        self::register_definition_abilities();
         self::register_changes();
         self::register_redirect_toggle();
         wp_register_ability('ai-puffer/inspect-page', [
@@ -116,6 +312,7 @@ final class Content
 
     public static function dispatch($result, string $name, $input, bool $preview)
     {
+        if (in_array($name, ['ai-puffer/register-content-type', 'ai-puffer/register-content-field'], true)) { return self::define_content(substr($name, strlen('ai-puffer/')), (array) $input, $preview); }
         if ($name === 'ai-puffer/redirection-set-enabled') { return self::toggle_redirect((array) $input, $preview); }
         if ($name === 'ai-puffer/content-apply-changes') { return self::changes((array) $input, false, $preview); }
         if (!in_array($name, [self::PREFIX . 'create-document', self::PREFIX . 'update-document'], true)) { return $result; }

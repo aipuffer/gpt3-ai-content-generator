@@ -3382,7 +3382,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         require_once WPAICG_PLUGIN_DIR . 'classes/knowledge-base/file-source-groups.php';
         $raw_table = $table_name;
         $file_group_key = \WPAICG\KnowledgeBase\FileSourceGroups::key_sql();
-        // Group before filtering and pagination so a file never spans multiple source pages.
+        // Select current post attempts before filtering, and keep each file upload together.
         $table_name = "(SELECT source.* FROM {$raw_table} source INNER JOIN (SELECT MAX(id) AS source_id FROM {$raw_table} GROUP BY {$file_group_key}) file_groups ON source.id = file_groups.source_id) sources";
 
         // Each status and kind is one condition, shared by the list filters and the summary counts.
@@ -3461,6 +3461,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
 
         // What it knows: counts by kind and status for this search, whatever the list shows.
         $summary = null;
+        $failure_revision = "";
         if ($include_summary) {
             $summary_kinds = ['all', 'site', 'text', 'file'];
             $summary_statuses = ['all' => '', 'ready' => 'indexed', 'adding' => 'processing', 'failed' => 'failed'];
@@ -3475,9 +3476,12 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
                     $column_params = array_merge($column_params, $kind_params, $status_params);
                 }
             }
+            // A notification revision, not source content: new/reconciled failures resurface after dismissal.
+            $columns[] = "BIT_XOR(CASE WHEN status = 'failed' THEN CRC32(CONCAT(id, ':', timestamp, ':', COALESCE(message, ''))) ELSE 0 END) AS failure_revision";
             $summary_where_sql = implode(' AND ', $where_clauses);
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table_name, columns and WHERE clause are internal and scalar values are prepared below.
             $counts = (array) $wpdb->get_row($wpdb->prepare('SELECT ' . implode(', ', $columns) . " FROM {$table_name} WHERE {$summary_where_sql}", ...array_merge($column_params, $params)), ARRAY_A);
+            $failure_revision = (string) ($counts['failure_revision'] ?? '0');
             $summary = [];
             $index = 0;
             foreach ($summary_kinds as $kind) {
@@ -3555,6 +3559,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
             ],
             'provider' => $provider_label,
             'summary' => $summary,
+            'failure_revision' => $failure_revision,
         ]);
     }
     // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized

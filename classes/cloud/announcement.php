@@ -10,6 +10,12 @@ final class Announcement
 {
     private const DISMISSED = 'aipkit_cloud_announcement_dismissed';
 
+    /** Whether this user closed the banner; the Dashboard then offers Cloud in one quiet line instead. */
+    public static function dismissed(): bool
+    {
+        return (bool) get_user_meta(get_current_user_id(), self::DISMISSED, true);
+    }
+
     public static function register(): void
     {
         add_action('wp_ajax_aipkit_dismiss_cloud_announcement', [self::class, 'dismiss']);
@@ -31,10 +37,10 @@ final class Announcement
         <div class="aipkit_notification_bar aipkit_notification_bar--promo" data-aipkit-cloud-announcement hidden>
             <span class="aipkit_notification_bar__icon" aria-hidden="true"><span class="dashicons dashicons-cloud"></span></span>
             <div class="aipkit_notification_bar__content">
-                <p><strong><?php esc_html_e('Try AI Puffer Cloud: 25 free credits every month.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('No API key needed.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong><?php esc_html_e('Free every month: 25 AI credits + 2,000 website actions.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('No API key needed.', 'gpt3-ai-content-generator'); ?></p>
                 <p data-cloud-announcement-feedback role="status" hidden></p>
             </div>
-            <a href="<?php echo esc_url($settings_url); ?>" class="aipkit_notification_bar__action is-primary" data-cloud-announcement-connect><?php esc_html_e('Claim free credits', 'gpt3-ai-content-generator'); ?></a>
+            <a href="<?php echo esc_url($settings_url); ?>" class="aipkit_notification_bar__action is-primary" data-cloud-announcement-connect><?php esc_html_e('Connect for free', 'gpt3-ai-content-generator'); ?></a>
             <button type="button" class="aipkit_notification_bar__close" data-cloud-announcement-dismiss aria-label="<?php esc_attr_e('Dismiss notice', 'gpt3-ai-content-generator'); ?>"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
         </div>
         <?php

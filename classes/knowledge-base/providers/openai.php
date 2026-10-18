@@ -237,6 +237,11 @@ function _request_logic(AIPKit_Vector_OpenAI_Strategy $strategyInstance, string 
             ? AIPKit_HTTP_Request::request($url, $request_args, true)
             : wp_remote_request($url, $request_args));
     if (is_wp_error($response)) {
+        if ($is_file_upload) {
+            return new WP_Error('openai_vector_upload_connection', __('The upload connection to OpenAI failed. Try learning this page again shortly. If it keeps failing, ask your host to check outgoing HTTPS connections to your configured OpenAI endpoint.', 'gpt3-ai-content-generator'), [
+                'provider' => 'OpenAI', 'operation' => 'file_upload', 'transport_error' => $response->get_error_code(),
+            ]);
+        }
         return $response;
     }
     $status_code = wp_remote_retrieve_response_code($response);
@@ -247,9 +252,41 @@ function _request_logic(AIPKit_Vector_OpenAI_Strategy $strategyInstance, string 
 
 
     if ($status_code >= 400) {
-        $error_msg = $strategyInstance->parse_error_response($decoded_response ?: $response_body, $status_code, 'OpenAI Vector Store');
+        // Gateway responses may be HTML or plain text. Do not replace them with a JSON decoder error,
+        // or expose raw gateway pages (which can contain request data) in the admin interface.
+        $error_data = [
+            'status_code' => $status_code, 'provider' => 'OpenAI',
+            'operation' => $is_file_upload ? 'file_upload' : 'vector_store',
+            'response_format' => is_wp_error($decoded_response) ? (strpos(ltrim($response_body), '<') === 0 ? 'html' : 'text') : ($response_body === '' ? 'empty' : 'json'),
+        ];
+        $detail = is_array($decoded_response) && $decoded_response
+            ? $strategyInstance->parse_error_response($decoded_response, $status_code, 'OpenAI Vector Store') : '';
+        if ($status_code >= 500) {
+            $error_msg = __('The OpenAI endpoint returned a server error. Try again shortly. If it repeats, send support this error and any reference shown.', 'gpt3-ai-content-generator');
+        } elseif ($status_code === 429) {
+            $error_msg = __('OpenAI refused the request because of a rate or quota limit. Check your OpenAI API usage and billing; if those are available, wait briefly and retry.', 'gpt3-ai-content-generator');
+        } elseif (in_array($status_code, [401, 403], true)) {
+            $error_msg = __('OpenAI denied access. Check the API key and its Files and Vector Stores permissions in Settings.', 'gpt3-ai-content-generator');
+        } elseif ($status_code === 413) {
+            $error_msg = __('The upload is too large for the OpenAI endpoint. Use a smaller source and try again.', 'gpt3-ai-content-generator');
+        } else {
+            $error_msg = __('The OpenAI endpoint rejected the request. Review the details below and check the source and provider settings before retrying.', 'gpt3-ai-content-generator');
+        }
+        if ($detail !== '') {
+            $error_msg .= ' ' . mb_substr(sanitize_text_field($detail), 0, 400);
+        }
+        foreach (['x-request-id' => 'request_id', 'cf-ray' => 'gateway_reference'] as $header => $key) {
+            $reference = (string) wp_remote_retrieve_header($response, $header);
+            if ($reference !== '' && preg_match('/^[A-Za-z0-9_.:-]{1,150}$/D', $reference)) {
+                $error_data[$key] = $reference;
+                /* translators: %s: provider request or gateway reference, for support. */
+                $error_msg .= ' ' . sprintf(__('Reference: %s.', 'gpt3-ai-content-generator'), $reference);
+            }
+        }
+        $retry_after = wp_remote_retrieve_header($response, 'retry-after');
+        if (is_numeric($retry_after)) { $error_data['retry_after'] = max(0, (int) $retry_after); }
         /* translators: %1$d: HTTP status code, %2$s: API error message. */
-        return new WP_Error('openai_vector_api_error', sprintf(__('OpenAI Vector API Error (%1$d): %2$s', 'gpt3-ai-content-generator'), $status_code, esc_html($error_msg)));
+        return new WP_Error('openai_vector_api_error', sprintf(__('OpenAI Vector API Error (%1$d): %2$s', 'gpt3-ai-content-generator'), $status_code, $error_msg), $error_data);
     }
 
     if (is_wp_error($decoded_response)) {

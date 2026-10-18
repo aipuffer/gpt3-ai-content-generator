@@ -4903,10 +4903,6 @@
   margin: 0;
 }
 
-#aipkit_autogpt_container .aipkit_ci_card_help {
-  font-size: 11px;
-}
-
 #aipkit_autogpt_container
   .aipkit_autogpt_progressive_builder
   .aipkit_cw_output_action_btn {
@@ -5172,22 +5168,6 @@
 #aipkit_autogpt_container
   .aipkit_autogpt_progressive_builder
   :is(
-    .aipkit_autogpt_section_intro h3,
-    .aipkit_ce_filter_card_title,
-    .aipkit_ci_card_title,
-    .aipkit_cw_source_mode_title,
-    .aipkit_cw_inspector_card_title,
-    .aipkit_cw_prompt_editor_title
-  ) {
-  font-size: var(--aipkit-autogpt-type-section);
-  font-weight: 650;
-  line-height: 1.35;
-  letter-spacing: -0.005em;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is(
     .aipkit_ci_option_title,
     .aipkit_post_schedule_radio_text,
     .aipkit_seo_settings_label,
@@ -5220,23 +5200,6 @@
   font-size: var(--aipkit-autogpt-type-label);
   font-weight: 600;
   line-height: 1.4;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is(
-    .aipkit_ce_queue_toggle_desc,
-    .aipkit_ci_card_desc,
-    .aipkit_ci_card_help,
-    .aipkit_ci_option_desc,
-    .aipkit_ci_option_help,
-    .aipkit_cw_source_mode_desc,
-    .aipkit_popover_option_helper,
-    .aipkit_post_schedule_hint,
-    .aipkit_csv_dropzone_secondary) {
-  font-size: var(--aipkit-autogpt-type-helper);
-  font-weight: 400;
-  line-height: 1.5;
 }
 
 @media (max-width: 782px) {
@@ -6888,22 +6851,6 @@
 #aipkit_autogpt_container
   .aipkit_autogpt_progressive_builder
   :is(
-    .aipkit_ce_filter_card_title,
-    .aipkit_ci_card_title,
-    .aipkit_autogpt_section_intro h3,
-    .aipkit_post_smart_schedule_header .aipkit_cw_panel_label
-  ) {
-  margin: 0;
-  color: var(--aipkit-step-ink);
-  font-size: 12.5px;
-  font-weight: 650;
-  line-height: 1.35;
-  letter-spacing: 0;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is(
     .aipkit_ce_filter_card_header,
     .aipkit_ci_card_header) {
   margin: 0 0 7px;
@@ -6922,21 +6869,6 @@
   font-size: 11.5px;
   font-weight: 600;
   line-height: 1.35;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is(
-    .aipkit_ce_queue_toggle_desc,
-    .aipkit_ci_card_desc,
-    .aipkit_ci_card_help,
-    .aipkit_ci_option_desc,
-    .aipkit_ci_option_help,
-    .aipkit_post_schedule_hint,
-    .aipkit_csv_dropzone_secondary) {
-  color: var(--aipkit-step-muted);
-  font-size: 11.5px;
-  line-height: 1.4;
 }
 
 /* Manual topics */
@@ -7119,12 +7051,6 @@
   margin-top: 14px;
   padding-top: 13px;
   border-top: 1px solid var(--aipkit-step-line);
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is( .aipkit_ci_option_toggle) {
-  gap: 9px;
 }
 
 #aipkit_autogpt_container
@@ -8103,13 +8029,6 @@ body.aipkit-instructions-modal-open {
   :is(
     .aipkit_ci_option_card) {
   min-height: 44px;
-}
-
-#aipkit_autogpt_container
-  .aipkit_autogpt_progressive_builder
-  :is( .aipkit_ci_option_toggle) {
-  min-height: 44px;
-  align-items: center;
 }
 
 #aipkit_autogpt_container

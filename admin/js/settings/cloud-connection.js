@@ -240,7 +240,7 @@ export function applyCloudConnectionResponse(response, action, root = null) {
 }
 
 /** Handles Cloud connection in Settings and account actions in Usage. */
-/** One shared balance read for all mounted surfaces; no polling or inference-credit coupling. */
+/** One shared balance read for the Dashboard's website actions; no polling or inference-credit coupling. */
 export async function refreshWebsiteActions(root = document, force = false) {
     const hosts = [...root.querySelectorAll('[data-aipkit-website-usage]')];
     if (!hosts.length) return;
@@ -250,26 +250,21 @@ export async function refreshWebsiteActions(root = document, force = false) {
     if (state.request) return state.request;
     const nonce = hosts[0].querySelector('[data-website-usage-nonce]')?.value;
     if (!nonce || typeof window.aipkit_apiRequest !== 'function') return;
-    document.querySelectorAll('[data-website-usage-refresh]').forEach(button => { button.disabled = true; });
     state.request = (async () => {
         try {
-            const response = await window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: nonce, mcp_action: 'usage' });
+            const response = await window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: nonce, mcp_action: 'usage' }, { isCurrent: () => generation === cloudConnectionRevision() });
             if (generation !== cloudConnectionRevision()) return;
-            if (typeof response.enabled !== 'boolean' || typeof response.card !== 'string' || typeof response.panel !== 'string') throw new Error('invalid_usage');
-            const fragments = {};
-            for (const surface of ['usage', 'panel']) {
-                const template = document.createElement('template');
-                template.innerHTML = response[surface === 'usage' ? 'card' : 'panel'];
-                const node = template.content.querySelector(`[data-aipkit-website-usage="${surface}"]`);
-                if (!node || node.dataset.mcpEnabled !== (response.enabled ? '1' : '0')) throw new Error('invalid_usage');
-                fragments[surface] = node;
-            }
-            document.querySelectorAll('[data-aipkit-website-usage]').forEach(host => {
-                const focused = host.contains(document.activeElement);
-                const next = fragments[host.dataset.aipkitWebsiteUsage]?.cloneNode(true);
-                if (!next) return;
+            if (typeof response.enabled !== 'boolean' || typeof response.card !== 'string') throw new Error('invalid_usage');
+            // The Dashboard's website actions are the one place this balance shows.
+            const template = document.createElement('template');
+            template.innerHTML = response.card;
+            const fragment = template.content.querySelector('[data-aipkit-website-usage="usage"]');
+            if (!fragment || fragment.dataset.mcpEnabled !== (response.enabled ? '1' : '0')) throw new Error('invalid_usage');
+            document.querySelectorAll('[data-aipkit-website-usage="usage"]').forEach(host => {
+                const focused = host.contains(document.activeElement) && document.activeElement?.matches('[data-aipkit-cloud-open]');
+                const next = fragment.cloneNode(true);
                 host.replaceWith(next);
-                if (focused && response.enabled) next.querySelector('[data-website-usage-refresh]')?.focus({ preventScroll: true });
+                if (focused && !next.hidden) next.querySelector('[data-aipkit-cloud-open]')?.focus({ preventScroll: true });
             });
             state.checkedAt = Date.now(); state.generation = generation;
             window.dispatchEvent(new CustomEvent('aipkit:website-usage-changed'));
@@ -279,7 +274,6 @@ export async function refreshWebsiteActions(root = document, force = false) {
                 label.textContent = __('Could not update website actions. Try Refresh.', 'gpt3-ai-content-generator');
             });
         } finally {
-            document.querySelectorAll('[data-website-usage-refresh]').forEach(button => { button.disabled = false; });
             state.request = null;
             if (generation !== cloudConnectionRevision()) void refreshWebsiteActions(document, true);
         }
@@ -290,9 +284,6 @@ export async function refreshWebsiteActions(root = document, force = false) {
 function bindWebsiteActions() {
     if (window.aipkitWebsiteUsageBound) return;
     window.aipkitWebsiteUsageBound = true;
-    document.addEventListener('click', event => {
-        if (event.target.closest('[data-website-usage-refresh]')) void refreshWebsiteActions(document, true);
-    });
     window.addEventListener('aipkit:cloud-connection-changed', event => {
         if (event.detail?.action === 'balance' && event.detail?.connected) { void refreshWebsiteActions(); return; }
         // Read-only refreshes keep the last known card visible, like AI credits.
@@ -302,9 +293,6 @@ function bindWebsiteActions() {
             document.querySelectorAll('[data-aipkit-website-usage]').forEach(host => { host.hidden = true; });
         }
         void refreshWebsiteActions(document, true);
-    });
-    window.addEventListener('aipkit:provider-modal-opened', event => {
-        void refreshWebsiteActions(event.detail.modal);
     });
 }
 

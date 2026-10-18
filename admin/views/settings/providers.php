@@ -468,7 +468,7 @@ if (class_exists(Connection::class) && Connection::allowed()) {
         'slug' => 'aipuffercloud', 'display_name' => __('AI Puffer Cloud', 'gpt3-ai-content-generator'),
         'icon' => '', 'accent' => '#f28c28', 'credential_key' => 'api_key',
         'credential_name' => '', 'credential_type' => 'account',
-        'tagline' => __('No API key needed. 25 free credits every month.', 'gpt3-ai-content-generator'),
+        'tagline' => __('25 AI credits + 2,000 website actions free monthly.', 'gpt3-ai-content-generator'),
         'fields' => [$aipkit_build_model_field('AIPufferCloud', 'aipuffercloud')],
     ]] + $aipkit_provider_configs;
 }

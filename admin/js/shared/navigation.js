@@ -80,13 +80,13 @@ document.addEventListener("DOMContentLoaded", function () {
     })();
 
     const modulePriority = [
+      "stats",
       "chatbot",
       "content-writer",
       "autogpt",
       "ai-forms",
       "image-generator",
       "sources",
-      "stats",
       "settings",
     ];
     const allLinks = Array.from(
@@ -193,12 +193,3 @@ function applyNavStatus(html) {
 }
 
 window.aipkit_applyNavStatus = applyNavStatus;
-
-document.addEventListener("click", (event) => {
-  const trigger = event.target.closest("[data-aipkit-nav-connect]");
-  if (!trigger || typeof window.aipkit_openProviderConnection !== "function") {
-    return;
-  }
-  event.preventDefault();
-  window.aipkit_openProviderConnection(trigger);
-});

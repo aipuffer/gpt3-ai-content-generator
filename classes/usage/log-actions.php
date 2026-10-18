@@ -697,7 +697,7 @@ class AIPKit_Log_Ajax_Handler extends AIPKit_Usage_Ajax_Handler
             $filters['search'] = $search;
         }
 
-        // Usage activity views: conversations, content & tasks (optionally one group) or errors.
+        // Usage activity views: conversations, content (optionally one group) or errors.
         $view = isset($post_data['view']) ? sanitize_key($post_data['view']) : '';
         if ($view === 'conversations' || $view === 'tasks') {
             $filters['log_scope'] = $view;

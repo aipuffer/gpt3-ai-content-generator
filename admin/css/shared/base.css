@@ -500,61 +500,21 @@ html {
   color: var(--aipkit-ui-ink);
 }
 
-.aipkit_nav-status_icon {
-  flex-shrink: 0;
-  color: var(--aipkit-ui-accent);
+/* After "Dashboard": balances as an icon and a short number, account steps as a word. */
+.aipkit_nav-status_sep { width: 1px; height: 14px; background: var(--aipkit-ui-line); }
+.aipkit_nav-status_balance { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.aipkit_nav-status_icon { width: 14px; height: 14px; flex: none; color: #8a94a6; }
+.aipkit_nav-status_detail { color: #5f6b7a; font-weight: 500; }
+.aipkit_nav-status_detail--warning,
+.aipkit_nav-status_balance--warning,
+.aipkit_nav-status_balance--warning .aipkit_nav-status_icon { color: #8a5300; }
+.aipkit_nav-status_detail--warning { font-weight: 600; }
+.aipkit_nav-status_dot { width: 7px; height: 7px; border-radius: 50%; background: #b56b00; }
+/* Narrow: AI credits and any account step stay; website actions leave, and the dot still marks a warning. */
+@container aipkit-dashboard-shell (max-width: 782px) {
+  .aipkit_nav-status_balance--actions { display: none; }
 }
 
-.aipkit_nav-status_text {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.aipkit_nav-status_meter {
-  display: block;
-  width: 92px;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 4px;
-  background: var(--aipkit-ui-line);
-}
-
-.aipkit_nav-status_meter > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--aipkit-ui-accent);
-}
-
-.aipkit_nav-status_chip--low,
-.aipkit_nav-status_chip--low:visited,
-.aipkit_nav-status_chip--low:hover {
-  border-color: #f3d29a;
-  background: #fff7e8;
-  color: #8a5300;
-}
-
-.aipkit_nav-status_chip--empty,
-.aipkit_nav-status_chip--empty:visited,
-.aipkit_nav-status_chip--empty:hover {
-  border-color: #f5c2c0;
-  background: #fdecec;
-  color: #a32a24;
-}
-
-.aipkit_nav-status_chip--low .aipkit_nav-status_icon,
-.aipkit_nav-status_chip--empty .aipkit_nav-status_icon {
-  color: currentColor;
-}
-
-.aipkit_nav-status_chip--connect,
-.aipkit_nav-status_chip--connect:hover {
-  border: 1.5px solid var(--aipkit-ui-accent);
-  background: var(--aipkit-ui-surface);
-  color: var(--aipkit-ui-accent-ink);
-  font-weight: 700;
-}
 
 .aipkit_upgrade_btn,
 .aipkit_upgrade_btn:visited {
@@ -712,8 +672,7 @@ html {
 }
 
 @container aipkit-dashboard-shell (max-width: 1150px) {
-  .aipkit_module-tabs_actions > .aipkit_module-tab--utility,
-  .aipkit_nav-status_meter {
+  .aipkit_module-tabs_actions > .aipkit_module-tab--utility {
     display: none;
   }
 

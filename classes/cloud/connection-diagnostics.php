@@ -10,7 +10,7 @@ final class ConnectionDiagnostics
     public const CONSENT = Connection::CONSENT_VERSION;
     private static $report = null;
     private static $started = 0.0;
-    private const CODES = ['api_blocked', 'sdk_unavailable', 'installation_missing', 'http_request_failed', 'http_request_not_executed', 'http_request_rejected', 'connect_timeout', 'invalid_json', 'installation_inactive', 'site_mismatch', 'account_unavailable', 'identity_verification_unavailable', 'connection_unavailable', 'consent_required', 'cloud_storage_unavailable', 'cloud_storage_unreadable'];
+    private const CODES = ['api_blocked', 'sdk_unavailable', 'installation_missing', 'http_request_failed', 'http_request_not_executed', 'http_request_rejected', 'connect_timeout', 'invalid_json', 'installation_inactive', 'site_mismatch', 'account_unavailable', 'identity_verification_unavailable', 'connection_unavailable', 'consent_required', 'cloud_storage_unavailable', 'cloud_encryption_unavailable', 'cloud_encryption_failed', 'cloud_storage_save_failed', 'cloud_storage_unreadable'];
 
     /** The observer exists only while the administrator's Connect action runs. */
     public static function run(callable $work, string $source): string

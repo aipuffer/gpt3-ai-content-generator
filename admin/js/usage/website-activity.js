@@ -15,11 +15,58 @@ export function createWebsiteActivity(deps) {
     const { container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, getSearch } = deps;
     const list = container.querySelector('#aipkit_usage_website_list');
     const more = container.querySelector('#aipkit_usage_website_more');
+    const breakdown = container.querySelector('[data-website-breakdown]');
+    const breakdownContent = breakdown?.querySelector('[data-website-breakdown-content]');
+    const breakdownTotal = breakdown?.querySelector('[data-website-breakdown-total]');
+    let breakdownSequence = 0;
     const state = { filter: '', page: 1, sequence: 0, counts: null, connected: true, rows: new Map(), selected: '', loaded: false };
 
     if (!list) {
         return null;
     }
+
+    const loadBreakdown = async () => {
+        if (!breakdownContent) return;
+        const sequence = ++breakdownSequence;
+        breakdownContent.setAttribute('aria-busy', 'true');
+        breakdownTotal.textContent = '—';
+        breakdownContent.textContent = __('Loading website actions…', 'gpt3-ai-content-generator');
+        try {
+            const data = await window.aipkit_apiRequest('aipkit_mcp_activity', { view: 'breakdown', days: deps.getDays() });
+            if (sequence !== breakdownSequence) return;
+            breakdown.hidden = !data.connected && !data.total;
+            breakdownTotal.textContent = sprintf(_n('%s action', '%s actions', data.total, 'gpt3-ai-content-generator'), formatNumber(data.total));
+            // Allocate rounded shares together so the displayed percentages add up to 100.
+            const shares = data.categories.map((item) => item.actions / data.total * 100);
+            const percentages = shares.map(Math.floor);
+            shares.map((share, index) => ({ index, fraction: share - percentages[index] }))
+                .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
+                .slice(0, 100 - percentages.reduce((sum, value) => sum + value, 0))
+                .forEach(({ index }) => percentages[index]++);
+            // One stacked bar for what the actions were for, largest first, and a legend with each count. Each part's
+            // share is in its hover text; more kinds add legend items, never rows.
+            const tone = (index) => Math.min(index, 4);
+            const parts = data.categories.map((item, index) => {
+                const share = `${escapeHtml(item.label)}: ${escapeHtml(formatNumber(item.actions))} · ${escapeHtml(formatNumber(percentages[index]))}%`;
+                return `<span class="aipkit_usage_stack_part" data-tone="${tone(index)}" style="width:${shares[index]}%" title="${share}"></span>`;
+            }).join('');
+            const legend = data.categories.map((item, index) => `<li><span class="aipkit_usage_stack_swatch" data-tone="${tone(index)}" aria-hidden="true"></span>${escapeHtml(item.label)} <b>${escapeHtml(formatNumber(item.actions))}</b></li>`).join('');
+            breakdownContent.innerHTML = data.total > 0
+                ? `<div class="aipkit_usage_stack" aria-hidden="true">${parts}</div><ul class="aipkit_usage_stack_legend">${legend}</ul>`
+                : escapeHtml(__('No website actions on this site in this period.', 'gpt3-ai-content-generator'));
+        } catch (error) {
+            if (sequence !== breakdownSequence) return;
+            breakdown.hidden = false;
+            breakdownContent.textContent = __('Website action history is unavailable. Try Refresh.', 'gpt3-ai-content-generator');
+        } finally {
+            if (sequence === breakdownSequence) {
+                breakdown.removeAttribute('data-website-breakdown-pending');
+                breakdownContent.removeAttribute('aria-busy');
+                // The breakdown is one of the balance cards: the row re-counts its cards when it shows or hides.
+                deps.onBreakdown?.();
+            }
+        }
+    };
 
     const pill = (item) => `<span class="aipkit_usage_pill ${TONES[item.pill?.tone] ?? ''}">${escapeHtml(item.pill?.label || '')}</span>`;
 
@@ -263,22 +310,32 @@ export function createWebsiteActivity(deps) {
     return {
         load,
         prefetchCounts,
+        loadBreakdown,
         /** The Website sub-filters, for the Usage page's sub-chip row. */
         subchips: () => ({
             key: 'website',
             current: state.filter,
             label: __('Filter website activity', 'gpt3-ai-content-generator'),
-            items: state.counts && state.counts.all > 0 || state.filter ? [
+            // A filter with nothing in it has no chip; All and the open filter always stay.
+            items: [
                 { value: '', label: __('All', 'gpt3-ai-content-generator'), count: state.counts?.all },
                 { value: 'changes', label: __('Changes', 'gpt3-ai-content-generator'), count: state.counts?.changes },
                 { value: 'reads', label: __('Reads', 'gpt3-ai-content-generator'), count: state.counts?.reads },
                 { value: 'attention', label: __('Needs you', 'gpt3-ai-content-generator'), count: state.counts?.attention },
-            ] : [],
+            ].filter((item) => item.value === '' || item.value === state.filter || item.count == null || Number(item.count) > 0),
         }),
         setFilter: (value) => {
             state.filter = ['changes', 'reads', 'attention'].includes(value) ? value : '';
         },
         count: () => (state.counts ? state.counts.all : null),
+        /** Everything: one period of website actions to merge with conversations and content, newest first. */
+        everything: (page, perPage, days) => window.aipkit_apiRequest('aipkit_mcp_activity', { search: getSearch(), page, per_page: perPage, days }),
+        /** Everything renders website rows with the same markup and opens them in the same drawer. */
+        renderRow: (item) => {
+            state.rows.set(item.id, item);
+            return row(item);
+        },
+        openDetail,
         clearActive: () => {
             state.selected = '';
             markActive();

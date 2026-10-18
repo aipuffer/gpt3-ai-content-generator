@@ -78,7 +78,7 @@ class AIPKit_Stats
     private const DEFAULT_MAX_BYTES_FOR_STATS = 64000000; // ~64 MB
     private const DEFAULT_MAX_ROWS_FOR_STATS  = 5000;       // cap rows to scan
     public const TOP_N_MODULES_FOR_CHART = 4; // Number of top modules to display individually in the chart
-    /** Usage "Content & tasks" sub-filters; modules outside these lists count as Other. */
+    /** Usage "Content" sub-filters; modules outside these lists count as Other. */
     public const TASK_GROUPS = [
         'content_writer' => ['content_writer'],
         'automations' => ['content_writer_automation', 'autogpt'],

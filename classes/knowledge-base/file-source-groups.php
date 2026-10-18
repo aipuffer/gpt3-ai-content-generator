@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-/** File upload batches are sources; their embedding chunks are implementation details. */
+/** Current website attempts and file uploads, grouped before filtering or pagination. */
 class FileSourceGroups
 {
     public static function is_file_chunk(array $log): bool
@@ -16,10 +16,10 @@ class FileSourceGroups
             && strpos((string) ($log['message'] ?? ''), 'File chunk embedded (chunk ') === 0;
     }
 
-    /** SQL expression shared by source counts and pagination. Never groups by filename alone. */
+    /** One latest attempt per post/store; file chunks stay scoped to their upload batch. */
     public static function key_sql(): string
     {
-        return "CASE WHEN COALESCE(batch_id, '') <> '' AND provider IN ('Local','Pinecone','Qdrant','Chroma') AND LEFT(message, 26) = 'File chunk embedded (chunk ' THEN CONCAT('file:', HEX(provider), ':', HEX(vector_store_id), ':', HEX(post_title), ':', HEX(batch_id)) ELSE CONCAT('row:', id) END";
+        return "CASE WHEN COALESCE(post_id, 0) > 0 THEN CONCAT('post:', HEX(provider), ':', HEX(vector_store_id), ':', post_id) WHEN COALESCE(batch_id, '') <> '' AND provider IN ('Local','Pinecone','Qdrant','Chroma') AND LEFT(message, 26) = 'File chunk embedded (chunk ' THEN CONCAT('file:', HEX(provider), ':', HEX(vector_store_id), ':', HEX(post_title), ':', HEX(batch_id)) ELSE CONCAT('row:', id) END";
     }
 
     /** All members of an upload, scoped by provider, store, batch and filename. */

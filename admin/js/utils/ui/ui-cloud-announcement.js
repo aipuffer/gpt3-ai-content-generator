@@ -41,6 +41,8 @@
         await window.aipkit_apiRequest("aipkit_dismiss_cloud_announcement");
         dismissed = true;
         updateVisibility();
+        // The Dashboard's quiet Cloud line takes over once the banner is gone.
+        window.dispatchEvent(new CustomEvent("aipkit:cloud-announcement-dismissed"));
       } catch (error) {
         feedback.textContent = error.message;
         feedback.hidden = false;

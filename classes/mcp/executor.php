@@ -43,6 +43,11 @@ final class Executor
 
     public static function dispatch(string $raw, callable $header): array
     {
+        // A diagnostic can only return a one-time challenge proof, never execute an operation.
+        if (strlen($raw) <= 128) {
+            $probe = json_decode($raw, true);
+            if (is_array($probe) && array_keys($probe) === ['readiness']) { return Settings::readiness_response($probe['readiness'], $header); }
+        }
         $out = ['state' => 'unknown', 'actions_used' => 0];
         $status = 503;
         $signature = '';

@@ -1731,7 +1731,6 @@ class AIPKit_WP_AI_Client_Gateway_Model implements ModelInterface, TextGeneratio
             'image_count' => $requested_image_count,
             'total_units' => $requested_image_count,
         ];
-        $estimated_fallback_units = $requested_image_count * AIPKit_Image_Manager::TOKENS_PER_IMAGE;
         $this->enforce_connector_approval();
 
         $manager = new AIPKit_Image_Manager();

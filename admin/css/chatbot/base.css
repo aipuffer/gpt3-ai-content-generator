@@ -16565,6 +16565,7 @@ body.aipkit-sources-training-modal-open {
 
 #aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_strip[hidden],
 #aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_strip_action[hidden],
+#aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_failure_review[hidden],
 #aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_training_source_empty_action[hidden] {
   display: none;
 }
@@ -16582,6 +16583,7 @@ body.aipkit-sources-training-modal-open {
   min-width: 0;
 }
 
+#aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_failure_review,
 #aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_strip_action {
   flex: 0 0 auto;
   margin: 0;
@@ -16595,6 +16597,13 @@ body.aipkit-sources-training-modal-open {
   text-underline-offset: 3px;
   white-space: nowrap;
   cursor: pointer;
+}
+
+#aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_failure_review {
+  margin-top: 12px;
+  color: var(--aipkit-ui-ink-soft);
+  font-size: 13px;
+  white-space: normal;
 }
 
 #aipkit_chatbot_settings_panel #aipkit_sources_training_card .aipkit_knowledge_strip[data-tone="ready"] {

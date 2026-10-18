@@ -48,12 +48,6 @@ $aipkit_settings_modules = array(
         'icon'        => 'format-image',
         'data_module' => 'image-generator',
     ),
-    'stats_viewer' => array(
-        'label'       => __('Usage', 'gpt3-ai-content-generator'),
-        'description' => __('Costs and limits.', 'gpt3-ai-content-generator'),
-        'icon'        => 'chart-bar',
-        'data_module' => 'stats',
-    ),
 );
 
 $aipkit_module_options = get_option('aipkit_options', array());
@@ -205,24 +199,24 @@ $aipkit_menu_modules = array_filter($aipkit_settings_modules, static fn($module)
         </div>
     </section>
 
-    <?php // Visitor billing adds to the Usage page, not the menu, so it has its own group, last. ?>
-    <?php if ($can_manage_modules && isset($aipkit_menu_modules['stats_viewer'])) : ?>
+    <?php // Visitor billing adds to the Dashboard, not the menu, so it has its own group, last. ?>
+    <?php if ($can_manage_modules) : ?>
         <section class="aipkit_settings_part aipkit_settings_modules_section" aria-labelledby="aipkit_settings_modules_usage_title">
             <h4 class="aipkit_settings_modules_section_title" id="aipkit_settings_modules_usage_title">
-                <?php esc_html_e('In Usage', 'gpt3-ai-content-generator'); ?>
+                <?php esc_html_e('In Dashboard', 'gpt3-ai-content-generator'); ?>
             </h4>
-            <p class="aipkit_settings_modules_section_hint"><?php esc_html_e('Extras on the Usage page.', 'gpt3-ai-content-generator'); ?></p>
+            <p class="aipkit_settings_modules_section_hint"><?php esc_html_e('Extras on the Dashboard.', 'gpt3-ai-content-generator'); ?></p>
             <div class="aipkit_settings_modules_list">
                 <div class="aipkit_form-group aipkit_settings_simple_row aipkit_settings_module_row" data-aipkit-settings-autosave-exclude="true">
                     <div class="aipkit_settings_module_identity">
                         <span class="aipkit_settings_module_icon dashicons dashicons-groups" aria-hidden="true"></span>
                         <label class="aipkit_form-label aipkit_settings_module_copy" for="aipkit_settings_visitor_billing_toggle">
                             <span class="aipkit_settings_module_title"><?php esc_html_e('Visitor billing', 'gpt3-ai-content-generator'); ?></span>
-                            <span class="aipkit_form-label-helper"><?php esc_html_e('Sell credits to visitors. Turning it on also turns on Usage; turning it off doesn’t stop existing sales.', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit_form-label-helper"><?php esc_html_e('Sell credits to visitors. Turning it off doesn’t stop existing sales.', 'gpt3-ai-content-generator'); ?></span>
                         </label>
                     </div>
                     <label class="aipkit_switch aipkit_settings_module_control" for="aipkit_settings_visitor_billing_toggle">
-                        <input type="checkbox" id="aipkit_settings_visitor_billing_toggle" class="aipkit_settings_visitor_billing_toggle" aria-label="<?php esc_attr_e('Show visitor billing controls in Usage', 'gpt3-ai-content-generator'); ?>" <?php checked($aipkit_visitor_billing_enabled); ?> />
+                        <input type="checkbox" id="aipkit_settings_visitor_billing_toggle" class="aipkit_settings_visitor_billing_toggle" aria-label="<?php esc_attr_e('Show visitor billing controls in Dashboard', 'gpt3-ai-content-generator'); ?>" <?php checked($aipkit_visitor_billing_enabled); ?> />
                         <span class="aipkit_switch_slider" aria-hidden="true"></span>
                     </label>
                 </div>

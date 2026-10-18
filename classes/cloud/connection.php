@@ -54,8 +54,8 @@ final class Connection
     /** Server-only encrypted custody, excluded from normal settings exports. */
     public static function state(?array $value = null): array
     {
-        if (!function_exists('openssl_encrypt')) {
-            throw new RuntimeException('cloud_storage_unavailable');
+        if (!function_exists('openssl_encrypt') || !function_exists('openssl_decrypt')) {
+            throw new RuntimeException('cloud_encryption_unavailable');
         }
         $key = hash('sha256', wp_salt('auth'), true);
         $aad = 'aipuffer-cloud-connection-v1:' . untrailingslashit(home_url());
@@ -79,12 +79,12 @@ final class Connection
             $tag = '';
             $cipher = openssl_encrypt(wp_json_encode($value), 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag, $aad);
             if ($cipher === false) {
-                throw new RuntimeException('cloud_storage_unavailable');
+                throw new RuntimeException('cloud_encryption_failed');
             }
             $encoded = base64_encode($iv . $tag . $cipher);
             update_option(self::OPTION, $encoded, false);
             if (get_option(self::OPTION) !== $encoded) {
-                throw new RuntimeException('cloud_storage_unavailable');
+                throw new RuntimeException('cloud_storage_save_failed');
             }
             self::$state_cache_key = hash('sha256', serialize([$encoded, $key, $aad]));
             self::$state_cache = $value;
@@ -138,11 +138,11 @@ final class Connection
             $iv = random_bytes(12);
             $tag = '';
             $cipher = openssl_encrypt(wp_json_encode($value), 'aes-256-gcm', hash('sha256', wp_salt('auth'), true), OPENSSL_RAW_DATA, $iv, $tag, 'aipuffer-cloud-connection-v1:' . untrailingslashit(home_url()));
-            if ($cipher === false) { throw new RuntimeException('cloud_storage_unavailable'); }
+            if ($cipher === false) { throw new RuntimeException('cloud_encryption_failed'); }
             $encoded = base64_encode($iv . $tag . $cipher);
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Compare-and-swap requires current ciphertext; WordPress owns the table, values are prepared and option caches are invalidated after writes.
             $changed = $wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND BINARY option_value = BINARY %s", $encoded, self::OPTION, $stored));
-            if ($changed === false) { throw new RuntimeException('cloud_storage_unavailable'); }
+            if ($changed === false) { throw new RuntimeException('cloud_storage_save_failed'); }
             if ($changed === 1) {
                 wp_cache_delete(self::OPTION, 'options');
                 wp_cache_delete('alloptions', 'options');
@@ -544,6 +544,38 @@ final class Connection
         return $units !== null && $units <= 0;
     }
 
+    /** Start the SDK ownership workflow without scraping its Account page notices. */
+    public static function request_email_ownership(): void
+    {
+        if (!AIPKit_Role_Manager::user_can_manage_settings()) { wp_send_json_error(['code' => 'forbidden'], 403); }
+        // This nonce comes from the SDK's rejected email update, under its change_owner action.
+        check_ajax_referer('change_owner', 'security');
+        $email = isset($_POST['email_address']) && is_string($_POST['email_address']) ? sanitize_text_field(wp_unslash($_POST['email_address'])) : '';
+        $type = isset($_POST['transfer_type']) && is_string($_POST['transfer_type']) ? sanitize_key(wp_unslash($_POST['transfer_type'])) : '';
+        if (!is_email($email) || !in_array($type, ['merge', 'transfer', 'transfer_to_client'], true)) {
+            wp_send_json_error(['code' => 'invalid_request'], 400);
+        }
+        $fs = wpaicg_gacg_fs();
+        $user = $fs->get_user();
+        $site = $fs->get_site();
+        // AI Puffer has no SDK add-ons. Do not silently omit their installs if that changes.
+        if (!$fs->is_registered() || $fs->has_addons() || !is_object($user) || !is_object($site)
+            || empty($user->id) || empty($site->id) || (string) $site->user_id !== (string) $user->id) {
+            wp_send_json_error(['code' => 'account_unavailable'], 409);
+        }
+        // Same API and arguments as Freemius::init_change_owner; Freemius retains both approval gates.
+        $result = $fs->get_api_site_scope()->call('/users/' . (int) $user->id . '.json', 'put', [
+            'email' => $email,
+            'transfer_type' => $type,
+            'install_ids' => (string) $site->id,
+            'after_confirm_url' => $fs->get_account_url('change_owner', [], false),
+        ]);
+        if (is_wp_error($result) || !is_object($result) || \FS_Api::is_api_error($result)) {
+            wp_send_json_error(['code' => 'ownership_request_unconfirmed'], 502);
+        }
+        wp_send_json_success(['status' => 'confirmation_requested']);
+    }
+
     public static function account_url(): string
     {
         return admin_url('admin.php?page=wpaicg&aipkit_module=stats&aipkit_stats_tab=cloud');
@@ -564,7 +596,12 @@ final class Connection
         if ($page === '' || $page !== wpaicg_gacg_fs()->get_menu_slug() . '-account') { return; }
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing only; no state changes here.
         $action = sanitize_key(wp_unslash($_GET['fs_action'] ?? ''));
-        wp_safe_redirect(add_query_arg('aipkit_email_return', in_array($action, ['sync_user', 'verify_email'], true) ? '1' : '0', self::account_url()));
+        $setup = class_exists(\WPAICG\Admin\Onboarding::class) ? \WPAICG\Admin\Onboarding::state() : [];
+        if (($setup['status'] ?? '') === 'pending' && !empty($setup['goals']) && in_array($action, ['sync_user', 'verify_email'], true)) {
+            wp_safe_redirect(\WPAICG\Admin\Onboarding::url() . '#connect');
+        } else {
+            wp_safe_redirect(add_query_arg('aipkit_email_return', in_array($action, ['sync_user', 'verify_email'], true) ? '1' : '0', self::account_url()));
+        }
         exit;
     }
 
@@ -664,6 +701,19 @@ final class Connection
         $display = self::display();
         $button = $onboarding ? 'aipkit-setup__btn' : 'aipkit_btn aipkit_btn-primary';
         $cancel = $onboarding ? 'aipkit-setup__btn aipkit-setup__btn--ghost' : 'aipkit_btn';
+        $email_links = static function () use ($display, $onboarding, $panel): string {
+            $change = $onboarding && $panel ? __('Change', 'gpt3-ai-content-generator') : ($panel ? __('Change email', 'gpt3-ai-content-generator') : __('Edit', 'gpt3-ai-content-generator'));
+            return sprintf(
+                '<button type="button" class="%1$s" data-action="edit-email" aria-expanded="false"%2$s%3$s>%4$s</button><a data-cloud-manage-email href="%5$s" target="_blank" rel="noopener noreferrer"%6$s>%7$s</a>',
+                esc_attr($onboarding ? 'aipkit-setup__link' : 'button-link'),
+                $onboarding && $panel ? ' aria-label="' . esc_attr__('Change email', 'gpt3-ai-content-generator') . '"' : '',
+                !$display['email_update'] ? ' hidden' : '',
+                esc_html($change),
+                esc_url($display['manage_email_url']),
+                $display['email_update'] || !$display['manage_email_url'] ? ' hidden' : '',
+                esc_html__('Manage email', 'gpt3-ai-content-generator')
+            );
+        };
         ob_start();
         ?>
         <div class="aipkit_cloud_account_controls" data-cloud-account-controls data-aipkit-settings-autosave-exclude="true" <?php echo !$display['registered'] ? 'hidden' : ''; ?>>
@@ -674,16 +724,20 @@ final class Connection
                         <?php if ($onboarding || !$display['connected']) : ?>
                             <span class="aipkit_cloud_account_caption" <?php echo $display['connected'] ? 'hidden' : ''; ?>><?php esc_html_e('Connect as', 'gpt3-ai-content-generator'); ?></span>
                         <?php endif; ?>
-                        <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
+                        <?php if ($onboarding) : ?>
+                            <?php // Setup keeps Continue as the row's only strong action: Change sits quietly after the email. ?>
+                            <span class="aipkit_cloud_account_email_line"><span data-cloud-email><?php echo esc_html($display['email']); ?></span><?php echo $email_links(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the closure. ?></span>
+                        <?php else : ?>
+                            <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
+                        <?php endif; ?>
                         <?php if ($onboarding || ($display['connected'] && $display['email_verified'] === true)) : ?>
-                            <span class="aipkit_cloud_account_verified" <?php echo !$display['connected'] || $display['email_verified'] !== true ? 'hidden' : ''; ?>><?php esc_html_e('Email verified', 'gpt3-ai-content-generator'); ?></span>
+                            <span class="aipkit_cloud_account_verified" <?php echo !$display['connected'] || $display['email_verified'] !== true ? 'hidden' : ''; ?>><?php echo esc_html($onboarding ? __('Connected · Email verified', 'gpt3-ai-content-generator') : __('Email verified', 'gpt3-ai-content-generator')); ?></span>
                         <?php endif; ?>
                     </span>
                 <?php else : ?>
                     <span data-cloud-email><?php echo esc_html($display['email']); ?></span>
                 <?php endif; ?>
-                <button type="button" class="<?php echo $onboarding ? 'aipkit-setup__link' : 'button-link'; ?>" data-action="edit-email" aria-expanded="false" <?php echo !$display['email_update'] ? 'hidden' : ''; ?>><?php echo esc_html($panel ? __('Change email', 'gpt3-ai-content-generator') : __('Edit', 'gpt3-ai-content-generator')); ?></button>
-                <a data-cloud-manage-email href="<?php echo esc_url($display['manage_email_url']); ?>" target="_blank" rel="noopener noreferrer" <?php echo $display['email_update'] || !$display['manage_email_url'] ? 'hidden' : ''; ?>><?php esc_html_e('Manage email', 'gpt3-ai-content-generator'); ?></a>
+                <?php if (!($onboarding && $panel)) { echo $email_links(); } // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in the closure. ?>
                 <?php if ($onboarding) : ?>
                     <button type="button" class="aipkit-setup__link" data-action="disconnect-cloud" <?php echo !$display['connected'] ? 'hidden' : ''; ?>><?php esc_html_e('Disconnect', 'gpt3-ai-content-generator'); ?></button>
                 <?php elseif ($display['connected'] && !$panel) : ?>
@@ -716,10 +770,10 @@ final class Connection
                     <legend><?php printf(
                         /* translators: 1: current email; 2: new email. */
                         esc_html__('Would you like to merge %1$s into %2$s?', 'gpt3-ai-content-generator'),
-                        '<strong>' . esc_html($display['email']) . '</strong>',
+                        '<strong data-current-email>' . esc_html($display['email']) . '</strong>',
                         '<strong data-new-email></strong>'
                     ); ?></legend>
-                    <label><input type="radio" name="email_transfer" value="all"><span><?php esc_html_e('Yes - move all my data and assets from', 'gpt3-ai-content-generator'); ?> <strong><?php echo esc_html($display['email']); ?></strong> <?php esc_html_e('to', 'gpt3-ai-content-generator'); ?> <strong data-new-email></strong></span></label>
+                    <label><input type="radio" name="email_transfer" value="all"><span><?php esc_html_e('Yes - move all my data and assets from', 'gpt3-ai-content-generator'); ?> <strong data-current-email><?php echo esc_html($display['email']); ?></strong> <?php esc_html_e('to', 'gpt3-ai-content-generator'); ?> <strong data-new-email></strong></span></label>
                     <label><input type="radio" name="email_transfer" value="plugin"><span><?php esc_html_e('No - only move this site’s data to', 'gpt3-ai-content-generator'); ?> <strong data-new-email></strong></span></label>
                 </fieldset>
                 <p><?php esc_html_e('Cloud credits stay with their original account. If this site moves to another account, you will need to reconnect Cloud.', 'gpt3-ai-content-generator'); ?></p>
@@ -732,18 +786,11 @@ final class Connection
             <p class="aipkit_cloud_email_message" data-email-message role="status" hidden></p>
             <p class="aipkit_cloud_email_message" data-cloud-account-change role="status" <?php echo self::account_change_message() === '' ? 'hidden' : ''; ?>><?php echo esc_html(self::account_change_message()); ?></p>
         </div>
-        <?php // The panel's model sync and its footer Disconnect submit this form; setup keeps its own Disconnect in the account row. ?>
-        <?php if ($panel && !$onboarding && $display['connected']) : ?>
-            <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_panel_disconnect" id="aipkit_cloud_account_form" hidden>
-                <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
-                <input type="hidden" name="action" value="aipkit_cloud_connection">
-            </form>
-        <?php endif; ?>
         <?php
         return (string) ob_get_clean();
     }
 
-    /** Shared verification controls for Settings, Usage and setup. */
+    /** Shared verification controls for Settings and Usage. */
     public static function email_recovery_html(): string
     {
         $display = self::display();
@@ -758,9 +805,9 @@ final class Connection
             <form method="post" action="<?php echo esc_url(admin_url('admin-ajax.php')); ?>" class="aipkit_cloud_footer">
                 <?php wp_nonce_field('aipkit_cloud_connection', '_wpnonce', false); ?>
                 <input type="hidden" name="action" value="aipkit_cloud_connection">
-                <button type="submit" class="aipkit_btn aipkit_cloud_btn aipkit-setup__btn aipkit-setup__btn--ghost" name="cloud_action" value="verify"><?php esc_html_e('I’ve verified my email', 'gpt3-ai-content-generator'); ?></button>
+                <button type="submit" class="aipkit_btn aipkit_cloud_btn" name="cloud_action" value="verify"><?php esc_html_e('I’ve verified my email', 'gpt3-ai-content-generator'); ?></button>
                 <?php if ($display['resend_email_url'] !== '') : ?>
-                    <button type="button" class="aipkit_btn aipkit_cloud_btn aipkit-setup__btn aipkit-setup__btn--ghost" data-cloud-resend data-url="<?php echo esc_url($display['resend_email_url']); ?>"><?php esc_html_e('Resend email', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
+                    <button type="button" class="aipkit_btn aipkit_cloud_btn" data-cloud-resend data-url="<?php echo esc_url($display['resend_email_url']); ?>"><?php esc_html_e('Resend email', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
                 <?php endif; ?>
             </form>
             <p data-cloud-resend-status role="status" aria-live="polite" hidden></p>
@@ -795,7 +842,19 @@ final class Connection
             'busy' => __('Another connection action is in progress. Please wait before trying again.', 'gpt3-ai-content-generator'),
             'forbidden' => __('You cannot manage this Cloud connection.', 'gpt3-ai-content-generator'),
         ];
-        $message = $messages[$status] ?? self::verification_message($status);
+        $messages += [
+            'api_blocked' => __('The account service rejected the connection request. Try again. If it continues, ask your host to check outgoing HTTPS access to wp.freemius.com and api.freemius.com, or contact AI Puffer support with the reference below.', 'gpt3-ai-content-generator'),
+            'cloud_encryption_unavailable' => __('This website cannot securely store its Cloud connection. Ask your host to enable PHP OpenSSL encryption and decryption, then try connecting again.', 'gpt3-ai-content-generator'),
+            'cloud_encryption_failed' => __('This website could not encrypt its Cloud connection. Try again. If it continues, ask your host to check PHP OpenSSL and AES-256-GCM support.', 'gpt3-ai-content-generator'),
+            'cloud_storage_save_failed' => __('This website could not save its Cloud connection in the WordPress database. Try again. If it continues, ask your host to check database writes and persistent object caching.', 'gpt3-ai-content-generator'),
+            'cloud_storage_unavailable' => __('This website could not securely store its Cloud connection. Try again. If it continues, ask your host to check PHP OpenSSL and WordPress database writes.', 'gpt3-ai-content-generator'),
+            'cloud_storage_unreadable' => __('The saved Cloud connection could not be read. Use the reconnect option to connect again. If it continues, contact AI Puffer support.', 'gpt3-ai-content-generator'),
+        ];
+        // Connect returns a broad outcome; retain the safe, specific cause captured for this attempt.
+        $report = ConnectionDiagnostics::report();
+        $cause = in_array($status, ['unavailable', 'freemius_failed'], true) && ($report['outcome'] ?? '') === 'failed'
+            ? ($report['code'] ?? $status) : $status;
+        $message = $messages[$cause] ?? ($messages[$status] ?? self::verification_message($status));
         if ($status === 'freemius_failed' && ConnectionDiagnostics::playground_failure()) {
             $message = __('Cloud connection is currently unavailable in this WordPress preview. Install AI Puffer on your site to claim your free credits.', 'gpt3-ai-content-generator');
         }
@@ -808,10 +867,18 @@ final class Connection
         ob_start(); ?>
         <details class="description">
             <summary><?php esc_html_e('What information do we collect?', 'gpt3-ai-content-generator'); ?></summary>
+            <p class="aipkit_privacy_group"><?php esc_html_e('For your account:', 'gpt3-ai-content-generator'); ?></p>
+            <ul class="aipkit_privacy_list">
+                <li><?php esc_html_e('Your name, email address and site URL', 'gpt3-ai-content-generator'); ?></li>
+            </ul>
             <?php if ($diagnostics) : ?>
-                <p><?php esc_html_e('When you connect to AI Puffer Cloud, we collect non-sensitive diagnostic data to help fix setup problems and improve the plugin. This includes connection results, error codes, response times, and your AI Puffer, WordPress and PHP versions. Reports are kept for 30 days.', 'gpt3-ai-content-generator'); ?></p>
+                <p class="aipkit_privacy_group"><?php esc_html_e('To fix setup problems:', 'gpt3-ai-content-generator'); ?></p>
+                <ul class="aipkit_privacy_list">
+                    <li><?php esc_html_e('Connection results and error codes', 'gpt3-ai-content-generator'); ?></li>
+                    <li><?php esc_html_e('Response times', 'gpt3-ai-content-generator'); ?></li>
+                    <li><?php esc_html_e('Your AI Puffer, WordPress and PHP versions', 'gpt3-ai-content-generator'); ?></li>
+                </ul>
             <?php endif; ?>
-            <p><?php esc_html_e('To create and manage your account, AI Puffer uses Freemius for registration, email verification and licensing. This sends your name, email address and site URL. General usage tracking stays off, and marketing emails are optional.', 'gpt3-ai-content-generator'); ?></p>
             <p><a href="https://freemius.com/terms/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Freemius terms', 'gpt3-ai-content-generator'); ?></a> · <a href="https://freemius.com/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Freemius privacy policy', 'gpt3-ai-content-generator'); ?></a></p>
         </details>
         <?php return ob_get_clean();
@@ -1064,6 +1131,14 @@ final class Connection
                     ConnectionDiagnostics::error('marketing_preference_unconfirmed');
                     return 'freemius_failed';
                 }
+                // This choice belongs to registration only. A later Cloud retry must not overwrite
+                // a preference the user subsequently changed in Freemius.
+                unset($registration['marketing']);
+                update_option(self::REGISTRATION, $registration, false);
+                if (get_option(self::REGISTRATION) !== $registration) {
+                    ConnectionDiagnostics::error('marketing_preference_unconfirmed');
+                    return 'freemius_failed';
+                }
             } catch (\Throwable $error) { ConnectionDiagnostics::error('marketing_preference_unconfirmed'); return 'freemius_failed'; }
         }
         if ($registered) {
@@ -1269,6 +1344,8 @@ final class Connection
         include dirname(__DIR__, 2) . '/admin/views/settings/providers.php';
         $account_html = ob_get_clean();
         ob_start();
+        // Home's account line and its AI credits card are replaced together.
+        include dirname(__DIR__, 2) . '/admin/views/usage/cloud-account-line.php';
         include dirname(__DIR__, 2) . '/admin/views/usage/cloud-account.php';
         $usage_html = ob_get_clean();
         ob_start();

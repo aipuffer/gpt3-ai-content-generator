@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) { exit; }
                 <span class="aipkit_connect_choice_icon"><img src="<?php echo esc_url($aipkit_icon_url); ?>" alt="" width="24" height="24"></span>
                 <span class="aipkit_connect_choice_text">
                     <span class="aipkit_connect_choice_name"><?php echo esc_html($aipkit_config['display_name']); ?><?php if ($aipkit_is_cloud) : ?><span class="aipkit_connect_badge"><?php esc_html_e('Free', 'gpt3-ai-content-generator'); ?></span><?php endif; ?></span>
-                    <?php if ($aipkit_is_cloud) : ?><small><?php esc_html_e('No API key needed. Free monthly credits.', 'gpt3-ai-content-generator'); ?></small><?php endif; ?>
+                    <?php if ($aipkit_is_cloud) : ?><small><?php echo esc_html($aipkit_config['tagline']); ?></small><?php endif; ?>
                     <span class="aipkit_connect_connected" data-connect-connected hidden><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><?php esc_html_e('Connected', 'gpt3-ai-content-generator'); ?></span>
                 </span>
                 <svg class="aipkit_connect_chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>

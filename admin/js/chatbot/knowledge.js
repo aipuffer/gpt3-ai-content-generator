@@ -233,7 +233,19 @@ export function createChatbotTrainingStatus({
   const trainingStopButton = builder.querySelector(
     "[data-aipkit-stop-training]"
   );
-  let inventorySummary = { text: "", total: 0 };
+  let inventorySummary = { text: "", total: 0, failed: 0, revision: "" };
+  let inventoryContext = "";
+  const dismissedFailures = new Map();
+  const dismissalKey = () => `aipkit-knowledge-dismissed:${typeof location === "undefined" ? "" : location.pathname}:${knowledgeStrip?.dataset.userId || ""}:${inventoryContext}`;
+  const failureToken = () => `${inventorySummary.failed}:${inventorySummary.revision}`;
+  const isFailureDismissed = () => {
+    const key = dismissalKey();
+    try {
+      return (dismissedFailures.get(key) || window.localStorage.getItem(key)) === failureToken();
+    } catch (_) {
+      return dismissedFailures.get(key) === failureToken();
+    }
+  };
   let durableTrainingStatusKey = "";
   let trainingStatusSnapshot = {
     count: 0,
@@ -284,6 +296,8 @@ export function createChatbotTrainingStatus({
     if (!knowledgeStrip || !knowledgeStripText) {
       return;
     }
+    if ((durableTrainingStatusKey === "" || durableTrainingStatusKey === "checking") &&
+        (!knowledgeStrip.hidden || inventorySummary.total > 0 || inventorySummary.failed > 0)) return;
     const knowledgeStripAction = knowledgeStrip.querySelector("[data-aipkit-knowledge-strip-action]");
     if (knowledgeStripAction && !knowledgeStripAction.dataset.bound) {
       knowledgeStripAction.dataset.bound = "1";
@@ -293,7 +307,25 @@ export function createChatbotTrainingStatus({
       });
     }
     const queue = trainingStatusSnapshot.queue || {};
-    const failed = Math.max(Number(queue.failed || 0), inventorySummary.failed || 0);
+    // Queue rows are attempt history. Only current source results describe unresolved failures.
+    const failed = inventorySummary.failed || 0;
+    const dismiss = knowledgeStrip.querySelector("[data-aipkit-knowledge-dismiss]");
+    const review = builder.querySelector("[data-aipkit-knowledge-failure-review]");
+    if (dismiss && !dismiss.dataset.bound) {
+      dismiss.dataset.bound = "1";
+      dismiss.addEventListener("click", () => {
+        const key = dismissalKey();
+        dismissedFailures.set(key, failureToken());
+        try { window.localStorage.setItem(key, failureToken()); } catch (_) { /* Still dismiss in this page. */ }
+        renderKnowledgeStrip();
+      });
+    }
+    if (review && !review.dataset.bound) {
+      review.dataset.bound = "1";
+      review.addEventListener("click", () => openSources({ status: "failed" }));
+    }
+    if (dismiss) dismiss.hidden = true;
+    if (review) review.hidden = true;
     const waiting = Number(queue.pending || 0) + Number(queue.processing || 0);
     const hasSources = Number(inventorySummary.total) > 0;
     const noKnowledge = __("No knowledge yet. It answers from the AI model only.", "gpt3-ai-content-generator");
@@ -303,10 +335,6 @@ export function createChatbotTrainingStatus({
     switch (durableTrainingStatusKey) {
       case "":
       case "checking":
-        // Refreshes check every few seconds; keep the last sentence instead of flickering.
-        if (!knowledgeStrip.hidden) {
-          return;
-        }
         text = __("Checking knowledge...", "gpt3-ai-content-generator");
         break;
       case "training":
@@ -316,22 +344,18 @@ export function createChatbotTrainingStatus({
           : __("Adding knowledge...", "gpt3-ai-content-generator");
         action = trainingStopButton ? "stop" : "";
         break;
+      case "failed":
       case "trained":
         if (failed > 0) {
           tone = "warn";
           text = _n("%d item couldn't be added.", "%d items couldn't be added.", failed, "gpt3-ai-content-generator").replace("%d", String(failed));
           action = "review";
         } else {
-          tone = "ready";
-          text = inventorySummary.text
+          tone = hasSources ? "ready" : "neutral";
+          text = !hasSources ? noKnowledge : inventorySummary.text
             ? __("Ready. It answers from %s.", "gpt3-ai-content-generator").replace("%s", inventorySummary.text)
             : __("Ready.", "gpt3-ai-content-generator");
         }
-        break;
-      case "failed":
-        tone = "warn";
-        text = __("Your sources couldn't be added.", "gpt3-ai-content-generator");
-        action = "review";
         break;
       case "off":
         if (hasSources) {
@@ -354,7 +378,15 @@ export function createChatbotTrainingStatus({
       default:
         break;
     }
-    knowledgeStrip.hidden = false;
+    const failureNotice = action === "review" && failed > 0;
+    const dismissed = failureNotice && isFailureDismissed();
+    if (dismiss) dismiss.hidden = !failureNotice;
+    if (review) {
+      review.hidden = !dismissed;
+      /* translators: %d: number of sources whose latest learning attempt failed. */
+      review.textContent = __("Review failed sources (%d)", "gpt3-ai-content-generator").replace("%d", String(failed));
+    }
+    knowledgeStrip.hidden = dismissed;
     knowledgeStrip.dataset.tone = tone;
     knowledgeStripText.textContent = text;
     if (knowledgeStripAction) {
@@ -365,7 +397,7 @@ export function createChatbotTrainingStatus({
     }
   };
   const setInventorySummary = (summary = {}) => {
-    inventorySummary = { text: String(summary.text || ""), total: Number(summary.total || 0), failed: Number(summary.failed || 0) };
+    inventorySummary = { text: String(summary.text || ""), total: Number(summary.total || 0), failed: Number(summary.failed || 0), revision: String(summary.revision || "") };
     renderKnowledgeStrip();
   };
   const closeTrainingStateMenu = () => {
@@ -609,6 +641,12 @@ export function createChatbotTrainingStatus({
     getSnapshot: () => trainingStatusSnapshot,
     getStatusKey: () => durableTrainingStatusKey,
     setInventorySummary, openSources,
+    setInventoryContext: (context) => {
+      if (inventoryContext !== context) {
+        inventoryContext = context;
+        setInventorySummary();
+      }
+    },
   };
 }
 
@@ -783,7 +821,8 @@ export function bindChatbotSourceInventory({
 
   const renderManagedTrainingSources = (
     logs = [],
-    capabilityState = getChatbotCapabilityState()
+    capabilityState = getChatbotCapabilityState(),
+    failureSummary = null
   ) => {
     if (!trainingManagedSources || !trainingSourceEmpty) {
       return;
@@ -888,7 +927,8 @@ export function bindChatbotSourceInventory({
         )
         : summaries[0],
       total: managedTrainingSourceCount,
-      failed: Object.values(groups).reduce((sum, group) => sum + group.failed, 0),
+      failed: failureSummary?.count ?? Object.values(groups).reduce((sum, group) => sum + group.failed, 0),
+      revision: failureSummary?.revision || "",
     });
 
     trainingManagedSources.innerHTML = items
@@ -960,6 +1000,9 @@ export function bindChatbotSourceInventory({
       renderManagedTrainingSources([], capabilityState);
       return;
     }
+    // Draft overrides are optional on reload. The server revision already identifies the
+    // current failures in the selected stores; keep the browser key stable for this bot.
+    trainingPresentation.setInventoryContext?.(String(payload.bot_id));
     const queue = trainingPresentation.getSnapshot()?.queue || {};
     const signature = JSON.stringify({
       bot: payload.bot_id || 0,
@@ -992,6 +1035,7 @@ export function bindChatbotSourceInventory({
     payload.per_page = 50;
     payload.include_total = "0";
     payload.include_inactive = "1";
+    payload.include_summary = "1";
     try {
       const firstPage = await window.aipkit_apiRequest(
         "aipkit_get_chatbot_training_sources",
@@ -1005,7 +1049,7 @@ export function bindChatbotSourceInventory({
       for (let page = 2; page <= 20 && hasMore; page += 1) {
         const nextPage = await window.aipkit_apiRequest(
           "aipkit_get_chatbot_training_sources",
-          { ...payload, page }
+          { ...payload, page, include_summary: "0" }
         );
         if (!isTrainingRefreshCurrent(generation, payload.bot_id)) {
           return;
@@ -1016,7 +1060,9 @@ export function bindChatbotSourceInventory({
         hasMore = Boolean(nextPage.pagination?.has_more);
       }
       managedTrainingSourcesSignature = signature;
-      renderManagedTrainingSources(logs, capabilityState);
+      renderManagedTrainingSources(logs, capabilityState, firstPage.summary ? {
+        count: Number(firstPage.summary.all?.failed || 0), revision: firstPage.failure_revision,
+      } : null);
     } catch (error) {
       if (!isTrainingRefreshCurrent(generation, payload.bot_id)) {
         return;

@@ -113,7 +113,7 @@ class OpenAIPostProcessor extends AIPKit_Vector_Post_Processor_Base
             'source_type_for_log' => 'wordpress_post'
         ];
 
-        $return_error = function (string $error_msg, ?string $file_id = null, ?string $batch_id = null) use ($log_entry_base): array {
+        $return_error = function (string $error_msg, ?string $file_id = null, ?string $batch_id = null) use (&$log_entry_base): array {
             $failure_log = array_merge($log_entry_base, [
                 'status' => 'failed',
                 'message' => $error_msg,

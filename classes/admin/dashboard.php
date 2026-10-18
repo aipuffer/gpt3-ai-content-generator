@@ -121,6 +121,8 @@ if (!class_exists('\\WPAICG\\aipkit_dashboard')) {
             } else {
                 $merged = array_merge(self::$default_module_settings, $opts['module_settings']);
                 $final_settings = array_intersect_key($merged, self::$default_module_settings);
+                // Dashboard is core; repair saved settings from versions that allowed disabling it.
+                $final_settings['stats_viewer'] = true;
                 self::$module_settings = $final_settings;
                 if ($final_settings !== $opts['module_settings']) {
                     $opts['module_settings'] = $final_settings;
@@ -270,6 +272,11 @@ if (!class_exists('\\WPAICG\\aipkit_dashboard')) {
                 return;
             }
 
+            if ($moduleKey === 'stats_viewer') {
+                wp_send_json_error(['message' => __('Dashboard is always available.', 'gpt3-ai-content-generator')], 400);
+                return;
+            }
+
             $isEnabled = ($enabled === '1');
             self::$module_settings[$moduleKey] = $isEnabled;
 
@@ -282,10 +289,6 @@ if (!class_exists('\\WPAICG\\aipkit_dashboard')) {
 
             $opts['module_settings'] = self::$module_settings;
             update_option('aipkit_options', $opts, 'no');
-
-            if ($moduleKey === 'stats_viewer' && !$isEnabled) {
-                update_option('aipkit_visitor_billing_enabled', 'no', false);
-            }
 
             wp_send_json_success(['message' => 'Module setting updated.']);
         }

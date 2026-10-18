@@ -1029,7 +1029,6 @@ class AIPKit_Providers
         // Data from DB is a valid array. Proceed with normal initialization/pruning.
         $providers_from_db = $opts['providers'];
         $final_providers = [];
-        $changed = false;
 
         // Loop through the master list of defaults to ensure structure is always correct.
         foreach ($provider_defaults as $provider_name => $defaults) {

@@ -84,6 +84,7 @@ class AIPKit_Hook_Manager
             wpaicg_gacg_fs()->add_action('after_account_user_sync', [\WPAICG\Cloud\Connection::class, 'sync_verified_account']);
             wpaicg_gacg_fs()->add_action('after_account_delete', [\WPAICG\Cloud\Connection::class, 'forget_connection']);
             wpaicg_gacg_fs()->add_action('after_uninstall', [\WPAICG\Cloud\Connection::class, 'uninstall']);
+            add_action('wp_ajax_aipkit_cloud_email_ownership', [\WPAICG\Cloud\Connection::class, 'request_email_ownership']);
             add_action('wp_ajax_aipkit_cloud_connection', [\WPAICG\Cloud\Connection::class, 'handle']);
             if (is_admin()) {
                 add_action('admin_init', [\WPAICG\Cloud\Connection::class, 'remove_scheduled_sync']);

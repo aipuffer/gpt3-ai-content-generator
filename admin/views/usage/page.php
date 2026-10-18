@@ -29,18 +29,20 @@ $module_labels = [
     'wp_ai_client' => __('WP AI Client', 'gpt3-ai-content-generator'),
     'unknown' => __('Unknown', 'gpt3-ai-content-generator'),
 ];
+// Each period: its menu label, and the short form the cards show beside their titles.
 $period_options = [
-    1 => __('Today', 'gpt3-ai-content-generator'),
-    7 => __('7 days', 'gpt3-ai-content-generator'),
-    30 => __('30 days', 'gpt3-ai-content-generator'),
-    90 => __('90 days', 'gpt3-ai-content-generator'),
+    1 => [__('Today', 'gpt3-ai-content-generator'), __('Today', 'gpt3-ai-content-generator')],
+    7 => [__('Last 7 days', 'gpt3-ai-content-generator'), __('7 days', 'gpt3-ai-content-generator')],
+    30 => [__('Last 30 days', 'gpt3-ai-content-generator'), __('30 days', 'gpt3-ai-content-generator')],
+    90 => [__('Last 90 days', 'gpt3-ai-content-generator'), __('90 days', 'gpt3-ai-content-generator')],
 ];
 // Website activity: what ChatGPT and Claude read and changed here (website management, AI Puffer Cloud).
 $website_activity = $cloud_allowed && class_exists('\\WPAICG\\Mcp\\Activity');
+$website_connected = $cloud_allowed && \WPAICG\Mcp\Identity::active();
 $activity_views = [
     'everything' => __('Everything', 'gpt3-ai-content-generator'),
     'conversations' => __('Conversations', 'gpt3-ai-content-generator'),
-    'tasks' => __('Content & tasks', 'gpt3-ai-content-generator'),
+    'tasks' => __('Content', 'gpt3-ai-content-generator'),
     'website' => __('Website', 'gpt3-ai-content-generator'),
     'requests' => __('AI requests', 'gpt3-ai-content-generator'),
     'errors' => __('Errors', 'gpt3-ai-content-generator'),
@@ -59,7 +61,7 @@ $activity_views = [
     <div class="aipkit_usage_header">
         <div class="aipkit_usage_header_copy">
             <div class="aipkit_stats_header_title_row">
-                <h1 class="aipkit_container-title"><?php esc_html_e('Usage', 'gpt3-ai-content-generator'); ?></h1>
+                <h1 class="aipkit_container-title"><?php esc_html_e('Dashboard', 'gpt3-ai-content-generator'); ?></h1>
                 <span id="aipkit_stats_status" class="aipkit_training_status aipkit_global_status_area" aria-live="polite"></span>
             </div>
             <p class="aipkit_stats_header_hint"><?php echo $cloud_connected
@@ -67,11 +69,22 @@ $activity_views = [
                 : esc_html__('What happened on this site.', 'gpt3-ai-content-generator'); ?></p>
         </div>
         <div class="aipkit_usage_header_actions">
-            <div class="aipkit_usage_period" role="group" aria-label="<?php esc_attr_e('Period', 'gpt3-ai-content-generator'); ?>">
-                <?php foreach ($period_options as $period_days => $period_label) : ?>
-                    <button type="button" class="aipkit_usage_period_option" data-aipkit-usage-days="<?php echo esc_attr($period_days); ?>" aria-pressed="<?php echo $period_days === $stats_default_days ? 'true' : 'false'; ?>"><?php echo esc_html($period_label); ?></button>
-                <?php endforeach; ?>
+            <?php // The period as one button with a menu: it sets "Used on this site", the summary and Activity. ?>
+            <div class="aipkit_usage_period" data-aipkit-usage-period>
+                <button type="button" class="aipkit_usage_period_toggle" data-aipkit-usage-period-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="aipkit_usage_period_menu">
+                    <span class="screen-reader-text"><?php esc_html_e('Period:', 'gpt3-ai-content-generator'); ?> </span>
+                    <span class="dashicons dashicons-calendar-alt" aria-hidden="true"></span>
+                    <span data-aipkit-usage-period-current><?php echo esc_html($period_options[$stats_default_days][0]); ?></span>
+                    <span class="aipkit_usage_period_caret" aria-hidden="true"></span>
+                </button>
+                <div class="aipkit_usage_period_menu" id="aipkit_usage_period_menu" role="menu" aria-label="<?php esc_attr_e('Period', 'gpt3-ai-content-generator'); ?>" hidden>
+                    <?php foreach ($period_options as $period_days => $period_label) : ?>
+                        <button type="button" class="aipkit_usage_period_option" role="menuitemradio" tabindex="-1" data-aipkit-usage-days="<?php echo esc_attr($period_days); ?>" data-short-label="<?php echo esc_attr($period_label[1]); ?>" aria-checked="<?php echo $period_days === $stats_default_days ? 'true' : 'false'; ?>"><?php echo esc_html($period_label[0]); ?></button>
+                    <?php endforeach; ?>
+                </div>
             </div>
+            <?php // One refresh for every balance: it submits the AI credits card's refresh form (Cloud then refreshes website actions) and reloads the actions used. ?>
+            <button type="submit" class="aipkit_usage_icon_btn aipkit_usage_refresh" form="aipkit_usage_cloud_refresh" name="cloud_action" value="refresh" data-aipkit-dashboard-refresh aria-label="<?php esc_attr_e('Refresh balances', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Refresh', 'gpt3-ai-content-generator'); ?>" <?php echo $cloud_connected ? '' : 'hidden'; ?>><span class="dashicons dashicons-update" aria-hidden="true"></span><span class="aipkit_spinner" aria-hidden="true"></span></button>
             <div class="aipkit_stats_table_menu_wrapper">
                 <button
                     type="button"
@@ -124,21 +137,34 @@ $activity_views = [
                 </div>
             </div>
         </div>
+        <?php // The account chip sits between the title and the period; email and reconnect notices span the row below. ?>
+        <?php include __DIR__ . '/cloud-account-line.php'; ?>
     </div>
 
     <?php if (class_exists('\\WPAICG\\Mcp\\Screens')) { \WPAICG\Mcp\Screens::render_usage_attention(); } ?>
+    <?php // Two cards: AI credits, and website actions read left to right (what is left, then what this site used). A half
+    // without data hides, and a card with no visible half hides; with one card left, the period summary fills the
+    // second slot. Own API key usage is in the AI requests view. ?>
     <div class="aipkit_usage_cards" data-aipkit-usage-cards>
-        <?php if ($cloud_connected) : ?>
-            <?php include __DIR__ . '/cloud-account.php'; ?>
-        <?php endif; ?>
-        <?php \WPAICG\Mcp\Settings::render_usage(); ?>
-        <section class="aipkit_usage_card" data-aipkit-usage-own-card aria-labelledby="aipkit_usage_own_title" hidden>
-            <div class="aipkit_usage_card_head">
-                <h2 class="aipkit_usage_card_title" id="aipkit_usage_own_title"><?php esc_html_e('Own API keys', 'gpt3-ai-content-generator'); ?> · <span data-aipkit-usage-period-label></span></h2>
-            </div>
-            <p class="aipkit_usage_card_value"><span data-aipkit-usage-own-tokens>—</span><span class="aipkit_usage_card_unit"><?php esc_html_e('tokens', 'gpt3-ai-content-generator'); ?></span></p>
-            <p class="aipkit_usage_card_meta" data-aipkit-usage-own-providers></p>
-            <p class="aipkit_usage_card_meta aipkit_usage_card_meta--quiet"><?php esc_html_e('Billed by your providers.', 'gpt3-ai-content-generator'); ?></p>
+        <section class="aipkit_usage_card aipkit_usage_card--stack" data-aipkit-usage-ai-card aria-label="<?php esc_attr_e('AI credits', 'gpt3-ai-content-generator'); ?>" <?php echo $cloud_connected ? '' : 'hidden'; ?>>
+            <?php if ($cloud_connected) : ?>
+                <?php include __DIR__ . '/cloud-account.php'; ?>
+            <?php endif; ?>
+        </section>
+        <?php // One column: what is left this month (all sites), then what this site used in the period, and on what. ?>
+        <section class="aipkit_usage_card aipkit_usage_card--stack" data-aipkit-usage-website-card aria-label="<?php esc_attr_e('Website actions', 'gpt3-ai-content-generator'); ?>" <?php echo $website_connected ? '' : 'hidden'; ?>>
+            <?php \WPAICG\Mcp\Settings::render_usage(); ?>
+            <?php if ($website_activity) : ?>
+                <?php // Disconnected sites may have retained history. Wait for it before showing either
+                // this card or its replacement summary, so neither flashes and disappears on entry. ?>
+                <section class="aipkit_usage_half aipkit_usage_breakdown" data-website-breakdown data-website-breakdown-pending aria-labelledby="aipkit_usage_breakdown_title" <?php echo $website_connected ? '' : 'hidden'; ?>>
+                    <div class="aipkit_usage_site_head">
+                        <h3 class="aipkit_usage_site_title" id="aipkit_usage_breakdown_title"><?php esc_html_e('On this site', 'gpt3-ai-content-generator'); ?> · <span data-aipkit-usage-period-label="short" title="<?php esc_attr_e('Successful actions in the selected period, counted in UTC.', 'gpt3-ai-content-generator'); ?>"></span></h3>
+                        <span class="aipkit_usage_site_total" data-website-breakdown-total>—</span>
+                    </div>
+                    <div data-website-breakdown-content role="status"><?php esc_html_e('Loading website actions…', 'gpt3-ai-content-generator'); ?></div>
+                </section>
+            <?php endif; ?>
         </section>
         <section class="aipkit_usage_card" data-aipkit-usage-summary-card aria-labelledby="aipkit_usage_summary_title" hidden>
             <div class="aipkit_usage_card_head">
@@ -151,7 +177,7 @@ $activity_views = [
                 </div>
                 <div>
                     <dd class="aipkit_usage_card_value" data-aipkit-usage-summary="tasks">—</dd>
-                    <dt><?php esc_html_e('content & tasks', 'gpt3-ai-content-generator'); ?></dt>
+                    <dt><?php esc_html_e('content', 'gpt3-ai-content-generator'); ?></dt>
                 </div>
                 <div>
                     <dd class="aipkit_usage_card_value" data-aipkit-usage-summary="requests">—</dd>
@@ -260,11 +286,13 @@ $activity_views = [
         </div>
     </section>
 
-    <?php if ($cloud_allowed && !$cloud_connected) : ?>
-        <p class="aipkit_usage_invite">
+    <?php if ($cloud_allowed) : ?>
+        <?php // One Cloud invitation at a time: the banner while it shows; this quiet line once it is dismissed. ?>
+        <?php $aipkit_banner_dismissed = \WPAICG\Cloud\Announcement::dismissed(); ?>
+        <p class="aipkit_usage_invite" data-aipkit-usage-invite data-banner-dismissed="<?php echo $aipkit_banner_dismissed ? '1' : '0'; ?>" hidden>
             <span class="dashicons dashicons-cloud" aria-hidden="true"></span>
-            <span><?php esc_html_e('Want AI without managing API keys?', 'gpt3-ai-content-generator'); ?></span>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=wpaicg&aipkit_module=settings')); ?>"><?php esc_html_e('Explore AI Puffer Cloud', 'gpt3-ai-content-generator'); ?></a>
+            <span><strong><?php esc_html_e('Free every month: 25 AI credits + 2,000 website actions.', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('No API key needed.', 'gpt3-ai-content-generator'); ?></span>
+            <button type="button" class="aipkit_usage_invite_action" data-aipkit-cloud-connect><?php esc_html_e('Connect for free', 'gpt3-ai-content-generator'); ?></button>
         </p>
     <?php endif; ?>
 

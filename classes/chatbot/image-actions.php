@@ -386,6 +386,6 @@ class ChatbotImageAjaxHandler extends BaseAjaxHandler
             'message_id'         => $bot_response_message_id,
             'request_payload'    => $logged_request_payload, 'response_data'      => $response_data,
         ];
-        $log_result = $this->log_storage->log_message($log_data);
+        $this->log_storage->log_message($log_data);
     }
 }

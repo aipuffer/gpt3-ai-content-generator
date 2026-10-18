@@ -1,17 +1,15 @@
 /**
- * The AI Puffer Cloud panel in Settings: one side panel for the account, AI credits and website management.
+ * The AI Puffer Cloud sheet in Settings and Home. One sheet, two jobs: "Manage my website" (the website pane) when
+ * opened from the website card or Connections, and AI Puffer Cloud as an AI provider (connection line, default
+ * model) when opened from Settings › AI. The account and the credit balance live on Home.
  *
- * Openers name a tab with data-aipkit-cloud-open; Settings' provider sheets open and close the panel itself. Its
- * Cloud section and Website pane are replaced by their own scripts, so the header, tabs, dots and footer follow
- * whatever those parts say (their data-cloud-* attributes) instead of being re-rendered here. Settings and Usage both mount the
- * same panel in place. Other entry points can open Settings when no panel is mounted.
+ * Openers name the job with data-aipkit-cloud-open ("website", anything else is the provider sheet); Settings'
+ * provider sheets open and close the panel itself. Its Cloud section and Website pane are replaced by their own
+ * scripts, so the header and footer follow whatever those parts say (their data-cloud-* attributes) instead of being
+ * re-rendered here. Other entry points can open Settings when no panel is mounted.
  */
-const TABS = ['account', 'credits', 'website'];
 const CONNECTED = ['connected', 'verify', 'revoked'];
 const getPanel = () => document.getElementById('aipkit_cloud_panel');
-const setText = (element, value) => {
-    if (element && element.textContent !== value) element.textContent = value;
-};
 const setHidden = (element, hidden) => {
     if (element && element.hidden !== hidden) element.hidden = hidden;
 };
@@ -20,60 +18,36 @@ let request = null;
 let lastOpener = null;
 
 function setTab(panel, tab) {
-    const next = TABS.includes(tab) ? tab : 'credits';
+    const next = tab === 'website' ? 'website' : 'credits';
     panel.dataset.cloudTab = next;
-    panel.querySelectorAll('[role="tab"][data-cloud-tab-switch]').forEach((button) => {
-        const selected = button.dataset.cloudTabSwitch === next;
-        button.setAttribute('aria-selected', selected ? 'true' : 'false');
-        button.tabIndex = selected ? 0 : -1;
-    });
+    const title = panel.querySelector('#aipkit_cloud_panel_title');
+    if (title) title.textContent = (next === 'website' ? title.dataset.cloudTitleWebsite : title.dataset.cloudTitleProvider) || title.textContent;
     const body = panel.querySelector('#aipkit_cloud_panel_body');
-    if (body) {
-        body.setAttribute('aria-labelledby', `aipkit_cloud_tab_${next}`);
-        body.scrollTop = 0;
-    }
+    if (body) body.scrollTop = 0;
+    sync(panel);
 }
 
 function sync(panel) {
     const section = panel.querySelector('#aipkit_cloud_connection');
     const state = section?.dataset.cloudState || 'signup';
     const connected = CONNECTED.includes(state);
+    const website = panel.dataset.cloudTab === 'website';
     panel.dataset.cloudState = state;
 
+    // The Cloud pill belongs to the provider sheet; the website sheet says its own state in its status line.
     const pill = panel.querySelector('[data-cloud-panel-pill]');
     if (pill) {
         pill.textContent = section?.dataset.cloudLabel || '';
         pill.className = `aipkit_cloud_panel_pill${state === 'connected' ? ' is-ok' : state === 'signup' ? '' : ' is-warn'}`;
+        setHidden(pill, website && connected);
     }
     const sub = panel.querySelector('[data-cloud-panel-sub]');
-    if (sub) sub.textContent = section?.dataset.cloudSub || sub.dataset.defaultText || '';
-    const checked = panel.querySelector('[data-cloud-panel-checked]');
-    if (checked) checked.textContent = connected ? section?.dataset.cloudChecked || '' : '';
-
-    setHidden(panel.querySelector('[data-cloud-tabs]'), !connected);
+    if (sub) {
+        const email = section?.dataset.cloudSub || '';
+        sub.textContent = website && connected && email ? `AI Puffer Cloud · ${email}` : email || sub.dataset.defaultText || '';
+    }
     panel.querySelectorAll('[data-cloud-connected-only]').forEach((part) => { setHidden(part, !connected); });
-
-    const website = panel.querySelector('#aipkit_cloud_website');
-    const dots = {
-        account: state === 'verify' || state === 'revoked',
-        credits: false,
-        website: website?.dataset.cloudAttention === '1',
-    };
-    Object.entries(dots).forEach(([tab, on]) => {
-        const dot = panel.querySelector(`[data-cloud-dot="${tab}"]`);
-        setHidden(dot, !on);
-    });
-
-    // The Account tab's summary tile repeats the Website tab's balance once that has been checked.
-    const usage = panel.querySelector('[data-aipkit-website-usage="panel"]');
-    const tile = panel.querySelector('[data-cloud-website-tile]');
-    const enabled = usage?.dataset.mcpEnabled === '1';
-    const remaining = enabled
-        ? usage.querySelector('[data-website-remaining]')?.textContent.trim()
-        : '';
-    setText(tile?.querySelector('[data-cloud-website-value]'), enabled ? remaining || '—' : tile?.dataset.cloudOffText || '—');
-    setText(tile?.querySelector('[data-cloud-website-meta]'), (enabled ? tile?.dataset.cloudRemainingText : tile?.dataset.cloudOffMeta) || '');
-    setText(tile?.querySelector('[data-cloud-website-link]'), (enabled ? tile?.dataset.cloudDetailsText : tile?.dataset.cloudSetupText) || '');
+    panel.querySelectorAll('[data-cloud-provider-only]').forEach((part) => { if (website) setHidden(part, true); });
 }
 
 function bindPanel(panel) {
@@ -87,15 +61,6 @@ function bindPanel(panel) {
         pending = window.requestAnimationFrame(() => { pending = 0; sync(panel); });
     }).observe(panel.querySelector('#aipkit_cloud_panel_body'), { childList: true, subtree: true, attributes: true, attributeFilter: ['data-mcp-enabled', 'hidden'] });
 
-    panel.querySelector('[data-cloud-tabs]')?.addEventListener('keydown', (event) => {
-        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-        event.preventDefault();
-        const index = TABS.indexOf(panel.dataset.cloudTab);
-        const next = event.key === 'Home' ? 0 : event.key === 'End' ? TABS.length - 1
-            : (index + (event.key === 'ArrowRight' ? 1 : -1) + TABS.length) % TABS.length;
-        setTab(panel, TABS[next]);
-        panel.querySelector(`#aipkit_cloud_tab_${TABS[next]}`)?.focus();
-    });
 }
 
 document.addEventListener('click', (event) => {
@@ -124,7 +89,7 @@ document.addEventListener('click', (event) => {
     const panel = getPanel();
     if (switcher && panel?.contains(switcher)) {
         setTab(panel, switcher.dataset.cloudTabSwitch);
-        if (switcher.getAttribute('role') !== 'tab') panel.querySelector(`#aipkit_cloud_tab_${panel.dataset.cloudTab}`)?.focus();
+        panel.querySelector('#aipkit_cloud_panel_title')?.focus();
     }
 }, true);
 

@@ -1,5 +1,6 @@
-/* The AI Puffer Cloud panel: one side panel, three tabs (Account, AI credits, Website), opened from every entry
-   point. It uses the provider sheet's shell; these rules add the tabs, the panes and the parts only it has. */
+/* The AI Puffer Cloud sheet: one side panel with two jobs, chosen by its opener (data-cloud-tab): AI Puffer Cloud as
+   an AI provider ("credits"), or Manage my website ("website"). It uses the provider sheet's shell; these rules add the
+   panes and the parts only it has. The account and the credit balance live on Home. */
 
 #aipkit_settings_container .aipkit_cloud_panel_pill {
     display: inline-flex;
@@ -32,61 +33,7 @@
     overflow-wrap: anywhere;
 }
 
-/* Tabs sit on the header's bottom rule. */
-#aipkit_settings_container .aipkit_cloud_panel .aipkit_settings_provider_panel_header:has(+ .aipkit_cloud_panel_tabs:not([hidden])) {
-    padding-bottom: 12px;
-    border-bottom: 0;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tabs {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 4px;
-    padding: 0 24px;
-    border-bottom: 1px solid #e3e7ee;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tabs[hidden] {
-    display: none;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0 0 -1px;
-    padding: 8px 10px 10px;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
-    background: none;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 650;
-    line-height: 1.3;
-    box-shadow: none;
-    cursor: pointer;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab:is(:hover, :focus-visible) {
-    outline: none;
-    color: #172033;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab:focus-visible span:first-child {
-    border-radius: 4px;
-    box-shadow: 0 0 0 2px #c9d4ff;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab[aria-selected="true"] {
-    border-bottom-color: #3f5fe8;
-    color: #172033;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab_dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: #e0912a;
-}
-#aipkit_settings_container .aipkit_cloud_panel_tab_dot[hidden] {
-    display: none;
-}
-
-/* One tab's panes at a time. Before Cloud is connected the sign-up shows alone, with no tabs. */
+/* One job's panes at a time. Before Cloud is connected the sign-up shows alone. */
 #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_connection.is-connected {
     display: contents;
 }
@@ -97,7 +44,6 @@
     min-width: 0;
 }
 #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_pane[hidden],
-#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="account"] .aipkit_cloud_pane:not([data-cloud-pane="account"]),
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="credits"] .aipkit_cloud_pane:not([data-cloud-pane="credits"]),
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] .aipkit_cloud_pane:not([data-cloud-pane="website"]),
 #aipkit_settings_container .aipkit_cloud_panel:not([data-cloud-state="connected"], [data-cloud-state="verify"], [data-cloud-state="revoked"]) .aipkit_cloud_pane {
@@ -138,74 +84,7 @@
     margin: 0;
 }
 
-/* Account: the two balances side by side, each linking to its tab. Only the panel has tabs to link to. */
-.aipkit_cloud_tiles {
-    display: none;
-}
-#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_tiles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-}
-#aipkit_settings_container .aipkit_cloud_tile {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    padding: 12px 14px;
-    border: 1px solid #dce3ec;
-    border-radius: 12px;
-    background: #f8fafc;
-}
-#aipkit_settings_container .aipkit_cloud_tile_label {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 700;
-}
-#aipkit_settings_container .aipkit_cloud_tile_value {
-    color: #172033;
-    font-size: 22px;
-    font-weight: 800;
-    line-height: 1.2;
-    font-variant-numeric: tabular-nums;
-}
-#aipkit_settings_container .aipkit_cloud_tile_meta {
-    color: #8a94a6;
-    font-size: 11.5px;
-}
-#aipkit_settings_container .aipkit_cloud_tile_link {
-    align-self: flex-start;
-    margin: 6px 0 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: #2f49c9;
-    font-size: 12.5px;
-    font-weight: 650;
-    box-shadow: none;
-    cursor: pointer;
-}
-#aipkit_settings_container .aipkit_cloud_tile_link:is(:hover, :focus-visible) {
-    outline: none;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-}
-
-/* The last row of a tab: a rare, destructive action, set apart and quiet. Only the panel shows it. */
-.aipkit_cloud_quiet_row {
-    display: none;
-}
-#aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_quiet_row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding-top: 14px;
-    border-top: 1px dashed #dce3ec;
-    color: #64748b;
-    font-size: 12.5px;
-    line-height: 1.45;
-}
+/* A quiet, destructive action: Disconnect AI Puffer Cloud in the provider sheet's footer. */
 #aipkit_settings_container .aipkit_cloud_quiet_action {
     flex: 0 0 auto;
     margin: 0;
@@ -224,34 +103,11 @@
     text-underline-offset: 2px;
 }
 /* While the email is being changed, the account isn't disconnected from under it. */
-#aipkit_settings_container .aipkit_cloud_panel:has([data-cloud-email-editor]:not([hidden])) .aipkit_cloud_panel_disconnect,
-#aipkit_settings_container .aipkit_cloud_connection:has([data-cloud-email-editor]:not([hidden])) .aipkit_cloud_quiet_row {
+#aipkit_settings_container .aipkit_cloud_panel:has([data-cloud-email-editor]:not([hidden])) .aipkit_cloud_panel_disconnect {
     display: none;
 }
 
-/* AI credits: the balance, then where it comes from. */
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_value {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 6px;
-    margin: 0;
-    color: #64748b;
-    font-size: 13px;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_value strong {
-    color: #172033;
-    font-size: 30px;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -0.01em;
-    font-variant-numeric: tabular-nums;
-}
+/* AI credits: the actions under the balance. */
 :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions {
     display: flex;
     flex-wrap: wrap;
@@ -263,39 +119,7 @@
 :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_balance_actions a.aipkit_btn {
     text-decoration: none;
 }
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown {
-    margin: 0;
-    border: 1px solid #dce3ec;
-    border-radius: 12px;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown div {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 10px 14px;
-    border-bottom: 1px solid #edf1f6;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown div:last-child {
-    border-bottom: 0;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown dt {
-    color: #475467;
-    font-size: 13px;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown dd {
-    margin: 0;
-    color: #172033;
-    font-size: 13px;
-    font-weight: 700;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-:is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_breakdown small {
-    display: block;
-    color: #8a94a6;
-    font-size: 11.5px;
-    font-weight: 400;
-}
+
 #aipkit_settings_container .aipkit_cloud_default_row {
     display: flex;
     align-items: center;
@@ -336,51 +160,11 @@
     font-size: 12px;
 }
 
-/* The footer is the same on every tab: when it was checked, with a refresh icon beside it; Disconnect and Done on the right. */
+/* Provider footer as on every provider sheet: Disconnect AI Puffer Cloud on the left, Done on the right. The website sheet uses its header close button. */
 #aipkit_settings_container .aipkit_cloud_panel_footer {
     justify-content: flex-start;
 }
-#aipkit_settings_container .aipkit_cloud_panel_status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-}
-#aipkit_settings_container .aipkit_cloud_panel_status[hidden] {
-    display: none;
-}
-#aipkit_settings_container .aipkit_cloud_panel_checked {
-    color: #64748b;
-    font-size: 12.5px;
-}
-#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 7px;
-    background: none;
-    color: #64748b;
-    box-shadow: none;
-    cursor: pointer;
-}
-#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh:is(:hover, :focus-visible) {
-    outline: none;
-    background: #f1f4f8;
-    color: #172033;
-}
-#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh .dashicons {
-    width: 16px;
-    height: 16px;
-    font-size: 16px;
-}
-#aipkit_settings_container .aipkit_cloud_panel_footer .aipkit_cloud_panel_refresh[aria-busy="true"] .dashicons {
-    animation: aipkit_spin 0.9s linear infinite;
-}
+
 #aipkit_settings_container .aipkit_cloud_panel_actions {
     display: inline-flex;
     align-items: center;
@@ -392,13 +176,9 @@
 }
 
 @media (max-width: 480px) {
-    #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_tiles,
+
     :is(#aipkit_settings_container, .aipkit_connect_dialog) .aipkit_cloud_hero_tiles {
         grid-template-columns: minmax(0, 1fr);
-    }
-    #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_quiet_row {
-        flex-direction: column;
-        align-items: flex-start;
     }
 }
 
@@ -450,3 +230,130 @@
     padding: 0 28px 0 10px;
     font-size: 13px;
 }
+
+/* "What information do we collect?": short grouped lists. */
+details.description .aipkit_privacy_group { margin: 10px 0 4px; font-weight: 600; }
+details.description .aipkit_privacy_list { margin: 0 0 6px; padding-left: 18px; list-style: disc; }
+details.description .aipkit_privacy_list li { margin: 2px 0; }
+
+/* Website sheet: a status card (on or paused, with Pause and Disconnect), then the assistants as one list, then Add an
+   assistant. One button size (30px, 8px corners) and one list style throughout. The sheet closes with its ✕. */
+#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] .aipkit_cloud_panel_footer { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-height: 30px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; line-height: 1; white-space: nowrap; box-shadow: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_btn:not(.aipkit_btn-primary) { border: 1px solid #dce3ec; background: #ffffff; color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_btn:not(.aipkit_btn-primary):is(:hover, :focus-visible) { border-color: #c4cfdd; background: #f6f8fb; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 10px 12px 14px; border: 1px solid #cfe9d9; border-radius: 12px; background: #f0faf3; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status.is-paused, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status.is-attention { border-color: #f3dfa6; background: #fffaf0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: #15803d; box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.12); }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status.is-paused .aipkit_mcp_status_dot { background: #c27803; box-shadow: 0 0 0 4px rgba(194, 120, 3, 0.14); }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_icon { display: inline-flex; flex: 0 0 22px; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #fff1d6; color: #8a5300; font-size: 12px; font-weight: 800; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_text, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row_text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_text strong, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row_text strong { color: #172033; font-size: 13.5px; font-weight: 650; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_text span, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row_text span { color: #5f6b7a; font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_link { color: #3f5fe8; font-weight: 600; text-decoration: none; white-space: nowrap; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_link:is(:hover, :focus-visible) { text-decoration: underline; }
+/* Assistants: one bordered list, a divider between rows. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_rows { display: flex; flex-direction: column; border: 1px solid #e6ebf2; border-radius: 12px; background: #ffffff; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row { position: relative; display: flex; align-items: center; gap: 12px; padding: 11px 10px 11px 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row + .aipkit_mcp_row, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_rows > .aipkit_mcp_older { border-top: 1px solid #eef1f5; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_older .aipkit_mcp_rows { border: 0; border-radius: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row[data-state="pending"] .aipkit_mcp_tile { opacity: 0.55; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row[data-state="pending"] .aipkit_mcp_row_text > span, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row[data-state="revoked"] .aipkit_mcp_row_text > span { color: #8a5300; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_tile { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 9px; background: #eef1fb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233f5fe8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5'/%3E%3C/svg%3E") center / 17px no-repeat; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_tile--chatgpt { background: #10a37f url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z'/%3E%3C/svg%3E") center / 17px no-repeat; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_tile--claude { background: #d97757 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z'/%3E%3C/svg%3E") center / 17px no-repeat; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row_actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row .aipkit_mcp_level_select { width: auto; min-width: 104px; height: 30px; min-height: 30px; padding: 0 28px 0 11px; border: 1px solid #dce3ec; border-radius: 8px; background-color: #ffffff; color: #172033; font-size: 12.5px; font-weight: 600; line-height: 28px; box-shadow: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row .aipkit_mcp_level_select:is(:hover, :focus) { border-color: #c4cfdd; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_quiet { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: #3f5fe8; font: inherit; font-size: 12.5px; font-weight: 600; text-decoration: none; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_quiet:is(:hover, :focus-visible) { text-decoration: underline; outline: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_quiet:disabled { cursor: default; opacity: 0.6; }
+/* Disconnect beside Pause: the status card's quiet, destructive action. It asks first. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_btn.aipkit_mcp_btn_danger { color: #b42318; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_btn.aipkit_mcp_btn_danger:is(:hover, :focus-visible) { border-color: #f1c4c0; background: #fef3f2; }
+/* Each assistant's ⋯ menu: Check connection and Disconnect. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu { position: relative; display: inline-flex; flex: 0 0 auto; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-height: 30px; margin: 0; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #5f6b7a; font-size: 14px; font-weight: 700; letter-spacing: 1px; line-height: 1; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_toggle:is(:hover, :focus-visible, [aria-expanded="true"]) { border-color: #dce3ec; background: #f6f8fb; color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_list { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; display: flex; flex-direction: column; min-width: 220px; padding: 5px; border: 1px solid #dce3ec; border-radius: 10px; background: #ffffff; box-shadow: 0 10px 28px rgba(23, 32, 51, 0.14); }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_list[hidden] { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; margin: 0; padding: 8px 10px; border: 0; border-radius: 7px; background: none; color: #172033; font-size: 13px; font-weight: 500; line-height: 1.35; text-align: left; text-decoration: none; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_item:is(:hover, :focus-visible) { background: #f3f5f9; outline: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_item.is-danger { color: #b42318; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_item.is-danger:is(:hover, :focus-visible) { background: #fef3f2; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_menu_sep { height: 1px; margin: 4px 0; background: #eef1f5; }
+/* Older unfinished setups fold into one line inside the list; Add an assistant is one dashed row. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_older > summary { padding: 10px 12px; color: #5f6b7a; font-size: 12.5px; cursor: pointer; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_older > summary::-webkit-details-marker { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_older > summary::before { content: "▸ "; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_older[open] > summary::before { content: "▾ "; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add { border: 0; border-radius: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add > summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed #dce3ec; border-radius: 12px; color: #3f5fe8; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add > summary::-webkit-details-marker { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add > summary::before { content: "+"; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 7px; background: #eef0ff; font-size: 15px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add > summary:hover { border-color: #b9c6f5; background: #fafbff; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add[open] > summary { margin-bottom: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_add > .aipkit_settings_provider_fold_body { padding: 0; }
+/* "Using a second ChatGPT account? Connect another account": one quiet line under the Set up rows that opens the
+   Add account rows. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts { margin: 10px 0 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > summary { color: #5f6b7a; font-size: 12.5px; cursor: pointer; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > summary::-webkit-details-marker { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > summary span { color: #3f5fe8; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > summary:hover span { text-decoration: underline; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts[open] > summary { margin-bottom: 10px; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-connect] > .aipkit_cloud_notice--info, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > .aipkit_cloud_notice--info { margin: 0 0 10px; font-size: 12.5px; }
+/* Setting up an assistant: numbered steps, the details to paste as one list (label, value, Copy), then two quiet
+   notes. The same instructions are styled for first-run setup in onboarding.css. */
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff] .aipkit_cloud_balance_actions { margin: 10px 0 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup { margin: 14px 0 0; color: #172033; font-size: 13px; line-height: 1.5; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup p { margin: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] > p:first-child { margin: 0 0 4px; font-size: 13.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] ol { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; counter-reset: aipkit-mcp-step; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li { position: relative; margin: 0; padding: 9px 0 9px 32px; counter-increment: aipkit-mcp-step; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li + li { border-top: 1px dashed #e8ecf2; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li::before { content: counter(aipkit-mcp-step); position: absolute; top: 9px; left: 0; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #f3f5f9; color: #5f6b7a; font-size: 12px; font-weight: 700; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] > p:not(:first-child) { margin: 0 0 12px; padding-top: 9px; border-top: 1px dashed #e8ecf2; color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1px solid #e6ebf2; background: #ffffff; }
+#aipkit_settings_container .aipkit_cloud_website :not(.aipkit_mcp_copy_row) + .aipkit_mcp_copy_row { border-radius: 12px 12px 0 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row + .aipkit_mcp_copy_row { border-top: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row:not(:has(+ .aipkit_mcp_copy_row)) { border-bottom-right-radius: 12px; border-bottom-left-radius: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row > span { flex: 0 0 120px; color: #8a94a6; font-size: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row code { flex: 1; min-width: 0; padding: 0; background: none; color: #172033; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row .aipkit_btn { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup .aipkit_mcp_setup_note { margin: 10px 0 0; color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup .aipkit_mcp_copy_row + .aipkit_mcp_setup_note { margin-top: 12px; }
+/* Connection check: one bordered card like the lists, with its result, Check connection, and the details under it. */
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #e6ebf2; border-radius: 12px; background: #ffffff; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report][data-status="failed"] { border-color: #f3dfa6; background: #fffaf0; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > p { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; margin: 0; color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > p::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: #8a94a6; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report][data-status="passed"] > p::before { background: #15803d; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report][data-status="failed"] > p::before { background: #c27803; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > p strong { color: #172033; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > .button-link { margin: 0 0 0 auto; padding: 0; border: 0; background: none; box-shadow: none; color: #3f5fe8; font-size: 12.5px; font-weight: 600; text-decoration: none; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > .button-link:is(:hover, :focus-visible) { text-decoration: underline; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details { flex: 1 0 100%; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details > summary { display: inline-flex; align-items: center; gap: 6px; color: #5f6b7a; font-size: 12px; cursor: pointer; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details > summary::-webkit-details-marker { display: none; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details > summary::after { content: ""; width: 0; height: 0; border-top: 4px solid #8a94a6; border-right: 4px solid transparent; border-left: 4px solid transparent; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details[open] > summary::after { transform: rotate(180deg); }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] > details > summary:hover { color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] ul { display: flex; flex-direction: column; gap: 8px; margin: 10px 0 2px; padding: 10px 0 0; border-top: 1px solid #eef1f5; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] li { position: relative; margin: 0; padding-left: 20px; color: #5f6b7a; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] li strong { color: #172033; font-size: 12.5px; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] li::before { content: "–"; position: absolute; top: 0; left: 0; width: 14px; color: #8a94a6; font-weight: 700; text-align: center; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] li[data-status="passed"]::before { content: "✓"; color: #15803d; }
+#aipkit_settings_container .aipkit_cloud_website [data-connection-report] li[data-status="failed"]::before { content: "!"; color: #8a5300; }
+@media (max-width: 560px) { #aipkit_settings_container .aipkit_cloud_website :is(.aipkit_mcp_row, .aipkit_mcp_status) { flex-wrap: wrap; } #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_status_text { flex-basis: calc(100% - 34px); } #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_row_actions { width: 100%; justify-content: flex-end; } }
+
+/* Provider sheet: the account in one line, with the way to Home for balance and account. */
+#aipkit_settings_container .aipkit_cloud_connection_row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #dce3ec; border-radius: 10px; background: #ffffff; }
+#aipkit_settings_container .aipkit_cloud_connection_text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+#aipkit_settings_container .aipkit_cloud_connection_text strong { color: #172033; font-size: 13.5px; font-weight: 650; overflow-wrap: anywhere; }
+#aipkit_settings_container .aipkit_cloud_connection_text span { color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_connection_link { flex: 0 0 auto; color: #5f6b7a; font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+#aipkit_settings_container .aipkit_cloud_connection_link:is(:hover, :focus-visible) { color: #172033; }
+#aipkit_settings_container .aipkit_cloud_panel_footer > .aipkit_cloud_panel_disconnect { color: #b42318; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] [data-cloud-provider-only] { display: none; }
+#aipkit_settings_container .aipkit_cloud_panel_pill[hidden] { display: none; }

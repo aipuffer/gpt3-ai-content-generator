@@ -2253,37 +2253,102 @@ button.aipkit_stats_status_pill {
     margin-left: auto;
 }
 
+/* The period: one button that opens a small menu of the four periods. */
 #aipkit_stats_container .aipkit_usage_period {
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 10px;
-    background: #e9edf3;
+    position: relative;
 }
 
-#aipkit_stats_container .aipkit_usage_period_option {
-    padding: 6px 13px;
-    border: 0;
+#aipkit_stats_container .aipkit_usage_period_toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    margin: 0;
+    padding: 0 10px 0 9px;
+    border: 1px solid #d7dee8;
     border-radius: 8px;
-    background: transparent;
-    color: #3b4556;
+    background: #ffffff;
+    color: var(--aipkit-usage-ink);
     font-size: 12.5px;
     font-weight: 600;
-    line-height: 1.3;
+    line-height: 1;
+    white-space: nowrap;
     cursor: pointer;
 }
 
-#aipkit_stats_container .aipkit_usage_period_option:hover {
-    color: var(--aipkit-usage-ink);
+#aipkit_stats_container .aipkit_usage_period_toggle:hover {
+    border-color: #c4cfdd;
+    background: #f6f8fb;
 }
 
-#aipkit_stats_container .aipkit_usage_period_option[aria-pressed="true"] {
+#aipkit_stats_container .aipkit_usage_period_toggle .dashicons {
+    width: 15px;
+    height: 15px;
+    color: var(--aipkit-usage-quiet);
+    font-size: 15px;
+}
+
+#aipkit_stats_container .aipkit_usage_period_caret {
+    width: 0;
+    height: 0;
+    border-top: 4px solid #8a94a6;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
+}
+
+#aipkit_stats_container .aipkit_usage_period_toggle[aria-expanded="true"] .aipkit_usage_period_caret {
+    transform: rotate(180deg);
+}
+
+#aipkit_stats_container .aipkit_usage_period_menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 5px;
+    border: 1px solid #dce3ec;
+    border-radius: 10px;
     background: #ffffff;
-    color: var(--aipkit-usage-blue);
-    box-shadow: 0 1px 2px rgba(26, 54, 93, 0.14);
+    box-shadow: 0 10px 28px rgba(23, 32, 51, 0.14);
 }
 
-#aipkit_stats_container :is(.aipkit_usage_period_option, .aipkit_usage_chip, .aipkit_usage_subchip, .aipkit_usage_btn, .aipkit_usage_icon_btn, .aipkit_usage_feed_row, .aipkit_usage_row_link, .aipkit_usage_disclosure, .aipkit_usage_link_btn, .aipkit_usage_drawer_close):focus-visible {
+#aipkit_stats_container .aipkit_usage_period_menu[hidden] {
+    display: none;
+}
+
+#aipkit_stats_container .aipkit_usage_period_option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    color: var(--aipkit-usage-ink);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_usage_period_option:is(:hover, :focus-visible) {
+    background: #f3f5f9;
+}
+
+#aipkit_stats_container .aipkit_usage_period_option[aria-checked="true"] {
+    background: var(--aipkit-usage-blue-bg);
+    color: var(--aipkit-usage-blue);
+    font-weight: 600;
+}
+
+#aipkit_stats_container .aipkit_usage_period_option[aria-checked="true"]::after {
+    content: "\2713";
+}
+
+#aipkit_stats_container :is(.aipkit_usage_period_toggle, .aipkit_usage_period_option, .aipkit_usage_chip, .aipkit_usage_subchip, .aipkit_usage_btn, .aipkit_usage_icon_btn, .aipkit_usage_feed_row, .aipkit_usage_row_link, .aipkit_usage_disclosure, .aipkit_usage_link_btn, .aipkit_usage_drawer_close):focus-visible {
     outline: 2px solid rgba(63, 95, 232, 0.45);
     outline-offset: 2px;
 }
@@ -2305,12 +2370,12 @@ button.aipkit_stats_status_pill {
     grid-template-columns: minmax(0, 1fr);
 }
 
-#aipkit_stats_container .aipkit_usage_cards[data-cards="3"] {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+/* AI credits beside the website card: one third and two thirds. */
+#aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
 }
 
-#aipkit_stats_container .aipkit_usage_card,
-#aipkit_stats_container .aipkit_usage_card.aipkit_cloud {
+#aipkit_stats_container .aipkit_usage_card {
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -2324,6 +2389,214 @@ button.aipkit_stats_status_pill {
 
 #aipkit_stats_container .aipkit_usage_card[hidden] {
     display: none;
+}
+
+/* AI credits and Website actions: one column each. The website card reads top to bottom: what is left this month,
+   then, under a full-width divider, what this site used in the period and on what. */
+#aipkit_stats_container .aipkit_usage_half {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+#aipkit_stats_container .aipkit_usage_half[hidden] {
+    display: none;
+}
+
+#aipkit_stats_container [data-aipkit-usage-ai-card] > .aipkit_usage_half {
+    flex: 1 1 auto;
+}
+
+#aipkit_stats_container .aipkit_usage_card--stack .aipkit_usage_half:not([hidden]) ~ .aipkit_usage_half:not([hidden]) {
+    margin: 12px -18px 0;
+    padding: 12px 18px 0;
+    border-top: 1px solid #eef1f5;
+}
+
+/* The card's one action, a button at the right of its header: Buy credits filled, Manage and Turn on outlined. */
+#aipkit_stats_container .aipkit_usage_card_action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    margin: 0 0 0 auto;
+    padding: 0 12px;
+    border: 1px solid #d7dee8;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--aipkit-usage-ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action:is(:hover, :focus-visible) {
+    border-color: #c4cfdd;
+    background: #f6f8fb;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action.is-primary {
+    border-color: var(--aipkit-usage-blue);
+    background: var(--aipkit-usage-blue);
+    color: #ffffff;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action.is-primary:is(:hover, :focus-visible) {
+    border-color: #3450d0;
+    background: #3450d0;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action_icon {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+
+/* "Off" sits next to the title (the general pill rule pushes pills to the right). */
+#aipkit_stats_container .aipkit_usage_card_head > .aipkit_usage_pill.aipkit_usage_pill--inline {
+    margin-left: 0;
+}
+
+/* The renewal date behind an ⓘ beside the title: shown on hover and focus, and toggled by a click or tap. */
+#aipkit_stats_container .aipkit_usage_hint {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #d7dee8;
+    border-radius: 50%;
+    background: #ffffff;
+    color: var(--aipkit-usage-quiet);
+    font: italic 700 11px/1 Georgia, "Times New Roman", serif;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_usage_hint:is(:hover, :focus-visible, [aria-expanded="true"]) {
+    border-color: var(--aipkit-usage-blue);
+    color: var(--aipkit-usage-blue);
+    outline: none;
+}
+
+#aipkit_stats_container .aipkit_usage_hint_tip {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 8px);
+    left: -10px;
+    display: none;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: #172033;
+    box-shadow: 0 8px 20px rgba(23, 32, 51, 0.18);
+    color: #ffffff;
+    font: 500 12px/1.4 var(--aipkit-ui-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    white-space: nowrap;
+}
+
+#aipkit_stats_container .aipkit_usage_hint_tip::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: 14px;
+    width: 8px;
+    height: 8px;
+    background: #172033;
+    transform: rotate(45deg);
+}
+
+#aipkit_stats_container .aipkit_usage_hint:not([data-dismissed="true"]):is(:hover, :focus-visible, [aria-expanded="true"]) .aipkit_usage_hint_tip {
+    display: block;
+}
+
+/* This site's use: "On this site · 30 days" with the total on the right, one stacked bar, and a legend. */
+#aipkit_stats_container .aipkit_usage_site_head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+/* AI credits in two parts, like the website card: the balance, then (under the same full-width line) where it comes
+   from. */
+#aipkit_stats_container :is(.aipkit_usage_card_top, .aipkit_usage_card_bottom) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+#aipkit_stats_container .aipkit_usage_card_bottom {
+    flex: 1 1 auto;
+    margin: 12px -18px 0;
+    padding: 12px 18px 0;
+    border-top: 1px solid #eef1f5;
+}
+
+/* Side by side, both cards share two rows (CSS subgrid): the top parts take the taller one's height, so the two lines
+   always meet, however many lines either top part has. */
+@media (min-width: 1181px) {
+    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] {
+        grid-template-rows: auto 1fr;
+    }
+
+    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] > .aipkit_usage_card--stack {
+        display: grid;
+        grid-row: span 2;
+        grid-template-rows: subgrid;
+        row-gap: 0;
+    }
+
+    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] [data-aipkit-usage-ai-card] > .aipkit_usage_half {
+        display: contents;
+    }
+}
+
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_value.aipkit_usage_card_value--out {
+    color: #b42318;
+}
+
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_value.aipkit_usage_card_value--low {
+    color: #8a5300;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action .aipkit_spinner {
+    display: none;
+}
+
+#aipkit_stats_container .aipkit_usage_card_action.aipkit_loading .aipkit_spinner {
+    display: inline-block;
+}
+
+#aipkit_stats_container :is(.aipkit_usage_site_title, .aipkit_usage_section_title) {
+    margin: 0;
+    color: var(--aipkit-usage-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+#aipkit_stats_container .aipkit_usage_site_title [title] {
+    border-bottom: 1px dotted var(--aipkit-usage-quiet);
+    cursor: help;
+}
+
+#aipkit_stats_container .aipkit_usage_site_total {
+    margin-left: auto;
+    color: var(--aipkit-usage-ink);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 #aipkit_stats_container .aipkit_usage_card_head {
@@ -2355,7 +2628,7 @@ button.aipkit_stats_status_pill {
     font-variant-numeric: tabular-nums;
 }
 
-#aipkit_stats_container .aipkit_usage_card_value--empty {
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_value--empty {
     color: var(--aipkit-usage-quiet);
 }
 
@@ -2379,21 +2652,43 @@ button.aipkit_stats_status_pill {
     font-size: 12px;
 }
 
+/* AI credits out or low: the line under the number says so, in the number's colour. */
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_meta--bad {
+    color: #b42318;
+    font-weight: 600;
+}
+
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_meta--warn {
+    color: #8a5300;
+    font-weight: 600;
+}
+
+#aipkit_stats_container .aipkit_usage_credit_back {
+    margin-top: 6px;
+}
+
 #aipkit_stats_container .aipkit_usage_card .aipkit_cloud_notice {
     margin-top: 6px;
 }
 
-#aipkit_stats_container .aipkit_usage_card_actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin-top: auto;
-    padding-top: 12px;
+/* Website actions card: a thin bar for what the month has used. */
+#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter {
+    height: 5px;
+    margin: 4px 0;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef1f5;
 }
 
-#aipkit_stats_container .aipkit_usage_card_actions form {
-    margin: 0;
+#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--aipkit-usage-blue);
+}
+
+#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter.is-full > span {
+    background: #b42318;
 }
 
 #aipkit_stats_container [data-website-usage-status]:empty {
@@ -2423,7 +2718,7 @@ button.aipkit_stats_status_pill {
     font-size: 12.5px;
 }
 
-#aipkit_stats_container.is-overview-loading :is([data-aipkit-usage-summary], [data-aipkit-usage-own-tokens]) {
+#aipkit_stats_container.is-overview-loading [data-aipkit-usage-summary] {
     color: var(--aipkit-usage-quiet);
 }
 
@@ -3470,18 +3765,33 @@ body.aipkit_usage_drawer_open {
     font-size: 12.5px;
 }
 
-#aipkit_stats_container .aipkit_usage_invite a {
-    font-weight: 600;
-    text-decoration: none;
+#aipkit_stats_container .aipkit_usage_invite[hidden] {
+    display: none;
 }
 
-#aipkit_stats_container .aipkit_usage_invite a:hover {
+#aipkit_stats_container .aipkit_usage_invite strong {
+    color: var(--aipkit-usage-ink);
+}
+
+#aipkit_stats_container .aipkit_usage_invite_action {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--aipkit-usage-blue);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_usage_invite_action:hover {
     text-decoration: underline;
 }
 
-@media (max-width: 960px) {
-    #aipkit_stats_container .aipkit_usage_cards[data-cards="3"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Below a wide laptop the two cards stack, so each half keeps room for its title and number. */
+@media (max-width: 1180px) {
+    #aipkit_stats_container .aipkit_usage_cards[data-cards] {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -3491,13 +3801,10 @@ body.aipkit_usage_drawer_open {
         margin-left: 0;
     }
 
-    #aipkit_stats_container .aipkit_usage_period {
-        flex: 1 1 auto;
-    }
-
-    #aipkit_stats_container .aipkit_usage_period_option {
-        flex: 1 1 0;
-        padding-inline: 6px;
+    /* The period button starts the row here, so its menu opens from its left edge. */
+    #aipkit_stats_container .aipkit_usage_period_menu {
+        right: auto;
+        left: 0;
     }
 
     #aipkit_stats_container .aipkit_usage_cards,
@@ -3879,3 +4186,109 @@ body.aipkit_usage_drawer_open {
 
 /* Disabled website management never exposes an action balance. */
 [data-aipkit-website-usage][hidden] { display: none !important; }
+
+/* Website history stays separate from the account balance and AI credit cards. */
+#aipkit_stats_container .aipkit_usage_breakdown[hidden] { display: none; }
+#aipkit_stats_container .aipkit_usage_breakdown [data-website-breakdown-content] { margin: 6px 0 4px; font-size: 12.5px; color: var(--aipkit-usage-muted, #5f6b7a); }
+#aipkit_stats_container .aipkit_usage_stack {
+    display: flex;
+    gap: 2px;
+    height: 8px;
+    margin: 8px 0 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #eef1f5;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_part {
+    display: block;
+    min-width: 3px;
+    height: 100%;
+}
+
+#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="0"] { background: #3f5fe8; }
+#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="1"] { background: #7b8ff0; }
+#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="2"] { background: #a9b6f5; }
+#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="3"] { background: #cdd5fa; }
+#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="4"] { background: #dfe3ee; }
+
+#aipkit_stats_container .aipkit_usage_stack_legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    color: var(--aipkit-usage-ink);
+    font-size: 12.5px;
+    list-style: none;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_legend b {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+}
+
+/* Dashboard header: the AI Puffer Cloud account as a chip with a small menu, or Connect AI Puffer Cloud. The section only
+   groups its parts; they sit in the header row, and email or reconnect notices span the row below. */
+#aipkit_stats_container .aipkit_usage_account { display: contents; }
+#aipkit_stats_container .aipkit_usage_header_copy { order: 0; margin-right: auto; }
+#aipkit_stats_container .aipkit_usage_account_menu { order: 1; }
+#aipkit_stats_container .aipkit_usage_header_actions { order: 2; margin-left: 0; }
+#aipkit_stats_container .aipkit_usage_account_notice, #aipkit_stats_container .aipkit_usage_account > .aipkit_cloud_feedback { order: 3; flex: 1 0 100%; }
+#aipkit_stats_container .aipkit_usage_account > .aipkit_cloud_feedback { margin: 0; }
+#aipkit_stats_container .aipkit_usage_account > .aipkit_cloud_feedback:empty { display: none; }
+#aipkit_stats_container .aipkit_usage_account_menu { position: relative; }
+#aipkit_stats_container .aipkit_usage_account_chip { display: inline-flex; align-items: center; gap: 8px; max-width: 320px; height: 32px; margin: 0; padding: 0 10px 0 4px; border: 1px solid #d7dee8; border-radius: 999px; background: #ffffff; color: var(--aipkit-usage-ink); font-size: 12.5px; font-weight: 500; line-height: 1; cursor: pointer; }
+#aipkit_stats_container .aipkit_usage_account_chip:hover { border-color: #c4cfdd; background: #f6f8fb; }
+#aipkit_stats_container .aipkit_usage_account_chip:focus-visible { outline: 2px solid rgba(63, 95, 232, 0.45); outline-offset: 2px; }
+#aipkit_stats_container .aipkit_usage_account_avatar { display: inline-flex; flex: 0 0 24px; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #fff1ea; color: #c2410c; font-size: 11px; font-weight: 800; }
+#aipkit_stats_container .aipkit_usage_account_email { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#aipkit_stats_container .aipkit_usage_account_tick { color: #15803d; font-weight: 700; }
+#aipkit_stats_container .aipkit_usage_account_caret { width: 0; height: 0; border-top: 4px solid #8a94a6; border-right: 4px solid transparent; border-left: 4px solid transparent; }
+#aipkit_stats_container .aipkit_usage_account_chip[aria-expanded="true"] .aipkit_usage_account_caret { transform: rotate(180deg); }
+#aipkit_stats_container .aipkit_usage_account_popover { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; display: flex; flex-direction: column; width: 320px; max-width: calc(100vw - 32px); padding: 6px; border: 1px solid #dce3ec; border-radius: 12px; background: #ffffff; box-shadow: 0 10px 28px rgba(23, 32, 51, 0.14); }
+#aipkit_stats_container .aipkit_usage_account_popover[hidden] { display: none; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_controls { margin: 0; padding: 0; border: 0; background: none; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; padding: 8px 8px 10px; border-bottom: 1px solid #eef1f5; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_avatar { display: inline-flex; flex: 0 0 30px; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: #fff1ea; color: #c2410c; font-size: 12px; font-weight: 800; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_who { display: flex; flex: 1; flex-direction: column; min-width: 0; color: var(--aipkit-usage-ink); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_verified { color: #15803d; font-size: 12px; font-weight: 500; }
+/* Change email (or Manage email) and Disconnect read as the menu's items. */
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_row > :is(.button-link, a), #aipkit_stats_container .aipkit_usage_account_item { display: block; flex: 1 0 100%; box-sizing: border-box; width: 100%; margin: 6px 0 0; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--aipkit-usage-ink); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_row > :is(.button-link, a)[hidden] { display: none; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_row > :is(.button-link, a):is(:hover, :focus-visible), #aipkit_stats_container .aipkit_usage_account_item:is(:hover, :focus-visible) { background: #f3f5f9; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_account_row > :is(.button-link, a) { margin-bottom: -4px; }
+#aipkit_stats_container .aipkit_usage_account_item.is-danger { margin-top: 2px; color: #b42318; }
+#aipkit_stats_container .aipkit_usage_account_item.is-danger:is(:hover, :focus-visible) { background: #fef3f2; }
+#aipkit_stats_container .aipkit_usage_account_item .aipkit_spinner { display: none; }
+#aipkit_stats_container .aipkit_usage_account_item.aipkit_loading .aipkit_spinner { display: inline-block; margin-left: 6px; }
+#aipkit_stats_container .aipkit_usage_account_popover .aipkit_cloud_email_editor { padding: 10px 8px 4px; }
+#aipkit_stats_container .aipkit_usage_account_disconnect { margin: 0; }
+#aipkit_stats_container .aipkit_usage_account_notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; border: 1px solid #f3dfa6; border-radius: 12px; background: #fffdf5; color: var(--aipkit-usage-ink); font-size: 13px; }
+#aipkit_stats_container .aipkit_usage_account_notice > p { flex: 1 1 320px; min-width: 0; margin: 0; }
+#aipkit_stats_container .aipkit_usage_account_notice .aipkit_cloud_email_recovery { flex: 1; margin: 0; padding: 0; border: 0; background: none; }
+
+/* AI credits card: Details opens where the balance comes from, in place. */
+
+/* On phones the account wraps onto its own row; anchor its menu inside that row. */
+@media (max-width: 782px) {
+    #aipkit_stats_container .aipkit_usage_account_menu { flex: 1 0 100%; min-width: 0; }
+    #aipkit_stats_container .aipkit_usage_account_chip { max-width: 100%; }
+    #aipkit_stats_container .aipkit_usage_account_popover { left: 0; right: auto; width: min(320px, 100%); box-sizing: border-box; }
+}
+
+#aipkit_stats_container [data-aipkit-dashboard-refresh][hidden] { display: none; }

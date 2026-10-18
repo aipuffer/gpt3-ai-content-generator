@@ -20,6 +20,126 @@ final class Operations
         return ['state' => 'succeeded', 'actions_used' => 1, 'result' => $result];
     }
 
+    /** One bounded public HTTPS download; WordPress checks every redirect for unsafe addresses. */
+    public static function download_document($url, int $limit)
+    {
+        if (!is_string($url) || strlen($url) > 2048 || !wp_http_validate_url($url)) { return new \WP_Error('invalid_url', 'Use a public HTTPS URL.'); }
+        $parts = wp_parse_url($url);
+        if (($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass']) || (isset($parts['port']) && $parts['port'] !== 443)) { return new \WP_Error('invalid_url', 'Use a public HTTPS URL without credentials.'); }
+        $path = wp_tempnam('aipkit-document');
+        if (!$path) { return new \WP_Error('temporary_file_failed', 'Temporary storage is unavailable.'); }
+        $response = wp_safe_remote_get($url, ['timeout' => 12, 'redirection' => 3, 'stream' => true, 'filename' => $path, 'limit_response_size' => $limit + 1, 'cookies' => []]);
+        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200 || !is_file($path) || filesize($path) > $limit || filesize($path) === 0) {
+            wp_delete_file($path); return new \WP_Error('document_download_failed', 'The document could not be downloaded within its size limit.');
+        }
+        return $path;
+    }
+
+    /** Build a fresh passive vector document; never reuse source nodes or enable general SVG uploads. */
+    public static function sanitize_svg($input)
+    {
+        if (!current_user_can('upload_files')) { return new \WP_Error('permission_denied', 'Media access is required.'); }
+        if (is_object($input)) { $input = (array) $input; }
+        if (!is_array($input) || array_diff(array_keys($input), ['svg', 'url', 'title', 'expected_sha256']) || (isset($input['svg']) === isset($input['url']))) { return new \WP_Error('invalid_input', 'Provide one SVG source: svg text or a public HTTPS url.'); }
+        $source = $input['svg'] ?? null;
+        if (isset($input['url'])) {
+            $path = self::download_document($input['url'], 20000);
+            if (is_wp_error($path)) { return $path; }
+            try { $source = file_get_contents($path); } finally { wp_delete_file($path); }
+        }
+        if (!is_string($source) || strlen($source) > 20000 || trim($source) === '' || preg_match('/<!\s*(?:DOCTYPE|ENTITY)/i', $source)) { return new \WP_Error('invalid_svg', 'Use an SVG up to 20 KB without document types or entities.'); }
+        if (!class_exists('DOMDocument')) { return new \WP_Error('svg_unavailable', 'This host needs the PHP DOM extension for SVG sanitation.'); }
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $doc = new \DOMDocument(); $doc->resolveExternals = false; $doc->substituteEntities = false;
+            if (!$doc->loadXML($source, LIBXML_NONET) || $doc->doctype || !$doc->documentElement || $doc->documentElement->localName !== 'svg'
+                || !in_array($doc->documentElement->namespaceURI, [null, '', 'http://www.w3.org/2000/svg'], true)) { return new \WP_Error('invalid_svg', 'The file is not a well-formed SVG document.'); }
+            $clean = new \DOMDocument('1.0', 'UTF-8'); $removed = 0; $nodes = 0; $shapes = 0;
+            $elements = ['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'title', 'desc', 'defs', 'linearGradient', 'radialGradient', 'stop'];
+            $numeric = ['x', 'y', 'x1', 'x2', 'y1', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'stroke-width', 'stroke-miterlimit', 'stroke-dashoffset', 'opacity', 'fill-opacity', 'stroke-opacity', 'offset', 'stop-opacity', 'fx', 'fy'];
+            $copy = static function ($node, $parent, int $depth) use (&$copy, &$removed, &$nodes, &$shapes, $elements, $numeric, $clean): void {
+                if (++$nodes > 1000 || $depth > 24) { throw new \RuntimeException('SVG complexity limit'); }
+                if ($node instanceof \DOMText) {
+                    if (in_array($parent->localName, ['title', 'desc'], true)) { $parent->appendChild($clean->createTextNode(mb_substr($node->nodeValue, 0, 1000))); }
+                    elseif (trim($node->nodeValue) !== '') { ++$removed; }
+                    return;
+                }
+                if (!$node instanceof \DOMElement || !in_array($node->localName, $elements, true)
+                    || !in_array($node->namespaceURI, [null, '', 'http://www.w3.org/2000/svg'], true) || ($depth > 0 && $node->localName === 'svg')) { ++$removed; return; }
+                $next = $clean->createElementNS('http://www.w3.org/2000/svg', $node->localName);
+                foreach ($node->attributes as $attribute) {
+                    $name = $attribute->nodeName; $value = trim($attribute->nodeValue); $ok = false;
+                    if ($attribute->namespaceURI) { ++$removed; continue; }
+                    if (in_array($name, $numeric, true)) { $ok = (bool) preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|%)?$/iD', $value) && strlen($value) < 40; }
+                    elseif (in_array($name, ['viewBox', 'points', 'stroke-dasharray'], true)) { $ok = (bool) preg_match('/^[0-9eE+.,\s-]+$/D', $value); }
+                    elseif ($name === 'd') { $ok = (bool) preg_match('/^[MmZzLlHhVvCcSsQqTtAa0-9eE+.,\s-]+$/D', $value); }
+                    elseif (in_array($name, ['fill', 'stroke', 'stop-color'], true)) { $ok = (bool) preg_match('/^(?:none|currentColor|transparent|[a-zA-Z]+|#[0-9a-fA-F]{3,8}|(?:rgb|rgba)\([0-9.,%\s]+\)|url\(#[a-zA-Z][a-zA-Z0-9_-]{0,63}\))$/D', $value); }
+                    elseif ($name === 'id') { $ok = (bool) preg_match('/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/D', $value); }
+                    elseif (in_array($name, ['transform', 'gradientTransform'], true)) { $ok = (bool) preg_match('/^(?:(?:matrix|translate|scale|rotate|skewX|skewY)\([0-9eE+.,\s-]+\)\s*)+$/D', $value); }
+                    elseif ($name === 'gradientUnits') { $ok = in_array($value, ['userSpaceOnUse', 'objectBoundingBox'], true); }
+                    elseif ($name === 'spreadMethod') { $ok = in_array($value, ['pad', 'reflect', 'repeat'], true); }
+                    elseif (in_array($name, ['fill-rule', 'clip-rule'], true)) { $ok = in_array($value, ['nonzero', 'evenodd'], true); }
+                    elseif ($name === 'stroke-linecap') { $ok = in_array($value, ['butt', 'round', 'square'], true); }
+                    elseif ($name === 'stroke-linejoin') { $ok = in_array($value, ['miter', 'round', 'bevel'], true); }
+                    elseif ($name === 'preserveAspectRatio') { $ok = (bool) preg_match('/^(?:none|x(?:Min|Mid|Max)Y(?:Min|Mid|Max)(?: (?:meet|slice))?)$/D', $value); }
+                    if ($ok && strlen($value) <= 10000) { $next->setAttribute($name, $value); } else { ++$removed; }
+                }
+                $parent->appendChild($next);
+                if (in_array($node->localName, ['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon'], true)) { ++$shapes; }
+                foreach ($node->childNodes as $child) { $copy($child, $next, $depth + 1); }
+            };
+            $copy($doc->documentElement, $clean, 0);
+            if (!$shapes) { return new \WP_Error('svg_no_vectors', 'No supported vector shapes remain after sanitation.'); }
+            $svg = $clean->saveXML($clean->documentElement);
+            if (strlen(wp_json_encode($svg)) > 45000) { return new \WP_Error('svg_size', 'The sanitized SVG is too large.'); }
+            return ['svg' => $svg, 'sha256' => hash('sha256', $svg), 'removed_items' => $removed,
+                'notice' => 'Only passive shapes and local gradients are retained. Scripts, HTML, images, fonts, animation, stylesheets and external references are removed. Check the saved preview if anything was removed.'];
+        } catch (\Throwable $error) { return new \WP_Error('invalid_svg', 'The SVG could not be sanitized within its limits.'); }
+        finally { libxml_clear_errors(); libxml_use_internal_errors($previous); }
+    }
+
+    /** These two callbacks replace generic text filtering with a strict SVG parser, not executable HTML. */
+    public static function document_content_error($error, string $name, $input)
+    {
+        return in_array($name, ['ai-puffer/sanitize-svg', 'ai-puffer/import-svg'], true) ? null : $error;
+    }
+
+    public static function document_dispatch($result, string $name, $input, bool $preview)
+    {
+        if ($name !== 'ai-puffer/import-svg') { return $result; }
+        if (!current_user_can('upload_files')) { return self::error('permission_denied'); }
+        $input = (array) $input; $title = $input['title'] ?? 'SVG image';
+        if (!is_string($title) || mb_strlen($title) > 120 || sanitize_text_field($title) !== $title) { return self::error('invalid_input'); }
+        $clean = self::sanitize_svg($input);
+        if (is_wp_error($clean)) { return self::error($clean->get_error_code(), $clean->get_error_message()); }
+        $expected = $input['expected_sha256'] ?? null;
+        if ((isset($input['url']) && $expected === null) || ($expected !== null && (!is_string($expected) || !hash_equals($clean['sha256'], $expected)))) {
+            return self::error('svg_source_changed', 'Sanitize the source first, then supply its sha256 as expected_sha256. The approved bytes must match before import.');
+        }
+        if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'publish', 'title' => 'Import sanitized SVG', 'name' => $name,
+            'description' => $clean['notice'], 'input' => wp_json_encode(['title' => $title, 'sha256' => $clean['sha256'], 'removed_items' => $clean['removed_items']])]]; }
+        // Use core's file handling with an exact per-call type, never a global SVG MIME permission.
+        require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/media.php'; require_once ABSPATH . 'wp-admin/includes/image.php';
+        $temporary = wp_tempnam('aipkit-svg');
+        if (!$temporary || file_put_contents($temporary, $clean['svg']) !== strlen($clean['svg'])) { if ($temporary) { wp_delete_file($temporary); } return self::error('temporary_file_failed'); }
+        try {
+            self::$mutation_started = true;
+            $upload = ['name' => 'vector-' . substr($clean['sha256'], 0, 12) . '.svg', 'tmp_name' => $temporary, 'error' => 0, 'size' => strlen($clean['svg'])];
+            $type_check = static function ($types, $path) use ($temporary, $clean) {
+                return $path === $temporary && is_file($path) && hash_file('sha256', $path) === $clean['sha256']
+                    ? ['ext' => 'svg', 'type' => 'image/svg+xml', 'proper_filename' => false] : $types;
+            };
+            add_filter('wp_check_filetype_and_ext', $type_check, PHP_INT_MAX, 2);
+            try { $file = wp_handle_sideload($upload, ['test_form' => false, 'mimes' => ['svg' => 'image/svg+xml']]); }
+            finally { remove_filter('wp_check_filetype_and_ext', $type_check, PHP_INT_MAX); }
+            if (isset($file['error'])) { self::$mutation_started = false; return self::error('svg_upload_failed', 'WordPress refused the sanitized SVG upload.'); }
+            $id = wp_insert_attachment(wp_slash(['post_title' => $title, 'post_mime_type' => 'image/svg+xml', 'post_status' => 'inherit']), $file['file'], 0, true);
+            if (is_wp_error($id) || !$id) { wp_delete_file($file['file']); self::$mutation_started = false; return self::error('svg_upload_failed'); }
+            if (hash_file('sha256', get_attached_file($id)) !== $clean['sha256']) { return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'svg_save_unconfirmed', 'message' => 'Another upload handler changed the saved file. Check the new media item before trying again.'], 'result' => ['id' => (int) $id, 'edit_url' => get_edit_post_link($id, 'raw')]]; }
+            return self::ok(['id' => (int) $id, 'url' => wp_get_attachment_url($id), 'mime_type' => 'image/svg+xml', 'sha256' => $clean['sha256'], 'removed_items' => $clean['removed_items'], 'notice' => $clean['notice'], 'edit_url' => get_edit_post_link($id, 'raw')]);
+        } finally { if (is_file($temporary)) { wp_delete_file($temporary); } }
+    }
+
     public static function version(\WP_Post $post): string
     {
         return self::content_version($post, self::content_terms($post));
@@ -557,6 +677,88 @@ final class Operations
     }
 
     /** Public HTTPS raster images only; safe redirects, bounded download, content sniffing and native WP upload checks. */
+    /** On-demand catalog lookup only. Image downloads retain upload_media's existing validation and permissions. */
+    public static function search_stock_images($input)
+    {
+        if (!current_user_can('upload_files')) { return new \WP_Error('permission_denied', 'Media upload permission is required.'); }
+        if (!is_array($input) || array_diff(array_keys($input), ['query', 'page', 'per_page', 'orientation'])
+            || !is_string($input['query'] ?? null) || trim($input['query']) === '' || mb_strlen($input['query']) > 200
+            || sanitize_text_field($input['query']) !== $input['query']) { return new \WP_Error('invalid_input', 'Use a plain-text image search of 1–200 characters.'); }
+        $page = $input['page'] ?? 1; $per_page = $input['per_page'] ?? 5; $orientation = $input['orientation'] ?? 'any';
+        if (!is_int($page) || $page < 1 || $page > 20 || !is_int($per_page) || $per_page < 1 || $per_page > 10
+            || !in_array($orientation, ['any', 'landscape', 'portrait', 'square'], true)) { return new \WP_Error('invalid_input', 'Choose page 1–20 and 1–10 images per page.'); }
+        // Dead-link probes can exceed the bridge deadline on uncached searches. Validate the chosen file at upload.
+        $params = ['q' => trim($input['query']), 'page' => $page, 'page_size' => $per_page,
+            'license_type' => 'commercial,modification', 'license' => 'cc0,pdm,by,by-sa',
+            'extension' => 'jpg,jpeg,png,webp', 'mature' => 'false', 'filter_dead' => 'false'];
+        if ($orientation !== 'any') { $params['aspect_ratio'] = ['landscape' => 'wide', 'portrait' => 'tall', 'square' => 'square'][$orientation]; }
+        $key = 'aipkit_stock_v1_' . hash('sha256', wp_json_encode($params));
+        $cached = get_transient($key);
+        if (is_array($cached)) { $cached['cached'] = true; return $cached; }
+        $retry_at = (int) get_transient('aipkit_stock_openverse_retry');
+        if ($retry_at > time()) { return new \WP_Error('stock_search_wait', 'Openverse is temporarily unavailable. Try again in ' . ($retry_at - time()) . ' seconds; no automatic retry is scheduled.'); }
+        $response = wp_safe_remote_get(add_query_arg(['q' => rawurlencode($params['q'])] + $params, 'https://api.openverse.org/v1/images/'), [
+            'timeout' => 20, 'redirection' => 0, 'limit_response_size' => 512 * 1024,
+            'headers' => ['Accept' => 'application/json'],
+        ]);
+        if (is_wp_error($response)) { return new \WP_Error('stock_search_unavailable', 'Openverse could not be reached. Try again later.'); }
+        $status = wp_remote_retrieve_response_code($response);
+        if ($status === 429 || $status >= 500) {
+            $retry = wp_remote_retrieve_header($response, 'retry-after');
+            $wait = is_numeric($retry) ? max(60, min(900, (int) $retry)) : 60;
+            set_transient('aipkit_stock_openverse_retry', time() + $wait, $wait);
+            return new \WP_Error('stock_search_wait', 'Openverse is temporarily unavailable. Try again in ' . $wait . ' seconds; no automatic retry is scheduled.');
+        }
+        if ($status !== 200) { return new \WP_Error('stock_search_unavailable', 'Openverse did not accept this search. Try a different search later.'); }
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        if (!is_array($body) || !is_array($body['results'] ?? null) || !is_int($body['page_count'] ?? null) || $body['page_count'] < 0
+            || ($body['page'] ?? null) !== $page || ($body['page_size'] ?? null) !== $per_page) {
+            return new \WP_Error('stock_search_invalid_response', 'Openverse returned an unreadable search result.');
+        }
+        $url = static function ($value): string {
+            if (!is_string($value) || strlen($value) > 2000) { return ''; }
+            $parts = wp_parse_url($value);
+            if (!$parts || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])
+                || (isset($parts['port']) && $parts['port'] !== 443)) { return ''; }
+            return esc_url_raw($value, ['https']);
+        };
+        $text = static function ($value, int $max): string { return is_string($value) ? mb_substr(sanitize_text_field($value), 0, $max) : ''; };
+        $items = [];
+        foreach (array_slice($body['results'], 0, $per_page) as $image) {
+            if (!is_array($image) || !is_string($image['id'] ?? null) || !wp_is_uuid($image['id'])
+                || ($image['mature'] ?? null) !== false || !in_array($image['license'] ?? null, ['cc0', 'pdm', 'by', 'by-sa'], true)) { continue; }
+            $image_url = $url($image['url'] ?? null); $source_url = $url($image['foreign_landing_url'] ?? null);
+            if ($image_url === '' || $source_url === '') { continue; }
+            $license = $image['license']; $version = $image['license_version'] ?? '';
+            if (in_array($license, ['by', 'by-sa'], true)) {
+                if (!in_array($version, ['1.0', '2.0', '2.5', '3.0', '4.0'], true)) { continue; }
+                $license_url = 'https://creativecommons.org/licenses/' . $license . '/' . $version . '/';
+            } else { $version = '1.0'; $license_url = 'https://creativecommons.org/publicdomain/' . ($license === 'cc0' ? 'zero' : 'mark') . '/1.0/'; }
+            $title = $text($image['title'] ?? '', 300) ?: 'Untitled image';
+            $creator = $text($image['creator'] ?? '', 200) ?: 'Unknown creator';
+            $label = ($license === 'pdm' ? 'Public Domain Mark' : 'CC ' . strtoupper($license)) . ' ' . $version;
+            $items[] = ['id' => $image['id'], 'title' => $title, 'image_url' => $image_url,
+                'thumbnail_url' => $url($image['thumbnail'] ?? null), 'source_url' => $source_url,
+                'creator' => $creator, 'creator_url' => $url($image['creator_url'] ?? null),
+                'license' => $label, 'license_url' => $license_url,
+                'width' => is_int($image['width'] ?? null) && $image['width'] > 0 && $image['width'] <= 100000 ? $image['width'] : null,
+                'height' => is_int($image['height'] ?? null) && $image['height'] > 0 && $image['height'] <= 100000 ? $image['height'] : null,
+                'credit' => $title . ' by ' . $creator . ' — ' . $label . '. Source: ' . $source_url . ' Licence: ' . $license_url,
+                'credit_html' => '<a href="' . esc_url($source_url) . '">' . esc_html($title) . '</a> by ' . esc_html($creator)
+                    . ' / <a href="' . esc_url($license_url) . '">' . esc_html($label) . '</a>',
+            ];
+        }
+        $omitted = 0;
+        while (strlen((string) wp_json_encode($items)) > 50000) { array_pop($items); ++$omitted; }
+        $result = ['provider' => 'Openverse', 'provider_url' => 'https://openverse.org/', 'query' => $params['q'],
+            'page' => $page, 'per_page' => $per_page, 'has_more' => $page < min(20, $body['page_count']),
+            'items' => $items, 'omitted_for_size' => $omitted, 'cached' => false,
+            'note' => 'Preview only the returned thumbnail_url/image_url, or show their exact links; never substitute web-search pictures. Search does not check file availability; upload validates the chosen file. Catalog licence information must be checked at the original source. Credit the creator/source and retain licence links; share-alike may apply. Search titles are not visual descriptions. Download chosen images into WordPress; do not permanently hotlink.'];
+        if ($omitted > 0) { $result['note'] .= ' Some results were omitted to fit; request fewer images per page.'; }
+        set_transient($key, $result, HOUR_IN_SECONDS);
+        return $result;
+    }
+
     public static function upload_media(object $args): array
     {
         if (!current_user_can('upload_files')) { return self::error('permission_denied'); }

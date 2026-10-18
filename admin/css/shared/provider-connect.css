@@ -167,3 +167,14 @@
 .aipkit_connect_dialog .aipkit_cloud_btn--block { width: 100%; }
 .aipkit_connect_dialog .aipkit_btn-danger { background: #fff; border-color: #f3d0d0; color: #c53030; }
 .aipkit_connect_dialog .aipkit_btn-danger:hover:not(:disabled) { background: #fff5f5; border-color: #e8b4b4; color: #c53030; }
+
+/* Cloud email editor shared by onboarding, Settings, Dashboard and the connect dialog. */
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor p { margin: 10px 0; font-size: 13px; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor input[type="email"] { width: 100%; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor fieldset { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor fieldset[hidden] { display: none; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor legend { margin-bottom: 8px; font-weight: 600; overflow-wrap: anywhere; }
+/* Each choice is one line in the fieldset's 8px rhythm. */
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor fieldset label { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-weight: 400; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor fieldset label span { overflow-wrap: anywhere; }
+:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog, .aipkit-setup) .aipkit_cloud_email_editor fieldset input[type="radio"] { flex: 0 0 auto; margin: 2px 0 0; }

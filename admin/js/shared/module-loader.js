@@ -34,7 +34,6 @@
         'content-writer': 'aipkit_initContentWriter', // Content writer module initializer
     };
 
-    const LAST_MODULE_STORAGE_KEY = 'aipkit_last_module';
     const applyModuleLayoutState = (moduleContainer, moduleName) => {
         if (!moduleContainer) {
             return;
@@ -202,18 +201,6 @@
         loading.setAttribute('role', 'status');
         loading.textContent = window.aipkit_dashboard?.text?.loading || 'Loading…';
         return loading;
-    };
-
-    const rememberLastVisitedModule = (moduleName) => {
-        if (!moduleName || moduleName === 'settings') {
-            return;
-        }
-
-        try {
-            localStorage.setItem(LAST_MODULE_STORAGE_KEY, moduleName);
-        } catch (error) {
-            // Ignore storage failures (privacy mode, quota, etc.).
-        }
     };
 
     const getModuleAssetUrls = (moduleName, configKey) => {
@@ -582,7 +569,6 @@
 
                 deferredAutogptTransition?.complete();
 
-                rememberLastVisitedModule(aipkit_moduleName);
             } catch (error) {
                 deferredAutogptTransition?.cancel();
                 throw error;

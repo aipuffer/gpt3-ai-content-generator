@@ -122,7 +122,9 @@
 
     syncTopNavBrandTarget(
       topNav,
-      visibleModuleLink ||
+      Array.prototype.find.call(utilityLinks, function (link) {
+        return link.getAttribute("data-module") === "stats" && isTopNavModuleVisible(link);
+      }) || visibleModuleLink ||
         visibleUtilityLink ||
         topNav.querySelector(
           '.aipkit_module-tab--settings.aipkit_module-link[data-module="settings"]'
@@ -269,24 +271,12 @@
           invalidateModuleCaches(["settings", moduleSlug]);
 
           input.disabled = true;
-          var billingToggle =
-            optionKey === "stats_viewer"
-              ? container.querySelector("#aipkit_settings_visitor_billing_toggle")
-              : null;
-          if (billingToggle) {
-            billingToggle.disabled = true;
-          }
           setAutosaveBusy(true);
 
           window
             .aipkit_apiRequest("aipkit_update_module_setting", {
               moduleKey: optionKey,
               enabled: isEnabled ? "1" : "0",
-            })
-            .then(function () {
-              if (billingToggle && !isEnabled) {
-                billingToggle.checked = false;
-              }
             })
             .catch(function () {
               input.checked = previousEnabled;
@@ -298,9 +288,6 @@
             .finally(function () {
               setAutosaveBusy(false);
               input.disabled = false;
-              if (billingToggle) {
-                billingToggle.disabled = false;
-              }
             });
         });
 
@@ -325,26 +312,14 @@
     if (billingToggle && !billingToggle.dataset.aipkitBound) {
       billingToggle.addEventListener("change", function () {
         var enabled = billingToggle.checked;
-        var usageToggle = container.querySelector(
-          '.aipkit_settings_module_toggle_input[data-option-key="stats_viewer"]'
-        );
         clearMessages();
         billingToggle.disabled = true;
-        if (usageToggle) {
-          usageToggle.disabled = true;
-        }
         setAutosaveBusy(true);
         window.aipkit_apiRequest("aipkit_set_visitor_billing", {
           nonce: container.dataset.visitorBillingNonce || "",
           enabled: enabled ? "1" : "0",
         })
           .then(function () {
-            if (enabled) {
-              if (usageToggle) {
-                usageToggle.checked = true;
-              }
-              setTopNavModuleVisibility("stats", true);
-            }
             invalidateModuleCaches(["settings", "stats"]);
           })
           .catch(function (error) {
@@ -354,9 +329,6 @@
           .finally(function () {
             setAutosaveBusy(false);
             billingToggle.disabled = false;
-            if (usageToggle) {
-              usageToggle.disabled = false;
-            }
           });
       });
       billingToggle.dataset.aipkitBound = "true";

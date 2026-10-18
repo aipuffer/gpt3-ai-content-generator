@@ -50,6 +50,7 @@ class AIPKit_HTTP_Multipart
                 return new WP_Error('aipkit_upload_transport', __('Could not initialize the upload connection.', 'gpt3-ai-content-generator'));
             }
             try {
+                $response_headers = [];
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_setopt_array -- Native multipart keeps large files out of PHP memory.
                 curl_setopt_array($handle, [
                     CURLOPT_URL => $url,
@@ -57,6 +58,19 @@ class AIPKit_HTTP_Multipart
                     CURLOPT_POSTFIELDS => $body,
                     CURLOPT_HTTPHEADER => $curl_headers,
                     CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HEADERFUNCTION => static function ($curl, string $line) use (&$response_headers): int {
+                        if (preg_match('~^HTTP/\S+\s+\d+~i', $line)) {
+                            $response_headers = [];
+                        } elseif (strpos($line, ':') !== false) {
+                            [$name, $value] = explode(':', $line, 2);
+                            $name = strtolower(trim($name));
+                            // Retain support references, never cookies or authorization headers.
+                            if (in_array($name, ['x-request-id', 'cf-ray', 'retry-after', 'content-type'], true)) {
+                                $response_headers[$name] = substr(trim($value), 0, 200);
+                            }
+                        }
+                        return strlen($line);
+                    },
                     CURLOPT_CONNECTTIMEOUT => $args['connect_timeout'] ?? 15,
                     CURLOPT_TIMEOUT => $args['timeout'],
                     CURLOPT_USERAGENT => $args['user-agent'] ?? 'AI Puffer',
@@ -70,7 +84,7 @@ class AIPKit_HTTP_Multipart
                     return new WP_Error('aipkit_upload_http_error', curl_error($handle));
                 }
                 // phpcs:ignore WordPress.WP.AlternativeFunctions.curl_curl_getinfo -- Normalize the transport response for shared API handling.
-                return ['body' => $response, 'response' => ['code' => curl_getinfo($handle, CURLINFO_HTTP_CODE)], 'headers' => []];
+                return ['body' => $response, 'response' => ['code' => curl_getinfo($handle, CURLINFO_HTTP_CODE)], 'headers' => $response_headers];
             } finally {
                 $handle = null;
             }

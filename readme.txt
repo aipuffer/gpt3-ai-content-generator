@@ -1,14 +1,14 @@
-=== AI Puffer – MCP, AI Chatbot & Content Automation ===
+=== AI Puffer – AI Chatbot & MCP Server for Claude and ChatGPT ===
 Contributors: senols
 Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.11
+Stable tag: 2.5.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Let ChatGPT or Claude read, draft and publish through MCP, using your chosen safety level. Also an AI chatbot, writer, automations, forms and images.
+Add an AI chatbot and manage your WordPress website through Claude or ChatGPT with AI Puffer’s MCP server.
 
 == Description ==
 
@@ -195,6 +195,8 @@ The AI providers and stores below are used only when you select one for a featur
 
 **Pexels** (api.pexels.com) and **Pixabay** (pixabay.com): your stock photo search terms. Pexels [Terms](https://www.pexels.com/terms-of-service/) · [Privacy](https://www.pexels.com/privacy-policy/); Pixabay [Terms](https://pixabay.com/service/terms/) · [Privacy](https://pixabay.com/service/privacy/)
 
+**Openverse** (api.openverse.org): when you ask a connected assistant to search stock images, your search terms and image filters go from your website to Openverse. No API key is needed. Results include creator, source and licence links; check the original source and retain required attribution. Searches are cached locally for one hour. Downloading a chosen image uses the existing media upload tool and contacts its image host. [Terms](https://openverse.org/terms-of-service) · [Privacy](https://openverse.org/privacy)
+
 **Pinecone** (api.pinecone.io and your index host), **Qdrant and Chroma** (the address you enter), if chosen as your knowledge store: passages and embeddings of content you index, and search vectors for lookups. Pinecone [Terms](https://www.pinecone.io/legal/) · [Privacy](https://www.pinecone.io/privacy/); Qdrant [Terms](https://qdrant.tech/legal/terms_and_conditions/) · [Privacy](https://qdrant.tech/legal/privacy-policy/); Chroma [Terms](https://www.trychroma.com/terms) · [Privacy](https://www.trychroma.com/privacy)
 
 **Hosted website management (mcp.aipuffer.org):** only after you enable Manage my website and accept its disclosure, the bridge receives your site address, WordPress/plugin versions, Cloud account/site identifiers and public signing key to register the site. Assistant connections include the WordPress user identifier and permitted actions. Assistant requests and website results, including requested post text, pass through the bridge to your chosen assistant; draft content is sent to your WordPress site. Operational records contain identifiers, action names, status and usage, without post bodies or credentials. Recent operational history is searchable for 30 days; archives and completed admin command records are retained for 24 months, and unresolved cases are held until resolved. WordPress keeps its local operation records for recovery. Standard access requires WordPress approval for post publication; Trusted access can publish posts directly. Other plugins’ changes and deletions require approval at every level. [Terms](https://aipower.org/terms-and-conditions/) · [Privacy](https://aipower.org/privacy-policy/). Your assistant provider’s own terms also apply.
@@ -208,6 +210,9 @@ The AI providers and stores below are used only when you select one for a featur
 The free edition's original JavaScript and CSS, build tools and instructions are available in the [public source repository](https://github.com/aipuffer/gpt3-ai-content-generator). Version tags identify source snapshots matching the corresponding free release.
 
 == Upgrade Notice ==
+
+= 2.5.12 =
+Adds guided Cloud and assistant setup, an always-available Dashboard, website-action breakdowns, custom content definitions, stock-image search, safe SVG imports.
 
 = 2.5.11 =
 Expands optional MCP website operations, image workflows, supported WP-CLI commands and Premium theme tools, with improved approvals and recovery.
@@ -231,6 +236,17 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.12 =
+- Added guided onboarding for chatbots, website management, AI forms and content, with email verification, connection checks and a first assistant request.
+- Made Dashboard the default landing page, with account management, separate AI credit and website action balances, and a combined activity timeline.
+- Simplified ChatGPT and Claude setup instructions and assistant management while preserving existing connections and permissions.
+- Improved Cloud connection diagnostics, email-change confirmation and recovery messages.
+- Fixed stale knowledge-source failure warnings, added dismissal with access to failed sources, and preserved previews and clearer OpenAI upload diagnostics.
+- Added sanitized SVG imports.
+- Added keyless stock-image search with source, creator and licence attribution through connected assistants.
+- Added assistant-driven registration of custom post types and typed custom fields.
+- Added a website-action usage breakdown by operation category, with date filters and separate AI credit balances.
 
 = 2.5.11 =
 

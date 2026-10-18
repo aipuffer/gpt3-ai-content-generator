@@ -209,7 +209,7 @@ $aipkit_rest_routes = [
                     </div>
                     <section class="aipkit_settings_provider_panel_section">
                         <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('What you get', 'gpt3-ai-content-generator'); ?></h3>
-                        <p class="aipkit_settings_developer_text"><?php esc_html_e('Your providers and keys, usage logs and costs in Usage, and the limits you set. Nothing changes for plugins that don’t use WordPress AI.', 'gpt3-ai-content-generator'); ?></p>
+                        <p class="aipkit_settings_developer_text"><?php esc_html_e('Your providers and keys, usage logs and costs in Dashboard, and the limits you set. Nothing changes for plugins that don’t use WordPress AI.', 'gpt3-ai-content-generator'); ?></p>
                     </section>
                     <section class="aipkit_settings_provider_panel_section">
                         <h3 class="aipkit_settings_provider_panel_section_title"><?php esc_html_e('Available through AI Puffer', 'gpt3-ai-content-generator'); ?></h3>

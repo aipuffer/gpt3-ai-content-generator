@@ -49,7 +49,7 @@ $utility_nav_modules = array(
         'data_module' => 'sources',
     ),
     'stats_viewer' => array(
-        'label'       => __('Usage', 'gpt3-ai-content-generator'),
+        'label'       => __('Dashboard', 'gpt3-ai-content-generator'),
         'icon'        => 'chart',
         'data_module' => 'stats',
     ),
@@ -133,13 +133,9 @@ if ($can_access_dashboard) {
 
 $default_module_slug = '';
 $default_module_label = '';
-if (
-    isset($nav_modules['chat_bot']) &&
-    $is_nav_module_enabled('chat_bot') &&
-    AIPKit_Role_Manager::user_can_access_module($nav_modules['chat_bot']['data_module'])
-) {
-    $default_module_slug = $nav_modules['chat_bot']['data_module'];
-    $default_module_label = $nav_modules['chat_bot']['label'];
+if (AIPKit_Role_Manager::user_can_access_module('stats')) {
+    $default_module_slug = 'stats';
+    $default_module_label = __('Dashboard', 'gpt3-ai-content-generator');
 }
 
 if ($default_module_slug === '') {
@@ -219,7 +215,7 @@ $render_brand_target = static function () use ($default_module_slug, $brand_labe
         <?php if ($can_access_dashboard): ?>
             <div class="aipkit_module-tabs_actions">
                 <?php foreach ($utility_nav_modules as $option_key => $module): ?>
-                    <?php $render_module_link($module, $option_key, 'aipkit_module-tab aipkit_module-tab--utility aipkit_module-link'); ?>
+                    <?php if ($option_key !== 'stats_viewer') { $render_module_link($module, $option_key, 'aipkit_module-tab aipkit_module-tab--utility aipkit_module-link'); } ?>
                 <?php endforeach; ?>
 
                 <?php if ($can_access_settings): ?>

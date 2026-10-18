@@ -69,6 +69,7 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
         const changed = input.checkValidity() && email !== find('[data-cloud-email]').textContent.trim();
         const ownership = find('[data-email-ownership]');
         ownership.hidden = !changed;
+        form.querySelectorAll('[data-current-email]').forEach(label => { label.textContent = find('[data-cloud-email]').textContent.trim(); });
         form.querySelectorAll('[data-new-email]').forEach(label => { label.textContent = changed ? email : ''; });
         const selected = form.querySelector('[name="email_ownership"]:checked')?.value;
         find('[data-email-transfer]').hidden = !changed || selected !== 'both';
@@ -125,12 +126,12 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
                             && target.searchParams.get('candidate_email') === email
                             && target.searchParams.get('transfer_type') === transferType
                             && target.searchParams.has('_wpnonce') && !target.username && !target.password) {
-                            const confirmation = await fetch(target.href, { credentials: 'same-origin', redirect: 'follow' });
-                            if (!confirmation.ok || new URL(confirmation.url).origin !== target.origin) throw new Error(__('Could not start the account change. Please try again shortly.', 'gpt3-ai-content-generator'));
-                            const page = new DOMParser().parseFromString(await confirmation.text(), 'text/html');
-                            const notice = [...page.querySelectorAll('.fs-notice.success')].find(item => item.textContent.includes(find('[data-cloud-email]').textContent.trim()));
-                            if (!notice) throw new Error(__('Could not confirm whether the ownership email was sent. Check your inbox before trying again.', 'gpt3-ai-content-generator'));
-                            ownershipNotice = notice.querySelector('.fs-notice-body')?.textContent.trim() || __('Check your current email to confirm this account change.', 'gpt3-ai-content-generator');
+                            const ownershipBody = new FormData();
+                            for (const [key, value] of Object.entries({ action: 'aipkit_cloud_email_ownership', security: target.searchParams.get('_wpnonce'), email_address: email, transfer_type: transferType })) ownershipBody.append(key, value);
+                            const confirmation = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body: ownershipBody });
+                            const receipt = await confirmation.json();
+                            if (!receipt?.success || receipt?.data?.status !== 'confirmation_requested') throw new Error(__('Could not confirm whether the ownership email was sent. Check your inbox before trying again.', 'gpt3-ai-content-generator'));
+                            ownershipNotice = __('Check your current email to confirm this account change.', 'gpt3-ai-content-generator');
                             return;
                         }
                     }
@@ -166,6 +167,26 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
             root.querySelector('[data-cloud-account-controls] [data-action="edit-email"]')?.focus();
         }
     }
+    function resendEmail(resend, status, resendUrl) {
+        return busy(resend, async () => {
+            status.hidden = false;
+            status.textContent = __('Sending verification email…', 'gpt3-ai-content-generator');
+            try {
+                const url = new URL(resendUrl, window.location.href);
+                const account = new URL(root.querySelector('[data-cloud-manage-email]').href, window.location.href);
+                if (url.origin !== window.location.origin || url.pathname !== account.pathname || url.searchParams.get('page') !== account.searchParams.get('page') || url.searchParams.get('fs_action') !== 'verify_email') throw new Error('invalid_url');
+                const response = await fetch(url.href, { credentials: 'same-origin', redirect: 'follow' });
+                if (!response.ok || new URL(response.url).origin !== url.origin) throw new Error('request_failed');
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const email = root.querySelector('[data-cloud-email]').textContent.trim();
+                const notice = [...page.querySelectorAll('.fs-notice.success')].find(element => email && element.textContent.includes(email));
+                if (!notice) throw new Error('unconfirmed');
+                status.textContent = notice.querySelector('.fs-notice-body')?.textContent.trim() || __('Verification email requested. Check your inbox.', 'gpt3-ai-content-generator');
+            } catch (_) {
+                status.textContent = __('Could not confirm the email request. Please try again shortly.', 'gpt3-ai-content-generator');
+            }
+        });
+    }
     root.addEventListener('click', event => {
         const check = event.target.closest('[data-action="check-email-change"]');
         if (check && root.contains(check)) {
@@ -178,24 +199,7 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
             event.preventDefault();
             if (resend.disabled) return;
             const status = resend.closest('.aipkit_cloud_email_recovery').querySelector('[data-cloud-resend-status]');
-            busy(resend, async () => {
-                status.hidden = false;
-                status.textContent = __('Sending verification email…', 'gpt3-ai-content-generator');
-                try {
-                    const url = new URL(resend.dataset.url, window.location.href);
-                    const account = new URL(root.querySelector('[data-cloud-manage-email]').href, window.location.href);
-                    if (url.origin !== window.location.origin || url.pathname !== account.pathname || url.searchParams.get('page') !== account.searchParams.get('page') || url.searchParams.get('fs_action') !== 'verify_email') throw new Error('invalid_url');
-                    const response = await fetch(url.href, { credentials: 'same-origin', redirect: 'follow' });
-                    if (!response.ok || new URL(response.url).origin !== url.origin) throw new Error('request_failed');
-                    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-                    const email = root.querySelector('[data-cloud-email]').textContent.trim();
-                    const notice = [...page.querySelectorAll('.fs-notice.success')].find(element => email && element.textContent.includes(email));
-                    if (!notice) throw new Error('unconfirmed');
-                    status.textContent = notice.querySelector('.fs-notice-body')?.textContent.trim() || __('Verification email requested. Check your inbox.', 'gpt3-ai-content-generator');
-                } catch (_) {
-                    status.textContent = __('Could not confirm the email request. Please try again shortly.', 'gpt3-ai-content-generator');
-                }
-            });
+            resendEmail(resend, status, resend.dataset.url);
             return;
         }
         const button = event.target.closest('[data-action="edit-email"], [data-action="cancel-email"]');
@@ -241,5 +245,5 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
     root.addEventListener('keydown', event => {
         if (active && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); }
     });
-    return { cancel, isEditing: () => !!active };
+    return { cancel, resendEmail, isEditing: () => !!active };
 }

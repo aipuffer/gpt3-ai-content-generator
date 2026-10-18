@@ -242,6 +242,7 @@ final class BridgeClient {
 		return array(
 			'grant_id'    => $grant['grant_id'],
 			'connect_url' => $data['connect_url'],
+            'client_hint' => $client_hint,
 		);
 	}
 
@@ -290,6 +291,11 @@ final class BridgeClient {
         }
         return $reply;
 	}
+
+    /** A manual, content-free round trip; no registration or grants are created. */
+    public static function readiness(array $body) {
+        return self::request('POST', '/site/v1/readiness', $body, 30);
+    }
 
 	public static function site_status() {
 		return self::request( 'GET', '/site/v1/status' );

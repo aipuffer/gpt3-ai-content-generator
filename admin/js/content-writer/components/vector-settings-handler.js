@@ -453,10 +453,6 @@
     updateVectorSettingsUI(scope);
   }
 
-  function toggleProviderSpecificFields(scope) {
-    updateVectorSettingsUI(scope);
-  }
-
   function initContentWriterVectorSettings() {
     const container = document.getElementById("aipkit_content_writer_container");
     if (!container || container.dataset.vectorSettingsHandlerAttached) {

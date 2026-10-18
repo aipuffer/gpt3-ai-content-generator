@@ -1,3 +1,4 @@
+import { createMergedActivity } from './merged-activity.js';
 import { summarizeRequestPayload } from './request-payload-summary.js';
 import { bindCloudConnection, refreshCloudCredits, refreshWebsiteActions } from '../settings/cloud-connection.js';
 import { createWebsiteActivity } from './website-activity.js';
@@ -207,6 +208,58 @@ import { createWebsiteActivity } from './website-activity.js';
         }
         container.dataset.aipkitUsageBound = 'true';
         bindCloudConnection(container);
+        const closeHints = (except = null) => {
+            container.querySelectorAll('[data-aipkit-usage-hint]').forEach((open) => {
+                if (open !== except) {
+                    open.setAttribute('aria-expanded', 'false');
+                    open.setAttribute('data-dismissed', 'true');
+                }
+            });
+        };
+        // Not connected: the quiet line's Connect for free opens the shared connect dialog on AI Puffer Cloud.
+        container.addEventListener('click', (event) => {
+            const connect = event.target.closest('[data-aipkit-cloud-connect]');
+            if (!connect || typeof window.aipkit_openProviderConnection !== 'function') return;
+            event.preventDefault();
+            void window.aipkit_openProviderConnection(connect, null, { initialProvider: 'AIPufferCloud' });
+        });
+        // The account chip's menu (Change email, Disconnect). It stays open while the email is being changed.
+        const accountMenu = {
+            popover: () => container.querySelector('[data-account-popover]'),
+            chip: () => container.querySelector('[data-account-chip]'),
+            editing: () => Boolean(container.querySelector('[data-account-popover] [data-cloud-email-editor]:not([hidden])')),
+            toggle(open) {
+                const popover = this.popover();
+                const chip = this.chip();
+                if (!popover || !chip) return;
+                popover.hidden = !open;
+                chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+            },
+        };
+        container.addEventListener('click', (event) => {
+            const chip = event.target.closest('[data-account-chip]');
+            if (chip) accountMenu.toggle(chip.getAttribute('aria-expanded') !== 'true');
+            // A card's renewal hint opens on hover and focus; a click or tap keeps it open (touch screens have no hover).
+            const hint = event.target.closest('[data-aipkit-usage-hint]');
+            closeHints(hint);
+            if (hint) {
+                const expanded = hint.getAttribute('aria-expanded') !== 'true';
+                hint.setAttribute('aria-expanded', String(expanded));
+                hint.setAttribute('data-dismissed', String(!expanded));
+            }
+        });
+        for (const eventName of ['pointerover', 'focusin']) {
+            container.addEventListener(eventName, (event) => {
+                const hint = event.target.closest('[data-aipkit-usage-hint]');
+                if (hint && !hint.contains(event.relatedTarget)) hint.removeAttribute('data-dismissed');
+            });
+        }
+        container.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape' || !event.target.closest('[data-account-menu]') || accountMenu.popover()?.hidden !== false || accountMenu.editing()) return;
+            event.preventDefault();
+            accountMenu.toggle(false);
+            accountMenu.chip()?.focus({ preventScroll: true });
+        });
         // Usage mounts the shared Cloud sheet, without the rest of Settings.
         window.aipkit_initCloudPanel?.();
         window.aipkit_initManageWebsite?.();
@@ -226,7 +279,6 @@ import { createWebsiteActivity } from './website-activity.js';
             requestsSource: 'all',
             perPage: DEFAULT_PER_PAGE,
             page: 1,
-            feedPage: 1,
             search: '',
             overview: null,
             overviewSequence: 0,
@@ -268,15 +320,20 @@ import { createWebsiteActivity } from './website-activity.js';
             tabButtons: container.querySelectorAll('[data-aipkit-stats-tab]'),
             tabPanels: container.querySelectorAll('[data-aipkit-stats-panel]'),
             periodButtons: container.querySelectorAll('[data-aipkit-usage-days]'),
+            periodToggle: container.querySelector('[data-aipkit-usage-period-toggle]'),
+            periodMenu: container.querySelector('#aipkit_usage_period_menu'),
+            periodCurrent: container.querySelector('[data-aipkit-usage-period-current]'),
             periodLabels: container.querySelectorAll('[data-aipkit-usage-period-label]'),
             viewChips: container.querySelectorAll('[data-aipkit-usage-view]'),
             viewPanels: container.querySelectorAll('[data-aipkit-usage-panel]'),
             subchips: container.querySelector('[data-aipkit-usage-subchips]'),
             announce: container.querySelector('[data-aipkit-usage-announce]'),
             cards: container.querySelector('[data-aipkit-usage-cards]'),
-            ownCard: container.querySelector('[data-aipkit-usage-own-card]'),
-            ownTokens: container.querySelector('[data-aipkit-usage-own-tokens]'),
-            ownProviders: container.querySelector('[data-aipkit-usage-own-providers]'),
+            invite: container.querySelector('[data-aipkit-usage-invite]'),
+            aiCard: container.querySelector('[data-aipkit-usage-ai-card]'),
+            websiteCard: container.querySelector('[data-aipkit-usage-website-card]'),
+            header: container.querySelector('.aipkit_usage_header'),
+            refresh: container.querySelector('[data-aipkit-dashboard-refresh]'),
             summaryCard: container.querySelector('[data-aipkit-usage-summary-card]'),
             summaryValues: container.querySelectorAll('[data-aipkit-usage-summary]'),
             feedList: container.querySelector('#aipkit_usage_feed_list'),
@@ -749,8 +806,15 @@ import { createWebsiteActivity } from './website-activity.js';
             30: __('Last 30 days', 'gpt3-ai-content-generator'),
             90: __('Last 90 days', 'gpt3-ai-content-generator'),
         };
+        // Card details use the period's short words ("30 days"); other labels read "Last 30 days".
+        const setPeriodLabels = () => {
+            const short = [...elements.periodButtons].find((button) => Number(button.dataset.aipkitUsageDays) === state.days)?.dataset.shortLabel;
+            elements.periodLabels.forEach((label) => {
+                label.textContent = (label.dataset.aipkitUsagePeriodLabel === 'short' && short) || PERIOD_LABELS[state.days] || '';
+            });
+        };
         const EMPTY_TEXT = {
-            everything: [__('No activity today.', 'gpt3-ai-content-generator'), __('No activity in the last %s days.', 'gpt3-ai-content-generator')],
+            everything: [__('No conversations, content or website actions today.', 'gpt3-ai-content-generator'), __('No conversations, content or website actions in the last %s days.', 'gpt3-ai-content-generator')],
             conversations: [__('No conversations today.', 'gpt3-ai-content-generator'), __('No conversations in the last %s days.', 'gpt3-ai-content-generator')],
             tasks: [__('No content or task runs today.', 'gpt3-ai-content-generator'), __('No content or task runs in the last %s days.', 'gpt3-ai-content-generator')],
             requests: [__('No AI requests today.', 'gpt3-ai-content-generator'), __('No AI requests in the last %s days.', 'gpt3-ai-content-generator')],
@@ -762,13 +826,6 @@ import { createWebsiteActivity } from './website-activity.js';
             }
             const texts = EMPTY_TEXT[view] || EMPTY_TEXT.everything;
             return state.days === 1 ? texts[0] : sprintf(texts[1], state.days);
-        };
-        const compactNumber = (value) => {
-            try {
-                return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0));
-            } catch (error) {
-                return formatNumber(value);
-            }
         };
         const plainText = (value) => String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         const truncate = (value, length) => {
@@ -2282,6 +2339,19 @@ import { createWebsiteActivity } from './website-activity.js';
         const listenGlobal = (target, event, handler, options = {}) => {
             target.addEventListener(event, handler, { ...options, signal: globalListeners.signal });
         };
+        listenGlobal(document, 'keydown', (event) => {
+            if (event.key === 'Escape') closeHints();
+        });
+        // A click outside the Dashboard closes an open renewal hint.
+        listenGlobal(document, 'click', (event) => {
+            if (!container.contains(event.target)) closeHints();
+        });
+        // A click elsewhere closes the account menu (not while changing the email or answering a confirmation).
+        listenGlobal(document, 'click', (event) => {
+            if (accountMenu.popover()?.hidden !== false || accountMenu.editing()) return;
+            if (event.target.closest?.('[data-account-menu], [role="dialog"], [role="alertdialog"]')) return;
+            accountMenu.toggle(false);
+        });
         listenGlobal(window, 'aipkit:module-rendered', () => {
             if (!container.isConnected) {
                 globalListeners.abort();
@@ -2350,23 +2420,51 @@ import { createWebsiteActivity } from './website-activity.js';
             }
         };
 
+        // Two cards, AI credits and Website actions (left | used here), each hidden when it has nothing to show.
+        // With one card left, the period summary fills the second slot; with none, it is the only card.
         const syncCards = () => {
-            const hasCloudCard = Boolean(elements.cards?.querySelector('#aipkit_usage_cloud_credits'));
-            const hasOwnCard = Number(state.overview?.requests?.own || 0) > 0;
-            if (elements.ownCard) {
-                elements.ownCard.hidden = !hasOwnCard;
+            const hasCloud = Boolean(elements.aiCard?.querySelector('#aipkit_usage_cloud_credits'));
+            const usageHalf = elements.websiteCard?.querySelector('[data-aipkit-website-usage="usage"]');
+            const hasUsed = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown]:not([hidden])'));
+            const historyPending = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown-pending]'));
+            // Turned off, the left half says so only while the period still has website actions beside it.
+            if (usageHalf && usageHalf.dataset.mcpEnabled === '0') {
+                usageHalf.hidden = !(hasUsed && hasCloud);
             }
-            const hasWebsiteCard = Boolean(elements.cards?.querySelector('[data-aipkit-website-usage="usage"]:not([hidden])'));
-            const shown = (hasCloudCard ? 1 : 0) + (hasOwnCard ? 1 : 0) + (hasWebsiteCard ? 1 : 0);
+            const hasLeft = Boolean(usageHalf && !usageHalf.hidden);
+            if (elements.refresh) elements.refresh.hidden = !(hasCloud || hasUsed);
+            if (elements.aiCard) elements.aiCard.hidden = !hasCloud;
+            if (elements.websiteCard) elements.websiteCard.hidden = !(hasLeft || hasUsed);
+            const shown = (hasCloud ? 1 : 0) + (hasLeft || hasUsed ? 1 : 0);
             if (elements.summaryCard) {
-                elements.summaryCard.hidden = shown >= 2;
+                elements.summaryCard.hidden = historyPending || shown >= 2;
             }
             if (elements.cards) {
-                elements.cards.dataset.cards = String(shown >= 2 ? shown : shown + 1);
+                elements.cards.dataset.cards = String(historyPending || shown >= 2 ? shown : shown + 1);
+                // Beside the website card, AI credits takes a third of the row.
+                elements.cards.dataset.layout = hasCloud && (hasLeft || hasUsed) ? 'credits-website' : '';
             }
         };
 
         listenGlobal(window, 'aipkit:website-usage-changed', syncCards);
+
+        // Like the banner, the quiet invitation yields to an existing provider setup notice.
+        const syncInvite = () => {
+            if (!elements.invite) return;
+            const setupVisible = Array.from(document.querySelectorAll('[data-aipkit-provider-notice]')).some(item =>
+                !item.hidden && !item.classList.contains('aipkit_provider_notice--hidden')
+                && (item.getClientRects().length > 0 || item.hasAttribute('data-aipkit-notice-folded')));
+            elements.invite.hidden = container.dataset.cloudConnected === '1'
+                || elements.invite.dataset.bannerDismissed !== '1' || setupVisible;
+        };
+        listenGlobal(window, 'aipkit:cloud-announcement-dismissed', () => {
+            if (elements.invite) elements.invite.dataset.bannerDismissed = '1';
+            syncInvite();
+        });
+
+        listenGlobal(window, 'aipkit:provider-notice-visibility', syncInvite);
+        listenGlobal(window, 'aipkit:module-rendered', syncInvite);
+        syncInvite();
 
         const handleCloudConnectionChanged = (event) => {
             if (!container.isConnected) {
@@ -2379,10 +2477,27 @@ import { createWebsiteActivity } from './website-activity.js';
             const account = template.content.querySelector('#aipkit_usage_cloud_credits');
             if (connected && !account) return;
             const currentAccount = container.querySelector('#aipkit_usage_cloud_credits');
+            const refreshingBalances = ['balance', 'refresh'].includes(event.detail?.action);
             if (currentAccount && account) currentAccount.replaceWith(account);
             else if (currentAccount) currentAccount.remove();
-            else if (account && elements.cards) elements.cards.prepend(account);
+            else if (account && elements.aiCard) elements.aiCard.prepend(account);
+            // The account line above the cards follows the same response (connected, confirming, reconnect, or Connect).
+            const line = template.content.querySelector('#aipkit_usage_cloud_account');
+            const currentLine = container.querySelector('#aipkit_usage_cloud_account');
+            const editingEmail = refreshingBalances
+                && currentLine?.querySelector('[data-cloud-email-editor]:not([hidden])');
+            // A balance read keeps the account menu open if it was; an account change closes it.
+            const menuOpen = refreshingBalances
+                && currentLine?.querySelector('[data-account-popover]:not([hidden])');
+            if (currentLine && line && !editingEmail) currentLine.replaceWith(line);
+            else if (currentLine && !line) currentLine.remove();
+            else if (!currentLine && line && elements.header) elements.header.append(line);
+            if (menuOpen && line && !editingEmail) {
+                line.querySelector('[data-account-popover]')?.removeAttribute('hidden');
+                line.querySelector('[data-account-chip]')?.setAttribute('aria-expanded', 'true');
+            }
             container.dataset.cloudConnected = account ? '1' : '0';
+            syncInvite();
             syncCards();
 
             if (event.detail?.action === 'balance') return;
@@ -2394,9 +2509,10 @@ import { createWebsiteActivity } from './website-activity.js';
             fetchOverview();
             if (state.view === 'requests') fetchRequests(1);
             if (!account) {
-                container.querySelector('.aipkit_usage_period_option[aria-pressed="true"]')?.focus({ preventScroll: true });
-            } else {
-                account.querySelector('[name="cloud_action"][value="refresh"]')?.focus({ preventScroll: true });
+                elements.periodToggle?.focus({ preventScroll: true });
+            } else if (event.detail?.action === 'refresh' && !editingEmail) {
+                // The refresh button is re-enabled right after this response is applied; focus it then.
+                queueMicrotask(() => elements.refresh?.focus({ preventScroll: true }));
             }
         };
         if (window.aipkit_statsCloudConnectionHandler) {
@@ -3496,7 +3612,7 @@ import { createWebsiteActivity } from './website-activity.js';
         const VIEW_LABELS = {
             everything: __('Everything', 'gpt3-ai-content-generator'),
             conversations: __('Conversations', 'gpt3-ai-content-generator'),
-            tasks: __('Content & tasks', 'gpt3-ai-content-generator'),
+            tasks: __('Content', 'gpt3-ai-content-generator'),
             requests: __('AI requests', 'gpt3-ai-content-generator'),
             errors: __('Errors', 'gpt3-ai-content-generator'),
         };
@@ -3549,64 +3665,65 @@ import { createWebsiteActivity } from './website-activity.js';
             }
         };
 
-        const renderFeedEmpty = () => `<li class="aipkit_usage_state"><p>${escapeHtml(emptyText(state.view))}</p></li>`;
+        // Nothing in Everything while AI requests exist: say what Everything covers and link to them.
+        const renderFeedEmpty = () => {
+            const requests = Number(state.overview?.requests?.total || 0);
+            const link = state.view === 'everything' && !state.search && requests > 0
+                ? `<button type="button" class="aipkit_usage_btn aipkit_usage_btn--small" data-aipkit-usage-goto="requests">${escapeHtml(sprintf(__('See AI requests (%s)', 'gpt3-ai-content-generator'), formatNumber(requests)))}</button>`
+                : '';
+            return `<li class="aipkit_usage_state"><p>${escapeHtml(emptyText(state.view))}</p>${link}</li>`;
+        };
 
+        // Everything: conversations and content runs (the log list) merged with website actions from the same period,
+        // newest first. AI requests stay in their own view: every reply and draft also creates requests.
+        let mergedFeed;
         const fetchFeed = async (reset = true) => {
-            if (!elements.feedList || typeof window.aipkit_apiRequest !== 'function') {
-                return;
-            }
+            if (!elements.feedList || typeof window.aipkit_apiRequest !== 'function') return;
             const sequence = ++state.logsSequence;
             if (reset) {
                 state.logRows.clear();
-                state.feedPage = 1;
-                elements.feedList.setAttribute('aria-busy', 'true');
+                const filters = buildFiltersPayload();
+                const days = state.days;
+                mergedFeed = createMergedActivity([
+                    async (page) => {
+                        const response = await window.aipkit_apiRequest('aipkit_stats_get_logs', { ...filters, page, per_page: FEED_PER_PAGE });
+                        return {
+                            rows: (response.logs || []).map((item) => ({ kind: 'log', item, timestamp: Number(item.last_message_ts) || 0 })),
+                            more: Number(response.pagination?.current_page || 1) < Number(response.pagination?.total_pages || 0),
+                        };
+                    },
+                    ...(websiteActivity ? [async (page) => {
+                        const response = await websiteActivity.everything(page, FEED_PER_PAGE, days);
+                        return {
+                            rows: (response.items || []).map((item) => ({ kind: 'website', item, timestamp: Number(item.created_at) || 0 })),
+                            more: response.has_more,
+                        };
+                    }] : []),
+                ]);
                 elements.feedList.innerHTML = Array.from({ length: 5 }, () => '<li class="aipkit_usage_feed_skeleton" aria-hidden="true"><span class="aipkit_usage_skeleton"></span><span class="aipkit_usage_skeleton"></span></li>').join('');
-                if (elements.feedFooter) {
-                    elements.feedFooter.hidden = true;
-                }
-            } else if (elements.feedMore) {
-                elements.feedMore.disabled = true;
+                if (elements.feedFooter) elements.feedFooter.hidden = true;
             }
+            elements.feedList.setAttribute('aria-busy', 'true');
+            if (elements.feedMore) elements.feedMore.disabled = true;
             try {
-                const response = await window.aipkit_apiRequest('aipkit_stats_get_logs', {
-                    ...buildFiltersPayload(),
-                    page: state.feedPage,
-                    per_page: FEED_PER_PAGE,
-                });
-                if (sequence !== state.logsSequence) {
-                    return;
-                }
-                const logs = Array.isArray(response.logs) ? response.logs : [];
-                logs.forEach((log) => state.logRows.set(Number(log.id), log));
-                const rowsHtml = logs.map(renderFeedRow).join('');
-                if (reset) {
-                    elements.feedList.innerHTML = rowsHtml || renderFeedEmpty();
-                } else {
-                    elements.feedList.insertAdjacentHTML('beforeend', rowsHtml);
-                }
-                const pagination = response.pagination || {};
-                if (elements.feedFooter) {
-                    elements.feedFooter.hidden = !(Number(pagination.current_page || 1) < Number(pagination.total_pages || 0));
-                }
-                if (reset) {
-                    announceResults(pagination.total_logs ?? logs.length);
-                }
+                const result = await mergedFeed.next(FEED_PER_PAGE);
+                if (sequence !== state.logsSequence) return;
+                elements.feedList.innerHTML = result.rows.map(({ kind, item }) => {
+                    if (kind === 'website') return websiteActivity.renderRow(item);
+                    state.logRows.set(Number(item.id), item);
+                    return renderFeedRow(item);
+                }).join('') || renderFeedEmpty();
+                if (elements.feedFooter) elements.feedFooter.hidden = !result.more;
+                announceResults(result.rows.length);
             } catch (error) {
-                if (sequence !== state.logsSequence) {
-                    return;
-                }
-                if (reset) {
-                    elements.feedList.innerHTML = `<li>${loadErrorHtml()}</li>`;
-                } else {
-                    state.feedPage = Math.max(1, state.feedPage - 1);
-                    showStatus(__('More activity couldn’t load. Try again.', 'gpt3-ai-content-generator'), 'error');
-                }
+                if (sequence !== state.logsSequence) return;
+                if (reset) elements.feedList.innerHTML = `<li>${loadErrorHtml()}</li>`;
+                else showStatus(__('More activity couldn’t load. Try again.', 'gpt3-ai-content-generator'), 'error');
+                if (elements.feedFooter) elements.feedFooter.hidden = false;
             } finally {
                 if (sequence === state.logsSequence) {
                     elements.feedList.removeAttribute('aria-busy');
-                    if (elements.feedMore) {
-                        elements.feedMore.disabled = false;
-                    }
+                    if (elements.feedMore) elements.feedMore.disabled = false;
                 }
             }
         };
@@ -3670,9 +3787,12 @@ import { createWebsiteActivity } from './website-activity.js';
         websiteActivity = createWebsiteActivity({
             container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, loadErrorHtml,
             getSearch: () => state.search,
+            getDays: () => state.days,
             onCounts: () => {
+                syncEmptyChips();
                 if (state.view === 'website') renderSubchips();
             },
+            onBreakdown: () => syncCards(),
         });
 
         const loadActiveView = () => {
@@ -3790,6 +3910,23 @@ import { createWebsiteActivity } from './website-activity.js';
             loadActiveView();
         };
 
+        // A view with nothing in the period has no chip; the open view keeps its chip, and so does an unknown count.
+        const syncEmptyChips = (counts = {
+            conversations: state.overview?.conversations,
+            tasks: state.overview?.tasks,
+            requests: state.overview?.requests?.total,
+            website: websiteActivity?.count() ?? null,
+        }) => {
+            elements.viewChips.forEach((chip) => {
+                const view = chip.dataset.aipkitUsageView;
+                if (!['conversations', 'tasks', 'requests'].includes(view) && !(view === 'website' && websiteActivity)) {
+                    return;
+                }
+                const count = counts[view];
+                chip.hidden = state.view !== view && count !== null && count !== undefined && Number(count) === 0;
+            });
+        };
+
         // Errors shows only when the period has failures (or they couldn't be counted), or while it is open.
         const syncErrorsChip = () => {
             const chip = container.querySelector('[data-aipkit-usage-view="errors"]');
@@ -3801,9 +3938,7 @@ import { createWebsiteActivity } from './website-activity.js';
 
         const renderOverview = () => {
             const overview = state.overview;
-            elements.periodLabels.forEach((label) => {
-                label.textContent = PERIOD_LABELS[state.days] || '';
-            });
+            setPeriodLabels();
             const counts = overview
                 ? { conversations: overview.conversations, tasks: overview.tasks, requests: overview.requests?.total, errors: overview.errors }
                 : {};
@@ -3817,18 +3952,9 @@ import { createWebsiteActivity } from './website-activity.js';
                     countElement.textContent = count === null || count === undefined ? '' : formatNumber(count);
                 }
             });
+            syncEmptyChips(counts);
             syncErrorsChip();
             const requests = overview?.requests || {};
-            if (elements.ownTokens) {
-                elements.ownTokens.textContent = compactNumber(requests.own_tokens || 0);
-                elements.ownTokens.title = `${formatNumber(requests.own_tokens || 0)} ${__('tokens', 'gpt3-ai-content-generator')}`;
-            }
-            if (elements.ownProviders) {
-                elements.ownProviders.textContent = (Array.isArray(requests.providers) ? requests.providers : [])
-                    .slice(0, 3)
-                    .map((provider) => `${provider.label} ${compactNumber(provider.tokens)}`)
-                    .join(' · ');
-            }
             elements.summaryValues.forEach((value) => {
                 const key = value.dataset.aipkitUsageSummary;
                 const count = key === 'requests' ? requests.total : overview?.[key];
@@ -3836,6 +3962,10 @@ import { createWebsiteActivity } from './website-activity.js';
             });
             syncCards();
             renderSubchips();
+            // The empty Everything message links to AI requests once their count is known.
+            if (state.view === 'everything' && elements.feedList && !elements.feedList.hasAttribute('aria-busy') && elements.feedList.querySelector('.aipkit_usage_state')) {
+                elements.feedList.innerHTML = renderFeedEmpty();
+            }
         };
 
         const fetchOverview = async () => {
@@ -3866,7 +3996,15 @@ import { createWebsiteActivity } from './website-activity.js';
             renderOverview();
         };
 
+        // The header's one refresh: its submit refreshes AI credits (and, through Cloud, website actions); this adds the
+        // actions used. Without a credits card there is no form, so website actions are read directly.
+        elements.refresh?.addEventListener('click', () => {
+            if (!elements.refresh.form) void refreshWebsiteActions(document, true);
+            websiteActivity?.loadBreakdown();
+        });
+
         const refreshActivity = () => {
+            websiteActivity?.loadBreakdown();
             fetchOverview();
             loadActiveView();
         };
@@ -3886,6 +4024,7 @@ import { createWebsiteActivity } from './website-activity.js';
                 const isActive = chip.dataset.aipkitUsageView === nextView;
                 chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
             });
+            syncEmptyChips();
             syncErrorsChip();
             const panel = nextView === 'requests' || nextView === 'website' ? nextView : (nextView === 'conversations' || nextView === 'tasks' ? 'logs' : 'feed');
             elements.viewPanels.forEach((element) => {
@@ -3908,12 +4047,52 @@ import { createWebsiteActivity } from './website-activity.js';
 
         const setPeriodUi = () => {
             elements.periodButtons.forEach((button) => {
-                button.setAttribute('aria-pressed', Number(button.dataset.aipkitUsageDays) === state.days ? 'true' : 'false');
+                const current = Number(button.dataset.aipkitUsageDays) === state.days;
+                button.setAttribute('aria-checked', current ? 'true' : 'false');
+                if (current && elements.periodCurrent) elements.periodCurrent.textContent = button.textContent.trim();
             });
-            elements.periodLabels.forEach((label) => {
-                label.textContent = PERIOD_LABELS[state.days] || '';
-            });
+            setPeriodLabels();
         };
+
+        // The period menu: opens on the current period; arrows, Home and End move; Enter picks; Escape or Tab closes.
+        const periodItems = () => [...elements.periodButtons];
+        const togglePeriodMenu = (open, { focus = true } = {}) => {
+            if (!elements.periodMenu || !elements.periodToggle) return;
+            elements.periodMenu.hidden = !open;
+            elements.periodToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                (periodItems().find((item) => item.getAttribute('aria-checked') === 'true') || periodItems()[0])?.focus({ preventScroll: true });
+            } else if (focus) {
+                elements.periodToggle.focus({ preventScroll: true });
+            }
+        };
+        elements.periodToggle?.addEventListener('click', () => {
+            togglePeriodMenu(elements.periodMenu?.hidden !== false);
+        });
+        elements.periodToggle?.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            event.preventDefault();
+            togglePeriodMenu(true);
+        });
+        elements.periodMenu?.addEventListener('keydown', (event) => {
+            const items = periodItems();
+            const index = items.indexOf(document.activeElement);
+            const moves = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: items.length - 1 };
+            if (event.key in moves) {
+                event.preventDefault();
+                items[(moves[event.key] + items.length) % items.length]?.focus({ preventScroll: true });
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                togglePeriodMenu(false);
+            } else if (event.key === 'Tab') {
+                togglePeriodMenu(false, { focus: false });
+            }
+        });
+        listenGlobal(document, 'click', (event) => {
+            if (elements.periodMenu?.hidden === false && !event.target.closest?.('[data-aipkit-usage-period]')) {
+                togglePeriodMenu(false, { focus: false });
+            }
+        });
 
         // Visitor billing: the customer dashboard and buy-credits links.
         const saveCustomerLinks = async () => {
@@ -3956,6 +4135,7 @@ import { createWebsiteActivity } from './website-activity.js';
         elements.periodButtons.forEach((button) => {
             button.addEventListener('click', () => {
                 const days = Number(button.dataset.aipkitUsageDays);
+                togglePeriodMenu(false);
                 if (!VALID_DAY_VALUES.includes(String(days)) || days === state.days) {
                     return;
                 }
@@ -4000,13 +4180,22 @@ import { createWebsiteActivity } from './website-activity.js';
                 const row = event.target.closest('.aipkit_usage_feed_row[data-log-id]');
                 if (row) {
                     fetchDetail(row.dataset.logId, row);
+                    return;
+                }
+                const website = event.target.closest('[data-website-op]');
+                if (website && websiteActivity) {
+                    websiteActivity.openDetail(website.dataset.websiteOp, website);
+                    return;
+                }
+                const goto = event.target.closest('[data-aipkit-usage-goto]');
+                if (goto) {
+                    setView(goto.dataset.aipkitUsageGoto);
                 }
             });
         }
 
         if (elements.feedMore) {
             elements.feedMore.addEventListener('click', () => {
-                state.feedPage += 1;
                 fetchFeed(false);
             });
         }

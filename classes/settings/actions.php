@@ -38,16 +38,6 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
         if (!in_array($enabled, ['0', '1'], true)) {
             wp_send_json_error(['message' => __('Choose a valid visitor billing setting.', 'gpt3-ai-content-generator')], 400);
         }
-        if ($enabled === '1') {
-            $options = get_option('aipkit_options', []);
-            $options = is_array($options) ? $options : [];
-            $modules = isset($options['module_settings']) && is_array($options['module_settings'])
-                ? $options['module_settings']
-                : [];
-            $modules['stats_viewer'] = true;
-            $options['module_settings'] = $modules;
-            update_option('aipkit_options', $options, 'no');
-        }
         update_option('aipkit_visitor_billing_enabled', $enabled === '1' ? 'yes' : 'no', false);
         wp_send_json_success(['enabled' => $enabled === '1']);
     }
@@ -1110,9 +1100,7 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             }
         }
 
-        if (($normalized_additional_options['aipkit_visitor_billing_enabled'] ?? '') === 'yes') {
-            $sanitized_options['module_settings']['stats_viewer'] = true;
-        }
+        $sanitized_options['module_settings']['stats_viewer'] = true;
         // Everything checked out, so keep today's settings before the first write: a restore can always be undone.
         if ($save_point_reason !== '') {
             if (!AIPKit_Settings_Restore_Point::save($this->build_settings_backup_payload(), $save_point_reason)) {
