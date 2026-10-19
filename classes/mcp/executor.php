@@ -62,6 +62,8 @@ final class Executor
             $verified = Verifier::verify($raw, $header);
             if (empty($verified['ok'])) {
                 $status = $verified['status'];
+                $authenticated = !empty($verified['authenticated']);
+                if ($authenticated) { $out = ['operation_id' => null, 'state' => 'failed', 'actions_used' => 0]; }
                 // A delivery refusal cannot establish that an earlier delivery never ran.
                 $out['error'] = ['code' => $verified['code'], 'message' => $verified['message']];
             } else {
@@ -121,6 +123,14 @@ final class Executor
                     'result' => ['state' => 'unknown_here', 'operation_id' => $id, 'actions_used' => 0]];
             }
             $row = Journal::expire($row);
+            if (isset($body->args->audit_completion)) {
+                if (!is_object($body->args->audit_completion)) { return Operations::error('invalid_input'); }
+                // Terminal rows are immutable. A duplicated completion reads the original outcome.
+                if ($row['state'] === 'unknown') {
+                    if (!Content::complete_audit($row, $body->args->audit_completion)) { return Operations::error('invalid_input'); }
+                    $row = Journal::get($id) ?? $row;
+                } elseif ($row['tool'] !== 'read_ability' || (json_decode($row['args'], true)['name'] ?? '') !== 'ai-puffer/audit-page') { return Operations::error('invalid_input'); }
+            }
             if (isset($body->args->settled)) {
                 if (!is_object($body->args->settled) || !Journal::acknowledge($row, $body->args->settled)) { return Operations::error('invalid_settlement_receipt'); }
             }
@@ -161,8 +171,8 @@ final class Executor
                 $response = Operations::error('site_not_authorized');
             } elseif (Registry::is_write($body->tool) && !empty(get_option('aipkit_mcp_settings', [])['paused'])) {
                 $response = Operations::error('site_paused');
-            } elseif (Registry::is_write($body->tool) && Journal::unresolved_write($body->operation_id)) {
-                $response = Operations::error('outcome_unknown');
+            } elseif (Registry::is_write($body->tool) && ($blocked = Journal::write_gate($body->operation_id)) !== null) {
+                $response = $blocked;
             } else {
                 Operations::$mutation_started = false;
                 Operations::$operation_id = $body->operation_id;
@@ -178,6 +188,7 @@ final class Executor
             if ($body->tool === 'inspect_media') { unset($recorded['result']['image_preview']['data']); }
             if (!Journal::finish($body->operation_id, $recorded)) { $response = ['state' => 'unknown', 'actions_used' => 0]; }
             Journal::reported($body->operation_id);
+            unset($response['local_error']);
             return ['operation_id' => $body->operation_id] + $response;
         } finally { Journal::unlock(); }
     }
@@ -199,8 +210,8 @@ final class Executor
         $notice = '';
         try {
             $grant = Store::grant($row['grant_id']);
-            if (Journal::unresolved_write($id)) {
-                $notice = 'review_first';
+            if (($blocked = Journal::write_gate($id)) !== null) {
+                $notice = $blocked['error']['code'] === 'write_check_unavailable' ? 'write_check_unavailable' : 'review_first';
             } elseif (!Identity::active() || !$grant || $grant['state'] !== 'active'
                 || $row['instance_id'] !== Identity::registration()['instance_id']
                 || !Registry::allowed($row['tool'], $grant, json_decode((string) $row['args']))

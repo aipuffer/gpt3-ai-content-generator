@@ -27,6 +27,64 @@ final class Engines
     public const MAX_INPUT = 200000;
     public const MAX_RESULT = 100000;
 
+    /** Fixed diagnostic identifiers accepted by the bridge audit contract; never export arbitrary plugin errors. */
+    private const ABILITY_ERROR_CODES = [
+        'ability_callback_exception', 'ability_failed', 'ability_invalid_execute_callback',
+        'ability_invalid_input', 'ability_invalid_output', 'ability_invalid_permission_callback',
+        'ability_invalid_permissions', 'ability_missing_input_schema', 'ability_unavailable', 'account_paused',
+        'active_connection_plugin', 'active_theme_in_use', 'administrator_role_required', 'already_trashed',
+        'audit_disabled', 'audit_account_limit', 'audit_busy', 'audit_invalid_response', 'audit_page_unavailable', 'audit_rate_limited', 'audit_timeout', 'audit_unavailable',
+        'batch_too_large', 'blocked_route', 'bridge_bad_response', 'bridge_destination_blocked',
+        'bridge_dispatch_blocked', 'bridge_error', 'bridge_internal_error', 'bridge_mismatched_operation',
+        'bridge_network', 'bridge_no_valid_endpoint', 'bridge_response_too_large', 'bridge_timeout',
+        'bridge_unauthenticated_response', 'bridge_unreachable', 'cache_plugin_unavailable',
+        'checksums_unavailable', 'command_failed', 'command_unavailable', 'config_value_not_exposed',
+        'connected_role_in_use', 'connected_user_in_use', 'connection_cron_protected', 'consent_required',
+        'content_changed', 'content_changes_stopped', 'create_a_draft_first', 'cron_callback_not_registered',
+        'cron_event_not_found', 'cron_loopback_unavailable', 'database_query_failed', 'database_unavailable',
+        'deactivate_first', 'definition_conflict', 'definition_limit', 'definition_unconfirmed',
+        'document_download_failed', 'duplicate_column', 'duplicate_result_alias', 'elementor_conflict',
+        'elementor_unavailable', 'failure_unreported', 'filesystem_access_required', 'gutenberg_failed',
+        'idempotency_conflict', 'identity_changed', 'identity_unavailable', 'image_download_failed',
+        'image_unavailable', 'inspection_not_active', 'inspection_not_public', 'inspection_timeout',
+        'inspection_unavailable', 'inspection_disabled', 'inspection_account_limit', 'inspection_busy', 'inspection_capacity', 'integer_primary_key_required', 'invalid_capability', 'invalid_column',
+        'invalid_cron_hook', 'invalid_email', 'invalid_group_projection', 'invalid_image', 'invalid_input',
+        'invalid_inspection_url', 'invalid_level', 'invalid_media', 'invalid_media_url', 'invalid_menu_parent',
+        'invalid_or_existing_menu', 'invalid_or_existing_user', 'invalid_or_installed_software',
+        'invalid_patch_action', 'invalid_patch_path', 'invalid_patch_value', 'invalid_permalink_structure',
+        'invalid_permalink_tag', 'invalid_post_type', 'invalid_probe', 'invalid_reassignment_user',
+        'invalid_registration', 'invalid_replacement', 'invalid_revocation', 'invalid_role', 'invalid_schedule',
+        'invalid_settlement_receipt', 'invalid_software_name', 'invalid_status', 'invalid_svg',
+        'invalid_taxonomy', 'invalid_taxonomy_base', 'invalid_term', 'invalid_url', 'join_too_broad',
+        'large_group_field', 'managed_execution_required', 'matching_count_changed', 'matching_records_changed',
+        'mcp_storage_unavailable', 'menu_item_not_found', 'menu_location_not_registered', 'menu_not_found',
+        'menu_url_is_derived', 'metadata_not_found', 'network_managed_plugin', 'no_changes',
+        'no_default_for_custom_role', 'no_token', 'not_found', 'one_table_per_cursor', 'outcome_unknown',
+        'owner_confirmed_not_run', 'pairing_superseded', 'pdf_complexity', 'pdf_file_unreadable',
+        'pdf_page_range', 'pdf_pages', 'pdf_parser_not_initialized', 'pdf_parsing_failed', 'pdf_size',
+        'pdf_unavailable', 'pdf_unreadable', 'pdf_unsupported', 'permission_denied', 'plugin_not_found',
+        'post_type_change_not_supported', 'private_metadata', 'protected_key', 'protected_rows_selected',
+        'protected_setting', 'protected_setting_fields', 'protected_user_metadata', 'query_too_broad',
+        'redirect_save_unconfirmed', 'replacement_count_changed', 'repository_unavailable', 'rest_error',
+        'rest_forbidden', 'result_too_large', 'role_already_exists', 'role_not_found', 'service_paused',
+        'service_unavailable', 'setting_already_exists', 'setting_not_found', 'setting_path_not_found',
+        'settings_unavailable', 'sidebar_not_found', 'single_record_required', 'site_busy', 'site_not_authorized',
+        'site_paused', 'site_unavailable', 'source_too_large', 'stock_search_invalid_response',
+        'stock_search_unavailable', 'stock_search_wait', 'storage', 'storage_unavailable', 'svg_no_vectors',
+        'svg_save_unconfirmed', 'svg_size', 'svg_source_changed', 'svg_unavailable', 'svg_upload_failed',
+        'table_not_exposed', 'temporary_file_failed', 'term_not_found', 'text_page_too_large',
+        'text_predicate_requires_ids', 'theme_change_unconfirmed', 'theme_conflict', 'theme_not_found',
+        'theme_unavailable', 'too_many_events', 'transactional_tables_required', 'typed_command_required',
+        'unclassified_site_error', 'unknown_order_alias', 'unsupported_command', 'unsupported_content',
+        'unsupported_group_query', 'unsupported_image', 'unsupported_insert_columns', 'unsupported_post_type',
+        'unsupported_release_channel', 'unsupported_release_or_source', 'unsupported_replacement_column',
+        'unsupported_replacement_table', 'unsupported_tool', 'unsupported_update_source',
+        'unsupported_write_column', 'update_check_unavailable', 'usage_unavailable', 'use_read_ability',
+        'use_run_ability', 'user_not_found', 'user_outside_site', 'value_order_not_exposed',
+        'value_predicate_not_exposed', 'value_too_large', 'where_required', 'workflow_changed', 'workflow_limit',
+        'workflow_not_found', 'write_snapshot_too_large',
+    ];
+
     private const NAME_RE = '/^[a-z0-9-]+(?:\/[a-z0-9-]+)+$/D';
     private const METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -226,8 +284,13 @@ final class Engines
         if (!$ability) { return Operations::error('ability_unavailable'); }
         if (self::ability_risk($ability) !== 'read') { return self::refuse('use_run_ability', 'This ability changes the site. Use run_ability.'); }
         $input = self::input($args, $ability);
-        if ($input === false) { return Operations::error('invalid_input'); }
-        return self::ability_result($ability->execute($input));
+        if ($input === false) { return self::ability_diagnostics(Operations::error('invalid_input'), $ability->get_name(), 'preflight'); }
+        $phase = 'before_execution';
+        $result = self::execute_ability($ability, $input, $phase);
+        if ($args->name === 'ai-puffer/audit-page' && is_array($result) && is_array($result['audit_request'] ?? null)) {
+            return ['state' => 'unknown', 'actions_used' => 0, 'result' => ['audit_request' => $result['audit_request']]];
+        }
+        return self::ability_diagnostics(self::ability_result($result), $ability->get_name(), $phase, $result);
     }
 
     /** Checks a change before it runs or waits: the ability, its input and the acting user's permission. */
@@ -237,13 +300,13 @@ final class Engines
         if (!$ability) { return Operations::error('ability_unavailable'); }
         if (self::ability_risk($ability) === 'read') { return self::refuse('use_read_ability', 'This ability only reads. Use read_ability.'); }
         $input = self::input($args, $ability);
-        if ($input === false) { return Operations::error('invalid_input'); }
+        if ($input === false) { return self::ability_diagnostics(Operations::error('invalid_input'), $ability->get_name(), 'preflight'); }
         $unsafe = apply_filters('aipkit_mcp_ability_content_error', self::unsafe_content($input), $ability->get_name(), $input);
         if ($unsafe) { return $unsafe; }
         $input = $ability->normalize_input($input);
-        if (is_wp_error($input)) { return self::refuse('invalid_input', $input->get_error_message()); }
+        if (is_wp_error($input)) { return self::ability_diagnostics(self::ability_result($input), $ability->get_name(), 'preflight', $input); }
         $valid = $ability->validate_input($input);
-        if (is_wp_error($valid)) { return self::refuse('invalid_input', $valid->get_error_message()); }
+        if (is_wp_error($valid)) { return self::ability_diagnostics(self::ability_result($valid), $ability->get_name(), 'preflight', $valid); }
         if ($ability->check_permissions($input) !== true) { return Operations::error('permission_denied'); }
         return $ability;
     }
@@ -251,7 +314,7 @@ final class Engines
     public static function ability_preview(object $args): array
     {
         $ability = self::check_ability($args);
-        if (is_array($ability)) { return $ability; }
+        if (is_array($ability)) { return self::ability_diagnostics($ability, $args->name ?? '', 'preflight'); }
         if (class_exists(Elementor::class) && Elementor::handles($args->name)) { return Elementor::preview($args->name, (array) self::input($args, $ability)); }
         $extension = apply_filters('aipkit_mcp_ability_result', null, $args->name, self::input($args, $ability), true);
         if (is_array($extension)) { return $extension; }
@@ -263,31 +326,66 @@ final class Engines
     public static function run_ability(object $args): array
     {
         $ability = self::check_ability($args);
-        if (is_array($ability)) { return $ability; }
+        if (is_array($ability)) { return self::ability_diagnostics($ability, $args->name ?? '', 'preflight'); }
         if (class_exists(Elementor::class) && Elementor::handles($args->name)) { return Elementor::run($args->name, (array) self::input($args, $ability)); }
         $extension = apply_filters('aipkit_mcp_ability_result', null, $args->name, self::input($args, $ability), false);
         if (is_array($extension)) { return $extension; }
-        $entered = false;
-        $mark = static function (string $name) use ($ability, &$entered): void { if ($name === $ability->get_name()) { $entered = true; } };
-        add_action('wp_before_execute_ability', $mark, PHP_INT_MIN, 1);
+        $phase = 'before_execution';
         Operations::$mutation_started = true;
-        try { $result = self::filtered_change(static function () use ($ability, $args) { return $ability->execute(self::input($args, $ability)); }); }
-        finally { remove_action('wp_before_execute_ability', $mark, PHP_INT_MIN); }
+        $result = self::filtered_change(static function () use ($ability, $args, &$phase) { return self::execute_ability($ability, self::input($args, $ability), $phase); });
         // Refused before the callback (input or permission, as checked above): nothing ran. Any other error came from
         // the callback, an output check after it, or another plugin's short-circuit: something may have changed.
-        if (is_wp_error($result) && ($entered || !in_array($result->get_error_code(), ['ability_invalid_input', 'ability_invalid_permissions'], true))) {
-            return self::after_start();
+        if (is_wp_error($result) && ($phase !== 'before_execution' || !in_array($result->get_error_code(), ['ability_invalid_input', 'ability_invalid_permissions'], true))) {
+            return self::ability_diagnostics(self::after_start(self::ability_error_code($result->get_error_code(), 'outcome_unknown')), $ability->get_name(), $phase, $result);
         }
-        return self::ability_result($result);
+        return self::ability_diagnostics(self::ability_result($result), $ability->get_name(), $phase, $result);
+    }
+
+    /** Observe native execution boundaries without changing WordPress validation or permissions. */
+    private static function execute_ability(\WP_Ability $ability, $input, string &$phase)
+    {
+        $mark = static function (string $name) use ($ability, &$phase): void { if ($name === $ability->get_name()) { $phase = 'callback'; } };
+        $output = static function ($result, $observed) use ($ability, &$phase) {
+            if ($observed === $ability->get_name() && !is_wp_error($result)) { $phase = 'output_validation'; }
+            return $result;
+        };
+        add_action('wp_before_execute_ability', $mark, PHP_INT_MIN, 1);
+        add_filter('wp_ability_execute_result', $output, PHP_INT_MAX, 2);
+        try { return $ability->execute($input); }
+        catch (\Throwable $error) { return new \WP_Error('ability_failed', $error->getMessage()); }
+        finally {
+            remove_action('wp_before_execute_ability', $mark, PHP_INT_MIN);
+            remove_filter('wp_ability_execute_result', $output, PHP_INT_MAX);
+        }
+    }
+
+    /** Only registered names and fixed phases leave WordPress; detailed failures stay in its journal. */
+    private static function ability_diagnostics(array $response, $name, string $phase, $result = null): array
+    {
+        if (empty($response['error'])) { return $response; }
+        if (!isset($response['operation_diagnostics']) && self::abilities_available() && is_string($name) && strlen($name) <= 200 && preg_match(self::NAME_RE, $name) && wp_get_ability($name)) {
+            $response['operation_diagnostics'] = ['ability_name' => $name, 'ability_phase' => $phase];
+        }
+        if (is_wp_error($result)) {
+            $response['local_error'] = ['code' => mb_substr((string) $result->get_error_code(), 0, 200),
+                'message' => mb_substr(wp_strip_all_tags($result->get_error_message()), 0, 2000)];
+        }
+        return $response;
     }
 
     /** An ability's answer when nothing could have changed (a read, or a refusal before the callback). */
     private static function ability_result($result): array
     {
         if (is_wp_error($result)) {
-            return $result->get_error_code() === 'ability_invalid_permissions' ? Operations::error('permission_denied') : self::refuse('ability_failed', $result->get_error_message());
+            return $result->get_error_code() === 'ability_invalid_permissions' ? Operations::error('permission_denied')
+                : self::refuse(self::ability_error_code($result->get_error_code()), $result->get_error_message());
         }
         return self::ok(['data_json' => self::bounded($result)]);
+    }
+
+    private static function ability_error_code($code, string $fallback = 'ability_failed'): string
+    {
+        return is_string($code) && in_array($code, self::ABILITY_ERROR_CODES, true) ? $code : $fallback;
     }
 
     // REST routes -------------------------------------------------------------------------------------------------
@@ -427,9 +525,9 @@ final class Engines
         return ['state' => 'succeeded', 'actions_used' => 1, 'result' => $result];
     }
 
-    private static function after_start(): array
+    private static function after_start(string $code = 'outcome_unknown'): array
     {
-        return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown', 'message' => self::AFTER_START]];
+        return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => $code, 'message' => self::AFTER_START]];
     }
 
     /** A refusal with the reason the assistant needs to correct its call; nothing ran. */

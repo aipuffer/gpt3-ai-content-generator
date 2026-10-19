@@ -485,7 +485,7 @@ final class Screens
                 <span class="dashicons dashicons-warning aipkit_mcp_card_icon is-warning" aria-hidden="true"></span>
                 <div>
                     <h1 class="aipkit_mcp_title"><?php esc_html_e('Check an interrupted change', 'gpt3-ai-content-generator'); ?></h1>
-                    <p class="aipkit_mcp_meta"><?php echo esc_html($summary . ' ' . __('The connection dropped before the website could confirm the result.', 'gpt3-ai-content-generator')); ?></p>
+                    <p class="aipkit_mcp_meta"><?php echo esc_html($summary . ' ' . __('The website did not confirm whether this change completed.', 'gpt3-ai-content-generator')); ?></p>
                 </div>
             </div>
             <p class="aipkit_mcp_meta"><?php esc_html_e('Look at your posts, then tell us what happened. This keeps the request from running twice. Assistants can’t answer this for you.', 'gpt3-ai-content-generator'); ?></p>
@@ -561,7 +561,7 @@ final class Screens
                 <span class="dashicons dashicons-warning aipkit_mcp_card_icon is-warning" aria-hidden="true"></span>
                 <div>
                     <h1 class="aipkit_mcp_title"><?php esc_html_e('Check an interrupted change', 'gpt3-ai-content-generator'); ?></h1>
-                    <p class="aipkit_mcp_meta"><?php echo esc_html($summary . ' ' . __('The connection dropped before the website could confirm the result.', 'gpt3-ai-content-generator')); ?></p>
+                    <p class="aipkit_mcp_meta"><?php echo esc_html($summary . ' ' . __('The website did not confirm whether this change completed.', 'gpt3-ai-content-generator')); ?></p>
                 </div>
             </div>
             <p class="aipkit_mcp_meta"><?php esc_html_e('Check the site, then tell us what happened. This keeps the request from running twice. Assistants can’t answer this for you.', 'gpt3-ai-content-generator'); ?></p>
@@ -628,7 +628,8 @@ final class Screens
             'recorded' => [__('Review recorded. Return to your assistant to check the change.', 'gpt3-ai-content-generator'), 'success'],
             'busy' => [__('The website is busy. Try again in a moment.', 'gpt3-ai-content-generator'), 'error'],
             'paused' => [__('Website changes are paused or access has ended. Resume in Settings › Connections › Manage my website.', 'gpt3-ai-content-generator'), 'error'],
-            'review_first' => [__('A previous change needs your review before anything else can run.', 'gpt3-ai-content-generator'), 'error'],
+            'write_check_unavailable' => [__('WordPress could not check its change history. Nothing ran. Check database availability and try again.', 'gpt3-ai-content-generator'), 'error'],
+            'review_first' => [__('A previous change needs your review before another change can run. Reads still work.', 'gpt3-ai-content-generator'), 'error'],
             'handled' => [__('This request was already handled.', 'gpt3-ai-content-generator'), 'error'],
             'changed' => [__('This change was updated meanwhile. Check it again.', 'gpt3-ai-content-generator'), 'error'],
             'pick_post' => [__('Choose the post that was created or published, and confirm you checked it.', 'gpt3-ai-content-generator'), 'error'],

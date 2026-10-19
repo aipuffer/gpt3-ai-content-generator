@@ -457,6 +457,59 @@ final class Operations
             'edit_url' => admin_url('post.php?post=' . $post->ID . '&action=edit')];
     }
 
+    /** A stateless, user/site-bound upload window. No upload, table, background job or polling. */
+    public static function request_upload(object $args): array
+    {
+        if (!current_user_can('upload_files')) { return self::error('permission_denied'); }
+        if (get_object_vars($args)) { return self::error('invalid_input'); }
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Primary-key boundary for a one-hour upload verification window.
+        $after = (int) $wpdb->get_var("SELECT MAX(ID) FROM {$wpdb->posts}");
+        if ($wpdb->last_error !== '') {
+            return self::error('site_unavailable', 'WordPress could not check the media library. No upload window was created. Check database availability and try again.');
+        }
+        $payload = wp_json_encode(['user' => get_current_user_id(), 'site' => get_current_blog_id(), 'after' => $after, 'expires' => time() + HOUR_IN_SECONDS, 'nonce' => wp_generate_password(16, false, false)]);
+        $encoded = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
+        $token = $encoded . '.' . hash_hmac('sha256', $encoded, wp_salt('auth'));
+        return ['state' => 'succeeded', 'actions_used' => 0, 'result' => ['upload_token' => $token, 'upload_url' => admin_url('media-new.php'), 'expires_in' => HOUR_IN_SECONDS,
+            'uploaded' => false, 'message' => 'Upload your original image in WordPress while signed in as this connected user. Then call check_upload with this token and the saved filename or attachment ID. Nothing has been uploaded by this request.']];
+    }
+
+    public static function check_upload(object $args): array
+    {
+        if (!current_user_can('upload_files')) { return self::error('permission_denied'); }
+        if (array_diff(array_keys(get_object_vars($args)), ['upload_token','filename','id']) || !is_string($args->upload_token ?? null) || strlen($args->upload_token) > 1024
+            || (isset($args->id) && (!is_int($args->id) || $args->id < 1))
+            || (isset($args->filename) && (!is_string($args->filename) || strlen($args->filename) > 255 || $args->filename === '' || wp_basename($args->filename) !== $args->filename))) { return self::error('invalid_input'); }
+        $parts = explode('.', $args->upload_token);
+        if (count($parts) !== 2 || !preg_match('/^[A-Za-z0-9_-]+$/D', $parts[0]) || !hash_equals(hash_hmac('sha256', $parts[0], wp_salt('auth')), $parts[1])) { return self::error('invalid_input', 'This upload token is invalid. Start a new upload request.'); }
+        $window = json_decode((string) base64_decode(strtr($parts[0], '-_', '+/'), true), true);
+        if (!is_array($window) || ($window['user'] ?? null) !== get_current_user_id() || ($window['site'] ?? null) !== get_current_blog_id() || !is_int($window['after'] ?? null)) { return self::error('permission_denied'); }
+        if (($window['expires'] ?? 0) < time()) { return self::error('upload_check_expired', 'The upload check expired. Use search_media/get_media to find the image already uploaded; do not upload it again.'); }
+        global $wpdb;
+        $where = $wpdb->prepare(' AND p.ID > %d AND p.post_author = %d', $window['after'], get_current_user_id());
+        if (isset($args->id)) { $where .= $wpdb->prepare(' AND p.ID = %d', $args->id); }
+        if (isset($args->filename)) { $where .= $wpdb->prepare(' AND (BINARY m.meta_value = %s OR BINARY m.meta_value LIKE %s)', $args->filename, '%/' . $wpdb->esc_like($args->filename)); }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Prepared user/site window, primary-key bound and at most 11 image candidates; never a whole-library scan.
+        $rows = $wpdb->get_results("SELECT DISTINCT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->postmeta} m ON m.post_id=p.ID AND m.meta_key='_wp_attached_file' WHERE p.post_type='attachment' AND p.post_status='inherit' AND p.post_mime_type IN ('image/jpeg','image/png','image/gif','image/webp') {$where} ORDER BY p.ID DESC LIMIT 11");
+        if ($wpdb->last_error !== '' || !is_array($rows)) {
+            return self::error('site_unavailable', 'WordPress could not check the media library. The upload is not verified. Check database availability before checking again; do not upload the image again.');
+        }
+        $items = [];
+        foreach ($rows as $row) {
+            $post = get_post((int) $row->ID);
+            if (!$post || !current_user_can('read_post', $post->ID)) { continue; }
+            $filename = wp_basename((string) get_post_meta($post->ID, '_wp_attached_file', true));
+            if (isset($args->filename) && $filename !== $args->filename) { continue; }
+            $items[] = self::media_item($post) + ['filename' => $filename];
+        }
+        $identified = count($items) === 1 && (isset($args->id) || isset($args->filename));
+        $verified = $identified && $items[0]['width'] > 0 && $items[0]['height'] > 0;
+        return ['state' => 'succeeded', 'actions_used' => 0, 'result' => ['state' => $verified ? 'verified' : ($identified ? 'processing' : (!$items ? 'not_found' : (count($items) > 1 ? 'ambiguous' : 'choose_image'))),
+            'verified' => $verified, 'items' => array_slice($items, 0, 10), 'has_more' => count($items) > 10,
+            'message' => $verified ? 'Verified an image saved by this user after the upload request. No new upload was made.' : 'No image was selected automatically. Confirm the saved filename or attachment ID with the owner; never repeat the upload merely because verification is incomplete.']];
+    }
+
     public static function search_media(object $args): array
     {
         if (isset($args->query) && (!is_string($args->query) || mb_strlen($args->query) > 200)) { return self::error('invalid_input'); }

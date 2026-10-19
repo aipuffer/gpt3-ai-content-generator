@@ -72,19 +72,6 @@ final class Verifier {
 			return self::fail( 401, 'replay', 'This request was already received.' );
 		}
 		$body = json_decode( $raw_body );
-		// Recovery lookups stay available after revocation or pause; they never execute (review finding 5).
-		$lookup = is_object( $body ) && isset( $body->tool ) && 'get_operation' === $body->tool;
-        if (!$lookup && (!is_string($body->registration_instance ?? null)
-            || $body->registration_instance !== (Identity::registration()['instance_id'] ?? null))) {
-            return self::fail(403, 'site_not_authorized', 'This request belongs to a previous installation.');
-        }
-
-		if ( ( 'revoked' === $grant['state'] || !Identity::active() || ($grant['instance_id'] ?? '') !== (Identity::registration()['instance_id'] ?? '')) && ! $lookup ) {
-			return self::fail( 403, 'site_not_authorized', "This site isn't connected to this assistant. Approve it in wp-admin › Manage website." );
-		}
-		if ( 'paused' === $grant['state'] && ! $lookup ) {
-			return self::fail( 403, 'site_paused', 'AI access to this site is paused. Resume it in wp-admin › Manage website.' );
-		}
 
 		if ( ! is_object( $body ) || ! isset( $body->operation_id, $body->account_id, $body->site_id, $body->connection_id, $body->acting_user, $body->tool, $body->args, $body->intent_hash ) ) {
 			return self::fail( 400, 'invalid_input', 'Missing request fields.' );
@@ -110,6 +97,20 @@ final class Verifier {
 		}
 		if ( ! hash_equals( $hash, (string) $body->intent_hash ) ) {
 			return self::fail( 400, 'invalid_input', 'Intent hash does not match the request.' );
+		}
+
+		// Recovery lookups stay available after revocation or pause; they never execute (review finding 5).
+		$lookup = is_object( $body ) && isset( $body->tool ) && 'get_operation' === $body->tool;
+        if (!$lookup && (!is_string($body->registration_instance ?? null)
+            || $body->registration_instance !== (Identity::registration()['instance_id'] ?? null))) {
+            return array( 'authenticated' => true ) + self::fail(403, 'site_not_authorized', 'This request belongs to a previous installation.');
+        }
+
+		if ( ( 'revoked' === $grant['state'] || !Identity::active() || ($grant['instance_id'] ?? '') !== (Identity::registration()['instance_id'] ?? '')) && ! $lookup ) {
+			return array( 'authenticated' => true ) + self::fail( 403, 'site_not_authorized', "This site isn't connected to this assistant. Approve it in wp-admin › Manage website." );
+		}
+		if ( 'paused' === $grant['state'] && ! $lookup ) {
+			return array( 'authenticated' => true ) + self::fail( 403, 'site_paused', 'AI access to this site is paused. Resume it in wp-admin › Manage website.' );
 		}
 
 		// First authenticated request for a pending grant: the bridge has bound it to this connection.

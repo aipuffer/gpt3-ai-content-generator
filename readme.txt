@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.12
+Stable tag: 2.5.13
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,7 +20,7 @@ Add an AI chatbot and manage your WordPress website through Claude or ChatGPT wi
 
 ### Manage your site from ChatGPT or Claude (MCP)
 
-Open Settings → Connections → Manage my website to connect ChatGPT, Claude or another MCP client. Assistants can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. Trusted is the default for new connections and runs supported changes directly, including publication, plugin changes and deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. The available actions depend on the site’s installed plugins and the permissions you grant. Access follows the connecting WordPress user’s permissions and can be paused or disconnected. Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate. This feature is off until you explicitly connect it.
+Open Settings → Connections → Manage my website to connect ChatGPT, Claude, Cursor, Claude Code or another MCP client. Assistants can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. Trusted is the default for new connections and runs supported changes directly, including publication, plugin changes and deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. The available actions depend on the site’s installed plugins and the permissions you grant. Access follows the connecting WordPress user’s permissions and can be paused or disconnected. Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate. This feature is off until you explicitly connect it.
 
 Supported WP-CLI-compatible commands let assistants inspect the site and manage posts, images, categories, tags, comments, classic navigation menus, settings, users, roles, cache and scheduled events without SSH or a WP-CLI installation. Official plugin/theme/core administration and bounded database inspection/search-replace commands are included. Ask your assistant for `wp help` to see the supported subset and flags. Commands use the same permissions, approval settings and website-action allowance as other website tools; shell scripts and full WP-CLI compatibility are not included.
 
@@ -152,13 +152,15 @@ Yes. AI Power was renamed AI Puffer. It is the same plugin, with the same plugin
 
 == Screenshots ==
 
-1. Chatbots: set the welcome message, colors, icon, AI model and instructions, and watch a live preview. Show the bot as a popup or site-wide, or copy its shortcode.
-2. Content Writer: draft a post from a topic and keywords, and choose the model, the length and the post status.
-3. AI Forms: build a form from standard fields, pick a model, and write a prompt that uses what visitors enter.
-4. Images: create images with your connected provider and browse the images you generated.
-5. Automations: add a batch of topics and keywords for a scheduled content task.
-6. Knowledge Base: add question-and-answer sources and choose where the knowledge is stored.
-7. The chatbot on your site: a popup with a greeting and conversation starters.
+1. Website management: connect assistants such as ChatGPT or Claude, manage their access, and pause or disconnect website management.
+2. Dashboard: view AI credits, website-action allowances, usage breakdowns and recent activity separately.
+3. Chatbots: choose the AI model, instructions and knowledge sources, with a live chatbot preview.
+4. Content Writer: draft a post from a topic and keywords, and choose the model, length and post status.
+5. AI Forms: build forms from fields and write prompts using visitor input.
+6. Images: generate images with your connected provider and browse your image history.
+7. Automations: schedule content creation from topics, feeds, URLs or spreadsheets.
+8. Knowledge Base: add questions and answers, text, websites or files, and choose where they are indexed.
+9. Guided setup: choose chatbots, website management, AI forms, or writing and scheduling content.
 
 == External services ==
 
@@ -211,6 +213,10 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.13 =
+
+MCP improvements.
+
 = 2.5.12 =
 Adds guided Cloud and assistant setup, an always-available Dashboard, website-action breakdowns, custom content definitions, stock-image search, safe SVG imports.
 
@@ -236,6 +242,18 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.13 =
+
+MCP improvements:
+
+- Added one-shot verification for images uploaded through the WordPress handoff, with user/site-bound upload windows and no automatic selection of ambiguous matches.
+- Added read-only Lighthouse page audits (Beta) through Google PageSpeed Insights, with mobile or desktop scores and findings.
+- Improved website ability diagnostics: preserve specific known failure codes and browser timeout phases.
+- Clarified when an earlier uncertain change blocks a new write, with the original operation and review link; reads remain available and duplicate-change safeguards stay in place.
+- Improved authenticated responses when assistant access is paused or disconnected, without trusting unsigned responses or hiding uncertain changes.
+- Added Cursor and Claude Code connection instructions to website management setup in onboarding and Settings.
+- Added reusable workflows through chat: save, find, read, update and remove your own instructions on the connected WordPress site. Use them across assistants connected as the same WordPress user; existing permissions and approvals still apply.
 
 = 2.5.12 =
 - Added guided onboarding for chatbots, website management, AI forms and content, with email verification, connection checks and a first assistant request.

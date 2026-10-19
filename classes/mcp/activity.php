@@ -304,6 +304,14 @@ final class Activity
             /* translators: %1$s: assistant name. */
             'get_site_overview' => __('%1$s read the site overview', 'gpt3-ai-content-generator'),
             /* translators: %1$s: assistant name. */
+            'list_workflows' => __('%1$s listed saved workflows', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
+            'get_workflow' => __('%1$s read a saved workflow', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
+            'save_workflow' => __('%1$s saved a workflow', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
+            'delete_workflow' => __('%1$s removed a saved workflow', 'gpt3-ai-content-generator'),
+            /* translators: %1$s: assistant name. */
             'find_abilities' => __('%1$s looked up what the site can do', 'gpt3-ai-content-generator'),
             /* translators: 1: assistant name, 2: ability name. */
             'read_ability' => __('%1$s read %2$s', 'gpt3-ai-content-generator'),

@@ -89,6 +89,11 @@ final class BridgeClient {
 		}
 		if ( $code !== 200 || ! is_array( $data ) ) {
 			$message = is_array( $data ) && isset( $data['error']['message'] ) ? $data['error']['message'] : 'Bridge returned HTTP ' . $code . '.';
+            // Preserve only bounded inspection errors; other bridge routes keep their existing error contract.
+            $inspection_code = is_array($data) ? ($data['error']['code'] ?? null) : null;
+            if ($path === '/site/v1/inspect' && in_array($inspection_code, ['inspection_timeout', 'inspection_unavailable', 'inspection_disabled', 'inspection_account_limit', 'inspection_busy', 'inspection_capacity', 'invalid_inspection_url', 'inspection_not_active', 'invalid_input'], true)) {
+                return new WP_Error($inspection_code, $message);
+            }
 			return new WP_Error( 'bridge_error', $message );
 		}
 		return $data;

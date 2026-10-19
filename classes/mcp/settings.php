@@ -266,6 +266,10 @@ final class Settings
             </div>
             <div data-mcp-instructions="other" <?php echo !in_array($client, ['chatgpt', 'claude'], true) ? '' : 'hidden'; ?>>
                 <p><?php esc_html_e('Add a remote MCP server in your assistant using the name and address below, with OAuth authentication.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open assistant setup', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></p>
+                <p><strong>Cursor:</strong> <?php esc_html_e('Open Customize → MCPs and add a custom remote MCP server using the address below. Select Authenticate, then allow access in the browser.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong>Claude Code:</strong> <?php esc_html_e('Run these commands in your terminal, then allow access in the browser:', 'gpt3-ai-content-generator'); ?></p>
+                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code><?php echo esc_html('claude mcp add --scope user --transport http ai-puffer ' . $url); ?></code></p>
+                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code>claude mcp login ai-puffer</code></p>
             </div>
             <?php $details = [__('Name', 'gpt3-ai-content-generator') => 'AI Puffer', __('MCP server address', 'gpt3-ai-content-generator') => $url];
             if (!$onboarding) { $details[__('Test prompt', 'gpt3-ai-content-generator')] = sprintf(

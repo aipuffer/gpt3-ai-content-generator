@@ -147,15 +147,24 @@ final class Journal
         return $wpdb->query($wpdb->prepare("UPDATE $table SET state = 'executing', updated_at = %d WHERE operation_id = %s AND state = %s", time(), $id, $from)) === 1;
     }
 
-    public static function unresolved_write(string $except): bool
+    public static function write_gate(string $except): ?array
     {
         global $wpdb;
         $table = Schema::table('operations');
         $writes = Registry::write_names();
         // Only generated placeholders are interpolated; every tool name is a prepared value.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        $count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table WHERE operation_id != %s AND tool IN (" . implode(',', array_fill(0, count($writes), '%s')) . ") AND state IN ('received', 'executing', 'unknown')", array_merge([$except], $writes)));
-        return $count === null || (int) $count > 0;
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT operation_id FROM $table WHERE operation_id != %s AND tool IN (" . implode(',', array_fill(0, count($writes), '%s')) . ") AND state IN ('received', 'executing', 'unknown') ORDER BY created_at, operation_id LIMIT 1", array_merge([$except], $writes)), ARRAY_A);
+        if ($wpdb->last_error !== '' || !is_array($rows)) {
+            return Operations::error('write_check_unavailable', 'WordPress could not check its change history. Nothing ran and no action was charged. Reads still work. Ask the website owner to check database availability before trying a new change.');
+        }
+        if (!$rows) { return null; }
+        $id = $rows[0]['operation_id'];
+        $response = Operations::error('previous_write_needs_review', 'An earlier website change needs the owner’s review. This request did not run and no action was charged. Reads still work. Do not retry changes until the owner checks the original operation in WordPress.');
+        $response['error']['blocking_operation_id'] = $id;
+        $response['error']['review_url'] = Screens::review_url();
+        $response['operation_diagnostics'] = ['blocking_operation_id' => $id];
+        return $response;
     }
 
     /** Durable itemized progress while the parent stays executing; replay never resumes a half-finished set. */
@@ -187,6 +196,7 @@ final class Journal
         if (!is_array($response)) {
             $response = ['state' => in_array($row['state'], ['received', 'executing'], true) ? 'unknown' : $row['state'], 'actions_used' => 0];
         }
+        unset($response['local_error']); // Detailed ability errors stay in the local journal, including on replay/recovery.
         return ['operation_id' => $row['operation_id']] + $response;
     }
 
