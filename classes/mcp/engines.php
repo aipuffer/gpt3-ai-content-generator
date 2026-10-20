@@ -186,35 +186,128 @@ final class Engines
     }
 
     /**
-     * The same content rules as create_draft, for any change: no scripts, HTML comments (which carry blocks and
-     * builder instructions), shortcodes or protected metadata (keys starting with "_") anywhere in the request. Null
-     * when the request is fine, or the refusal.
+     * Generic changes reject scripts, comments, registered shortcodes and protected metadata. Only the root REST
+     * query's validated response controls are exempt from the protected-key check; values are still inspected.
      */
-    private static function unsafe_content($values): ?array
+    public static function unsafe_content($values, string $source = 'input', array $root = []): ?array
     {
-        $stack = [$values];
-        while ($stack) {
-            $value = array_pop($stack);
-            if (is_array($value)) {
-                foreach ($value as $key => $item) {
-                    // A protected field by name, or a metadata entry naming one ({"key": "_price", "value": ...}).
-                    if ((is_string($key) && strpos($key, '_') === 0) || ($key === 'key' && is_string($item) && strpos($item, '_') === 0)) {
-                        $field = is_string($key) && strpos($key, '_') === 0 ? $key : $item;
-                        $message = $field === '_yoast_wpseo_focuskw'
-                            ? 'Protected metadata cannot be edited directly. Discover Yoast with find_abilities (query "yoast"); if offered, use run_ability "ai-puffer/yoast-set-focus-keyphrase" with post_id and focus_keyphrase. Verify using Yoast SEO data. Scores are not recalculated.'
-                            : (strpos($field, '_yoast_wpseo_') === 0
-                            ? 'Protected metadata cannot be edited directly. Discover Yoast with find_abilities (query "yoast"); if offered, use run_ability "yoast-seo/update-post-seo-data" with post_id and seo_title/meta_description. Verify using read_ability "yoast-seo/get-post-seo-data".'
-                            : 'Protected fields (names starting with "_") can’t be changed through this tool. Discover a supported native plugin action with find_abilities; do not bypass this restriction.');
-                        return self::refuse('unsupported_content', $message);
-                    }
-                    $stack[] = $item;
+        // Visit fields in document order so multiple offenders produce a stable first location.
+        if (is_array($values)) {
+            foreach ($values as $key => $item) {
+                $path = array_merge($root, [$key]);
+                $selector = $source === 'query' && !$root && in_array($key, ['_fields', '_embed', '_locale'], true);
+                if ((!$selector && is_string($key) && strpos($key, '_') === 0) || ($key === 'key' && is_string($item) && strpos($item, '_') === 0)) {
+                    $field = is_string($key) && strpos($key, '_') === 0 ? $key : $item;
+                    $message = $field === '_yoast_wpseo_focuskw'
+                        ? 'Protected metadata cannot be edited directly. Discover ai-puffer/yoast-set-focus-keyphrase with find_abilities and use post_id and focus_keyphrase. Verify using Yoast SEO data; scores are not recalculated.'
+                        : (strpos($field, '_yoast_wpseo_') === 0
+                        ? 'Protected metadata cannot be edited directly. Discover yoast-seo/update-post-seo-data with find_abilities and use post_id and seo_title/meta_description. Verify with yoast-seo/get-post-seo-data.'
+                        : 'Protected fields (names starting with "_") cannot be changed through this tool. Discover a supported native plugin action with find_abilities; do not bypass this restriction.');
+                    return self::content_refusal('protected_metadata', $source, $path, $message);
                 }
-            } elseif (is_string($value) && (stripos($value, '<script') !== false || strpos($value, '<!--') !== false
-                || preg_match('/\bjavascript\s*:/i', $value) || preg_match('/\[[A-Za-z][A-Za-z0-9_-]*(?:\s|\/|\])/', $value))) {
-                return self::refuse('unsupported_content', 'Scripts, HTML comments, blocks and shortcodes can’t be sent through this tool. Send plain text or simple HTML.');
+                $error = self::unsafe_content($item, $source, $path);
+                if ($error) { return $error; }
             }
+        } elseif (is_string($values)) {
+            return self::content_error($values, $source, $root);
         }
         return null;
+    }
+
+    /** Match executable URL contexts, not ordinary prose such as "JavaScript: The Good Parts". */
+    private static function javascript_url(string $value, array $path): bool
+    {
+        $scheme = static function (string $url): bool {
+            $url = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return (bool) preg_match('/^javascript:/i', preg_replace('/[\x00-\x20\x7f]+/', '', $url));
+        };
+        $key = strtolower((string) end($path));
+        if ((in_array($key, ['url', 'href', 'src', 'action', 'formaction', 'poster', 'cite', 'background', 'xlink:href'], true)
+            || preg_match('/(?:_url|_uri|_href|_src)$/D', $key)) && $scheme($value)) { return true; }
+        // A bare executable URL in an unnamed/plugin field is still unsafe. A prose heading has words after ":".
+        if ($scheme($value) && !preg_match('/^\s*javascript:\s+[[:alpha:]][[:alpha:] \'-]*\s+[[:alpha:]][[:alpha:] \'.!?-]*$/iu', $value)) { return true; }
+        foreach (wp_html_split($value) as $element) {
+            if ($element === '' || $element[0] !== '<') { continue; }
+            $attributes = wp_kses_attr_parse($element);
+            foreach ($attributes === false ? [] : array_slice($attributes, 1, -1) as $attribute) {
+                // Inspect the original attribute, before KSES strips its protocol.
+                if (preg_match('/^\s*(?:href|src|action|formaction|poster|cite|background|xlink:href)\s*=\s*(.*)$/is', $attribute, $match)
+                    && $scheme(trim($match[1], " \t\n\r\0\x0B\"'"))) { return true; }
+            }
+        }
+        return false;
+    }
+
+    /** Inspect without executing shortcodes. Unknown bracketed prose and WordPress's escaped [[tag]] are literal. */
+    private static function contains_shortcode(string $value): bool
+    {
+        global $shortcode_tags;
+        if (strpos($value, '[') === false || !is_array($shortcode_tags) || !$shortcode_tags) { return false; }
+        // Match WordPress's candidate discovery, including valid plugin-defined shortcode names.
+        preg_match_all('@\[([^<>&/\[\]\x00-\x20=]++)@', $value, $candidates);
+        $tags = array_intersect(array_keys($shortcode_tags), $candidates[1]);
+        if (!$tags) { return false; }
+        $parts = [$value];
+        // WordPress expands HTML attributes before whole-text shortcodes. An escaped outer tag must not hide an
+        // executable attribute (or a match spanning multiple attributes) from this check.
+        foreach (wp_html_split($value) as $element) {
+            if ($element === '' || $element[0] !== '<' || strpos($element, '[') === false) { continue; }
+            $attributes = wp_kses_attr_parse($element);
+            foreach ($attributes === false ? [$element] : array_slice($attributes, 1, -1) as $attribute) { $parts[] = $attribute; }
+        }
+        $pattern = '/' . get_shortcode_regex($tags) . '/';
+        foreach ($parts as $part) {
+            $matched = preg_match_all($pattern, $part, $matches, PREG_SET_ORDER);
+            if ($matched === false) { return true; } // Fail closed when inspection cannot complete.
+            foreach ($matches as $match) {
+                if ($match[1] !== '[' || $match[6] !== ']') { return true; }
+            }
+        }
+        return false;
+    }
+
+    /** Native post fields retain their existing wp_kses_post script sanitation; generic writes refuse scripts. */
+    public static function content_error(string $value, string $source, array $path, bool $refuse_scripts = true): ?array
+    {
+        if ($refuse_scripts && stripos($value, '<script') !== false) {
+            return self::content_refusal('script', $source, $path, 'Script markup cannot be sent through this tool.');
+        }
+        if ($refuse_scripts && self::javascript_url($value, $path)) {
+            return self::content_refusal('javascript_url', $source, $path, 'JavaScript URLs cannot be sent through this tool. Use an ordinary HTTPS link.');
+        }
+        if (strpos($value, '<!--') !== false) {
+            return preg_match('/<!--\s*\/?wp:/', $value)
+                ? self::content_refusal('block_markup', $source, $path, 'Discover ai-puffer/gutenberg- with find_abilities and read get_guide topic gutenberg. Use supported native block operations; never strip block delimiters.')
+                : self::content_refusal('html_comment', $source, $path, 'HTML comments cannot be sent through this tool. Send plain text or simple HTML.');
+        }
+        if (self::contains_shortcode($value)) {
+            return self::content_refusal('shortcode', $source, $path, 'A registered WordPress shortcode cannot be sent through this tool. Use a supported native plugin operation.');
+        }
+        return null;
+    }
+
+    /** Only fixed categories and a bounded, allowlisted location leave WordPress; arbitrary keys and values do not. */
+    public static function content_refusal(string $reason, string $source, array $path, string $message): array
+    {
+        $keys = ['content', 'title', 'excerpt', 'description', 'meta', 'meta_data', 'key', 'value', '_fields', '_embed', '_locale', 'layout_json', 'children', 'text', 'url', 'alt',
+            '_elementor_data', '_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw', '_price'];
+        $location = '$';
+        foreach (array_slice($path, 0, 12) as $key) {
+            $part = is_int($key) && $key >= 0 && $key <= 999999 ? '[' . $key . ']'
+                : '.' . (is_string($key) && in_array($key, $keys, true) ? $key : '*');
+            if (strlen($location . $part) > 200) { break; }
+            $location .= $part;
+        }
+        $response = self::refuse('unsupported_content', $message . ' Location: ' . $source . substr($location, 1) . '.');
+        $response['operation_diagnostics'] = ['content_reason' => $reason, 'content_source' => $source, 'content_path' => $location];
+        return $response;
+    }
+
+    /** The plain-content API cannot represent an existing block document without losing structure. */
+    public static function preserve_blocks(\WP_Post $post, string $source, array $path): ?array
+    {
+        return has_blocks($post->post_content) ? self::content_refusal('existing_block_document', $source, $path,
+            'This is an existing Gutenberg document. Preserve its block markup. Use the native Gutenberg abilities for an intentional whole-layout replacement; omit content for title or metadata-only edits.') : null;
     }
 
     /**
@@ -377,8 +470,11 @@ final class Engines
     private static function ability_result($result): array
     {
         if (is_wp_error($result)) {
-            return $result->get_error_code() === 'ability_invalid_permissions' ? Operations::error('permission_denied')
+            $out = $result->get_error_code() === 'ability_invalid_permissions' ? Operations::error('permission_denied')
                 : self::refuse(self::ability_error_code($result->get_error_code()), $result->get_error_message());
+            $data = $result->get_error_data();
+            if ($result->get_error_code() === 'unsupported_content' && is_array($data) && isset($data['operation_diagnostics'])) { $out['operation_diagnostics'] = $data['operation_diagnostics']; }
+            return $out;
         }
         return self::ok(['data_json' => self::bounded($result)]);
     }
@@ -408,6 +504,13 @@ final class Engines
         foreach (array_keys($query) as $key) {
             if (!is_string($key) || in_array(strtolower($key), ['_method', '_envelope', '_jsonp'], true)) { return null; }
         }
+        if (array_key_exists('_fields', $query) && !is_string($query['_fields'])) {
+            $fields = $query['_fields'];
+            if (!is_array($fields) || ($fields && array_keys($fields) !== range(0, count($fields) - 1))
+                || count(array_filter($fields, 'is_string')) !== count($fields)) { return null; }
+        }
+        if (array_key_exists('_locale', $query) && !in_array($query['_locale'], ['user', 'site'], true)) { return null; }
+        if (array_key_exists('_embed', $query) && !is_bool($query['_embed']) && !is_string($query['_embed'])) { return null; }
         return $query;
     }
 
@@ -419,7 +522,7 @@ final class Engines
         if (!Guard::allows_rest('GET', $route)) { return Operations::error('blocked_route'); }
         $request = new \WP_REST_Request('GET', $route);
         $request->set_query_params($query);
-        return self::rest_result(rest_do_request($request), false);
+        return self::rest_result(rest_do_request($request), false, $request);
     }
 
     /** Checks a REST change before it runs or waits; returns the request, or the refusal. */
@@ -433,13 +536,33 @@ final class Engines
             return Operations::error('invalid_input');
         }
         if (!Guard::allows_rest($method, $route)) { return Operations::error('blocked_route'); }
-        $unsafe = self::unsafe_content([$query, $body]);
-        if ($unsafe) { return $unsafe; }
+        $unsafe = self::unsafe_content($query, 'query') ?? self::unsafe_content($body, 'body');
+        if ($unsafe) {
+            if (preg_match('~^/wp/v2/(posts|pages|media|categories|tags)(/[0-9]{1,10})?$~D', $route)) { $unsafe['operation_diagnostics']['rest_route'] = $route; }
+            return $unsafe;
+        }
         $request = new \WP_REST_Request($method, $route);
         $request->set_query_params($query);
         if ($body !== null) {
             $request->set_header('Content-Type', 'application/json');
             $request->set_body((string) $args->body_json);
+        }
+        if (in_array($method, ['POST', 'PUT', 'PATCH'], true) && (array_key_exists('content', $body ?? []) || array_key_exists('content', $query))) {
+            $post_route = rtrim($route, '/');
+            foreach (get_post_types(['show_in_rest' => true], 'objects') as $type) {
+                $base = '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $type->name) . '/';
+                if (stripos($post_route, $base) !== 0 || !ctype_digit(substr($post_route, strlen($base)))) { continue; }
+                // WordPress gives body/query parameters precedence over URL parameters, including id.
+                $target_id = $request->get_param('id') ?? substr($post_route, strlen($base));
+                $post = is_scalar($target_id) ? get_post((int) $target_id) : null;
+                if ($post && $post->post_type === $type->name && current_user_can('edit_post', $post->ID)) {
+                    $error = self::preserve_blocks($post, array_key_exists('content', $body ?? []) ? 'body' : 'query', ['content']);
+                    if ($error) {
+                        if (preg_match('~^/wp/v2/(posts|pages|media|categories|tags)(/[0-9]{1,10})?$~D', $route)) { $error['operation_diagnostics']['rest_route'] = $route; }
+                        return $error;
+                    }
+                }
+            }
         }
         return $request;
     }
@@ -493,7 +616,7 @@ final class Engines
             remove_filter('rest_request_before_callbacks', $observe_before, PHP_INT_MIN);
             remove_filter('rest_request_before_callbacks', $before, PHP_INT_MAX);
         }
-        return self::rest_result($response, $entered || $intercepted);
+        return self::rest_result($response, $entered || $intercepted, $request);
     }
 
     /**
@@ -501,10 +624,19 @@ final class Engines
      * permission) changed nothing. Any error once the callback started may have changed something (a plugin can save
      * and then report a validation failure), so the outcome is unknown and the owner reviews it.
      */
-    private static function rest_result(\WP_REST_Response $response, bool $started): array
+    private static function rest_result(\WP_REST_Response $response, bool $started, \WP_REST_Request $request): array
     {
         $status = $response->get_status();
-        $data = rest_get_server()->response_to_data($response, false);
+        // Internal dispatch omits serve_request's response processing. Use the same core projection/embed helpers.
+        $response = rest_filter_response_fields($response, rest_get_server(), $request);
+        $embed = $request->has_param('_embed') && $request['_embed'] !== false ? rest_parse_embed_param($request['_embed'] === true ? 'true' : $request['_embed']) : false;
+        $guard = static function ($result, $server, $embedded) {
+            return Guard::allows_rest($embedded->get_method(), $embedded->get_route()) ? $result
+                : new \WP_Error('blocked_route', 'This embedded route is not available through website management.', ['status' => 403]);
+        };
+        add_filter('rest_pre_dispatch', $guard, PHP_INT_MIN, 3);
+        try { $data = rest_get_server()->response_to_data($response, $embed); }
+        finally { remove_filter('rest_pre_dispatch', $guard, PHP_INT_MIN); }
         if (($status < 200 || $status >= 300) && $started) { return self::after_start(); }
         if ($status < 200 || $status >= 300) {
             $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';

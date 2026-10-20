@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.13
+Stable tag: 2.5.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,10 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.14 =
+
+Fixes MCP content false positives, protects existing Gutenberg layouts, and adds clearer website-action diagnostics.
+
 = 2.5.13 =
 
 MCP improvements.
@@ -242,6 +246,15 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.14 =
+
+- Fixed legitimate REST query parameters, ordinary bracketed text and JavaScript prose being rejected as unsupported content, while retaining protections for scripts, executable URLs, registered shortcodes and protected metadata.
+- Improved Gutenberg layout validation, including nested and encoded input, and prevented plain-content updates from accidentally replacing existing block documents.
+- Added explicit confirmation and version checks for whole-layout replacement, plus complete paged reads of large block documents.
+- Added specific refusal reasons and safe field locations to website-action results and Activity, with clearer guidance for supported Gutenberg operations.
+- Added expected and actual counts to search-replace and matching-row conflicts, with guidance to refresh the dry run before making changes.
+- Improved compatibility with hosted callback queue and diagnostic updates. Existing website permissions, approvals and action accounting remain in place.
 
 = 2.5.13 =
 

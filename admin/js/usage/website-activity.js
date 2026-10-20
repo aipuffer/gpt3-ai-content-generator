@@ -98,7 +98,7 @@ export function createWebsiteActivity(deps) {
         </li>
     `;
 
-    /** Consecutive reads by one assistant within a few minutes, three or more, become one expandable row. */
+    /** Consecutive successful reads can collapse; refusals keep their own diagnostic drawer. */
     const groupRow = (items) => {
         const first = items[0];
         const actions = items.reduce((sum, item) => sum + (item.actions || 0), 0);
@@ -126,11 +126,11 @@ export function createWebsiteActivity(deps) {
         const html = [];
         for (let i = 0; i < items.length;) {
             let j = i;
-            while (items[j]?.kind === 'read' && items[j + 1]?.kind === 'read' && items[j + 1].assistant === items[i].assistant
+            while (items[j]?.kind === 'read' && items[j]?.state === 'succeeded' && items[j + 1]?.kind === 'read' && items[j + 1]?.state === 'succeeded' && items[j + 1].assistant === items[i].assistant
                 && items[i].created_at - items[j + 1].created_at <= GROUP_WINDOW) {
                 j++;
             }
-            if (items[i].kind === 'read' && j - i + 1 >= GROUP_MIN) {
+            if (items[i].kind === 'read' && items[i].state === 'succeeded' && j - i + 1 >= GROUP_MIN) {
                 html.push(groupRow(items.slice(i, j + 1)));
                 i = j + 1;
             } else {
@@ -277,6 +277,7 @@ export function createWebsiteActivity(deps) {
                     ${steps.map(([label, ts, tone]) => `<li class="${tone}"><span>${escapeHtml(label)}</span>${ts ? timeHtml(ts) : ''}</li>`).join('')}
                 </ol>
                 ${item.subject ? `<dl class="aipkit_usage_kv aipkit_usage_kv--single"><div><dt>${escapeHtml(__('About', 'gpt3-ai-content-generator'))}</dt><dd>${escapeHtml(item.subject)}</dd></div></dl>` : ''}
+                ${item.failure ? `<p class="aipkit_usage_website_failure"><strong>${escapeHtml(item.failure.code)}</strong><br>${escapeHtml(item.failure.message)}</p>` : ''}
                 <p class="aipkit_usage_website_note">${escapeHtml(__('Shows a summary only. The full request and response stay private and aren’t displayed.', 'gpt3-ai-content-generator'))}</p>
             </div>
         `;

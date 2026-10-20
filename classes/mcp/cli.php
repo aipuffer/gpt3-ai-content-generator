@@ -6,6 +6,14 @@ if (!defined('ABSPATH')) { exit; }
 
 final class Cli
 {
+    private static function count_changed(string $code, int $expected, int $found): array
+    {
+        $unit = $code === 'replacement_count_changed' ? 'replacements' : 'matching rows';
+        $out = Operations::error($code, sprintf('Expected %d %s; found %d. Nothing changed. Read a fresh dry run with the same scope and paging before applying; do not remove the count guard.', $expected, $unit, $found));
+        $out['operation_diagnostics'] = ['count_kind' => $code === 'replacement_count_changed' ? 'replacements' : 'matching_rows', 'expected_count' => $expected, 'found_count' => $found];
+        return $out;
+    }
+
     private const READ = 'ai-puffer/wp-cli-read';
     private const WRITE = 'ai-puffer/wp-cli-write';
     /** Command => [read, capability, minimum/maximum positional arguments, accepted flags]. */
@@ -892,8 +900,8 @@ final class Cli
         if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_query_failed'); }
         $count = $plan['type'] === 'INSERT' ? 1 : count($rows);
         if ($count > 100) { return Operations::error('batch_too_large', 'Narrow WHERE to at most100 matching records per atomic change.'); }
-        if (isset($flags['expected-count']) && $count !== (int) $flags['expected-count']) { return Operations::error('matching_count_changed'); }
         foreach ($rows as $row) { if (!self::database_row_visible($schema['table'], $row)) { return Operations::error('protected_rows_selected'); } }
+        if (isset($flags['expected-count']) && $count !== (int) $flags['expected-count']) { return self::count_changed('matching_count_changed', (int) $flags['expected-count'], $count); }
         $summary = ['table' => $schema['table'], 'statement' => $plan['type'], 'matching_rows' => $count, 'columns' => array_keys($plan['values'])];
         if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'title' => 'Custom-table data change', 'name' => self::WRITE, 'description' => 'Apply only the displayed custom-plugin data change. WordPress/plugin lifecycle hooks are not run by SQL.', 'risk' => 'publish', 'input' => wp_json_encode($summary + ['values' => $plan['values'], 'where' => $plan['where']])]]; }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Check the actual engine before a transaction.
@@ -1182,7 +1190,7 @@ final class Cli
             $matches += $table_matches; $reports[] = ['table' => $schema['table'], 'rows_scanned' => $processed, 'rows_with_changes' => $row_changes, 'replacements' => $table_matches, 'has_more' => $has_more, 'next_after_id' => $has_more ? $last : null];
             if ($budget_stop) { break; }
         }
-        if (isset($flags['expected-count']) && (int) $flags['expected-count'] !== $matches) { return Operations::error('replacement_count_changed', 'The dry-run count changed. Read a fresh dry run before applying the replacement.'); }
+        if (isset($flags['expected-count']) && (int) $flags['expected-count'] !== $matches) { return self::count_changed('replacement_count_changed', (int) $flags['expected-count'], $matches); }
         $result = ['dry_run' => $dry, 'replacements' => $matches, 'rows_with_changes' => count($changes), 'tables' => $reports, 'has_more' => $more, 'unscanned_tables' => array_slice(array_column($tables, 'table'), count($reports)),
             'values_skipped' => $skipped, 'skip_reasons' => 'Serialized objects, excessive depth or output expansion' , 'large_values_omitted' => $large, 'protected_rows_excluded' => $protected,
             'complete_for_eligible_values' => !$more && !$skipped && !$large, 'scope' => 'Eligible text values only; array keys, serialized objects, credential/access/cache/connection settings and unsupported post types are unchanged. Explicit custom tables use their inspected noncredential columns. GUIDs excluded by default. No save_post hooks; rebuild third-party indexes when needed.'];

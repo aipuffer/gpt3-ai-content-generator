@@ -252,13 +252,16 @@ final class Content
         $id = ['type' => 'integer', 'minimum' => 1];
         $definitions = [
             'validate-layout' => [true, 'Validate a Gutenberg layout', ['layout_json' => $layout], ['layout_json']],
-            'get-document' => [true, 'Read a Gutenberg document', ['post_id' => $id], ['post_id']],
+            'get-document' => [true, 'Read a Gutenberg document', ['post_id' => $id,
+                'offset' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Byte offset from next_offset. Concatenate blocks_json_chunk values before parsing JSON.'],
+                'version' => ['type' => 'string', 'description' => 'Required after the first page; use the version returned by that page.']], ['post_id']],
             'create-document' => [false, 'Create a Gutenberg draft', ['title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 300], 'post_type' => ['type' => 'string', 'enum' => ['post', 'page'], 'default' => 'page'], 'layout_json' => $layout], ['title', 'layout_json']],
-            'update-document' => [false, 'Replace a Gutenberg document layout', ['post_id' => $id, 'version' => ['type' => 'string'], 'layout_json' => $layout], ['post_id', 'version', 'layout_json']],
+            'update-document' => [false, 'Replace a Gutenberg document layout', ['post_id' => $id, 'version' => ['type' => 'string'], 'layout_json' => $layout,
+                'replace_layout' => ['type' => 'boolean', 'description' => 'Set true only when the user intends to replace the entire document. This is not a partial edit; existing block attributes and unlisted blocks will be removed.']], ['post_id', 'version', 'layout_json']],
         ];
         foreach ($definitions as $action => [$read, $label, $properties, $required]) {
             wp_register_ability(self::PREFIX . $action, [
-                'label' => $label, 'description' => $label . '. Uses native core blocks with validated structure, plain text and existing WordPress images. Discover this schema before calling. Layout replacement requires the version from get-document and preserves the post title, author and publication status. Create always makes a draft. Standard previews writes; owner-authorized Trusted runs them directly. Supported blocks: ' . implode(', ', self::BLOCKS) . '.',
+                'label' => $label, 'description' => $label . '. Uses supported core blocks with plain text and existing images. Read results use the WordPress block tree, NOT layout_json input nodes. Large reads return blocks_json_chunk and next_offset; collect every page using its version before parsing. Whole-layout replacement requires a fresh version and replace_layout:true; never use it for a small edit or rebuild unsupported blocks. Title, author and status are preserved. Create makes a draft. Supported blocks: ' . implode(', ', self::BLOCKS) . '.',
                 'category' => Abilities::CATEGORY,
                 'input_schema' => ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
@@ -271,7 +274,7 @@ final class Content
                 'execute_callback' => static function ($input = []) use ($action, $read) {
                     if (!$read) { return new \WP_Error('managed_execution_required', 'Use the connected assistant run_ability tool.'); }
                     $out = self::execute($action, (array) $input, false);
-                    return $out['state'] === 'succeeded' ? json_decode($out['result']['data_json'], true) : new \WP_Error($out['error']['code'], $out['error']['message']);
+                    return $out['state'] === 'succeeded' ? json_decode($out['result']['data_json'], true) : new \WP_Error($out['error']['code'], $out['error']['message'], $out);
                 },
             ]);
         }
@@ -628,10 +631,32 @@ final class Content
             if ($action === 'validate-layout' && !current_user_can('edit_posts') && !current_user_can('edit_pages')) { throw new \InvalidArgumentException('Content editing permission is required.'); }
             if ($action === 'get-document') {
                 $post = self::document((int) $input['post_id']);
-                return self::ok(['post_id' => (int) $post->ID, 'title' => $post->post_title, 'status' => $post->post_status, 'version' => Operations::version($post), 'blocks_json' => wp_json_encode(parse_blocks($post->post_content)), 'edit_url' => get_edit_post_link($post->ID, 'raw')]);
+                $version = Operations::version($post);
+                $offset = $input['offset'] ?? 0;
+                if (!is_int($offset) || $offset < 0) { return Operations::error('invalid_input'); }
+                if (($offset > 0 || isset($input['version'])) && ($input['version'] ?? '') !== $version) {
+                    return Operations::error('content_changed', 'The document changed between pages. Start reading again at offset 0.');
+                }
+                $json = (string) wp_json_encode(parse_blocks($post->post_content), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($offset > strlen($json) || ($offset > 0 && !mb_check_encoding(substr($json, 0, $offset), 'UTF-8'))) { return Operations::error('invalid_input'); }
+                $data = ['post_id' => (int) $post->ID, 'title' => mb_substr($post->post_title, 0, 300), 'status' => $post->post_status, 'version' => $version, 'edit_url' => get_edit_post_link($post->ID, 'raw')];
+                // JSON text can double when escaped inside the result. Leave room below Engines::MAX_RESULT.
+                if (!$offset && strlen($json) <= 32000) { return self::ok($data + ['blocks_json' => $json, 'complete' => true, 'next_offset' => null]); }
+                $chunk = mb_strcut($json, $offset, 32000, 'UTF-8');
+                $next = $offset + strlen($chunk);
+                return self::ok($data + ['blocks_json_chunk' => $chunk, 'offset' => $offset, 'next_offset' => $next < strlen($json) ? $next : null,
+                    'total_bytes' => strlen($json), 'complete' => $next === strlen($json),
+                    'note' => 'Concatenate chunks in offset order, then parse JSON. Use the same version on every subsequent page. This WordPress block tree is not layout_json input.']);
             }
             $layout = json_decode($input['layout_json'] ?? '', true);
             if (!is_array($layout) || !$layout || array_keys($layout) !== range(0, count($layout) - 1)) { throw new \InvalidArgumentException('layout_json must be a nonempty JSON array.'); }
+            // JSON escaping must not conceal executable shortcode text or unsafe values.
+            $unsafe = Engines::unsafe_content($layout, 'input', ['layout_json']);
+            if ($unsafe) { return $unsafe; }
+            if ($action === 'update-document' && ($input['replace_layout'] ?? false) !== true) {
+                return Engines::content_refusal('layout_replacement_required', 'input', ['layout_json'],
+                    'This operation replaces the entire Gutenberg layout. Use replace_layout:true only for an intentional complete replacement. Preserve the existing document for partial edits.');
+            }
             $count = 0; $blocks = [];
             foreach ($layout as $node) { if (!is_array($node)) { throw new \InvalidArgumentException('Each layout item must be a block node.'); } $blocks[] = self::node($node, 0, $count); }
             $content = serialize_blocks($blocks);

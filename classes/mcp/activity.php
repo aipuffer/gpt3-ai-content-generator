@@ -193,8 +193,39 @@ final class Activity
             'updated_at' => (int) $row['updated_at'],
             'expires_at' => $state === 'pending_approval' ? (int) $row['expires_at'] : 0,
             'subject' => $subject,
+            'failure' => in_array($state, ['failed', 'conflict'], true) ? self::failure($response) : null,
             'links' => array_map(static function (array $link): array { return ['type' => $link[0], 'label' => $link[1], 'url' => $link[2]]; }, $links),
         ];
+    }
+
+    /** A bounded explanation, without exposing arbitrary callback messages or submitted values. */
+    public static function failure(array $response): ?array
+    {
+        $code = $response['error']['code'] ?? '';
+        if (!is_string($code) || !preg_match('/^[a-z0-9_]{1,80}$/D', $code)) { return null; }
+        $diagnostic = $response['operation_diagnostics'] ?? [];
+        $message = __('The site refused this request. Ask the assistant to check the operation before retrying.', 'gpt3-ai-content-generator');
+        if ($code === 'unsupported_content') {
+            $message = __('Content was refused. The specific reason was not retained for this operation.', 'gpt3-ai-content-generator');
+            $labels = ['existing_block_document' => __('This tool cannot preserve the existing block document', 'gpt3-ai-content-generator'), 'layout_replacement_required' => __('Explicit whole-layout replacement intent is required', 'gpt3-ai-content-generator'), 'protected_metadata' => __('Protected metadata', 'gpt3-ai-content-generator'), 'script' => __('Script markup', 'gpt3-ai-content-generator'),
+                'javascript_url' => __('JavaScript URL', 'gpt3-ai-content-generator'), 'block_markup' => __('Gutenberg block content requires a native block operation', 'gpt3-ai-content-generator'),
+                'html_comment' => __('HTML comment', 'gpt3-ai-content-generator'), 'shortcode' => __('Registered shortcode', 'gpt3-ai-content-generator')];
+            $reason = $diagnostic['content_reason'] ?? '';
+            $path = $diagnostic['content_path'] ?? '';
+            $source = $diagnostic['content_source'] ?? '';
+            if (is_string($reason) && isset($labels[$reason]) && is_string($path) && strlen($path) <= 200
+                && preg_match('/^\$(?:\.(?:content|title|excerpt|description|meta|meta_data|key|value|_fields|_embed|_locale|layout_json|children|text|url|alt|_elementor_data|_yoast_wpseo_title|_yoast_wpseo_metadesc|_yoast_wpseo_focuskw|_price|\*)|\[[0-9]{1,6}\]){0,12}$/D', $path)
+                && in_array($source, ['query', 'body', 'input'], true)) {
+                $message = $labels[$reason] . '. ' . $source . ': ' . $path;
+            }
+        } elseif (in_array($code, ['replacement_count_changed', 'matching_count_changed'], true)) {
+            $message = __('The expected count changed. Read a fresh dry run with the same scope and paging before applying the change.', 'gpt3-ai-content-generator');
+            if (is_int($diagnostic['expected_count'] ?? null) && is_int($diagnostic['found_count'] ?? null) && $diagnostic['expected_count'] >= 0 && $diagnostic['found_count'] >= 0) {
+                /* translators: 1: expected count, 2: actual count. */
+                $message = sprintf(__('Expected %1$d; found %2$d. ', 'gpt3-ai-content-generator'), $diagnostic['expected_count'], $diagnostic['found_count']) . $message;
+            }
+        }
+        return ['code' => $code, 'message' => $message];
     }
 
     /** The post an operation acted on, when there is one. */

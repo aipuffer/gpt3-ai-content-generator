@@ -3109,6 +3109,11 @@ button.aipkit_stats_status_pill {
     margin: 0;
 }
 
+#aipkit_stats_container .aipkit_usage_website_failure {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 #aipkit_stats_container .aipkit_usage_kv.aipkit_usage_kv--single {
     grid-template-columns: minmax(0, 1fr);
     margin: 0;

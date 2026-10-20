@@ -253,8 +253,10 @@ final class Operations
             $value = $args->$name;
             if (!is_string($value) || ($name === 'content' ? strlen($value) : mb_strlen($value)) > $spec[1]
                 || ($name === 'title' && trim(wp_strip_all_tags($value)) === '')) { return new \WP_Error('invalid_input'); }
-            if ($name === 'content' && (strpos($value, '<!--') !== false
-                || preg_match('/\[[A-Za-z][A-Za-z0-9_-]*(?:\s|\/|\])/', $value))) { return new \WP_Error('unsupported_content'); }
+            if ($name === 'content') {
+                $error = Engines::content_error($value, 'input', ['content'], false);
+                if ($error) { return new \WP_Error('unsupported_content', $error['error']['message'], $error); }
+            }
             $fields[$spec[0]] = $name === 'content' ? wp_kses_post($value)
                 : ($name === 'slug' ? sanitize_title($value) : ($name === 'title' ? wp_strip_all_tags($value) : sanitize_textarea_field($value)));
         }
@@ -278,6 +280,13 @@ final class Operations
         return $fields;
     }
 
+    /** Preserve the value-free content diagnostic through native draft/update validation. */
+    private static function content_fields_error(\WP_Error $error): array
+    {
+        return $error->get_error_code() === 'unsupported_content'
+            ? $error->get_error_data() : self::error($error->get_error_code());
+    }
+
     private static function content_terms(\WP_Post $post): array
     {
         $result = ['categories' => [], 'tags' => []];
@@ -296,7 +305,7 @@ final class Operations
         if (!in_array($type, ['post', 'page'], true)) { return self::error('invalid_input'); }
         if (!current_user_can($type === 'page' ? 'edit_pages' : 'edit_posts')) { return self::error('permission_denied'); }
         $fields = self::content_fields($args, $type, true);
-        if (is_wp_error($fields)) { return self::error($fields->get_error_code()); }
+        if (is_wp_error($fields)) { return self::content_fields_error($fields); }
         $post = $fields + ['post_type' => $type, 'post_status' => 'draft', 'post_author' => get_current_user_id()];
         self::$mutation_started = true;
         $id = wp_insert_post(wp_slash($post), true);
@@ -318,8 +327,12 @@ final class Operations
         if (!hash_equals(self::version($post), $args->version)) { return ['state' => 'conflict', 'actions_used' => 0, 'error' => ['code' => 'content_changed', 'message' => 'This content changed since it was read. Read it again before editing or publishing.']]; }
         $allowed = ['id', 'version', 'request_key', 'title', 'content', 'excerpt', 'slug', 'categories', 'tags', 'featured_media'];
         if (array_diff(array_keys(get_object_vars($args)), $allowed)) { return self::error('invalid_input'); }
+        if (property_exists($args, 'content')) {
+            $error = Engines::preserve_blocks($post, 'input', ['content']);
+            if ($error) { return $error; }
+        }
         $fields = self::content_fields($args, $post->post_type);
-        if (is_wp_error($fields)) { return self::error($fields->get_error_code()); }
+        if (is_wp_error($fields)) { return self::content_fields_error($fields); }
         if (!$fields) { return self::error('invalid_input'); }
         return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => self::item($post)
             + ['preview_url' => get_preview_post_link($post), 'changes' => $fields]];
@@ -341,7 +354,7 @@ final class Operations
             $preview = self::update_preview($args);
             if ($preview['state'] !== 'pending_approval') { return $preview; }
             $fields = self::content_fields($args, $row->post_type);
-            if (is_wp_error($fields)) { return self::error($fields->get_error_code()); }
+            if (is_wp_error($fields)) { return self::content_fields_error($fields); }
             self::$mutation_started = true;
             $id = wp_update_post(wp_slash($fields + ['ID' => $args->id]), true);
             if (is_wp_error($id) || !$id) { return ['state' => 'unknown', 'actions_used' => 0]; }

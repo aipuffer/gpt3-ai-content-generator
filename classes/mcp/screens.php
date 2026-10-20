@@ -175,7 +175,7 @@ final class Screens
                 break;
             case 'failed':
             case 'conflict':
-                self::message('warning', __('The change didn’t complete', 'gpt3-ai-content-generator'), sprintf(
+                self::message('warning', __('The change didn’t complete', 'gpt3-ai-content-generator'), (Activity::failure((array) json_decode((string) $row['response'], true))['message'] ?? null) ?: sprintf(
                     /* translators: %s: assistant name. */
                     __('This request did not make the requested change. The content may have changed since %s asked. Ask it to check its current status.', 'gpt3-ai-content-generator'),
                     $assistant
@@ -322,7 +322,7 @@ final class Screens
             case 'failed':
             case 'conflict':
                 /* translators: %s: assistant name. */
-                self::message('warning', __('The change didn’t complete', 'gpt3-ai-content-generator'), sprintf(__('The site refused it when it ran, so nothing was changed. Ask %s to check its current status.', 'gpt3-ai-content-generator'), $assistant), [$dashboard], $close);
+                self::message('warning', __('The change didn’t complete', 'gpt3-ai-content-generator'), (Activity::failure((array) json_decode((string) $row['response'], true))['message'] ?? null) ?: sprintf(__('The site refused it when it ran, so nothing was changed. Ask %s to check its current status.', 'gpt3-ai-content-generator'), $assistant), [$dashboard], $close);
                 return;
             default:
                 self::message('warning', __('We couldn’t confirm the result', 'gpt3-ai-content-generator'), __('The change was interrupted. Check the site, then record what happened so it never runs twice.', 'gpt3-ai-content-generator'), [[__('Review the change', 'gpt3-ai-content-generator'), self::review_url(), true], $dashboard]);
