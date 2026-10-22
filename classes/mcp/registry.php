@@ -311,6 +311,7 @@ final class Registry
     {
         $reported = get_option(self::REPORTED_OPTION, null);
         if (is_string($reported)) { return $reported; }
+        if (!Identity::active() && !empty(Identity::registration()['enabled'])) { return ''; }
         $reported = Identity::active() ? ((string) (Store::config()['reported'] ?? '') ?: 'unreported') : '';
         update_option(self::REPORTED_OPTION, $reported, true);
         return $reported;
@@ -343,7 +344,10 @@ final class Registry
     public static function refresh_registration(): void
     {
         try {
-            if (!Identity::active()) { update_option(self::REPORTED_OPTION, '', true); update_option(self::REFRESH_ATTEMPTS, 0, false); return; }
+            if (!Identity::active()) {
+                if (empty(Identity::registration()['enabled'])) { update_option(self::REPORTED_OPTION, '', true); update_option(self::REFRESH_ATTEMPTS, 0, false); return; }
+                throw new \RuntimeException('identity_check_unavailable');
+            }
             if ((Store::config()['reported'] ?? '') === self::fingerprint() && !self::report_outdated()) { update_option(self::REFRESH_ATTEMPTS, 0, false); return; }
             $config = Store::config();
             $result = BridgeClient::register(['account_id' => $config['account_id'], 'site_id' => $config['site_id']]);

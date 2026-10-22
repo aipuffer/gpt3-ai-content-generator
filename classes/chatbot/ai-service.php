@@ -92,7 +92,8 @@ class AIService
         ?string $frontend_active_chroma_collection_name = null,
         ?string $frontend_active_chroma_file_upload_context_id = null,
         ?string $frontend_active_claude_file_id = null,
-        ?string $conversation_uuid = null
+        ?string $conversation_uuid = null,
+        bool $private_test = false
     ) {
         return AIService\generate_response(
             $this,
@@ -112,7 +113,8 @@ class AIService
             $frontend_active_chroma_collection_name,
             $frontend_active_chroma_file_upload_context_id,
             $frontend_active_claude_file_id,
-            $conversation_uuid
+            $conversation_uuid,
+            $private_test
         );
     }
 
@@ -257,8 +259,16 @@ function generate_response(
     ?string $frontend_active_chroma_collection_name = null,
     ?string $frontend_active_chroma_file_upload_context_id = null,
     ?string $frontend_active_claude_file_id = null,
-    ?string $conversation_uuid = null
+    ?string $conversation_uuid = null,
+    bool $private_test = false
 ) {
+    // Administrative probes use the real inference/retrieval pipeline, without visitor state or error triggers.
+    if ($private_test) {
+        $bot_settings['openai_conversation_state_enabled'] = '0';
+        $bot_settings['google_conversation_state_enabled'] = '0';
+        $frontend_previous_openai_response_id = null;
+        $conversation_uuid = null;
+    }
     $ai_caller = $serviceInstance->get_ai_caller();
     $vector_store_manager = $serviceInstance->get_vector_store_manager(); // Get Vector Store Manager
 
@@ -343,7 +353,7 @@ function generate_response(
     $messages_payload = $messages_prep_result['messages_payload'];
     $last_openai_response_id_from_history = $messages_prep_result['last_openai_response_id_from_history'];
 
-    $ai_params_override_from_config = [];
+    $ai_params_override_from_config = $private_test ? ['store_conversation' => '0'] : [];
     if (isset($bot_settings['temperature'])) {
         $ai_params_override_from_config['temperature'] = floatval($bot_settings['temperature']);
     }
@@ -400,7 +410,7 @@ function generate_response(
         if (class_exists('\WPAICG\aipkit_dashboard')) {
             $triggers_enabled = \WPAICG\aipkit_dashboard::is_pro_plan();
         }
-        if (function_exists(__NAMESPACE__ . '\\GenerateResponse\\handle_ai_call_error_logic')) {
+        if (!$private_test && function_exists(__NAMESPACE__ . '\\GenerateResponse\\handle_ai_call_error_logic')) {
             GenerateResponse\handle_ai_call_error_logic(
                 $ai_call_result,
                 $triggers_enabled,
@@ -413,6 +423,8 @@ function generate_response(
         }
         return $ai_call_result;
     }
+
+    if ($private_test) { return $ai_call_result; }
 
     return GenerateResponse\finalize_ai_response_logic(
         $ai_call_result,

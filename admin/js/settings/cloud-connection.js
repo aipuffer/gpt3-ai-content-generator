@@ -290,7 +290,10 @@ function bindWebsiteActions() {
         // A disconnected or replaced account must not show the previous account's balance.
         const readOnlyActions = ['view', 'refresh', 'sync', 'verify', 'check_email'];
         if (!event.detail?.connected || event.detail?.accountChanged || !readOnlyActions.includes(event.detail?.action)) {
-            document.querySelectorAll('[data-aipkit-website-usage]').forEach(host => { host.hidden = true; });
+            document.querySelectorAll('[data-aipkit-website-usage]').forEach(host => {
+                if (!host.hasAttribute('data-website-invite')) host.hidden = true;
+            });
+            window.dispatchEvent(new CustomEvent('aipkit:website-usage-changed'));
         }
         void refreshWebsiteActions(document, true);
     });

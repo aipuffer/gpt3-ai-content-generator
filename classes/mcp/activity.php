@@ -205,7 +205,13 @@ final class Activity
         if (!is_string($code) || !preg_match('/^[a-z0-9_]{1,80}$/D', $code)) { return null; }
         $diagnostic = $response['operation_diagnostics'] ?? [];
         $message = __('The site refused this request. Ask the assistant to check the operation before retrying.', 'gpt3-ai-content-generator');
-        if ($code === 'unsupported_content') {
+        if ($code === 'ability_invalid_input' && ($diagnostic['ability_name'] ?? '') === 'ai-puffer/audit-page') {
+            $issue = $diagnostic['input_issue'] ?? [];
+            $reasons = ['required' => __('Required field missing', 'gpt3-ai-content-generator'), 'type' => __('Incorrect input type', 'gpt3-ai-content-generator'), 'enum' => __('Unsupported choice', 'gpt3-ai-content-generator'), 'max_length' => __('Input too long', 'gpt3-ai-content-generator'), 'additional_property' => __('Unsupported field', 'gpt3-ai-content-generator'), 'invalid_json' => __('Invalid or oversized JSON input', 'gpt3-ai-content-generator'), 'validation' => __('Input validation failed', 'gpt3-ai-content-generator')];
+            if (in_array($issue['field'] ?? null, ['$', 'url', 'strategy', 'viewport', 'device', 'page_url', '*'], true) && is_string($issue['reason'] ?? null) && isset($reasons[$issue['reason']])) {
+                $message = $reasons[$issue['reason']] . '. ' . $issue['field'] . '. ' . __('Use url and optional strategy: mobile or desktop. Unknown field names and submitted values are not shown.', 'gpt3-ai-content-generator');
+            }
+        } elseif ($code === 'unsupported_content') {
             $message = __('Content was refused. The specific reason was not retained for this operation.', 'gpt3-ai-content-generator');
             $labels = ['existing_block_document' => __('This tool cannot preserve the existing block document', 'gpt3-ai-content-generator'), 'layout_replacement_required' => __('Explicit whole-layout replacement intent is required', 'gpt3-ai-content-generator'), 'protected_metadata' => __('Protected metadata', 'gpt3-ai-content-generator'), 'script' => __('Script markup', 'gpt3-ai-content-generator'),
                 'javascript_url' => __('JavaScript URL', 'gpt3-ai-content-generator'), 'block_markup' => __('Gutenberg block content requires a native block operation', 'gpt3-ai-content-generator'),

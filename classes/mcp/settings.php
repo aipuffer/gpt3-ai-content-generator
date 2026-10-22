@@ -65,6 +65,7 @@ final class Settings
         if ($issue === '') { return; }
         ?><div class="aipkit_cloud_notice aipkit_cloud_notice--warning" role="status">
             <p><strong><?php esc_html_e('A public HTTPS address is required', 'gpt3-ai-content-generator'); ?></strong></p>
+            <?php // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation hyperlink only; no scripts or assets are fetched from this address. ?>
             <p><?php esc_html_e('Use a public HTTPS site or a tunnel to connect ChatGPT and Claude.', 'gpt3-ai-content-generator'); ?> <a href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Setup guide', 'gpt3-ai-content-generator'); ?></a></p>
         </div><?php
     }
@@ -119,7 +120,8 @@ final class Settings
         $add(__('WordPress account', 'gpt3-ai-content-generator'), $can_edit ? 'passed' : 'failed', $can_edit ? __('This account can edit posts; individual actions still use its permissions.', 'gpt3-ai-content-generator') : __('Use a WordPress account that can edit posts.', 'gpt3-ai-content-generator'));
         $cloud = Connection::display();
         $cloud_ready = !empty($cloud['connected']) && $cloud['email_verified'] === true;
-        $add(__('Cloud account', 'gpt3-ai-content-generator'), $cloud_ready ? 'passed' : 'not_checked', $cloud_ready ? __('Connected and email verified.', 'gpt3-ai-content-generator') : __('Connect Cloud and verify your email, then check again.', 'gpt3-ai-content-generator'));
+        $cloud_unavailable = !empty($cloud['connected']) && ($cloud['status'] ?? '') === 'unavailable';
+        $add(__('Cloud account', 'gpt3-ai-content-generator'), $cloud_ready ? 'passed' : 'not_checked', $cloud_ready ? __('Connected and email verified.', 'gpt3-ai-content-generator') : ($cloud_unavailable ? Connection::verification_message('identity_check_unavailable') : __('Connect Cloud and verify your email, then check again.', 'gpt3-ai-content-generator')));
         if ($issue === '' && $crypto && $db && $can_edit && $cloud_ready) {
             $challenge = bin2hex(random_bytes(16));
             $secret = bin2hex(random_bytes(32));
@@ -216,6 +218,7 @@ final class Settings
                 <p class="aipkit-setup__muted"><?php echo esc_html($issue !== '' ? $issue . ' ' . __('Use a public https:// address, for example a tunnel or a staging copy.', 'gpt3-ai-content-generator') : (string) $failed[0]['detail']); ?></p>
                 <div class="aipkit-setup__row">
                     <?php $check(__('Check again', 'gpt3-ai-content-generator')); ?>
+                    <?php // phpcs:ignore PluginCheck.CodeAnalysis.Offloading.OffloadedContent -- Documentation hyperlink only; no scripts or assets are fetched from this address. ?>
                     <a class="aipkit-setup__link" href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Setup guide', 'gpt3-ai-content-generator'); ?></a>
                 </div>
                 <?php $details(); ?>
@@ -313,10 +316,23 @@ final class Settings
         return $usage;
     }
 
+    /**
+     * Whether to invite a settings manager to set up website management: it is off here, and no Cloud outage is
+     * hiding a setup that already exists. Reads cached state only.
+     */
+    public static function offers_setup(): bool
+    {
+        if (!Connection::allowed() || Identity::active()) { return false; }
+        $cloud = Connection::display();
+        return empty($cloud['connected']) || ($cloud['status'] ?? '') !== 'unavailable';
+    }
+
     /** The Dashboard's website actions: what is left this month. No network requests while rendering a page. */
     public static function render_usage(?array $usage = null): void
     {
         $enabled = Connection::allowed() && Identity::active();
+        $invite = !$enabled && self::offers_setup();
+        $paused = $enabled && !empty(get_option('aipkit_mcp_settings', [])['paused']);
         $usage = $usage ?? ($enabled ? self::usage_data() : null);
         $checked_label = '';
         if ($usage) {
@@ -324,27 +340,43 @@ final class Settings
             $checked_label = sprintf(__('Checked %s.', 'gpt3-ai-content-generator'), wp_date(get_option('date_format') . ' ' . get_option('time_format'), $usage['as_of']));
         }
         ?>
-        <section data-aipkit-website-usage="usage" data-mcp-enabled="<?php echo $enabled ? '1' : '0'; ?>" class="aipkit_usage_half" <?php echo $enabled ? '' : 'hidden'; ?>>
+        <section data-aipkit-website-usage="usage" data-mcp-enabled="<?php echo $enabled ? '1' : '0'; ?>" class="aipkit_usage_half<?php echo $invite ? ' aipkit_usage_website_invite' : ''; ?>" <?php echo $invite ? 'data-website-invite' : ''; ?> <?php echo $enabled || $invite ? '' : 'hidden'; ?>>
             <input type="hidden" data-website-usage-nonce value="<?php echo esc_attr(wp_create_nonce('aipkit_mcp_settings')); ?>">
             <?php // The Dashboard's website card, top: the title with the renewal date and Manage, what is left this month across
-            // all sites, and a bar for what is used. Turned off, it says so, with Turn on; the Dashboard shows it only while
-            // the period still has website actions to show under it. ?>
-            <?php if (!$enabled) : ?>
+            // all sites, and a bar for what is used. Not set up, it invites setup instead: each button opens the website
+            // sheet and starts that assistant's Set up there, or shows the step that comes first (Cloud, verify email). ?>
+            <?php if ($invite) : ?>
                 <div class="aipkit_usage_card_head">
-                    <h2 class="aipkit_usage_card_title"><?php esc_html_e('Website actions', 'gpt3-ai-content-generator'); ?></h2>
-                    <span class="aipkit_usage_pill aipkit_usage_pill--inline"><?php esc_html_e('Off', 'gpt3-ai-content-generator'); ?></span>
-                    <button type="button" class="aipkit_usage_card_action" data-aipkit-cloud-open="website" aria-haspopup="dialog"><svg class="aipkit_usage_card_action_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><?php esc_html_e('Turn on', 'gpt3-ai-content-generator'); ?></button>
+                    <h2 class="aipkit_usage_card_title"><svg class="aipkit_usage_website_invite_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 8h12.4M8 1.8c1.9 2 1.9 10.4 0 12.4M8 1.8c-1.9 2-1.9 10.4 0 12.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><?php esc_html_e('Manage this site from ChatGPT or Claude', 'gpt3-ai-content-generator'); ?></h2>
                 </div>
-                <p class="aipkit_usage_card_value aipkit_usage_card_value--empty">—</p>
-                <p class="aipkit_usage_card_meta"><?php esc_html_e('Website management is off. Assistants can’t reach this site.', 'gpt3-ai-content-generator'); ?></p>
+                <p class="aipkit_usage_website_invite_text"><?php esc_html_e('Ask your assistant to write drafts, update products or design pages on this site.', 'gpt3-ai-content-generator'); ?></p>
+                <ul class="aipkit_usage_website_invite_examples">
+                    <li><?php esc_html_e('“Write a blog post”', 'gpt3-ai-content-generator'); ?></li>
+                    <li><?php esc_html_e('“Check my page speed”', 'gpt3-ai-content-generator'); ?></li>
+                    <li><?php esc_html_e('“Audit my homepage’s SEO”', 'gpt3-ai-content-generator'); ?></li>
+                </ul>
+                <div class="aipkit_usage_website_invite_actions">
+                    <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="chatgpt" aria-haspopup="dialog"><?php esc_html_e('Connect ChatGPT', 'gpt3-ai-content-generator'); ?></button>
+                    <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="claude" aria-haspopup="dialog"><?php esc_html_e('Connect Claude', 'gpt3-ai-content-generator'); ?></button>
+                    <span class="aipkit_usage_card_meta"><?php esc_html_e('Free every month: 2,000 website actions.', 'gpt3-ai-content-generator'); ?></span>
+                </div>
+                <p role="status" aria-live="polite" data-website-usage-status></p>
+            <?php elseif (!$enabled) : ?>
                 <p role="status" aria-live="polite" data-website-usage-status></p>
             <?php else : ?>
                 <div class="aipkit_usage_card_head">
                     <h2 class="aipkit_usage_card_title"><?php esc_html_e('Website actions', 'gpt3-ai-content-generator'); ?></h2>
+                    <?php if ($paused) : ?>
+                        <span class="aipkit_usage_pill aipkit_usage_pill--inline is-warning"><?php esc_html_e('Paused', 'gpt3-ai-content-generator'); ?></span>
+                    <?php endif; ?>
                     <?php if ($usage && $usage['period_ends_at']) : ?>
                         <?php // The renewal date opens from the ⓘ beside the title: on hover, on focus, or with a click or tap. ?>
                         <?php /* translators: %s: the website-action renewal date. */ $renews = sprintf(__('Renews %s', 'gpt3-ai-content-generator'), wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), $usage['period_ends_at'])); ?>
                         <button type="button" class="aipkit_usage_hint" data-aipkit-usage-hint aria-expanded="false" aria-label="<?php echo esc_attr($renews); ?>"><span aria-hidden="true">i</span><span class="aipkit_usage_hint_tip" aria-hidden="true"><?php echo esc_html($renews); ?></span></button>
+                    <?php endif; ?>
+                    <?php if ($paused) : ?>
+                        <?php // Resume runs the website sheet's own Resume, so the sheet shows the result. ?>
+                        <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="resume" aria-haspopup="dialog"><?php esc_html_e('Resume', 'gpt3-ai-content-generator'); ?></button>
                     <?php endif; ?>
                     <button type="button" class="aipkit_usage_card_action" data-aipkit-cloud-open="website" aria-haspopup="dialog" aria-label="<?php esc_attr_e('Manage website', 'gpt3-ai-content-generator'); ?>"><svg class="aipkit_usage_card_action_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><?php esc_html_e('Manage', 'gpt3-ai-content-generator'); ?></button>
                 </div>
@@ -361,6 +393,9 @@ final class Settings
                     /* translators: %s: website actions used this month. */
                     echo esc_html(sprintf(__('%s used this month · all your sites', 'gpt3-ai-content-generator'), number_format_i18n($usage['used'])));
                 } else { esc_html_e('Balance unavailable. Refresh to check again.', 'gpt3-ai-content-generator'); } ?></p>
+                <?php if ($paused) : ?>
+                    <p class="aipkit_usage_card_meta"><?php esc_html_e('Website changes are paused. Assistants can still read, not change.', 'gpt3-ai-content-generator'); ?></p>
+                <?php endif; ?>
                 <?php if ($usage && $usage['in_use'] > 0) : ?>
                     <?php /* translators: %s: website actions reserved by running requests. */ ?>
                     <p class="aipkit_usage_card_meta"><?php echo esc_html(sprintf(__('%s in use by running requests', 'gpt3-ai-content-generator'), number_format_i18n($usage['in_use']))); ?></p>
@@ -439,6 +474,8 @@ final class Settings
                 $grants_table = Schema::table('grants');
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Read current assistant state for authorization; Schema allowlists tables and IDs are prepared; cached grants could retain revoked access.
                 if (Schema::ready() && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $grants_table WHERE instance_id = %s AND state = 'pending' AND created_at > %d", Identity::registration()['instance_id'] ?? '', time() - 600)) >= 5) { throw new \RuntimeException('pending_limit'); }
+                $cloud = Connection::display();
+                if (!empty($cloud['connected']) && ($cloud['status'] ?? '') === 'unavailable') { throw new \RuntimeException('identity_check_unavailable'); }
                 if (Store::site_token() === '') { throw new \RuntimeException('cloud_required'); }
                 if (Connection::display()['email_verified'] !== true) { throw new \RuntimeException('verification_required'); }
                 Identity::enable(); Store::record_consent(get_current_user_id());
@@ -482,7 +519,8 @@ final class Settings
                 $message = __('Website access is off. Existing assistants cannot make new requests. Your Cloud account remains connected.', 'gpt3-ai-content-generator');
             } elseif (in_array($action, ['pause', 'resume'], true)) {
                 global $wpdb;
-                if (!Identity::active()) { throw new \RuntimeException('connection_required'); }
+                // Pausing only restricts local access; resuming still requires a verified active identity.
+                if (!Identity::active() && !($action === 'pause' && !empty(Identity::registration()['enabled']))) { throw new \RuntimeException('connection_required'); }
                 update_option('aipkit_mcp_settings', ['paused' => $action === 'pause'], false);
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Read current assistant state for authorization; Schema allowlists tables and IDs are prepared; cached grants could retain revoked access.
                 $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'aipkit_mcp_settings'));
@@ -533,6 +571,7 @@ final class Settings
                 'mcp_storage_busy' => __('Another change to website access is still running. Try again in a moment.', 'gpt3-ai-content-generator'),
                 'pending_limit' => __('Finish or disconnect an existing pending connection before adding another.', 'gpt3-ai-content-generator'),
                 'cloud_required' => __('Connect your Cloud account first.', 'gpt3-ai-content-generator'),
+                'identity_check_unavailable' => Connection::verification_message('identity_check_unavailable'),
                 'verification_required' => __('Verify your email in your Cloud account, then check again.', 'gpt3-ai-content-generator'),
                 'invalid_input' => __('Choose an assistant, a safety level and a WordPress user who can write posts.', 'gpt3-ai-content-generator'),
                 'usage_unavailable' => __('Could not update website actions. Try Refresh.', 'gpt3-ai-content-generator'),

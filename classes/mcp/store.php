@@ -42,8 +42,8 @@ final class Store {
     }
 
     public static function site_token(): string {
-        $state = \WPAICG\Cloud\Connection::state();
-        return is_string($state['token'] ?? null) ? $state['token'] : '';
+        try { return \WPAICG\Cloud\Connection::site_token(); }
+        catch (\Throwable $error) { return ''; }
     }
 
 	/** Version of the MCP data-sharing disclosure (05-legal-drafts §5); a new version needs new consent. */

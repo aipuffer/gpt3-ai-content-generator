@@ -46,7 +46,7 @@
 #aipkit_settings_container .aipkit_cloud_panel .aipkit_cloud_pane[hidden],
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="credits"] .aipkit_cloud_pane:not([data-cloud-pane="credits"]),
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] .aipkit_cloud_pane:not([data-cloud-pane="website"]),
-#aipkit_settings_container .aipkit_cloud_panel:not([data-cloud-state="connected"], [data-cloud-state="verify"], [data-cloud-state="revoked"]) .aipkit_cloud_pane {
+#aipkit_settings_container .aipkit_cloud_panel:not([data-cloud-state="connected"], [data-cloud-state="verify"], [data-cloud-state="revoked"], [data-cloud-state="unavailable"]) .aipkit_cloud_pane {
     display: none;
 }
 #aipkit_settings_container .aipkit_cloud_website {

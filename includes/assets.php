@@ -227,7 +227,7 @@ class AIPKit_Shared_Assets_Manager
         }
 
         if (!wp_script_is('aipkit_markdown-it', 'registered')) {
-            wp_register_script('aipkit_markdown-it', WPAICG_PLUGIN_URL . 'dist/vendor/js/markdown-it.min.js', [], '14.3.2', true);
+            wp_register_script('aipkit_markdown-it', WPAICG_PLUGIN_URL . 'dist/vendor/js/markdown-it.min.js', [], '14.3.3', true);
         }
     }
 

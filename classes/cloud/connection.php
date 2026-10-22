@@ -16,6 +16,7 @@ final class Connection
     public const CONSENT_VERSION = 'cloud-connect-2026-10-04';
     public const TERMS_URL = 'https://aipower.org/terms-and-conditions/';
     public const PRIVACY_URL = 'https://aipower.org/privacy-policy/';
+    private const RETIRED = 'aipkit_cloud_retired_';
     private const LOCK = 'aipkit_cloud_connection_lock';
     private const LOCK_SECONDS = 180;
     private const STATUS = 'aipkit_cloud_status';
@@ -54,6 +55,19 @@ final class Connection
     /** Server-only encrypted custody, excluded from normal settings exports. */
     public static function state(?array $value = null): array
     {
+        if (!empty($value['token']) && self::retired($value['token'])) { throw new RuntimeException('cloud_identity_changed'); }
+        $state = self::custody($value);
+        // A failed local delete or late writer must never make an ended credential usable again.
+        if (!empty($state['token']) && self::retired($state['token'])) {
+            if ($value !== null) { throw new RuntimeException('cloud_identity_changed'); }
+            return [];
+        }
+        return $state;
+    }
+
+    /** Raw encrypted storage is accessible only to fenced writers and credential cleanup. */
+    private static function custody(?array $value = null): array
+    {
         if (!function_exists('openssl_encrypt') || !function_exists('openssl_decrypt')) {
             throw new RuntimeException('cloud_encryption_unavailable');
         }
@@ -62,7 +76,7 @@ final class Connection
         if ($value !== null) {
             // Ordinary Cloud refreshes preserve MCP custody. A credential replacement
             // invalidates it; only update() may alter MCP registration itself.
-            try { $current = self::state(); }
+            try { $current = self::custody(); }
             catch (\Throwable $error) {
                 do_action('aipkit_cloud_credential_ending', 'storage_unreadable');
                 $current = [];
@@ -119,6 +133,12 @@ final class Connection
     /** Merge against current encrypted custody, refusing a concurrent writer. */
     public static function update(callable $merge): array
     {
+        return self::update_state($merge);
+    }
+
+    /** Only a matching Cloud status response may bind an older, identity-less credential. */
+    private static function update_state(callable $merge, ?array $verified_identity = null): array
+    {
         global $wpdb;
         for ($attempt = 0; $attempt < 5; $attempt++) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-swap requires current ciphertext; WordPress owns the table, values are prepared and option caches are invalidated after writes.
@@ -127,11 +147,14 @@ final class Connection
             wp_cache_delete(self::OPTION, 'options');
             wp_cache_delete('alloptions', 'options');
             $current = self::state();
+            if (empty($current['token'])) { throw new RuntimeException('cloud_connection_required'); }
             // The read must describe the ciphertext on which this CAS is based.
             if (get_option(self::OPTION) !== $stored) { continue; }
             $value = $merge($current);
+            $adopting = !isset($current['identity']) && $verified_identity !== null
+                && ($value['identity'] ?? null) === $verified_identity && self::freemius_identity() === $verified_identity;
             if (!is_array($value) || ($value['token'] ?? null) !== ($current['token'] ?? null)
-                || ($value['identity'] ?? null) !== ($current['identity'] ?? null)
+                || (($value['identity'] ?? null) !== ($current['identity'] ?? null) && !$adopting)
                 || ($value['site'] ?? null) !== ($current['site'] ?? null)) {
                 throw new RuntimeException('cloud_identity_changed');
             }
@@ -147,6 +170,7 @@ final class Connection
                 wp_cache_delete(self::OPTION, 'options');
                 wp_cache_delete('alloptions', 'options');
                 self::$state_cache_key = null;
+                if (self::retired($value['token'])) { throw new RuntimeException('cloud_identity_changed'); }
                 return $value;
             }
         }
@@ -242,19 +266,92 @@ final class Connection
         } catch (\Throwable $error) { return null; }
     }
 
-    private static function connected_state(): array
+    /** Explicit lifecycle decisions must not reuse request-local option caches after network calls. */
+    private static function fresh_state(bool $include_retired = false): array
+    {
+        wp_cache_delete(self::OPTION, 'options');
+        wp_cache_delete('alloptions', 'options');
+        wp_cache_delete('notoptions', 'options');
+        return $include_retired ? self::custody() : self::state();
+    }
+
+    /** Durable token fingerprints are never credentials and are not autoloaded or expired. */
+    private static function retired(string $token): bool
+    {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- A custody fence cannot trust a persistent option cache; only a SHA-256 fingerprint is queried.
+        $value = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::RETIRED . hash('sha256', $token)));
+        if (!empty($wpdb->last_error)) { throw new RuntimeException('cloud_storage_save_failed'); }
+        return $value !== null;
+    }
+
+    /** Claim once before automatic cleanup contacts Cloud; a failed claim never permits a request. */
+    private static function retire(string $token): bool
+    {
+        global $wpdb;
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic, site-local claim cannot use an option cache; prepared fingerprint, no token or customer data is stored.
+        $inserted = $wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", self::RETIRED . hash('sha256', $token), '1'));
+        if ($inserted === false) { throw new RuntimeException('cloud_storage_save_failed'); }
+        return $inserted === 1;
+    }
+
+    /** Delete only the ciphertext still holding the credential this request used. */
+    private static function clear_credential(string $token, ?array $revoked_identity = null): bool
+    {
+        global $wpdb;
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional custody deletion needs live ciphertext; WordPress owns the table and values are prepared.
+            $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::OPTION));
+            if ($stored === null) { self::fresh_state(); return $revoked_identity === null; }
+            $current = self::fresh_state(true);
+            if (($current['token'] ?? '') !== $token) { return false; }
+            if (get_option(self::OPTION) !== $stored) { continue; }
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Compare-and-delete fences concurrent credential replacements; values are prepared and fresh_state() invalidates custody caches below.
+            $deleted = $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name = %s AND BINARY option_value = BINARY %s", self::OPTION, $stored));
+            if ($deleted === false) { throw new RuntimeException('cloud_storage_save_failed'); }
+            if ($deleted === 1) {
+                self::fresh_state();
+                foreach ([self::CREDITS, self::REFUSAL_REFRESH, 'aipkit_cloud_credit_packs'] as $option) { delete_option($option); }
+                // Only the request that removed this rejected credential may record the warning.
+                if ($revoked_identity !== null && empty(self::fresh_state()['token'])) {
+                    update_option(self::CREDITS, ['revoked' => true, 'identity' => $revoked_identity], false);
+                }
+                return true;
+            }
+        }
+        throw new RuntimeException('cloud_storage_busy');
+    }
+
+    private static function connected_state(bool $verify_legacy = false): array
     {
         $state = self::state();
-        if (isset($state['token'], $state['identity']) && $state['identity'] !== self::freemius_identity()) {
-            self::forget_changed_account();
-            return [];
+        if (!empty($state['token'])) {
+            $identity = self::freemius_identity();
+            // An unavailable SDK is not evidence of another owner. Refuse use, retain custody for retry.
+            if ($identity === null) { throw new RuntimeException('identity_check_unavailable'); }
+            if (!isset($state['identity'])) {
+                // Rendering and ordinary credential use never perform network migration.
+                if (!$verify_legacy) { throw new RuntimeException('identity_check_unavailable'); }
+                self::status();
+                $state = self::fresh_state();
+                if (empty($state['token'])) { return []; }
+                if (!isset($state['identity'])) { throw new RuntimeException('identity_check_unavailable'); }
+            }
+            if ($state['identity'] !== $identity) {
+                self::forget_changed_account($state['token']);
+                return [];
+            }
         }
         if (!empty($state['token']) && isset($state['email'])) {
             $user = wpaicg_gacg_fs()->get_user();
             $email = is_object($user) && is_string($user->email ?? null) && $user->email !== '' ? $user->email : $state['email'];
             if ($email !== $state['email']) {
                 $state['email'] = $email;
-                self::state($state);
+                $state = self::update(static function (array $current) use ($state, $email): array {
+                    if (($current['token'] ?? null) !== $state['token']) { throw new RuntimeException('cloud_identity_changed'); }
+                    $current['email'] = $email;
+                    return $current;
+                });
                 $credits = self::credit_state();
                 $credits['emailVerified'] = null;
                 update_option(self::CREDITS, $credits, false);
@@ -268,7 +365,9 @@ final class Connection
     {
         try {
             $state = self::state();
-            if (!empty($state['token']) && (!isset($state['identity']) || $state['identity'] !== self::freemius_identity())) { self::forget_changed_account(); }
+            $identity = self::freemius_identity();
+            // This hook signals an actual SDK account connection. An unbound old token cannot establish continuity.
+            if (!empty($state['token']) && (!isset($state['identity']) || ($identity !== null && $state['identity'] !== $identity))) { self::forget_changed_account($state['token']); }
         } catch (\Throwable $error) { /* An unreadable connection already fails closed. */ }
     }
 
@@ -282,22 +381,28 @@ final class Connection
 
     public static function forget_connection(): void
     {
+        self::forget_state(self::fresh_state());
+    }
+
+    private static function forget_state(array $state): bool
+    {
         do_action('aipkit_cloud_credential_ending', 'disconnected');
+        $notify = !empty($state['token']) && self::retire($state['token']);
         try {
-            $state = self::state();
-            if (!empty($state['token'])) {
+            if ($notify) {
                 self::post('/api/cloud', ['operation' => 'disconnect', 'site' => $state['site'] ?? self::site()], ['Authorization' => 'Bearer ' . $state['token']], 3);
             }
         } catch (\Throwable $error) { /* Cloud independently rechecks ownership on the next request. */ }
-        foreach ([self::OPTION, self::CREDITS, self::REFUSAL_REFRESH, 'aipkit_cloud_credit_packs'] as $option) { delete_option($option); }
+        return !empty($state['token']) && self::clear_credential($state['token']);
     }
 
-    private static function forget_changed_account(): void
+    private static function forget_changed_account(string $expected_token): void
     {
-        $before = self::state()['identity']['user'] ?? null;
+        $state = self::fresh_state();
+        if (($state['token'] ?? null) !== $expected_token) { throw new RuntimeException('cloud_identity_changed'); }
+        $before = $state['identity']['user'] ?? null;
         $after = self::freemius_identity()['user'] ?? null;
-        self::forget_connection();
-        if ($before !== null && $after !== null && $before !== $after) {
+        if (self::forget_state($state) && $before !== null && $after !== null && $before !== $after) {
             update_option(self::CREDITS, ['accountChanged' => true], false);
         }
     }
@@ -316,6 +421,12 @@ final class Connection
     }
 
     public static function generation_endpoint(): string { return self::ORIGIN . '/api/cloud'; }
+    /** The credential is retained during SDK outages, but neither AI nor MCP may use it. */
+    public static function site_token(): string
+    {
+        $state = self::connected_state();
+        return is_string($state['token'] ?? null) ? $state['token'] : '';
+    }
     /** Server transport only. Never include these headers in localization or logs. */
     public static function generation_headers(): array
     {
@@ -794,7 +905,7 @@ final class Connection
     public static function email_recovery_html(): string
     {
         $display = self::display();
-        if (!$display['connected'] || $display['email_verified'] === true) { return ''; }
+        if (!$display['connected'] || $display['email_verified'] === true || ($display['status'] ?? '') === 'unavailable') { return ''; }
         ob_start();
         ?>
         <div class="aipkit_cloud_notice aipkit_cloud_notice--info aipkit_cloud_email_recovery">
@@ -826,6 +937,8 @@ final class Connection
             'verification_unavailable' => __('Email verification is unavailable right now. Please try again shortly.', 'gpt3-ai-content-generator'),
             'identity_verification_unavailable' => __('Your account could not be checked right now. Please try connecting again in a minute.', 'gpt3-ai-content-generator'),
             'balance_unavailable' => __('Your credits could not be checked. Please try again.', 'gpt3-ai-content-generator'),
+            'identity_check_unavailable' => __('Temporarily unavailable. Your connection is kept. Try again shortly.', 'gpt3-ai-content-generator'),
+            'disconnect_failed' => __('Cloud could not be disconnected. Your Cloud connection is kept. Try Disconnect again. Website access may need to be reconnected afterward.', 'gpt3-ai-content-generator'),
         ];
         return $messages[$notice] ?? '';
     }
@@ -906,8 +1019,15 @@ final class Connection
         }
         $display += self::freemius_display();
         try {
-            $state = self::connected_state();
+            $state = self::connected_state($fresh);
             $display['connected'] = isset($state['token']);
+            // A rejected credential is gone, but its owner-bound reconnect notice survives a page load.
+            if (!$display['connected']) {
+                $saved = self::credit_state();
+                $display['revoked'] = !empty($saved['revoked']) && isset($saved['identity'])
+                    && $saved['identity'] === self::freemius_identity();
+                if ($display['revoked']) { $display['status'] = 'reconnect_required'; }
+            }
             if ($display['connected']) {
                 $display['status'] = 'connected';
                 if ($fresh) {
@@ -915,14 +1035,20 @@ final class Connection
                     $display['credits'] = $status['credits'];
                     $display['email_verified'] = $status['emailVerified'];
                     $display['revoked'] = !empty($status['revoked']);
+                    if ($display['revoked']) { $display['connected'] = false; $display['status'] = 'reconnect_required'; }
+                    elseif (!empty($status['unavailable'])) { $display['status'] = 'unavailable'; }
                 } else {
                     $saved = self::credit_state();
                     $display['credits'] = $saved['credits'] ?? null;
                     $display['email_verified'] = $saved['emailVerified'] ?? null;
-                    $display['revoked'] = !empty($saved['revoked']);
                 }
             }
         } catch (\Throwable $error) {
+            if ($error->getMessage() === 'identity_check_unavailable') {
+                $display['connected'] = !empty(self::state()['token']);
+                $display['status'] = 'unavailable';
+                return $display;
+            }
             $display['recovery'] = $error->getMessage() === 'cloud_storage_unreadable' && get_option(self::OPTION, '') !== '';
             $display['status'] = $display['recovery'] ? 'reconnect_required' : 'unavailable';
         }
@@ -935,24 +1061,47 @@ final class Connection
     private static function status(bool $verify_email = false): array
     {
         try {
-            $result = self::post('/api/cloud', ['operation' => 'status', 'site' => self::site(), 'verifyEmail' => $verify_email], self::generation_headers(), 20);
+            $state = self::fresh_state();
+            if (empty($state['token'])) { throw new RuntimeException('cloud_not_connected'); }
+            $local_identity = self::freemius_identity();
+            if ($local_identity === null) { throw new RuntimeException('identity_check_unavailable'); }
+            if (isset($state['identity']) && $state['identity'] !== $local_identity) {
+                self::forget_changed_account($state['token']);
+                return ['credits' => null, 'emailVerified' => null, 'revoked' => true];
+            }
+            // Status is the sole read-only Cloud request allowed before an old credential is bound locally.
+            $expected_token = $state['token'];
+            $headers = ['Authorization' => 'Bearer ' . $expected_token];
+            $result = self::post('/api/cloud', ['operation' => 'status', 'site' => self::site(), 'verifyEmail' => $verify_email], $headers, 20);
             $identity = $result['identity'] ?? null;
             if (is_array($identity)) {
-                if ($identity !== self::freemius_identity()) {
-                    self::forget_changed_account();
+                $local_identity = self::freemius_identity();
+                if ($local_identity === null) { throw new RuntimeException('identity_check_unavailable'); }
+                if ($identity !== $local_identity) {
+                    self::forget_changed_account($expected_token);
                     return ['credits' => null, 'emailVerified' => null, 'revoked' => true];
                 }
-                $state = self::state();
-                if (!empty($state['token'])) { $state['identity'] = $identity; $state['email'] = self::freemius_display()['email']; self::state($state); }
+                $email = self::freemius_display()['email'];
+                self::update_state(static function (array $state) use ($expected_token, $identity, $email): array {
+                    if (($state['token'] ?? '') !== $expected_token) { throw new RuntimeException('cloud_identity_changed'); }
+                    $state['identity'] = $identity;
+                    $state['email'] = $email;
+                    return $state;
+                }, $identity);
+            } elseif (!isset($state['identity'])) {
+                throw new RuntimeException('identity_check_unavailable');
             }
         }
         catch (\Throwable $error) {
             // Cloud no longer accepts this credential (revoked, replaced by a copy of this site, or reset).
             $revoked = $error->getMessage() === 'credential_unavailable';
             if ($revoked) {
-                foreach ([self::OPTION, self::CREDITS, self::REFUSAL_REFRESH, 'aipkit_cloud_credit_packs'] as $option) { delete_option($option); }
+                try {
+                    self::retire($expected_token);
+                    $revoked = self::clear_credential($expected_token, $local_identity);
+                } catch (\Throwable $changed) { $revoked = false; }
             }
-            return ['credits' => null, 'emailVerified' => null, 'revoked' => $revoked];
+            return ['credits' => null, 'emailVerified' => null, 'revoked' => $revoked, 'unavailable' => !$revoked];
         }
         $status = ['credits' => self::validate_credits($result['credits'] ?? null), 'emailVerified' => is_bool($result['emailVerified'] ?? null) ? $result['emailVerified'] : null];
         if ($status['credits'] !== null) { self::remember_credits($status['credits'], $status['emailVerified']); }
@@ -1037,7 +1186,8 @@ final class Connection
                 }
                 return 'unavailable';
             }
-            $state = self::connected_state();
+            // Disconnect is an explicit owner action; it must also work while SDK identity is unreadable.
+            $state = $action === 'disconnect' ? self::fresh_state() : self::connected_state(true);
             if ($action === 'verify') {
                 if (!isset($state['token'])) { return 'confirm_email'; }
                 $status = self::status(true);
@@ -1063,17 +1213,14 @@ final class Connection
                 do_action('aipkit_cloud_credential_ending', 'disconnected');
                 // A credential Cloud no longer accepts is already useless: remove it locally anyway.
                 // Any other failure keeps the connection so a valid credential is never orphaned.
-                try { self::call('disconnect'); }
+                try { self::post('/api/cloud', ['operation' => 'disconnect', 'site' => $state['site'] ?? untrailingslashit(home_url())], ['Authorization' => 'Bearer ' . $state['token']], 30); }
                 catch (\Throwable $error) { if ($error->getMessage() !== 'credential_unavailable') { throw $error; } }
-                delete_option(self::OPTION);
-                delete_option(self::CREDITS);
-                delete_option(self::REFUSAL_REFRESH);
-                delete_option('aipkit_cloud_credit_packs');
-                return 'disconnected';
+                self::retire($state['token']);
+                return self::clear_credential($state['token']) ? 'disconnected' : 'unavailable';
             }
             return 'unavailable';
         } catch (\Throwable $error) {
-            return 'unavailable';
+            return $action === 'disconnect' ? 'disconnect_failed' : ($error->getMessage() === 'identity_check_unavailable' ? 'identity_check_unavailable' : 'unavailable');
         } finally {
             self::unlock();
         }
@@ -1161,6 +1308,8 @@ final class Connection
         $secret = is_object($install) ? (string) ($install->secret_key ?? '') : '';
         $url = is_object($install) && is_string($install->url ?? null) ? untrailingslashit($install->url) : '';
         if (!preg_match('/^[1-9][0-9]{0,18}$/D', $install_id) || strlen($secret) < 16 || $url === '') { ConnectionDiagnostics::error('installation_missing'); return 'freemius_failed'; }
+        $connect_identity = self::freemius_identity();
+        if ($connect_identity === null || $connect_identity['install'] !== $install_id) { ConnectionDiagnostics::error('sdk_unavailable'); return 'freemius_failed'; }
         ConnectionDiagnostics::context($url, $install_id);
         try {
             ConnectionDiagnostics::stage('challenge');
@@ -1196,7 +1345,9 @@ final class Connection
             return 'unavailable';
         }
         $identity = $result['identity'] ?? null;
-        if (!is_array($identity) || $identity !== self::freemius_identity()) {
+        $local_identity = self::freemius_identity();
+        // The signed attempt's identity remains authoritative during a temporary SDK read failure.
+        if ($identity !== $connect_identity || ($local_identity !== null && $identity !== $local_identity)) {
             try { self::post('/api/cloud', ['operation' => 'disconnect', 'site' => $c['site']], ['Authorization' => 'Bearer ' . $result['token']], 3); } catch (\Throwable $error) {}
             return 'account_changed';
         }
@@ -1213,9 +1364,17 @@ final class Connection
         try {
             $catalog = self::validate_catalog(self::call('models', 20));
             $catalog['syncedAt'] = time();
-            self::state($state + ['catalog' => $catalog]);
+            // A callback/ownership check may have ended this credential while models were fetched.
+            self::update(static function (array $current) use ($state, $catalog): array {
+                if (($current['token'] ?? null) !== $state['token']) { throw new RuntimeException('cloud_identity_changed'); }
+                return array_merge($current, ['catalog' => $catalog]);
+            });
         } catch (\Throwable $error) { /* Connected; model sync can be retried independently. */ }
         self::status();
+        try {
+            self::fresh_state();
+            if ((self::connected_state()['token'] ?? null) !== $state['token']) { return 'unavailable'; }
+        } catch (\Throwable $error) { return $error->getMessage() === 'identity_check_unavailable' ? 'identity_check_unavailable' : 'unavailable'; }
         return 'connected';
     }
 
@@ -1239,9 +1398,11 @@ final class Connection
                 return 'sync_failed';
             }
             $catalog['syncedAt'] = time();
-            $state = self::state();
-            $state['catalog'] = $catalog;
-            self::state($state);
+            self::update(static function (array $current) use ($state, $catalog): array {
+                if (($current['token'] ?? null) !== $state['token']) { throw new RuntimeException('cloud_identity_changed'); }
+                $current['catalog'] = $catalog;
+                return $current;
+            });
             return 'synced';
         } catch (\Throwable $error) { return 'sync_failed'; }
     }
@@ -1255,6 +1416,80 @@ final class Connection
         delete_transient(self::STATUS);
         delete_transient('aipkit_cloud_credit_packs');
         update_option('aipkit_cloud_background_checks_removed', true, false);
+    }
+
+    /** Lifecycle intent survives a failed request; it contains no credential or assistant secret. */
+    private static function lifecycle_site(string $wanted, float $deadline): void
+    {
+        try {
+            $state = self::update(static function (array $current) use ($wanted): array {
+                if (empty($current['token'])) { return $current; }
+                $current['lifecycle_sequence'] = (int) ($current['lifecycle_sequence'] ?? 0) + 1;
+                return $current;
+            });
+            if (empty($state['token'])) { return; }
+            $intent = ['state' => $wanted, 'sequence' => $state['lifecycle_sequence'], 'credential' => hash('sha256', $state['token'])];
+            update_option('aipkit_cloud_lifecycle', $intent, false);
+            self::send_lifecycle($state, $intent, $deadline);
+        } catch (\Throwable $error) {
+            // Deactivation must finish even during an identity, encryption or transport outage.
+        }
+    }
+
+    private static function send_lifecycle(array $state, array $intent, float $deadline): void
+    {
+        $timeout = min(3, (int) floor($deadline - microtime(true)));
+        if (empty($state['token']) || !hash_equals($intent['credential'], hash('sha256', $state['token']))) {
+            if (get_option('aipkit_cloud_lifecycle') === $intent) { delete_option('aipkit_cloud_lifecycle'); }
+            return;
+        }
+        if ($timeout < 1) { return; }
+        $reply = self::post('/api/cloud', ['operation' => 'site_lifecycle', 'site' => $state['site'] ?? self::site(),
+            'state' => $intent['state'], 'sequence' => $intent['sequence']], ['Authorization' => 'Bearer ' . $state['token']], $timeout);
+        // A pause marker stays until activation. Never remove a newer intent after a slow response.
+        if ($intent['state'] === 'active' && in_array($reply['status'] ?? '', ['recorded', 'superseded'], true)
+            && get_option('aipkit_cloud_lifecycle') === $intent) { delete_option('aipkit_cloud_lifecycle'); }
+    }
+
+    /** WordPress deactivation pauses only this installation; no grants, credits or recovery evidence are erased. */
+    public static function deactivate(bool $network_wide = false): void
+    {
+        self::lifecycle_sites('paused', $network_wide);
+    }
+
+    public static function activate(bool $network_wide = false): void
+    {
+        self::lifecycle_sites('active', $network_wide);
+    }
+
+    private static function lifecycle_sites(string $wanted, bool $network_wide): void
+    {
+        $deadline = microtime(true) + 10;
+        if (!$network_wide || !is_multisite()) { self::lifecycle_site($wanted, $deadline); return; }
+        $offset = 0;
+        do {
+            $sites = get_sites(['fields' => 'ids', 'number' => 100, 'offset' => $offset, 'orderby' => 'id', 'order' => 'ASC']);
+            foreach ($sites as $site_id) {
+                switch_to_blog((int) $site_id);
+                try { self::lifecycle_site($wanted, $deadline); }
+                finally { restore_current_blog(); }
+            }
+            $offset += count($sites);
+        } while (count($sites) === 100);
+    }
+
+    /** Request-driven retry after reactivation, including sites beyond the network activation time budget. */
+    public static function resume_lifecycle(): void
+    {
+        $intent = get_option('aipkit_cloud_lifecycle');
+        if (!is_array($intent) || get_transient('aipkit_cloud_lifecycle_retry')) { return; }
+        set_transient('aipkit_cloud_lifecycle_retry', true, 60);
+        try {
+            if (($intent['state'] ?? '') === 'paused') { self::lifecycle_site('active', microtime(true) + 4); }
+            else { self::send_lifecycle(self::fresh_state(), $intent, microtime(true) + 4); }
+        } catch (\Throwable $error) {
+            // Keep the exact intent for a later authenticated request, without issuing a new credential.
+        }
     }
 
     /** Freemius calls this only on actual removal, after checking the other plugin edition. */
@@ -1283,15 +1518,26 @@ final class Connection
         do_action('aipkit_cloud_credential_ending', 'uninstalled');
         try {
             $timeout = min(3, (int) floor($deadline - microtime(true)));
-            if ($timeout > 0 && !empty(self::state()['token'])) { self::call('disconnect', $timeout); }
+            $state = self::fresh_state();
+            if ($timeout > 0 && !empty($state['token'])) {
+                self::post('/api/cloud', ['operation' => 'disconnect', 'reason' => 'uninstalled', 'site' => $state['site'] ?? self::site()], ['Authorization' => 'Bearer ' . $state['token']], $timeout);
+            }
         } catch (\Throwable $error) {
             // Removal cannot depend on network availability or an old credential still being readable.
         } finally {
             foreach ([self::OPTION, self::CREDITS, self::REFUSAL_REFRESH, 'aipkit_cloud_credit_packs', self::LOCK, self::REGISTRATION, self::REGISTRATION_COOLDOWN,
-                'aipkit_cloud_used_at', 'aipkit_cloud_background_checks_removed', ConnectionDiagnostics::OPTION] as $option) {
+                'aipkit_cloud_used_at', 'aipkit_cloud_background_checks_removed', 'aipkit_cloud_lifecycle', ConnectionDiagnostics::OPTION] as $option) {
                 delete_option($option);
             }
+            global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custody deletion must be confirmed from SQL before removing its durable retry fences.
+            $remaining = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::OPTION));
+            if ($remaining === null && empty($wpdb->last_error)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fingerprints are read directly from SQL, never cached; actual uninstall removes them only after confirmed custody cleanup.
+                $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $wpdb->esc_like(self::RETIRED) . '%'));
+            }
             delete_transient(self::STATUS);
+            delete_transient('aipkit_cloud_lifecycle_retry');
             delete_transient('aipkit_cloud_credit_packs');
             wp_clear_scheduled_hook('aipkit_cloud_sync_models');
             self::$state_cache_key = null;

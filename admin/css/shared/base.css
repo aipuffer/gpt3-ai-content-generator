@@ -500,7 +500,7 @@ html {
   color: var(--aipkit-ui-ink);
 }
 
-/* After "Dashboard": balances as an icon and a short number, account steps as a word. */
+/* After "Dashboard": balances as an icon and a short number, account steps as a word, website setup as an invitation. */
 .aipkit_nav-status_sep { width: 1px; height: 14px; background: var(--aipkit-ui-line); }
 .aipkit_nav-status_balance { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .aipkit_nav-status_icon { width: 14px; height: 14px; flex: none; color: #8a94a6; }
@@ -510,9 +510,12 @@ html {
 .aipkit_nav-status_balance--warning .aipkit_nav-status_icon { color: #8a5300; }
 .aipkit_nav-status_detail--warning { font-weight: 600; }
 .aipkit_nav-status_dot { width: 7px; height: 7px; border-radius: 50%; background: #b56b00; }
-/* Narrow: AI credits and any account step stay; website actions leave, and the dot still marks a warning. */
+.aipkit_nav-status_setup { display: inline-flex; align-items: center; gap: 5px; color: #3f5fe8; font-weight: 600; }
+.aipkit_nav-status_setup .aipkit_nav-status_icon { color: currentColor; }
+/* Narrow: AI credits and any account step stay; website actions and the setup invitation leave, and the dot still marks a warning. */
 @container aipkit-dashboard-shell (max-width: 782px) {
-  .aipkit_nav-status_balance--actions { display: none; }
+  .aipkit_nav-status_balance--actions,
+  .aipkit_nav-status_setup { display: none; }
 }
 
 

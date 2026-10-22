@@ -54,11 +54,14 @@ window.aipkit_initManageWebsite = function () {
         current.innerHTML = next.innerHTML;
         current.dataset.cloudAttention = next.dataset.cloudAttention;
         current.dataset.mcpEnabled = next.dataset.mcpEnabled;
-        // Turning access off clears the Dashboard's website card immediately; a normal view keeps it visible.
+        // Screens that invite setup (the website tip) follow whether website management is now on.
+        window.dispatchEvent(new CustomEvent('aipkit:website-management-changed', { detail: { enabled: next.dataset.mcpEnabled === '1' } }));
+        // Clear stale balances after disconnect, but preserve the server-rendered setup invitation.
+        // A later panel view may reuse a cached usage read, so it must not hide that invitation.
         if (next.dataset.mcpEnabled === '0') {
             document.querySelectorAll('[data-aipkit-website-usage="usage"]').forEach(host => {
                 host.dataset.mcpEnabled = '0';
-                host.hidden = true;
+                if (!host.hasAttribute('data-website-invite')) host.hidden = true;
             });
             window.dispatchEvent(new CustomEvent('aipkit:website-usage-changed'));
         }

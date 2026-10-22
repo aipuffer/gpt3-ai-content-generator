@@ -10,6 +10,7 @@
       providerOptions,
       promptItems,
       postType,
+      websiteTip,
     } = data;
 
     const escapeHtml = (value) =>
@@ -161,6 +162,18 @@
       .map(buildPromptRow)
       .join("");
 
+    // The website-management tip, one row at the top (Cloud\Announcement::website_tip_payload). Set up opens the
+    // Dashboard in a new tab, so this modal and its choices stay as they are.
+    const websiteTipHtml = websiteTip
+      ? `<div class="aipkit_enhancer_website_tip" data-aipkit-website-tip-modal>
+          <span class="dashicons dashicons-admin-site-alt3 aipkit_enhancer_website_tip_icon" aria-hidden="true"></span>
+          <p class="aipkit_enhancer_website_tip_text">${websiteTip.lead ? `<strong>${escapeHtml(websiteTip.lead)}</strong> ` : ""}${escapeHtml(websiteTip.text)}</p>
+          <a class="aipkit_enhancer_website_tip_action" href="${escapeAttr(websiteTip.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(websiteTip.label)} <span aria-hidden="true">↗</span><span class="screen-reader-text"> ${escapeHtml(websiteTip.newTab)}</span></a>
+          <button type="button" class="aipkit_enhancer_website_tip_close" data-aipkit-website-tip-dismiss aria-label="${escapeAttr(websiteTip.dismiss)}"><span class="dashicons dashicons-no-alt" aria-hidden="true"></span></button>
+          <p class="aipkit_enhancer_website_tip_feedback" data-website-tip-feedback role="status" hidden></p>
+        </div>`
+      : "";
+
     return `
       <div class="aipkit-modal-overlay aipkit-enhancer-bulk-modal-overlay">
         <div
@@ -209,6 +222,7 @@
 
           <div class="aipkit-modal-body">
             <div id="aipkit-enhancer-bulk-config">
+              ${websiteTipHtml}
               <section class="aipkit_enhancer_config_section">
                 <div class="aipkit_enhancer_primary_fields">
                   <div class="aipkit_enhancer_primary_field">

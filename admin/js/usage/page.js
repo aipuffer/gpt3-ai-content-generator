@@ -216,13 +216,6 @@ import { createWebsiteActivity } from './website-activity.js';
                 }
             });
         };
-        // Not connected: the quiet line's Connect for free opens the shared connect dialog on AI Puffer Cloud.
-        container.addEventListener('click', (event) => {
-            const connect = event.target.closest('[data-aipkit-cloud-connect]');
-            if (!connect || typeof window.aipkit_openProviderConnection !== 'function') return;
-            event.preventDefault();
-            void window.aipkit_openProviderConnection(connect, null, { initialProvider: 'AIPufferCloud' });
-        });
         // The account chip's menu (Change email, Disconnect). It stays open while the email is being changed.
         const accountMenu = {
             popover: () => container.querySelector('[data-account-popover]'),
@@ -329,7 +322,6 @@ import { createWebsiteActivity } from './website-activity.js';
             subchips: container.querySelector('[data-aipkit-usage-subchips]'),
             announce: container.querySelector('[data-aipkit-usage-announce]'),
             cards: container.querySelector('[data-aipkit-usage-cards]'),
-            invite: container.querySelector('[data-aipkit-usage-invite]'),
             aiCard: container.querySelector('[data-aipkit-usage-ai-card]'),
             websiteCard: container.querySelector('[data-aipkit-usage-website-card]'),
             header: container.querySelector('.aipkit_usage_header'),
@@ -806,12 +798,18 @@ import { createWebsiteActivity } from './website-activity.js';
             30: __('Last 30 days', 'gpt3-ai-content-generator'),
             90: __('Last 90 days', 'gpt3-ai-content-generator'),
         };
-        // Card details use the period's short words ("30 days"); other labels read "Last 30 days".
+        // "Used on this site" names the period only in its hover hint: the period picker already shows it.
+        const SITE_HINT = [
+            __('Successful website actions today, counted in UTC.', 'gpt3-ai-content-generator'),
+            /* translators: %s: number of days in the selected period. */
+            __('Successful website actions in the last %s days, counted in UTC.', 'gpt3-ai-content-generator'),
+        ];
         const setPeriodLabels = () => {
-            const short = [...elements.periodButtons].find((button) => Number(button.dataset.aipkitUsageDays) === state.days)?.dataset.shortLabel;
             elements.periodLabels.forEach((label) => {
-                label.textContent = (label.dataset.aipkitUsagePeriodLabel === 'short' && short) || PERIOD_LABELS[state.days] || '';
+                label.textContent = PERIOD_LABELS[state.days] || '';
             });
+            const siteHint = state.days === 1 ? SITE_HINT[0] : sprintf(SITE_HINT[1], formatNumber(state.days));
+            container.querySelectorAll('[data-aipkit-usage-site-hint]').forEach((hint) => { hint.title = siteHint; });
         };
         const EMPTY_TEXT = {
             everything: [__('No conversations, content or website actions today.', 'gpt3-ai-content-generator'), __('No conversations, content or website actions in the last %s days.', 'gpt3-ai-content-generator')],
@@ -2427,10 +2425,7 @@ import { createWebsiteActivity } from './website-activity.js';
             const usageHalf = elements.websiteCard?.querySelector('[data-aipkit-website-usage="usage"]');
             const hasUsed = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown]:not([hidden])'));
             const historyPending = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown-pending]'));
-            // Turned off, the left half says so only while the period still has website actions beside it.
-            if (usageHalf && usageHalf.dataset.mcpEnabled === '0') {
-                usageHalf.hidden = !(hasUsed && hasCloud);
-            }
+            // Turned off, the server renders the left half as the setup invitation, or hidden during a Cloud outage.
             const hasLeft = Boolean(usageHalf && !usageHalf.hidden);
             if (elements.refresh) elements.refresh.hidden = !(hasCloud || hasUsed);
             if (elements.aiCard) elements.aiCard.hidden = !hasCloud;
@@ -2447,24 +2442,6 @@ import { createWebsiteActivity } from './website-activity.js';
         };
 
         listenGlobal(window, 'aipkit:website-usage-changed', syncCards);
-
-        // Like the banner, the quiet invitation yields to an existing provider setup notice.
-        const syncInvite = () => {
-            if (!elements.invite) return;
-            const setupVisible = Array.from(document.querySelectorAll('[data-aipkit-provider-notice]')).some(item =>
-                !item.hidden && !item.classList.contains('aipkit_provider_notice--hidden')
-                && (item.getClientRects().length > 0 || item.hasAttribute('data-aipkit-notice-folded')));
-            elements.invite.hidden = container.dataset.cloudConnected === '1'
-                || elements.invite.dataset.bannerDismissed !== '1' || setupVisible;
-        };
-        listenGlobal(window, 'aipkit:cloud-announcement-dismissed', () => {
-            if (elements.invite) elements.invite.dataset.bannerDismissed = '1';
-            syncInvite();
-        });
-
-        listenGlobal(window, 'aipkit:provider-notice-visibility', syncInvite);
-        listenGlobal(window, 'aipkit:module-rendered', syncInvite);
-        syncInvite();
 
         const handleCloudConnectionChanged = (event) => {
             if (!container.isConnected) {
@@ -2496,8 +2473,6 @@ import { createWebsiteActivity } from './website-activity.js';
                 line.querySelector('[data-account-popover]')?.removeAttribute('hidden');
                 line.querySelector('[data-account-chip]')?.setAttribute('aria-expanded', 'true');
             }
-            container.dataset.cloudConnected = account ? '1' : '0';
-            syncInvite();
             syncCards();
 
             if (event.detail?.action === 'balance') return;
@@ -3785,7 +3760,7 @@ import { createWebsiteActivity } from './website-activity.js';
 
         // Website activity (website management): its own rows, sub-filters and drawer content inside this page's frame.
         websiteActivity = createWebsiteActivity({
-            container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, loadErrorHtml,
+            container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, loadErrorHtml, listenGlobal,
             getSearch: () => state.search,
             getDays: () => state.days,
             onCounts: () => {
@@ -3911,6 +3886,7 @@ import { createWebsiteActivity } from './website-activity.js';
         };
 
         // A view with nothing in the period has no chip; the open view keeps its chip, and so does an unknown count.
+        // Website keeps its chip while website management is off: its empty view is where setup starts.
         const syncEmptyChips = (counts = {
             conversations: state.overview?.conversations,
             tasks: state.overview?.tasks,
@@ -3923,6 +3899,10 @@ import { createWebsiteActivity } from './website-activity.js';
                     return;
                 }
                 const count = counts[view];
+                if (view === 'website' && websiteActivity.connected() === false) {
+                    chip.hidden = false;
+                    return;
+                }
                 chip.hidden = state.view !== view && count !== null && count !== undefined && Number(count) === 0;
             });
         };

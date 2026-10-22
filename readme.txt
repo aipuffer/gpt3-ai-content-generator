@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.14
+Stable tag: 2.5.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,11 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.15 =
+* Add simple-product sale scheduling, inspection and cancellation with site-timezone validation and stale-update protection.
+
+Fixes unintended Cloud disconnections during temporary account-identity failures and prevents false connection success reports.
+
 = 2.5.14 =
 
 Fixes MCP content false positives, protects existing Gutenberg layouts, and adds clearer website-action diagnostics.
@@ -246,6 +251,25 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.15 =
+
+- Updated the Markdown renderer to prevent slow parsing of malformed link references and inline HTML.
+- Added simple-product sale scheduling, inspection and cancellation with site-timezone validation and stale-update protection.
+- Added permission-checked post/page revision inspection and restoration, with conflict checks, recovery revisions and preserved publication status and metadata.
+- Added version-checked Gutenberg inline edits and separate draft copies that preserve existing blocks, attributes, links and formatting, including safe summary and FAQ insertion.
+- Added scoped assistant abilities to inspect/create undeployed chatbots, update instructions/model/greetings/starters, attach existing knowledge, and run real private tests under existing permissions and approval policies.
+- Improved bounded database reads on large sites by narrowing source snapshots before size checks, while retaining permissions, credential redaction and accurate aggregate limits.
+- Clarified Lighthouse audit inputs and added safe field-level validation diagnostics without exposing submitted values or changing audit protections.
+- Preserved Cloud connections during temporary account-identity failures, blocked AI and assistant credential use until recovery, kept Disconnect available, and prevented Connect from reporting success after its credential was removed or replaced.
+- Corrected temporary-unavailable connection messages so they do not request email verification.
+- Kept assistant capability reporting recoverable during identity outages, with accurate Website management status and local Pause/Disconnect controls.
+- Safely verified and upgraded older saved Cloud connections before allowing credential use.
+- Protected model synchronization and credential cleanup against concurrent removal or replacement.
+- Corrected failed Disconnect messages and attempted server revocation during uninstall even when account identity is temporarily unavailable.
+- Kept the website setup invitation visible after disconnecting and reloading, with retained website-action history below it.
+- Kept website setup over the current workspace to preserve unfinished work, corrected setup permission wording, retained local controls during Cloud outages, and aligned approval counts and reconnect warnings.
+- Clarified that settings backups include Knowledge Base search, chunking, batch and visibility settings but exclude Content rules and stored sources and documents.
 
 = 2.5.14 =
 
@@ -285,141 +309,3 @@ MCP improvements:
 - Added image understanding and missing-only bulk alt text, captions and titles while preserving existing text.
 - Added Gutenberg layouts, Elementor document editing, Yoast SEO fields, sitemaps, redirects and public-page inspection through supported website tools.
 - Updated Trusted approvals, interrupted-change recovery, activity reporting and assistant guidance.
-
-= 2.4.99 =
-
-- Added optional website management under Settings → Connections: connect an MCP assistant to read/search posts, create drafts.
-- Redesigned Usage with separate Cloud credits, own-provider requests, conversations and tasks, period/source filters, and clearer credit details.
-- Improved usage error classification, request-history totals, shortened IP display and asynchronous page cleanup.
-
-= 2.4.98 =
-
-- Fixed Cloud email verification returning to an unavailable account page; authorized admins return to Usage and refresh verification status once.
-- Added GPT-6.1 Sol compatibility: omit unsupported sampling parameters and show its supported reasoning settings, including when using saved chatbot settings.
-
-= 2.4.97 =
-
-- Redesigned Settings into AI, Tools, Connections, Security, For developers and Help, with shared provider setup and clearer connection status.
-- Moved backups into Security, preserved existing links, and added clearer restore warnings, automatic restore points and a Go back action.
-- Improved app connection checks, credential updates, chatbot and AI Form rules, and delivery logs and retry feedback.
-- Improved WordPress AI, REST API and webhook settings, including endpoint test sends and delivery status.
-- Fixed shortened IPv6 logging and prevented conversation actions from blocking an exact visitor using an anonymized address.
-- Improved AI Form email validation and upload protection, and corrected access checks for published Image Generator shortcodes.
-- Added support for Qdrant collections with a single named dense vector and clearer vector configuration and dimension errors.
-- Reduced repeated Qdrant search requests with cached collection metadata and automatic refresh when collection settings change.
-- Removed redundant connection probes during Qdrant, Pinecone, Chroma, and OpenAI vector-store operations, and unnecessary count requests during embedding dimension preparation.
-- Clearly label unsupported legacy HubSpot note mappings so contact rules show which fields are sent.
-- Improved Cloud account-change handling, registration privacy choices and default model selection.
-- Fixed Cloud connection status staying stale between the setup wizard, provider dialog, Settings sidebar and Usage, including other open admin tabs; reconnecting preserves your chosen model.
-- Improved onboarding, model selectors, notifications and Help links.
-
-= 2.4.96 =
-
-- Updated Freemius SDK to the latest version.
-- Redesigned plugin navigation and chatbot Answers, Look, Features and Publish settings for easier setup.
-- Improved knowledge-source previews, editing, progress updates and removal. Uploaded files now appear as one source with expandable chunks.
-- Fixed extra trailing chunks and improved PDF, CSV and JSON ingestion and empty-file validation.
-- Unified audio provider and model controls, and improved knowledge and image picker behavior.
-- Improved autosave, bot switching, instruction editing, notifications and paid-feature compatibility.
-- Fixed chatbot size changes with named colors while preserving existing appearance settings.
-- Fixed knowledge settings changing the Cloud embedding provider when saving while disconnected.
-
-= 2.4.95 =
-
-- Fixed AI Puffer Cloud reconnection after reinstalling when WordPress background synchronization is delayed or disabled.
-- Improved connection diagnostics to retain network failure causes and submitted site details for troubleshooting.
-- Updated guidance when a site’s account connection is inactive.
-
-= 2.4.94 =
-
-* Published a maintained source repository and build instructions for the free edition's bundled assets.
-* Updated the Markdown rendering library to address excessive processing time with specially crafted text.
-- Fixed Content Writer model, image and publishing settings reverting when reopening a starter template.
-- Fixed provider model refresh errors and outdated model lists in Content Writer, Automations and Content Assistant.
-- Use the lowest-cost available AI Puffer Cloud image model by default for new selections.
-- Fixed generated image history showing requested dimensions instead of the saved image's actual dimensions.
-- Clarified AI Forms credit errors and instructions for adding fields manually.
-- Updated AI Puffer branding and the plugin's feature and credit descriptions.
-
-= 2.4.93 =
-
-- Improved connection error messages, including guidance for WordPress plugin previews.
-- Added consented connection diagnostics and support references to help troubleshoot setup failures.
-
-= 2.4.92 =
-
-- Fixed blank WordPress admin pages when using plugins that manage admin notices.
-- Fixed chatbot knowledge sources getting stuck on "Loading sources" during slow requests.
-- Fixed knowledge source counts when source records have no WordPress post ID.
-
-= 2.4.91 =
-
-- Fixed Content Writer starter templates overriding the selected AI provider, model and image settings.
-- Fixed Content Writer recovery after failed generation, preserving form inputs when starting over.
-- Clarified what is included in Settings backups and imports.
-
-= 2.4.90 =
-
-- Fixed an authorization issue in semantic search settings.
-- Fixed an authorization issue in global knowledge base indexing settings.
-- Improved Usage module.
-
-= 2.4.89 =
-
-- Updated new chatbot defaults.
-- Improved connection error messages.
-
-= 2.4.88 =
-
-- Unified provider connection notices.
-- Restricted notices to AI Puffer pages.
-- Fixed provider dialog navigation and the email Edit link's focus styling.
-
-= 2.4.87 =
-
-- Fixed an incorrect out-of-credits warning while AI Puffer Cloud email verification is pending.
-- Cloud verification and available credits now refresh automatically after confirming your account email.
-
-= 2.4.86 =
-
-- Improved recovery and error handling for failed or unavailable Cloud image requests.
-- Fixed Image Generator model availability and default selection when frontend model restrictions are configured.
-- Fixed Image Generator model lists not updating after provider model synchronization.
-- Added AI Puffer Cloud as an optional provider for text, image generation and analysis, speech, transcription, and embeddings along with other existing providers.
-- Added Local knowledge storage in your WordPress database, with configurable dimensions and support for compatible embedding providers.
-- Improved provider and model consistency across chatbots, content writing, automations, forms, media, editor tools, and the REST API.
-- Fixed Settings autosave when switching tabs and included Visitor billing and connector settings in backups.
-- Strengthened public-request protection and fixed IPv6 and Unicode blocklist matching.
-
-= 2.4.85 =
-
-- Fixed Image Generator model availability and default selection when frontend model restrictions are configured.
-- Fixed Image Generator model lists not updating after provider model synchronization.
-
-= 2.4.84 =
-
-- Added AI Puffer Cloud as an optional provider for text, image generation and analysis, speech, transcription, and embeddings along with other existing providers.
-- Added Local knowledge storage in your WordPress database, with configurable dimensions and support for compatible embedding providers.
-- Improved provider and model consistency across chatbots, content writing, automations, forms, media, editor tools, and the REST API.
-- Fixed Settings autosave when switching tabs and included Visitor billing and connector settings in backups.
-- Strengthened public-request protection and fixed IPv6 and Unicode blocklist matching.
-
-= 2.4.83 =
-
-- Fixed a conflict with WP Gridbuilder filters, maps, and other frontend AJAX requests.
-
-= 2.4.82 =
-
-- Fixed unsupported sampling parameters for OpenAI GPT-6 Sol/Luna and newer Claude models, including Sonnet 5.
-- Improved Content Assistant errors to show provider response details.
-- Fixed AI Forms failing on cached pages with expired security tokens by refreshing the token and retrying once.
-- Added category filtering to knowledge-base automations, including child categories.
-
-
-= 2.4.81 =
-
-- Added GPT Live voice conversations for chatbot.
-- Fixed chatbot preview failures on servers without PHP mbstring.
-- Added support for AI responses, transcription, and file uploads on servers without PHP cURL.
-- Improved error messages and diagnostics for chatbot preview and AI request failures.
-- Fixed OpenAI file uploads failing because of an invalid default upload purpose or a missing HTTP dependency.

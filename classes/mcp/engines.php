@@ -289,7 +289,7 @@ final class Engines
     /** Only fixed categories and a bounded, allowlisted location leave WordPress; arbitrary keys and values do not. */
     public static function content_refusal(string $reason, string $source, array $path, string $message): array
     {
-        $keys = ['content', 'title', 'excerpt', 'description', 'meta', 'meta_data', 'key', 'value', '_fields', '_embed', '_locale', 'layout_json', 'children', 'text', 'url', 'alt',
+        $keys = ['content', 'title', 'excerpt', 'description', 'meta', 'meta_data', 'key', 'value', '_fields', '_embed', '_locale', 'layout_json', 'edits_json', 'blocks', 'find', 'replace', 'html', 'children', 'text', 'url', 'alt',
             '_elementor_data', '_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw', '_price'];
         $location = '$';
         foreach (array_slice($path, 0, 12) as $key) {
@@ -307,7 +307,7 @@ final class Engines
     public static function preserve_blocks(\WP_Post $post, string $source, array $path): ?array
     {
         return has_blocks($post->post_content) ? self::content_refusal('existing_block_document', $source, $path,
-            'This is an existing Gutenberg document. Preserve its block markup. Use the native Gutenberg abilities for an intentional whole-layout replacement; omit content for title or metadata-only edits.') : null;
+            'This is an existing Gutenberg document. Preserve its block markup. Discover ai-puffer/gutenberg-update-document: on 2.5.15+ use edits_json for partial inline edits and adding blocks, or create-document with source_post_id/source_version for a separate edited draft. Whole-layout replacement still requires explicit intent. Omit content for metadata-only edits.') : null;
     }
 
     /**
@@ -377,7 +377,11 @@ final class Engines
         if (!$ability) { return Operations::error('ability_unavailable'); }
         if (self::ability_risk($ability) !== 'read') { return self::refuse('use_run_ability', 'This ability changes the site. Use run_ability.'); }
         $input = self::input($args, $ability);
-        if ($input === false) { return self::ability_diagnostics(Operations::error('invalid_input'), $ability->get_name(), 'preflight'); }
+        if ($input === false) {
+            $reason = is_string($args->input_json ?? null) && strlen($args->input_json) <= self::MAX_INPUT && json_last_error() === JSON_ERROR_NONE ? 'type' : 'invalid_json';
+            $error = $args->name === 'ai-puffer/audit-page' ? self::audit_input_error(null, $reason, 'preflight') : null;
+            return self::ability_diagnostics($error ? self::ability_result($error) : Operations::error('invalid_input'), $ability->get_name(), 'preflight', $error);
+        }
         $phase = 'before_execution';
         $result = self::execute_ability($ability, $input, $phase);
         if ($args->name === 'ai-puffer/audit-page' && is_array($result) && is_array($result['audit_request'] ?? null)) {
@@ -437,6 +441,12 @@ final class Engines
     /** Observe native execution boundaries without changing WordPress validation or permissions. */
     private static function execute_ability(\WP_Ability $ability, $input, string &$phase)
     {
+        // Observe WordPress's final normalized validation failure; never normalize twice or relax its decision.
+        $audit_error = null;
+        $validation = static function ($valid, $normalized, string $name) use (&$audit_error) {
+            if ($name === 'ai-puffer/audit-page' && is_wp_error($valid) && $valid->get_error_code() === 'ability_invalid_input') { return $audit_error = self::audit_input_error($normalized); }
+            return $valid;
+        };
         $mark = static function (string $name) use ($ability, &$phase): void { if ($name === $ability->get_name()) { $phase = 'callback'; } };
         $output = static function ($result, $observed) use ($ability, &$phase) {
             if ($observed === $ability->get_name() && !is_wp_error($result)) { $phase = 'output_validation'; }
@@ -444,12 +454,46 @@ final class Engines
         };
         add_action('wp_before_execute_ability', $mark, PHP_INT_MIN, 1);
         add_filter('wp_ability_execute_result', $output, PHP_INT_MAX, 2);
-        try { return $ability->execute($input); }
+        add_filter('wp_ability_validate_input', $validation, PHP_INT_MAX, 3);
+        try {
+            $result = $ability->execute($input);
+            // WordPress 6.9/7.0 do not expose the validation observer filter.
+            if ($phase === 'before_execution' && $ability->get_name() === 'ai-puffer/audit-page' && is_wp_error($result) && $result->get_error_code() === 'ability_invalid_input'
+                && $result !== $audit_error) { return self::audit_input_error($input); }
+            return $result;
+        }
         catch (\Throwable $error) { return new \WP_Error('ability_failed', $error->getMessage()); }
         finally {
             remove_action('wp_before_execute_ability', $mark, PHP_INT_MIN);
             remove_filter('wp_ability_execute_result', $output, PHP_INT_MAX);
+            remove_filter('wp_ability_validate_input', $validation, PHP_INT_MAX);
         }
+    }
+
+    /** Audit-only, fixed vocabulary. Never echo submitted values or arbitrary property names. */
+    private static function audit_input_error($input, string $reason = '', string $phase = 'before_execution'): \WP_Error
+    {
+        $field = '$';
+        if ($reason === '') {
+            $reason = 'validation';
+            if (!is_array($input) && !is_object($input)) { $reason = 'type'; }
+            elseif (is_array($input) && $input !== [] && array_keys($input) === range(0, count($input) - 1)) { $reason = 'type'; }
+            else {
+                $values = (array) $input;
+                if (!array_key_exists('url', $values)) { $field = 'url'; $reason = 'required'; }
+                else {
+                    foreach ($values as $key => $value) {
+                        if (!in_array($key, ['url', 'strategy'], true)) { $field = in_array($key, ['viewport', 'device', 'page_url'], true) ? $key : '*'; $reason = 'additional_property'; break; }
+                        if (!is_string($value)) { $field = $key; $reason = 'type'; break; }
+                        if ($key === 'url' && mb_strlen($value) > 2000) { $field = 'url'; $reason = 'max_length'; break; }
+                        if ($key === 'strategy' && !in_array($value, ['mobile', 'desktop'], true)) { $field = 'strategy'; $reason = 'enum'; break; }
+                    }
+                }
+            }
+        }
+        $guidance = 'Use url (one public HTTPS page URL on this site) and optional strategy (mobile or desktop; omit for mobile). No other fields, nulls or arrays. * masks an unsupported field name; $ means the input object.';
+        return new \WP_Error('ability_invalid_input', 'Audit input: ' . $field . ' (' . $reason . '). ' . $guidance,
+            ['operation_diagnostics' => ['ability_name' => 'ai-puffer/audit-page', 'ability_phase' => $phase, 'input_issue' => ['field' => $field, 'reason' => $reason]]]);
     }
 
     /** Only registered names and fixed phases leave WordPress; detailed failures stay in its journal. */
@@ -474,6 +518,13 @@ final class Engines
                 : self::refuse(self::ability_error_code($result->get_error_code()), $result->get_error_message());
             $data = $result->get_error_data();
             if ($result->get_error_code() === 'unsupported_content' && is_array($data) && isset($data['operation_diagnostics'])) { $out['operation_diagnostics'] = $data['operation_diagnostics']; }
+            if ($result->get_error_code() === 'ability_invalid_input' && is_array($data)) {
+                $diagnostic = $data['operation_diagnostics'] ?? []; $issue = $diagnostic['input_issue'] ?? [];
+                if (is_array($diagnostic) && count($diagnostic) === 3 && ($diagnostic['ability_name'] ?? '') === 'ai-puffer/audit-page'
+                    && in_array($diagnostic['ability_phase'] ?? null, ['preflight', 'before_execution'], true) && is_array($issue) && count($issue) === 2
+                    && in_array($issue['field'] ?? null, ['$', 'url', 'strategy', 'viewport', 'device', 'page_url', '*'], true)
+                    && in_array($issue['reason'] ?? null, ['required', 'type', 'enum', 'max_length', 'additional_property', 'invalid_json', 'validation'], true)) { $out['operation_diagnostics'] = $diagnostic; }
+            }
             return $out;
         }
         return self::ok(['data_json' => self::bounded($result)]);

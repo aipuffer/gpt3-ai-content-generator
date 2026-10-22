@@ -11,15 +11,16 @@ if (!defined('ABSPATH')) {
 // The account response also serves the connect dialog; the sheet header follows its state attributes.
 $aipkit_render_account_fields = static function (string $aipkit_cloud_notice = ''): void {
     $aipkit_cloud_display = Connection::display();
-    $aipkit_cloud_is_error = in_array($aipkit_cloud_notice, ['unavailable', 'busy', 'forbidden', 'freemius_failed', 'installation_inactive', 'site_mismatch', 'account_unavailable', 'invalid_email', 'registration_wait', 'account_changed', 'verification_pending', 'verification_unavailable'], true);
+    $aipkit_cloud_is_error = in_array($aipkit_cloud_notice, ['unavailable', 'identity_check_unavailable', 'disconnect_failed', 'busy', 'forbidden', 'freemius_failed', 'installation_inactive', 'site_mismatch', 'account_unavailable', 'invalid_email', 'registration_wait', 'account_changed', 'verification_pending', 'verification_unavailable'], true);
     $aipkit_cloud_credits = $aipkit_cloud_display['connected'] && is_array($aipkit_cloud_display['credits']) ? $aipkit_cloud_display['credits'] : null;
     if ($aipkit_cloud_display['connected']) {
-        $aipkit_cloud_state = !empty($aipkit_cloud_display['revoked']) ? 'revoked' : ($aipkit_cloud_display['email_verified'] === true ? 'connected' : 'verify');
+        $aipkit_cloud_state = !empty($aipkit_cloud_display['revoked']) ? 'revoked' : (($aipkit_cloud_display['status'] ?? '') === 'unavailable' ? 'unavailable' : ($aipkit_cloud_display['email_verified'] === true ? 'connected' : 'verify'));
     } else {
         $aipkit_cloud_state = $aipkit_cloud_display['recovery'] ? 'recovery' : (!empty($aipkit_cloud_display['confirm_email']) ? 'confirm' : 'signup');
     }
     $aipkit_cloud_labels = [
         'connected' => __('Connected', 'gpt3-ai-content-generator'),
+        'unavailable' => __('Temporarily unavailable', 'gpt3-ai-content-generator'),
         'verify' => __('Verify email', 'gpt3-ai-content-generator'),
         'revoked' => __('Reconnect needed', 'gpt3-ai-content-generator'),
         'recovery' => __('Reconnect needed', 'gpt3-ai-content-generator'),

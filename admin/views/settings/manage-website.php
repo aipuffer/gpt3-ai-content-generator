@@ -8,16 +8,21 @@ $aipkit_mcp_active = Identity::active();
 $aipkit_mcp_registration = Identity::registration();
 $aipkit_mcp_paused = !empty(get_option('aipkit_mcp_settings', [])['paused']);
 $aipkit_mcp_cloud = Connection::display();
+$aipkit_mcp_unavailable = !empty($aipkit_mcp_cloud['connected']) && ($aipkit_mcp_cloud['status'] ?? '') === 'unavailable';
+// Retained registration is manageable locally during an outage; it does not authorize assistant execution.
+$aipkit_mcp_manageable = $aipkit_mcp_active || ($aipkit_mcp_unavailable && !empty($aipkit_mcp_registration['enabled'])
+    && ($aipkit_mcp_registration['consent_version'] ?? '') === Store::CONSENT_VERSION
+    && (Store::config()['instance_id'] ?? '') === ($aipkit_mcp_registration['instance_id'] ?? null));
 global $wpdb;
 $aipkit_mcp_grants_table = Schema::table('grants');
 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Display current assistant/approval state; Schema allowlists tables and IDs are prepared; caching would hide new approvals or revocations.
-$aipkit_mcp_connected = $aipkit_mcp_active && Schema::ready() && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND state IN ('active','paused')", $aipkit_mcp_registration['instance_id'] ?? '')) > 0;
-$aipkit_mcp_status = $aipkit_mcp_active ? ($aipkit_mcp_connected ? ($aipkit_mcp_paused ? __('Changes paused', 'gpt3-ai-content-generator') : __('On', 'gpt3-ai-content-generator')) : __('Waiting for assistant', 'gpt3-ai-content-generator')) : __('Off', 'gpt3-ai-content-generator');
+$aipkit_mcp_connected = $aipkit_mcp_manageable && Schema::ready() && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND state IN ('active','paused')", $aipkit_mcp_registration['instance_id'] ?? '')) > 0;
+$aipkit_mcp_status = $aipkit_mcp_manageable ? ($aipkit_mcp_connected ? ($aipkit_mcp_paused ? __('Changes paused', 'gpt3-ai-content-generator') : __('On', 'gpt3-ai-content-generator')) : __('Waiting for assistant', 'gpt3-ai-content-generator')) : __('Off', 'gpt3-ai-content-generator');
 $aipkit_mcp_cloud_ready = $aipkit_mcp_cloud['connected'] && $aipkit_mcp_cloud['email_verified'] === true;
 // The card's one-line summary, like the other connection cards. The most urgent state wins.
 $aipkit_mcp_card_summary = '';
 $aipkit_mcp_card_attention = false;
-if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_active && Schema::ready()) {
+if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_manageable && Schema::ready()) {
     $aipkit_mcp_card_instance = $aipkit_mcp_registration['instance_id'] ?? '';
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Display current assistant/approval state; Schema allowlists tables and IDs are prepared; caching would hide new approvals or revocations.
     $aipkit_mcp_card_grants = (array) $wpdb->get_results($wpdb->prepare("SELECT grant_id, client_name, client_hint, access_level, state, last_used_at FROM $aipkit_mcp_grants_table WHERE instance_id = %s AND state IN ('active','paused','pending') ORDER BY created_at DESC LIMIT 20", $aipkit_mcp_card_instance), ARRAY_A);
@@ -31,9 +36,7 @@ if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_active && Schema::ready()) {
     };
     $aipkit_mcp_card_live = array_values(array_filter($aipkit_mcp_card_grants, static function (array $aipkit_mcp_row): bool { return $aipkit_mcp_row['state'] !== 'pending'; }));
     $aipkit_mcp_card_names = array_values(array_unique(array_map($aipkit_mcp_card_name, $aipkit_mcp_card_live)));
-    $aipkit_mcp_operations_table = Schema::table('operations');
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Display current assistant/approval state; Schema allowlists tables and IDs are prepared; caching would hide new approvals or revocations.
-    $aipkit_mcp_card_approvals = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $aipkit_mcp_operations_table WHERE instance_id = %s AND acting_user = %d AND state = 'pending_approval' AND expires_at > %d", $aipkit_mcp_card_instance, get_current_user_id(), time()));
+    $aipkit_mcp_card_approvals = count(\WPAICG\Mcp\Screens::pending_approvals());
     if ($aipkit_mcp_card_approvals > 0) {
         $aipkit_mcp_card_attention = true;
         /* translators: %s: number of publications waiting for approval. */
@@ -76,6 +79,11 @@ if ($aipkit_mcp_part !== 'pane' && $aipkit_mcp_active && Schema::ready()) {
         $aipkit_mcp_card_summary = implode(' · ', $aipkit_mcp_card_parts);
     }
 }
+if ($aipkit_mcp_unavailable) {
+    $aipkit_mcp_status = __('Temporarily unavailable', 'gpt3-ai-content-generator');
+    $aipkit_mcp_card_summary = $aipkit_mcp_status;
+    $aipkit_mcp_card_attention = true;
+}
 // Plain words for each stored grant state; anything unexpected shows as stored. Safety levels come from the Registry.
 $aipkit_mcp_state_labels = [
     'active'  => __('Connected', 'gpt3-ai-content-generator'),
@@ -100,6 +108,17 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
             <div class="aipkit_settings_provider_card_title"><h4 class="aipkit_settings_provider_name"><?php esc_html_e('Manage my website', 'gpt3-ai-content-generator'); ?></h4></div>
             <p class="aipkit_settings_provider_card_status"><?php if ($aipkit_mcp_card_summary !== '') : ?><span class="aipkit_settings_provider_summary<?php echo $aipkit_mcp_card_attention ? ' is-attention' : ''; ?>"><?php echo esc_html($aipkit_mcp_card_summary); ?></span><?php else : ?><span class="aipkit_settings_provider_status aipkit_settings_provider_status--disconnected"><?php echo esc_html($aipkit_mcp_status); ?></span><span class="aipkit_settings_provider_tagline"><?php esc_html_e('Let ChatGPT or Claude read and publish posts.', 'gpt3-ai-content-generator'); ?></span><?php endif; ?></p>
         </div>
+        <?php if (!$aipkit_mcp_manageable && !$aipkit_mcp_unavailable) : ?>
+            <?php // Off: each button opens the website sheet and starts that assistant's Set up, as on the Dashboard. ?>
+            <span class="aipkit_mcp_card_start">
+                <?php foreach (['chatgpt' => 'ChatGPT', 'claude' => 'Claude'] as $aipkit_mcp_start => $aipkit_mcp_start_name) : ?>
+                    <button type="button" class="aipkit_settings_provider_card_connect" data-aipkit-provider-settings-open="cloud" data-aipkit-cloud-open="website" data-aipkit-website-start="<?php echo esc_attr($aipkit_mcp_start); ?>" aria-haspopup="dialog" aria-controls="aipkit_cloud_panel"><?php
+                        /* translators: %s: assistant name, such as "ChatGPT". */
+                        echo esc_html(sprintf(__('Connect %s', 'gpt3-ai-content-generator'), $aipkit_mcp_start_name));
+                    ?></button>
+                <?php endforeach; ?>
+            </span>
+        <?php endif; ?>
         <?php // The same AI Puffer Cloud panel as the AI provider card, opened on its Website tab. ?>
         <button type="button" class="aipkit_settings_provider_card_action" data-aipkit-provider-settings-open="cloud" data-aipkit-cloud-open="website" aria-haspopup="dialog" aria-controls="aipkit_cloud_panel"><span class="screen-reader-text"><?php esc_html_e('Manage my website', 'gpt3-ai-content-generator'); ?></span><span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span></button>
     </div>
@@ -108,7 +127,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
 </div>
 <?php endif; ?>
 <?php if ($aipkit_mcp_part !== 'card') : ?>
-<div id="aipkit_cloud_website" class="aipkit_cloud_website" data-aipkit-settings-autosave-exclude="true" data-mcp-enabled="<?php echo $aipkit_mcp_active ? '1' : '0'; ?>" data-cloud-attention="<?php echo $aipkit_mcp_pane_attention ? '1' : '0'; ?>">
+<div id="aipkit_cloud_website" class="aipkit_cloud_website" data-aipkit-settings-autosave-exclude="true" data-mcp-enabled="<?php echo $aipkit_mcp_manageable ? '1' : '0'; ?>" data-cloud-attention="<?php echo $aipkit_mcp_pane_attention ? '1' : '0'; ?>">
     <input type="hidden" data-mcp-nonce value="<?php echo esc_attr(wp_create_nonce('aipkit_mcp_settings')); ?>">
     <p class="aipkit_cloud_notice aipkit_cloud_notice--info" data-mcp-feedback role="status" aria-live="polite" tabindex="-1" hidden></p>
     <?php
@@ -166,10 +185,13 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
     ?>
 
     <?php // One status card first: on (Pause) or paused (Resume), with Disconnect beside it. Disconnect asks first. ?>
-    <?php if ($aipkit_mcp_active) : ?>
-        <div class="aipkit_mcp_status <?php echo $aipkit_mcp_paused ? 'is-paused' : 'is-on'; ?>">
-            <span class="aipkit_mcp_status_dot" aria-hidden="true"></span>
-            <?php if ($aipkit_mcp_paused) : ?>
+    <?php if ($aipkit_mcp_manageable) : ?>
+        <div class="aipkit_mcp_status <?php echo $aipkit_mcp_unavailable ? 'is-attention' : ($aipkit_mcp_paused ? 'is-paused' : 'is-on'); ?>">
+            <?php if ($aipkit_mcp_unavailable) : ?><span class="aipkit_mcp_status_icon" aria-hidden="true">!</span><?php else : ?><span class="aipkit_mcp_status_dot" aria-hidden="true"></span><?php endif; ?>
+            <?php if ($aipkit_mcp_unavailable) : ?>
+                <span class="aipkit_mcp_status_text"><strong><?php esc_html_e('Temporarily unavailable', 'gpt3-ai-content-generator'); ?></strong><span><?php echo esc_html(Connection::verification_message('identity_check_unavailable')); ?></span></span>
+                <button type="button" class="aipkit_btn" data-mcp-action="pause" <?php disabled($aipkit_mcp_paused); ?>><?php esc_html_e('Pause', 'gpt3-ai-content-generator'); ?></button>
+            <?php elseif ($aipkit_mcp_paused) : ?>
                 <span class="aipkit_mcp_status_text"><strong><?php esc_html_e('Website changes are paused', 'gpt3-ai-content-generator'); ?></strong><span><?php esc_html_e('Assistants can still read, not change.', 'gpt3-ai-content-generator'); ?></span></span>
                 <button type="button" class="aipkit_btn aipkit_btn-primary" data-mcp-action="resume"><?php esc_html_e('Resume', 'gpt3-ai-content-generator'); ?></button>
             <?php else : ?>
@@ -352,6 +374,8 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
         <?php \WPAICG\Mcp\Settings::render_connection_check(); ?>
         <?php if (\WPAICG\Mcp\Settings::connection_issue() !== '') : ?>
             <?php \WPAICG\Mcp\Settings::render_connection_notice(); ?>
+        <?php elseif ($aipkit_mcp_unavailable) : ?>
+            <div class="aipkit_cloud_notice aipkit_cloud_notice--warning" role="status"><p><?php echo esc_html(Connection::verification_message('identity_check_unavailable')); ?></p></div>
         <?php elseif (!$aipkit_mcp_cloud_ready) : ?>
             <?php // Cloud lives in this same panel: verifying happens on the Account tab, never in another panel. ?>
             <div class="aipkit_cloud_connect">

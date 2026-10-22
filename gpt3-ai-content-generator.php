@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name:       AI Puffer – AI Chatbot & MCP Server for Claude and ChatGPT
  * Description:       Add an AI chatbot and manage your WordPress website through Claude or ChatGPT with AI Puffer’s MCP server.
- * Version:           2.5.14
+ * Version:           2.5.15
  * Author:            Senol Sahin
  * Author URI:        https://aipower.org
  * License:           GPL-2.0+
@@ -29,7 +29,7 @@ if ( function_exists( 'wpaicg_gacg_fs' ) ) {
     wpaicg_gacg_fs()->set_basename( false, __FILE__ );
 } else {
     // Only the first edition loaded in this request owns the plugin runtime.
-    define( 'WPAICG_VERSION', '2.5.14' );
+    define( 'WPAICG_VERSION', '2.5.15' );
     define( 'WPAICG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
     define( 'WPAICG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'WPAICG_LIB_DIR', WPAICG_PLUGIN_DIR . 'lib/' );
@@ -92,6 +92,8 @@ if ( function_exists( 'wpaicg_gacg_fs' ) ) {
     // --- Activation / Deactivation Hooks ---
     register_activation_hook( __FILE__, ['WPAICG\\WP_AI_Content_Generator_Activator', 'activate'] );
     register_deactivation_hook( __FILE__, ['WPAICG\\WP_AI_Content_Generator_Deactivator', 'deactivate'] );
+    register_activation_hook( __FILE__, [\WPAICG\Cloud\Connection::class, 'activate'] );
+    register_deactivation_hook( __FILE__, [\WPAICG\Cloud\Connection::class, 'deactivate'] );
     // --- Multisite Setup ---
     if ( function_exists( 'wp_initialize_site' ) ) {
         add_action(

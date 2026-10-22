@@ -113,7 +113,7 @@ $aipkit_restore_point = \WPAICG\Dashboard\Ajax\AIPKit_Settings_Restore_Point::su
 </div>
 
 <p class="aipkit_settings_backup_message" data-aipkit-backup-message role="status" hidden></p>
-<p class="aipkit_settings_backup_scope_note"><?php esc_html_e('A backup has AI, Tools, Connections, Security and For developers. It leaves out who can use AI Puffer, chatbots, the knowledge base, licenses and your AI Puffer Cloud connection.', 'gpt3-ai-content-generator'); ?></p>
+<p class="aipkit_settings_backup_scope_note"><?php esc_html_e('A backup has AI, Tools, Connections, Security, For developers and Knowledge Base search, chunking, batch and visibility settings. It leaves out who can use AI Puffer, chatbots, Knowledge Base content rules, stored knowledge sources and documents, licenses and your AI Puffer Cloud connection.', 'gpt3-ai-content-generator'); ?></p>
 
 <?php // The warnings' words, kept here so they can be translated; the script fills in the file and the date. ?>
 <template data-aipkit-backup-dialogs>
@@ -139,8 +139,8 @@ $aipkit_restore_point = \WPAICG\Dashboard\Ajax\AIPKit_Settings_Restore_Point::su
                 </span>
             </div>
             <div class="aipkit_settings_backup_scope">
-                <p><strong><?php esc_html_e('Replaces', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('AI providers and keys, Tools, Connections, Security and For developers.', 'gpt3-ai-content-generator'); ?></p>
-                <p><strong><?php esc_html_e('Stays as it is', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('Who can use AI Puffer, chatbots, the knowledge base, licenses and your AI Puffer Cloud connection.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong><?php esc_html_e('Replaces', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('AI providers and keys, Tools, Connections, Security, For developers and Knowledge Base search, chunking, batch and visibility settings.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong><?php esc_html_e('Stays as it is', 'gpt3-ai-content-generator'); ?></strong> <?php esc_html_e('Who can use AI Puffer, chatbots, Knowledge Base content rules, stored knowledge sources and documents, licenses and your AI Puffer Cloud connection.', 'gpt3-ai-content-generator'); ?></p>
             </div>
             <p class="aipkit_settings_backup_safety"><span class="dashicons dashicons-yes" aria-hidden="true"></span><?php esc_html_e('Your current settings are saved as the restore point first, so you can go back.', 'gpt3-ai-content-generator'); ?></p>
         </div>

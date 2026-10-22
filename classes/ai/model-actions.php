@@ -38,6 +38,15 @@ class ModelsAjaxHandler extends BaseDashboardAjaxHandler
         }
         // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_module_access_permissions() verifies the nonce above.
         $operation = isset($_POST['operation']) ? sanitize_key(wp_unslash($_POST['operation'])) : 'view';
+        if ($operation === 'website_view') {
+            // Render the same sheet over the caller's workspace; never navigate away from unsaved work.
+            ob_start();
+            echo '<div id="aipkit_settings_container" data-aipkit-cloud-only="true">';
+            include WPAICG_PLUGIN_DIR . 'admin/views/settings/cloud-panel.php';
+            echo '</div>';
+            wp_send_json_success(['html' => ob_get_clean()]);
+            return;
+        }
         if ($operation === 'view') {
             $aipkit_connection_dialog_only = true;
             ob_start();

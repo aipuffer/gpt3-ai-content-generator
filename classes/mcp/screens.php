@@ -73,7 +73,7 @@ final class Screens
         $table = Schema::table('operations');
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Read current approval/recovery state; Schema allowlists tables and values are prepared; stale cached decisions are unsafe.
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT operation_id, acting_user, tool FROM $table WHERE instance_id = %s AND (acting_user = %d OR %d = 1) AND state = 'pending_approval' AND expires_at > %d ORDER BY created_at ASC",
+            "SELECT operation_id, acting_user, tool, args FROM $table WHERE instance_id = %s AND (acting_user = %d OR %d = 1) AND state = 'pending_approval' AND expires_at > %d ORDER BY created_at ASC",
             Identity::registration()['instance_id'] ?? '',
             get_current_user_id(),
             current_user_can('manage_options') ? 1 : 0,

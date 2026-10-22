@@ -2460,9 +2460,71 @@ button.aipkit_stats_status_pill {
     flex: none;
 }
 
-/* "Off" sits next to the title (the general pill rule pushes pills to the right). */
+/* "Paused" sits next to the title (the general pill rule pushes pills to the right). */
 #aipkit_stats_container .aipkit_usage_card_head > .aipkit_usage_pill.aipkit_usage_pill--inline {
     margin-left: 0;
+}
+
+/* Paused: Resume, then Manage, together at the right. */
+#aipkit_stats_container .aipkit_usage_card_action + .aipkit_usage_card_action {
+    margin-left: 0;
+}
+
+/* Not set up, the website card invites setup: its title is the message, and each button starts one assistant. */
+#aipkit_stats_container .aipkit_usage_website_invite .aipkit_usage_card_title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--aipkit-usage-ink);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_icon {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: var(--aipkit-usage-blue);
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_text {
+    max-width: 62ch;
+    margin: 2px 0 0;
+    color: var(--aipkit-usage-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_examples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_examples li {
+    margin: 0;
+    padding: 2px 10px;
+    border: 1px solid var(--aipkit-usage-line);
+    border-radius: 999px;
+    background: #f8fafc;
+    color: var(--aipkit-usage-ink);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-top: 10px;
+}
+
+#aipkit_stats_container .aipkit_usage_website_invite_actions .aipkit_usage_card_action {
+    margin: 0;
 }
 
 /* The renewal date behind an ⓘ beside the title: shown on hover and focus, and toggled by a click or tap. */
@@ -2559,6 +2621,11 @@ button.aipkit_stats_status_pill {
 
     #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] [data-aipkit-usage-ai-card] > .aipkit_usage_half {
         display: contents;
+    }
+
+    /* The setup invitation with no website history under it fills both rows instead of leaving the second empty. */
+    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] [data-aipkit-usage-website-card]:not(:has([data-website-breakdown]:not([hidden]))) > .aipkit_usage_website_invite {
+        grid-row: span 2;
     }
 }
 
@@ -3756,43 +3823,6 @@ body.aipkit_usage_drawer_open {
     background: #f7f9fc;
 }
 
-/* Soft invitation */
-#aipkit_stats_container .aipkit_usage_invite {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    margin: 14px 0 0;
-    padding: 12px 14px;
-    border: 1px dashed var(--aipkit-usage-border);
-    border-radius: 12px;
-    color: var(--aipkit-usage-muted);
-    font-size: 12.5px;
-}
-
-#aipkit_stats_container .aipkit_usage_invite[hidden] {
-    display: none;
-}
-
-#aipkit_stats_container .aipkit_usage_invite strong {
-    color: var(--aipkit-usage-ink);
-}
-
-#aipkit_stats_container .aipkit_usage_invite_action {
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--aipkit-usage-blue);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-#aipkit_stats_container .aipkit_usage_invite_action:hover {
-    text-decoration: underline;
-}
-
 /* Below a wide laptop the two cards stack, so each half keeps room for its title and number. */
 @media (max-width: 1180px) {
     #aipkit_stats_container .aipkit_usage_cards[data-cards] {
@@ -4217,12 +4247,25 @@ body.aipkit_usage_drawer_open {
 #aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="3"] { background: #cdd5fa; }
 #aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="4"] { background: #dfe3ee; }
 
+/* No actions in the period: the empty track and one line where the legend goes, at the legend's height. */
+#aipkit_stats_container .aipkit_usage_stack_empty {
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* One line: the four largest kinds by name, then Other (website-activity.js folds more into it on narrow cards). The
+   padding and negative margin keep focus rings inside the clip. */
+#aipkit_stats_container .aipkit_usage_stack_key {
+    position: relative;
+}
+
 #aipkit_stats_container .aipkit_usage_stack_legend {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px 16px;
-    margin: 0;
-    padding: 0;
+    margin: -3px;
+    padding: 3px;
+    overflow: hidden;
     color: var(--aipkit-usage-ink);
     font-size: 12.5px;
     list-style: none;
@@ -4230,10 +4273,126 @@ body.aipkit_usage_drawer_open {
 
 #aipkit_stats_container .aipkit_usage_stack_legend li {
     display: inline-flex;
+    flex: none;
     align-items: center;
     gap: 6px;
     margin: 0;
     white-space: nowrap;
+}
+
+/* Even one name doesn't fit: it shortens with an ellipsis and keeps its count, so Other stays whole and clickable. */
+#aipkit_stats_container .aipkit_usage_stack_legend.is-shortened > li:first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_legend.is-shortened > li:first-child > :not(.aipkit_usage_stack_name) {
+    flex: none;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_toggle:hover .aipkit_usage_stack_other_label {
+    text-decoration: underline;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_toggle:focus-visible {
+    outline: 2px solid rgba(63, 95, 232, 0.35);
+    outline-offset: 2px;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_caret {
+    width: 12px;
+    height: 12px;
+    color: var(--aipkit-usage-quiet);
+    transition: transform 0.15s ease;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_toggle[aria-expanded="true"] .aipkit_usage_stack_other_caret {
+    transform: rotate(180deg);
+}
+
+/* The kinds inside Other, with each one's count and share of the whole period. */
+#aipkit_stats_container .aipkit_usage_stack_other_list {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    right: 0;
+    width: min(300px, 100%);
+    padding: 6px;
+    border: 1px solid var(--aipkit-usage-border);
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(23, 32, 51, 0.14);
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_list[hidden] {
+    display: none;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_list li {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto 38px;
+    gap: 8px;
+    align-items: center;
+    margin: 0;
+    padding: 5px 8px;
+    border-radius: 6px;
+    color: var(--aipkit-usage-ink);
+    font-size: 12.5px;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_list li:nth-child(odd) {
+    background: #f7f9fc;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_list b {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+#aipkit_stats_container .aipkit_usage_stack_other_share {
+    color: var(--aipkit-usage-quiet);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #aipkit_stats_container .aipkit_usage_stack_other_caret {
+        transition: none;
+    }
 }
 
 #aipkit_stats_container .aipkit_usage_stack_legend b {

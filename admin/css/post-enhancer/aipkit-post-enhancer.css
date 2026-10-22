@@ -1580,6 +1580,97 @@
   border-bottom: 0;
 }
 
+/* The website-management tip: one row at the top, in the notice bar's blue setup tone. Set up is outlined so Start
+   stays the only primary button. */
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 12px 0 0;
+  padding: 7px 8px 7px 8px;
+  border: 1px solid #dbe2ff;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #eef1ff;
+  color: #2f49c9;
+  font-size: 16px;
+  line-height: 26px;
+  text-align: center;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_text {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+  color: #273244;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid #dbe2ff;
+  border-radius: 999px;
+  background: #fff;
+  color: #2f49c9;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_action:is(:hover, :focus-visible) {
+  border-color: #3f5fe8;
+  color: #2f49c9;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_action:focus-visible,
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_close:focus-visible {
+  outline: 2px solid rgba(63, 95, 232, 0.35);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8a94a6;
+  cursor: pointer;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_close:hover {
+  background: #f3f5f9;
+  color: #344054;
+}
+
+.aipkit_enhancer_bulk_modal .aipkit_enhancer_website_tip_feedback {
+  flex-basis: 100%;
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+}
+
 .aipkit_enhancer_bulk_modal .aipkit_enhancer_field_label,
 .aipkit_enhancer_bulk_modal .aipkit_enhancer_field > span {
   display: block;

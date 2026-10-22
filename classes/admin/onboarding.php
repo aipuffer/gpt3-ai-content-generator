@@ -470,11 +470,12 @@ final class Onboarding
         $binding = hash('sha256', serialize([$registration['instance_id'] ?? '', (int) ($registration['epoch'] ?? 0), $registration['consent_version'] ?? '', $config['account_id'] ?? '', $config['site_id'] ?? '', $config['registered_token_hash'] ?? '', $grant_id, $grant['connection_id'], get_current_user_id()]));
         $attempt = $state['website_verification'] ?? [];
         global $wpdb;
-        $table = \WPAICG\Mcp\Schema::table('operations');
+        // Quote the fixed schema identifier separately from prepared values; compatible with WordPress 6.0 (before %i).
+        $table = '`' . str_replace('`', '``', \WPAICG\Mcp\Schema::table('operations')) . '`';
         if ($mode === 'retry' || ($mode === 'start' && ($attempt['binding'] ?? '') !== $binding)) {
             $started = time();
             // Exclude even an older request from the same second, including an unfinished request.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Local indexed journal snapshot; table is fixed and values prepared.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is backtick-quoted above; values are prepared. Local indexed journal snapshot.
             $baseline = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND tool = 'get_site_overview' AND created_at >= %d LIMIT 101", $grant_id, $started));
             if ($wpdb->last_error !== '' || count($baseline) > 100) { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
             $attempt = ['id' => wp_generate_uuid4(), 'binding' => $binding, 'started' => $started, 'expires' => $started + 600, 'baseline' => $baseline, 'verified' => false];
@@ -486,7 +487,7 @@ final class Onboarding
         }
         if (empty($attempt['verified'])) {
             // A successful read must belong to this account, site, instance, assistant and WordPress user.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Fresh indexed verification evidence; fixed table, prepared values, no request/response content exposed.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is backtick-quoted above; values are prepared. Fresh local evidence, no request/response content exposed.
             $rows = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND account_id = %s AND site_id = %s AND instance_id = %s AND connection_id = %s AND acting_user = %d AND tool = 'get_site_overview' AND state = 'succeeded' AND created_at >= %d AND updated_at <= %d ORDER BY created_at DESC LIMIT 101", $grant_id, $config['account_id'] ?? '', $config['site_id'] ?? '', $registration['instance_id'], $grant['connection_id'], get_current_user_id(), $attempt['started'], $attempt['expires']));
             if ($wpdb->last_error !== '') { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
             if (array_diff($rows, $attempt['baseline'])) {

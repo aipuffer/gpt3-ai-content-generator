@@ -1,8 +1,8 @@
 <?php
 /**
  * The AI Puffer Cloud account in the Dashboard header: a chip with the email that opens a small menu (Change email or
- * Manage email, and Disconnect). Not connected, it shows nothing: the Cloud banner, or the Dashboard's quiet line once
- * the banner is dismissed, is the one invitation. Email confirmation and
+ * Manage email, and Disconnect). Not connected, it shows nothing; setup invitations live in the Cloud banner and
+ * website card. Email confirmation and
  * reconnecting show as a full-width line under the header, because they need attention. Its forms are handled by the
  * shared Cloud script, and every Cloud response replaces it together with the AI credits card.
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) { exit; }
 if (!Connection::allowed()) { return; }
 $aipkit_cloud_line = Connection::display();
 $aipkit_cloud_line_verified = $aipkit_cloud_line['connected'] && $aipkit_cloud_line['email_verified'] === true;
-$aipkit_cloud_line_state = !$aipkit_cloud_line['connected'] ? 'signup' : (!empty($aipkit_cloud_line['revoked']) ? 'revoked' : ($aipkit_cloud_line_verified ? 'connected' : 'verify'));
+$aipkit_cloud_line_state = !$aipkit_cloud_line['connected'] ? 'signup' : (!empty($aipkit_cloud_line['revoked']) ? 'revoked' : (($aipkit_cloud_line['status'] ?? '') === 'unavailable' ? 'unavailable' : ($aipkit_cloud_line_verified ? 'connected' : 'verify')));
 $aipkit_cloud_line_email = (string) $aipkit_cloud_line['email'];
 $aipkit_cloud_line_disconnect = static function (string $label, string $class): void {
     ?>
@@ -51,6 +51,8 @@ $aipkit_cloud_line_disconnect = static function (string $label, string $class): 
         <?php elseif ($aipkit_cloud_line_state === 'verify' && ($aipkit_cloud_line_recovery = Connection::email_recovery_html()) !== '') : ?>
             <?php // Waiting for the email confirmation: the shared resend and "I've verified" controls. ?>
             <div class="aipkit_usage_account_notice"><?php echo $aipkit_cloud_line_recovery; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Shared renderer escapes every value. ?></div>
+        <?php elseif ($aipkit_cloud_line_state === 'unavailable') : ?>
+            <div class="aipkit_usage_account_notice" role="status"><p><?php esc_html_e('Temporarily unavailable. Your connection is kept. Try again shortly.', 'gpt3-ai-content-generator'); ?></p></div>
         <?php endif; ?>
     <?php endif; ?>
     <p class="aipkit_model_sync_status aipkit_cloud_feedback" data-aipkit-cloud-feedback role="status" aria-live="polite"></p>

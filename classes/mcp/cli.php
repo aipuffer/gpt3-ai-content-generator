@@ -941,7 +941,7 @@ final class Cli
     }
 
     /** Relational SELECT over authorized, redacted source snapshots; SQL can never reference the raw credential tables. */
-    private static function relational_select(string $input): array
+    private static function relational_select(string $input, int $window = 0): array
     {
         global $wpdb;
         $tokens = self::sql_tokens($input); $at = 0; $depth = 0;
@@ -986,32 +986,93 @@ final class Cli
         if ($take('LIMIT')) { $n = $tokens[$at++] ?? []; $limit = $n['value'] ?? null; if ($take('OFFSET')) { $n = $tokens[$at++] ?? []; $offset = $n['value'] ?? null; } elseif ($take(',')) { $offset = $limit; $n = $tokens[$at++] ?? []; $limit = $n['value'] ?? null; } }
         if (!is_int($limit) || $limit < 1 || $limit > 1000 || !is_int($offset) || $offset < 0 || $offset > 1000000) { throw new \InvalidArgumentException('Use bounded LIMIT1–1000 and a valid offset'); }
         $take(';'); if ($at !== count($tokens)) { throw new \InvalidArgumentException('Only one SELECT statement is supported'); }
-        $schemas = []; $from = ''; $budget = 0; $source_counts = [];
-        foreach ($sources as [$table, $kind, $on]) {
+        // Resolve the complete schema before planning: an unqualified column must never become
+        // unambiguous merely because another source has not been fetched yet.
+        $schemas = []; $logical_names = [];
+        foreach ($sources as [$table]) {
             [$requested, $alias] = $table;
-            if (isset($schemas[$alias]) || strlen($alias) > 64) { throw new \InvalidArgumentException('Use unique source aliases'); }
-            $schema = null; $logical = '';
-            foreach (self::database_tables($requested) as $key => $candidate) { if ($key === $requested || $candidate['table'] === $requested) { $schema = $candidate; $logical = $key; break; } }
-            if (!$schema) { return Operations::error('table_not_exposed'); }
-            if (in_array($logical, ['users', 'usermeta'], true) && !current_user_can('list_users')) { return Operations::error('permission_denied'); }
-            $schemas[$alias] = $schema; $columns = [];
-            foreach ($schema['columns'] as $column) { $columns[] = 'IF(OCTET_LENGTH(`' . $column . '`) > 65536, NULL, `' . $column . '`) AS `' . $column . '`'; }
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Only schema-inspected identifiers; bounded source snapshot is redacted before relational SQL can use it.
-            $rows = $wpdb->get_results('SELECT ' . implode(',', $columns) . ' FROM `' . $schema['table'] . '` LIMIT 1001', ARRAY_A);
+            if (in_array(strtolower($alias), array_map('strtolower', array_keys($schemas)), true) || strlen($alias) > 64) { throw new \InvalidArgumentException('Use unique source aliases'); }
+            foreach (self::database_tables($requested) as $key => $candidate) {
+                if ($key === $requested || $candidate['table'] === $requested) { $schemas[$alias] = $candidate; $logical_names[$alias] = $key; break; }
+            }
+            if (!isset($schemas[$alias])) { return Operations::error('table_not_exposed'); }
+            if (in_array($logical_names[$alias], ['users', 'usermeta'], true) && !current_user_can('list_users')) { return Operations::error('permission_denied'); }
+        }
+        $needed = []; $aggregate = false;
+        $inspect = null;
+        $inspect = static function (array $node) use (&$inspect, &$needed, &$aggregate, $schemas): void {
+            if ($node[0] === 'column') { [$alias, $column] = self::sql_column($node, $schemas); $needed[$alias][$column] = true; }
+            elseif ($node[0] === 'star') { foreach ($schemas as $alias => $schema) { if ($node[1] === null || strcasecmp($node[1], $alias) === 0) { foreach ($schema['columns'] as $column) { $needed[$alias][$column] = true; } } } }
+            elseif ($node[0] === 'function') { if (in_array($node[1], ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'], true)) { $aggregate = true; } foreach ($node[2] as $child) { if ($child[0] !== 'star') { $inspect($child); } } }
+            elseif ($node[0] === 'binary') { $inspect($node[2]); $inspect($node[3]); }
+            elseif ($node[0] === 'in') { $inspect($node[1]); foreach ($node[2] as $child) { $inspect($child); } }
+            elseif ($node[0] === 'between') { $inspect($node[1]); $inspect($node[2]); $inspect($node[3]); }
+        };
+        foreach ($fields as [$node]) { $inspect($node); }
+        if ($where) { $inspect($where); }
+        foreach ($groups as $node) { $inspect($node); }
+        foreach ($sources as $entry) { if ($entry[2]) { $inspect($entry[2]); } }
+        $source_orders = $orders;
+        foreach ($source_orders as &$order) {
+            if ($order[0][0] === 'column' && $order[0][1] === null) {
+                foreach ($fields as [$node, $alias]) { if ($alias !== null && strcasecmp($alias, $order[0][2]) === 0) { $order[0] = $node; break; } }
+            }
+            $inspect($order[0]);
+        }
+        unset($order);
+        $base = array_key_first($schemas);
+        // A source window is valid only when later rows cannot outrank it. Never pre-limit
+        // aggregates, DISTINCT, groups or ordering by a joined/redacted value.
+        $paged = !$aggregate && !$distinct && !$groups && $limit + $offset < 1000;
+        foreach ($source_orders as [$node]) { if (self::sql_source_expression($node, $base, $schemas) === null) { $paged = false; } }
+        $initial_window = count($sources) > 1 ? 1 : $limit + $offset + 1;
+        $window = $paged ? min(1000, max($window, $initial_window)) : 1000;
+        $from = ''; $budget = 0; $source_counts = []; $snapshots = []; $truncated = false;
+        foreach ($sources as [$table, $kind, $on]) {
+            [, $alias] = $table; $schema = $schemas[$alias]; $logical = $logical_names[$alias];
+            // Keep authorization keys even when they were not projected by the caller.
+            $visibility = ['options' => ['option_name'], 'posts' => ['ID'], 'postmeta' => ['post_id', 'meta_key'], 'comments' => ['comment_ID', 'comment_approved'], 'commentmeta' => ['comment_id', 'meta_key'], 'users' => ['ID'], 'usermeta' => ['user_id', 'meta_key']];
+            $required = $needed[$alias] ?? [];
+            foreach ($visibility[$logical] ?? ['meta_key', 'option_name', 'setting_key', 'key_name'] as $column) { if (in_array($column, $schema['columns'], true)) { $required[$column] = true; } }
+            $columns = [];
+            foreach (array_intersect($schema['columns'], array_keys($required)) as $column) { $columns[] = 'IF(OCTET_LENGTH(`' . $column . '`) > 65536, NULL, `' . $column . '`) AS `' . $column . '`'; }
+            // COUNT(*) still needs a source row when no authorization fields apply.
+            if (!$columns) { $columns[] = '1 AS `_mcp_row`'; }
+            $filters = [];
+            // WHERE on a nullable LEFT source cannot be moved below its join (IS NULL
+            // would otherwise manufacture matches). ON constraints on that source can.
+            if ($where && ($alias === $base || $kind !== 'LEFT')) { $filter = self::sql_source_filter($where, $alias, $schemas); if ($filter !== null) { $filters[] = $filter; } }
+            if ($on) {
+                $filter = self::sql_source_filter($on, $alias, $schemas); if ($filter !== null) { $filters[] = $filter; }
+                $filter = self::sql_join_filter($on, $alias, $schemas, $snapshots); if ($filter !== null) { $filters[] = $filter; }
+            }
+            $ordering = [];
+            if ($paged && $alias === $base) { foreach ($source_orders as [$node, $descending]) { $ordering[] = self::sql_source_expression($node, $base, $schemas) . ($descending ? ' DESC' : ' ASC'); } }
+            if (!$ordering && $schema['id']) { $ordering[] = '`' . $alias . '`.`' . $schema['id'] . '` ASC'; }
+            $source_limit = $paged && $alias === $base ? $window : 1000;
+            $query = 'SELECT ' . implode(',', $columns) . ' FROM `' . $schema['table'] . '` AS `' . $alias . '`'
+                . ($filters ? ' WHERE ' . implode(' AND ', $filters) : '') . ($ordering ? ' ORDER BY ' . implode(',', $ordering) : '') . ' LIMIT ' . ($source_limit + 1);
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reconstructed AST filters use prepared literals and schema-inspected invariant columns; bounded snapshots are authorized/redacted before final SQL.
+            $rows = $wpdb->get_results($query, ARRAY_A);
             if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_query_failed'); }
-            if (count($rows) > 1000) { return Operations::error('source_too_large', 'This relational read supports1000 source rows per table; use a narrower single-table query for larger sources.'); }
-            $selects = [];
+            if (count($rows) > $source_limit) {
+                if (!$paged || $alias !== $base) { return Operations::error('source_too_large', 'Narrow the read using IDs or numeric ranges: at most1000 selected source rows per table.'); }
+                $truncated = true; $rows = array_slice($rows, 0, $source_limit);
+            }
+            $selects = []; $snapshots[$alias] = [];
             foreach ($rows as $row) {
                 if (!self::database_row_visible($logical, $row)) { continue; }
                 $values = [];
-                foreach ($schema['columns'] as $column) {
+                foreach (array_keys($row) as $column) {
                     $value = self::database_value($row[$column]); if (is_array($value) || is_object($value)) { $value = wp_json_encode($value); }
+                    $row[$column] = $value;
                     $literal = self::sql_literal($value); $type = $schema['types'][$column] ?? (preg_match('/^(ID|.*_id|.*_ID|count|parent|post_author|post_parent|term_group|user_id)$/D', $column) ? 'bigint' : 'text');
                     if ($value !== null && preg_match('/int/i', $type)) { $literal = 'CAST(' . $literal . (stripos($type, 'unsigned') !== false ? ' AS UNSIGNED)' : ' AS SIGNED)'); }
                     elseif ($value !== null && preg_match('/^(?:decimal|numeric)\(([0-9]{1,2}),([0-9]{1,2})\)/i', $type, $precision)) { $literal = 'CAST(' . $literal . ' AS DECIMAL(' . min(65, (int) $precision[1]) . ',' . min(30, (int) $precision[2]) . '))'; }
                     elseif ($value !== null && preg_match('/float|double/i', $type)) { $literal = 'CAST(' . $literal . ' AS DECIMAL(65,15))'; }
                     $values[] = $literal . ' AS `' . $column . '`';
                 }
+                $snapshots[$alias][] = $row;
                 $part = 'SELECT ' . implode(',', $values); $budget += strlen($part); if ($budget > 4194304) { return Operations::error('source_too_large', 'Narrow this read: authorized source snapshots are limited to4MiB.'); } $selects[] = $part;
             }
             $source_counts[$alias] = count($selects); $candidates = 1; foreach ($source_counts as $source_count) { $candidates *= max(1, $source_count); } if ($candidates > 1000000) { return Operations::error('join_too_broad', 'Narrow the joined data: at most one million source-row combinations per read.'); }
@@ -1034,6 +1095,11 @@ final class Cli
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fully reconstructed SELECT over authorized/redacted literal snapshots, supported AST operators/functions and inspected identifiers only. No caller SQL reaches the database.
         $items = $wpdb->get_results($query, ARRAY_A);
         if ($wpdb->last_error || !is_array($items)) { return Operations::error('database_query_failed'); }
+        if ($truncated && count($items) <= $limit) {
+            // Do not turn an incomplete scan into an empty page, a partial count, or false has_more.
+            if ($window >= 1000) { return Operations::error('source_too_large', 'Narrow the read: its result could not be established within1000 source rows.'); }
+            return self::relational_select($input, min(1000, $window * 2));
+        }
         return ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['items' => array_slice($items, 0, $limit), 'limit' => $limit, 'offset' => $offset, 'has_more' => count($items) > $limit, 'sources' => $source_counts, 'scope' => 'Authorized source snapshots, maximum1000 rows/table and4MiB. Protected fields/rows are excluded before joins, predicates and aggregates.']];
     }
 
@@ -1043,15 +1109,91 @@ final class Cli
         if ($kind === 'literal') { return self::sql_literal($node[1]); }
         if ($kind === 'star') { return '*'; }
         if ($kind === 'column') {
-            $matches = [];
-            foreach ($schemas as $alias => $schema) { if ($node[1] !== null && strcasecmp($node[1], $alias) !== 0) { continue; } foreach ($schema['columns'] as $column) { if (strcasecmp($node[2], $column) === 0) { $matches[] = '`' . $alias . '`.`' . $column . '`'; } } }
-            if (count($matches) !== 1) { throw new \InvalidArgumentException('Unknown, protected or ambiguous SQL column'); } return $matches[0];
+            [$alias, $column] = self::sql_column($node, $schemas); return '`' . $alias . '`.`' . $column . '`';
         }
         if ($kind === 'function') { return $node[1] . '(' . implode(',', array_map(static function ($child) use ($schemas) { return self::sql_expression($child, $schemas); }, $node[2])) . ')'; }
         if ($kind === 'binary') { return '(' . self::sql_expression($node[2], $schemas) . ' ' . $node[1] . ' ' . self::sql_expression($node[3], $schemas) . ')'; }
         if ($kind === 'in') { return '(' . self::sql_expression($node[1], $schemas) . ' IN (' . implode(',', array_map(static function ($child) use ($schemas) { return self::sql_expression($child, $schemas); }, $node[2])) . '))'; }
         if ($kind === 'between') { return '(' . self::sql_expression($node[1], $schemas) . ' BETWEEN ' . self::sql_expression($node[2], $schemas) . ' AND ' . self::sql_expression($node[3], $schemas) . ')'; }
         throw new \InvalidArgumentException('Unsupported SQL expression');
+    }
+
+    /** Resolve against all sources, including protected/ambiguous column rejection. */
+    private static function sql_column(array $node, array $schemas): array
+    {
+        $matches = [];
+        foreach ($schemas as $alias => $schema) {
+            if ($node[1] !== null && strcasecmp($node[1], $alias) !== 0) { continue; }
+            foreach ($schema['columns'] as $column) { if (strcasecmp($node[2], $column) === 0) { $matches[] = [$alias, $column]; } }
+        }
+        if (count($matches) !== 1) { throw new \InvalidArgumentException('Unknown, protected or ambiguous SQL column'); }
+        return $matches[0];
+    }
+
+    /** Only typed integers/dates are invariant under PHP redaction and the64KB cell cap.
+     * Text, JSON and serialized data must still be filtered AFTER database_value(). */
+    private static function sql_source_expression(array $node, string $source, array $schemas, ?array &$structural = null): ?string
+    {
+        if ($node[0] === 'literal') { return self::sql_literal($node[1]); }
+        if ($node[0] === 'column') {
+            [$alias, $column] = self::sql_column($node, $schemas);
+            if ($alias !== $source) { return null; }
+            $type = $schemas[$alias]['types'][$column] ?? (preg_match('/^(ID|.*_id|.*_ID|count|parent|post_author|post_parent|term_group|user_id)$/D', $column) ? 'bigint' : 'text');
+            $sql = '`' . $alias . '`.`' . $column . '`';
+            if (preg_match('/^(?:tinyint|smallint|mediumint|int|integer|bigint)(?:\b|\()/i', $type)) { return 'CAST(' . $sql . (stripos($type, 'unsigned') !== false ? ' AS UNSIGNED)' : ' AS SIGNED)'); }
+            // Core dates are known WordPress DATETIME fields, not arbitrary text.
+            if (preg_match('/^(?:date|datetime|timestamp|time)(?:\(|$)/i', $type)
+                || (empty($schemas[$alias]['custom']) && in_array($column, ['post_date', 'post_date_gmt', 'post_modified', 'comment_date', 'user_registered'], true))) { return 'CAST(' . $sql . ' AS CHAR)'; }
+            if ($structural !== null && empty($schemas[$alias]['custom']) && in_array($column, ['post_type', 'post_status'], true)) {
+                // Ordinary WP type/status keys are invariant. Always retain unexpected
+                // encodings/oversized cells too, so PHP redaction still decides their match.
+                $structural[] = '(OCTET_LENGTH(' . $sql . ') > 65536 OR CAST(' . $sql . ' AS CHAR) NOT REGEXP ' . self::sql_literal('^[a-zA-Z0-9_-]*$') . ')';
+                return 'CAST(' . $sql . ' AS CHAR)';
+            }
+            return null;
+        }
+        if ($node[0] === 'function' || $node[0] === 'star') { return null; }
+        if ($node[0] === 'binary') {
+            $left = self::sql_source_expression($node[2], $source, $schemas, $structural); $right = self::sql_source_expression($node[3], $source, $schemas, $structural);
+            return $left === null || $right === null ? null : '(' . $left . ' ' . $node[1] . ' ' . $right . ')';
+        }
+        if ($node[0] === 'in' || $node[0] === 'between') {
+            $parts = []; foreach ($node[0] === 'in' ? array_merge([$node[1]], $node[2]) : array_slice($node, 1) as $child) { $part = self::sql_source_expression($child, $source, $schemas, $structural); if ($part === null) { return null; } $parts[] = $part; }
+            return $node[0] === 'in' ? '(' . array_shift($parts) . ' IN (' . implode(',', $parts) . '))' : '(' . $parts[0] . ' BETWEEN ' . $parts[1] . ' AND ' . $parts[2] . ')';
+        }
+        return null;
+    }
+
+    /** Extract only necessary AND conditions. Never narrow one branch of a mixed OR. */
+    private static function sql_source_filter(array $node, string $source, array $schemas): ?string
+    {
+        $structural = [];
+        $sql = self::sql_source_expression($node, $source, $schemas, $structural);
+        if ($sql !== null) { return $structural ? '(' . $sql . ' OR ' . implode(' OR ', array_unique($structural)) . ')' : $sql; }
+        if ($node[0] !== 'binary' || $node[1] !== 'AND') { return null; }
+        $parts = [];
+        foreach ([$node[2], $node[3]] as $child) { $part = self::sql_source_filter($child, $source, $schemas); if ($part !== null) { $parts[] = $part; } }
+        return $parts ? '(' . implode(' AND ', $parts) . ')' : null;
+    }
+
+    /** Reduce an equijoin to already authorized/redacted source IDs, never raw private values. */
+    private static function sql_join_filter(array $node, string $source, array $schemas, array $snapshots): ?string
+    {
+        if ($node[0] === 'binary' && $node[1] === 'AND') {
+            $parts = []; foreach ([$node[2], $node[3]] as $child) { $part = self::sql_join_filter($child, $source, $schemas, $snapshots); if ($part !== null) { $parts[] = $part; } }
+            return $parts ? '(' . implode(' AND ', $parts) . ')' : null;
+        }
+        if ($node[0] !== 'binary' || $node[1] !== '=' || $node[2][0] !== 'column' || $node[3][0] !== 'column') { return null; }
+        foreach ([[$node[2], $node[3]], [$node[3], $node[2]]] as [$current, $previous]) {
+            [$alias, $column] = self::sql_column($previous, $schemas);
+            if (!array_key_exists($alias, $snapshots)) { continue; }
+            $sql = self::sql_source_expression($current, $source, $schemas);
+            $prior = self::sql_source_expression($previous, $alias, $schemas);
+            if ($sql === null || $prior === null || !preg_match('/ AS (?:SIGNED|UNSIGNED)\)$/D', $sql) || !preg_match('/ AS (?:SIGNED|UNSIGNED)\)$/D', $prior)) { continue; }
+            $values = []; foreach ($snapshots[$alias] as $row) { if ($row[$column] !== null) { $literal = self::sql_literal($row[$column]); $values[] = 'CAST(' . $literal . (substr($prior, -12) === 'AS UNSIGNED)' ? ' AS UNSIGNED)' : ' AS SIGNED)'); } }
+            return $values ? '(' . $sql . ' IN (' . implode(',', array_unique($values)) . '))' : '(1=0)';
+        }
+        return null;
     }
 
     private static function database_value($value)

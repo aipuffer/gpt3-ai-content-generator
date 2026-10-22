@@ -792,6 +792,8 @@ class PostEnhancerAssets extends AIPKit_Admin_Asset_Base
             'can_manage_actions' => AIPKit_Role_Manager::user_can_access_module(AIPKit_Enhancer_Actions_Ajax_Handler::MODULE_SLUG),
             'max_actions' => AIPKit_Enhancer_Actions_Ajax_Handler::MAX_ACTIONS,
             'parse_html_formats' => (bool) apply_filters('aipkit_enhancer_enable_formatting', true),
+            // The website-management tip at the top of the modal, or null (who sees it: Cloud\Announcement).
+            'website_tip' => class_exists(\WPAICG\Cloud\Announcement::class) ? \WPAICG\Cloud\Announcement::website_tip_payload() : null,
             'text' => [
                 'modal_title_title' => __('Title suggestions', 'gpt3-ai-content-generator'),
                 'loading_title' => __('Generating title suggestions…', 'gpt3-ai-content-generator'),

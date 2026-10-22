@@ -301,6 +301,7 @@ $render_brand_target = static function () use ($default_module_slug, $brand_labe
     </div>
 
     <?php \WPAICG\Cloud\Announcement::render(); ?>
+    <?php \WPAICG\Cloud\Announcement::render_website_tip(); ?>
     <?php \WPAICG\Cloud\CreditNotice::render(true); ?>
 
     <div class="aipkit_main-content" id="aipkit_module-container">

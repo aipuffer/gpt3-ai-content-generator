@@ -2613,6 +2613,27 @@ hr.aipkit_hr {
 #aipkit_settings_container .aipkit_settings_provider_card_action:focus-visible::after {
     box-shadow: inset 0 0 0 2px rgba(63, 95, 232, 0.3);
 }
+/* Manage my website, off: Connect ChatGPT and Connect Claude sit above the row's own click area. */
+#aipkit_settings_container .aipkit_mcp_card_start {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+#aipkit_settings_container .aipkit_mcp_card_start .aipkit_settings_provider_card_connect {
+    font-family: inherit;
+    cursor: pointer;
+}
+#aipkit_settings_container .aipkit_mcp_card_start .aipkit_settings_provider_card_connect:is(:hover, :focus-visible) {
+    border-color: #3f5fe8;
+    color: #3f5fe8;
+}
+#aipkit_settings_container .aipkit_mcp_card_start .aipkit_settings_provider_card_connect:focus-visible {
+    outline: 2px solid rgba(63, 95, 232, 0.3);
+    outline-offset: 1px;
+}
 
 /* Provider panels slide in from the right, like the chatbot builder's side panels. */
 #aipkit_settings_container .aipkit_settings_provider_modal.aipkit-modal-overlay {

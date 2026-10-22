@@ -28,6 +28,8 @@ final class StatusChip
             $display = Connection::display();
             if (!empty($display['revoked'])) {
                 $parts[] = ['text' => __('Reconnect Cloud', 'gpt3-ai-content-generator'), 'warn' => true];
+            } elseif (($display['status'] ?? '') === 'unavailable' && !empty($display['connected'])) {
+                $parts[] = ['text' => __('Temporarily unavailable', 'gpt3-ai-content-generator'), 'warn' => true];
             } elseif (!empty($display['connected']) && ($display['email_verified'] ?? false) !== true) {
                 $parts[] = ['text' => __('Verify email', 'gpt3-ai-content-generator'), 'warn' => true];
             } elseif (!empty($display['connected'])) {
@@ -44,10 +46,18 @@ final class StatusChip
                     $usage = \WPAICG\Mcp\Settings::usage_data();
                     $parts[] = [
                         // translators: %s: remaining website actions.
-                        'text' => $usage === null ? __('Actions unavailable', 'gpt3-ai-content-generator') : sprintf(__('%s actions', 'gpt3-ai-content-generator'), number_format_i18n($usage['remaining'])),
+                        'text' => $usage === null ? __('Website actions unavailable', 'gpt3-ai-content-generator') : sprintf(__('%s website actions', 'gpt3-ai-content-generator'), number_format_i18n($usage['remaining'])),
                         'warn' => $usage === null || $usage['remaining'] === 0,
                         'balance' => 'actions',
                         'short' => $usage === null ? '—' : ($usage['remaining'] >= 10000 ? self::short_number($usage['remaining']) : number_format_i18n($usage['remaining'])),
+                    ];
+                } elseif (class_exists('\WPAICG\Mcp\Settings') && \WPAICG\Mcp\Settings::offers_setup()) {
+                    // Not set up yet: a quiet invitation, never a warning. The chip opens the Dashboard, where setup starts.
+                    $parts[] = [
+                        'text' => __('Set up website management', 'gpt3-ai-content-generator'),
+                        'warn' => false,
+                        'setup' => true,
+                        'short' => __('Set up', 'gpt3-ai-content-generator'),
                     ];
                 }
             }
@@ -59,11 +69,13 @@ final class StatusChip
         <a class="aipkit_nav-status_chip" href="<?php echo esc_url(admin_url('admin.php?page=wpaicg&aipkit_module=stats')); ?>"
             data-module="stats" data-aipkit-open-module="stats" aria-label="<?php echo esc_attr($full_label); ?>" title="<?php echo esc_attr($full_label); ?>">
             <span><?php echo esc_html($label); ?></span>
-            <?php // Balances as an icon and a short number; account steps as a word. The label above reads them in full. ?>
+            <?php // Balances as an icon and a short number; account steps as a word; website setup as a globe and "Set up". The label above reads them in full. ?>
             <?php if ($parts) : ?><span class="aipkit_nav-status_sep" aria-hidden="true"></span><?php endif; ?>
             <?php foreach ($parts as $part) : ?>
                 <?php if (!empty($part['balance'])) : ?>
                     <span class="aipkit_nav-status_balance aipkit_nav-status_balance--<?php echo esc_attr($part['balance']); ?><?php echo $part['warn'] ? ' aipkit_nav-status_balance--warning' : ''; ?>" aria-hidden="true"><?php echo self::icon($part['balance']); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed markup. ?><?php echo esc_html($part['short']); ?></span>
+                <?php elseif (!empty($part['setup'])) : ?>
+                    <span class="aipkit_nav-status_setup" aria-hidden="true"><?php echo self::icon('actions'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Fixed markup. ?><?php echo esc_html($part['short']); ?></span>
                 <?php else : ?>
                     <span class="aipkit_nav-status_detail<?php echo $part['warn'] ? ' aipkit_nav-status_detail--warning' : ''; ?>" aria-hidden="true"><?php echo esc_html($part['text']); ?></span>
                 <?php endif; ?>

@@ -88,12 +88,18 @@
       })
       .join("");
 
+    // The website-management tip has a line for posts, pages and products only; the server sends it only to people
+    // who can set website management up while it isn't set up (and they haven't dismissed it).
+    const tipData = window.aipkit_post_enhancer?.website_tip;
+    const websiteTip = tipData?.text?.[postType] ? { ...tipData, text: tipData.text[postType] } : null;
+
     // Generate HTML from the template function
     const modalHtml = window.aipkit_enhancer_getBulkModalHtml({
       postCount: postIds.length,
       providerOptions: providerOptions,
       promptItems,
       postType: postType,
+      websiteTip,
     });
 
     // Inject modal into the body
@@ -110,6 +116,29 @@
         "Bulk Modal UI: aipkit_enhancer_attachBulkModalListeners function is not available."
       );
     }
+
+    // One dismissal hides the tip here, in Content Writer and in Automations.
+    const tip = modalOverlay.querySelector("[data-aipkit-website-tip-modal]");
+    const tipDismiss = tip?.querySelector("[data-aipkit-website-tip-dismiss]");
+    tipDismiss?.addEventListener("click", async () => {
+      if (tipDismiss.disabled || typeof window.aipkit_apiRequest !== "function") return;
+      const feedback = tip.querySelector("[data-website-tip-feedback]");
+      tipDismiss.disabled = true;
+      feedback.hidden = true;
+      try {
+        await window.aipkit_apiRequest("aipkit_dismiss_website_tip");
+        if (window.aipkit_post_enhancer) window.aipkit_post_enhancer.website_tip = null;
+        window.aipkitWebsiteTip?.dismissed();
+        tip.remove();
+      } catch (error) {
+        feedback.textContent = error?.message || tipData?.failed || "";
+        feedback.hidden = false;
+        tipDismiss.disabled = false;
+      }
+    });
+
+    // Keep the cached tip in place during the recheck; only an authoritative reply changes its visibility.
+    if (tip) void window.aipkitWebsiteTip?.refresh();
 
     const providerSelect = modalOverlay.querySelector("#aipkit_bulk_ai_provider");
     if (providerSelect && defaultProviderKey) {

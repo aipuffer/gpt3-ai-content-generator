@@ -467,6 +467,8 @@
         };
 
         const beginLoadTransition = () => {
+            // The workspace persists across screens; invalidate pending sheet requests on every accepted navigation.
+            aipkit_moduleContainer.dataset.moduleRevision = String(Number(aipkit_moduleContainer.dataset.moduleRevision || 0) + 1);
             if (isSilentLoad) {
                 loadingFeedbackTimer = setTimeout(() => {
                     loadingFeedbackTimer = null;

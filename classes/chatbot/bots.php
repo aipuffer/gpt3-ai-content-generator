@@ -2053,10 +2053,7 @@ function get_vector_store_config_logic(int $bot_id, callable $get_meta_fn): arra
         ? array_values(array_filter(array_map('sanitize_text_field', $google_store_names)))
         : [];
 
-    // Delete old singular OpenAI store ID meta if it exists
-    if (get_post_meta($bot_id, '_aipkit_openai_vector_store_id', true) !== false) {
-        delete_post_meta($bot_id, '_aipkit_openai_vector_store_id');
-    }
+    // Reads must not migrate/delete metadata. Initialization and explicit saves own migration.
 
     $settings['pinecone_index_name'] = $get_meta_fn('_aipkit_pinecone_index_name', BotSettingsManager::DEFAULT_PINECONE_INDEX_NAME);
     $settings['qdrant_collection_name'] = $get_meta_fn('_aipkit_qdrant_collection_name', BotSettingsManager::DEFAULT_QDRANT_COLLECTION_NAME);

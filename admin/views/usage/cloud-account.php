@@ -16,7 +16,7 @@ $aipkit_cloud_notices = [
     'busy' => __('Another connection action is in progress. Please wait before trying again.', 'gpt3-ai-content-generator'),
     'forbidden' => __('You cannot manage this Cloud connection.', 'gpt3-ai-content-generator'),
 ];
-$aipkit_cloud_is_error = in_array($aipkit_cloud_notice, ['models_unavailable', 'balance_unavailable', 'sync_failed', 'unavailable', 'busy', 'forbidden'], true);
+$aipkit_cloud_is_error = in_array($aipkit_cloud_notice, ['models_unavailable', 'balance_unavailable', 'sync_failed', 'unavailable', 'identity_check_unavailable', 'disconnect_failed', 'busy', 'forbidden'], true);
 $aipkit_cloud_to_credits = static function ($units): float { return ((float) $units) / 1000; };
 $aipkit_cloud_format = static fn($credits): string => Connection::format_credits((string) round($credits * 1000));
 $aipkit_cloud_date = static function ($iso): string { return wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), strtotime((string) $iso)); };
