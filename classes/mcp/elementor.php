@@ -45,7 +45,7 @@ final class Elementor
         $version = ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$'];
         $definitions = [
             'list-documents' => [true, 'Find Elementor pages or saved library templates. Reads only accessible local documents.', ['kind' => ['type' => 'string','enum' => ['page','template']], 'query' => $string, 'page' => ['type' => 'integer','minimum' => 1]], []],
-            'get-document' => [true, 'Read an Elementor page/template before editing. Returns version, stable widget IDs, editable fields and current values. Preserves other widgets/layouts. Use this instead of raw protected metadata.', ['post_id' => $id], ['post_id']],
+            'get-document' => [true, 'Read an Elementor page/template before editing. Returns version, stable widget IDs, editable fields and current values, plus saved page_settings for title visibility/background and the WordPress page_template. Preserves other widgets/layouts. Use this instead of raw protected metadata. A saved hide_title flag still depends on the theme honoring Elementor title visibility.', ['post_id' => $id], ['post_id']],
             'create-document' => [false, 'Create a DRAFT Elementor page or saved library template. Optional source_id copies an accessible existing Elementor document. Otherwise widgets builds a simple container of core heading, text-editor, button or image widgets. Fields: title/editor/text, link URL, image attachment ID, caption, global_color ID. Never publishes.', ['title' => ['type' => 'string','minLength' => 1,'maxLength' => 200], 'kind' => ['type' => 'string','enum' => ['page','template']], 'source_id' => $id, 'widgets' => ['type' => 'array','maxItems' => 30,'items' => ['type' => 'object','properties' => ['widget' => ['type' => 'string','enum' => array_keys(self::FIELDS)],'fields' => ['type' => 'object']],'required' => ['widget','fields'],'additionalProperties' => false]]], ['title']],
             'update-document' => [false, 'Edit an existing Elementor document using its fresh get-document version. One call changes up to 20 fields on ONE page for one action. changes: element_id, field, value. Supported Heading title/link, Text Editor editor HTML, Button text/link, Image image attachment ID/caption/link, global_color binding. Keeps layout, other fields and publication status. Returns undo evidence.', ['post_id' => $id,'version' => $version,'changes' => ['type' => 'array','minItems' => 1,'maxItems' => 20,'items' => ['type' => 'object','properties' => ['element_id' => $string,'field' => $string,'value' => ['type' => ['string','integer']]],'required' => ['element_id','field','value'],'additionalProperties' => false]]], ['post_id','version','changes']],
             'undo-document' => [false, 'Undo a successful Elementor update from its operation_id. Supply its returned version. Restores only that operation’s fields; refuses if the document changed later. Same user permissions and approval policy apply.', ['operation_id' => ['type' => 'string','pattern' => '^[a-f0-9-]{36}$'],'version' => $version], ['operation_id','version']],
@@ -82,6 +82,118 @@ final class Elementor
     public static function handles(string $name): bool
     {
         return self::available() && in_array($name, [self::PREFIX . 'create-document',self::PREFIX . 'update-document',self::PREFIX . 'undo-document',self::PREFIX . 'update-global-style'], true);
+    }
+
+    /** Ask the registered vendor implementation before a callback can start or wait for approval. */
+    public static function native_availability(string $name, array $input = []): ?array
+    {
+        if (strpos($name, 'elementor/') !== 0 || !class_exists('Elementor\\Modules\\Mcp\\Module')) { return null; }
+        try {
+            $class = '\\Elementor\\Modules\\Mcp\\Module';
+            if (method_exists($class, 'is_site_mcp_exposure_enabled') && !$class::is_site_mcp_exposure_enabled()) {
+                return Operations::error('elementor_unavailable', 'Elementor’s own MCP opt-in is off. The owner must enable it in Elementor.');
+            }
+            $module = $class::instance();
+            if (!method_exists($module, 'registry')) { return null; }
+            $ability = $module->registry()->find_by_id($name);
+            if (!$ability || !method_exists($ability, 'is_available')) { return null; }
+            $available = $ability->is_available();
+            if (!is_wp_error($available) && $name === 'elementor/manage-classes') {
+                foreach (is_array($input['operations'] ?? null) ? $input['operations'] : [] as $index => $operation) {
+                    if (is_array($operation) && in_array($operation['action'] ?? '', ['create', 'update'], true)
+                        && is_string($operation['label'] ?? null) && preg_match('/[\x09-\x0D\x20]/', $operation['label'])) {
+                        return Operations::error('invalid_input', 'operations[' . (int) $index . '].label must be a CSS class name without whitespace, for example qa-workshop. To rename an existing class, supply its id. No change was started.');
+                    }
+                }
+            }
+            if (!is_wp_error($available) && $name === 'elementor/update-page-settings' && !empty($input['post_id'])) {
+                $document = \Elementor\Plugin::$instance->documents->get((int) $input['post_id']);
+                if ($document && wp_get_post_autosave((int) $document->get_main_id(), get_current_user_id())) {
+                    return Operations::error('elementor_unavailable', 'This page has a pending Elementor autosave. Review or publish that existing edit before changing page settings; the native settings save would discard it. No change was started.');
+                }
+            }
+            return is_wp_error($available) ? Operations::error('elementor_unavailable', mb_substr(wp_strip_all_tags($available->get_error_message()), 0, 400)) : null;
+        } catch (\Throwable $error) {
+            return Operations::error('elementor_unavailable', 'Elementor could not confirm this native operation is available. No change was started.');
+        }
+    }
+
+    /** Keep the vendor's long reference prose from pushing critical instructions out of discovery. */
+    public static function native_description(string $name, string $description): string
+    {
+        if (strpos($name, 'elementor/') !== 0) { return $description; }
+        $hints = [
+            'elementor/build-composition' => 'Build native Atomic layouts on one page. Read list-widget-schemas, get-widget-schema and read-resource first. Use unique configuration-id XML attributes and only supported schema fields. Append preserves existing children; replace_children removes them. Use only fresh resolved_xml IDs for later edits. Never reuse pre-build IDs. dry_run validates without saving and costs zero. Requires Atomic Editor and owner MCP opt-in. Standard asks; Trusted runs. Verify saved structure and the public page.',
+            'elementor/publish-document' => 'Publish the intended native page edit and promote the connected user’s pending autosave. Review that autosave first; do not publish unrelated editor work. Updated AI Puffer invalidates this document’s restored rendered cache. Requires the native publish permission and owner MCP opt-in. Read fresh public output and verify all requested settings, content and status. Standard asks; Trusted runs.',
+            'elementor/manage-elements' => 'Edit/move/duplicate/delete native Atomic elements or the discovered V3 allowlist. Read fresh get-page-structure; after building use its returned resolved_xml IDs. Native schemas, role permissions and opt-ins apply. Batches may partially save: inspect every per-item result and the original operation; never replay a partial batch. Preserve layout, styles and status. Live edits may go to an autosave; use publish-document to promote it, then verify the public page. Standard asks; Trusted runs.',
+            'elementor/manage-global-variable' => 'Create/update/delete native site-wide design variables. First use read-resource with the discovered variable resource/guide URIs for IDs, types and limits. Use the discovered schema; do not invent a type or ID. Changes affect every referencing page. Some types require Pro. Native opt-ins and permissions apply. Inspect every per-item result; do not repeat a partially saved batch. Read back and verify a referencing page. Standard asks; Trusted runs.',
+            'elementor/manage-classes' => 'Create/update/delete native reusable global CSS classes. Read the classes URI with read-resource first. Use CSS labels without whitespace, e.g. qa-workshop; reuse classes. Native CSS conversion, role checks and Atomic Editor opt-in apply. Changes affect all referencing pages. Follow the schema for patch/replace and responsive/pseudo-state CSS. Inspect every per-item result; do not replay a partially saved batch. Verify rendered desktop/mobile/hover styles. Standard asks; Trusted runs.',
+            'elementor/manage-default-styles' => 'Update/delete native site-wide tag defaults for Atomic elements. Read get-default-styles first. Use only the native schema and supported CSS, breakpoint and pseudo-state syntax. These defaults affect Atomic elements, not classic widgets. Patch preserves other variants; replace can remove them. Native permissions and opt-ins apply. Inspect every per-item result; never replay a partial batch. Verify a referencing page. Standard asks; Trusted runs.',
+            'elementor/update-page-settings' => 'Update native document settings. Updated AI Puffer preserves omitted settings under the native save lock. Publish/review any pending autosave first; a native settings save discards it. Send only changed keys and read back. Requires edit permission and owner MCP opt-in. Hide Title depends on the theme. Change the WordPress page template through the supported WordPress REST template field, never protected metadata. Preserve unrelated settings, elements and status; verify the public page. Standard asks; Trusted runs.',
+            'elementor/get-widget-schema' => 'Read a native element’s plain-value input schema using its discovered widget_type. Use this before building or updating each type, including containers, tabs and accordions. Do not send internal typed storage or raw protected metadata. Native role checks, Atomic Editor and owner MCP opt-in apply. Read the relevant native resource for complete examples.',
+        ];
+        $error = self::native_availability($name);
+        $notice = $error ? 'Unavailable: ' . mb_substr($error['error']['message'], 0, 160) . ' ' : '';
+        return mb_substr($notice . ($hints[$name] ?? $description), 0, 600);
+    }
+
+    /** Coordinate native settings/publication without replacing the vendor's checks or save routines. */
+    public static function native_change(string $name, array $input, callable $work, ?array &$refusal = null)
+    {
+        $refusal = null;
+        if (!in_array($name, ['elementor/update-page-settings', 'elementor/publish-document'], true)) { return $work(); }
+        $id = (int) ($input['post_id'] ?? 0);
+        $document = \Elementor\Plugin::$instance->documents->get($id);
+        if (!$document) { return $work(); } // Keep the vendor's validation and permission result.
+        $main = (int) $document->get_main_id();
+        if (!self::acquire($main)) {
+            $refusal = Operations::error('site_busy', 'The document is being saved. No change was started.');
+            return null;
+        }
+        $merge = static function (array $data, $saving) use ($id): array {
+            if ((int) $saving->get_id() === $id && is_array($data['settings'] ?? null)) {
+                wp_cache_delete($id, 'post_meta');
+                $saved = get_post_meta($id, '_elementor_page_settings', true);
+                $data['settings'] = array_replace(is_array($saved) ? $saved : [], $data['settings']);
+            }
+            return $data;
+        };
+        if ($name === 'elementor/update-page-settings') { add_filter('elementor/document/save/data', $merge, PHP_INT_MAX, 2); }
+        try {
+            // Recheck under the save lock: an editor autosave may have appeared after preflight.
+            $unavailable = self::native_availability($name, $input);
+            if ($unavailable) { $refusal = $unavailable; return null; }
+            $result = $work();
+            if ($name === 'elementor/publish-document' && is_array($result) && ($result['status'] ?? '') === 'publish') {
+                // Revision promotion also copies old rendered-element cache. Clear only this document,
+                // through Elementor's APIs, and reload its request-local object before rendering again.
+                $fresh = \Elementor\Plugin::$instance->documents->get($main, false);
+                $fresh->delete_meta(\Elementor\Core\Base\Document::CACHE_META_KEY);
+                \Elementor\Core\Files\CSS\Post::create($main)->delete();
+                if ($fresh->get_json_meta(\Elementor\Core\Base\Document::CACHE_META_KEY)) {
+                    return new \WP_Error('elementor_error', 'Publication completed but cached output could not be cleared. Inspect the original operation before another change.');
+                }
+            }
+            return $result;
+        }
+        finally { remove_filter('elementor/document/save/data', $merge, PHP_INT_MAX); self::release($main); }
+    }
+
+    /** A native partial batch is not a fully confirmed success; retain its exact per-item evidence. */
+    public static function native_outcome(string $name, array $input, $result): ?array
+    {
+        if (strpos($name, 'elementor/') !== 0 || !is_array($result)) { return null; }
+        $incomplete = in_array($result['status'] ?? null, ['error', 'partial_error'], true)
+            || ($result['success'] ?? true) === false || !empty($result['save_error']);
+        foreach (is_array($result['results'] ?? null) ? $result['results'] : [] as $row) {
+            if (is_array($row) && ($row['status'] ?? '') === 'error') { $incomplete = true; }
+        }
+        if ($incomplete) {
+            return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown',
+                'message' => 'Elementor reported incomplete results. Some changes may already be saved. Inspect the original per-item results and current state; never repeat the whole batch.']];
+        }
+        return $name === 'elementor/build-composition' && ($input['dry_run'] ?? false) === true
+            ? ['state' => 'succeeded', 'actions_used' => 0] : null;
     }
 
     private static function can(string $name, array $input): bool
@@ -216,6 +328,8 @@ final class Elementor
                 $widgets[] = ['element_id' => $node['id'],'type' => $type,'editable_fields' => $fields,'values' => $values,'children' => array_column($node['elements'] ?? [], 'id')];
             });
             return ['post_id' => $state['id'],'title' => $state['post']->post_title,'status' => $state['post']->post_status,'version' => $state['version'],
+                'page_settings' => (object) array_intersect_key($state['settings'], array_flip(['hide_title','background_background','background_color'])),
+                'page_template' => get_page_template_slug($state['id']) ?: 'default',
                 'elementor_version' => ELEMENTOR_VERSION,'widgets' => $widgets,'edit_url' => admin_url('post.php?post=' . $state['id'] . '&action=elementor')];
         } catch (\Throwable $error) {
             return new \WP_Error('elementor_unavailable', $error->getMessage());

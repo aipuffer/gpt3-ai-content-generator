@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.15
+Stable tag: 2.5.16
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.16 =
+Improves website-action reliability, preserves plugin activation during updates, and adds supported integration settings and native Elementor Atomic workflows.
+
 = 2.5.15 =
 * Add simple-product sale scheduling, inspection and cancellation with site-timezone validation and stale-update protection.
 
@@ -251,6 +254,20 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.16 =
+
+- Added permission-checked cache settings inspection and updates for WP-Optimize, Breeze, SpeedyCache, WP Fastest Cache and LiteSpeed Cache, with conflict checks and native configuration verification.
+- Added scoped AIOSEO search-appearance and Easy Digital Downloads store settings, preserving unrelated configuration and native write opt-ins.
+- Allowed supported plugin settings changes under the selected connection safety level while retaining native permissions, protected settings and approval checks.
+- Improved native Elementor Atomic composition, page settings and shared styles; preserved omitted settings and pending edits, refreshed published output, and retained evidence when a batch partly fails.
+- Fixed busy Elementor saves being reported as unknown outcomes when no change had started.
+- Kept active, inactive and network-active plugins in their existing state after supported plugin updates.
+- Improved operation-result recovery and diagnostics without repeating website actions.
+- Fixed aggregate reads on custom database tables without a single-column primary key.
+- Validated late-registered REST post fields before saving, including ACF values.
+- Kept reserved WordPress settings route names protected when registering custom content types.
+- Clarified supported command examples, free monthly website actions in pricing, and onboarding recipe wording.
 
 = 2.5.15 =
 

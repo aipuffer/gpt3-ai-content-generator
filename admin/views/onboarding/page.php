@@ -22,8 +22,8 @@ $aipkit_setup_icons = [
     'forms' => 'M4 5h16v14H4zM8 9h8M8 13h5',
 ];
 $aipkit_setup_goals = [
-    'chatbot' => [__('Add a chatbot to your website', 'gpt3-ai-content-generator'), __('Customer support around the clock, from your own content.', 'gpt3-ai-content-generator'), __('Chatbot', 'gpt3-ai-content-generator')],
     'website' => [__('Manage your website with AI', 'gpt3-ai-content-generator'), __('Ask ChatGPT or Claude to create content, update products and design pages, without logging in to WordPress.', 'gpt3-ai-content-generator'), __('Website management', 'gpt3-ai-content-generator')],
+    'chatbot' => [__('Add a chatbot to your website', 'gpt3-ai-content-generator'), __('Customer support around the clock, from your own content.', 'gpt3-ai-content-generator'), __('Chatbot', 'gpt3-ai-content-generator')],
     'forms' => [__('Add AI forms to your website', 'gpt3-ai-content-generator'), __('Calculators, quote builders and generators your visitors can use.', 'gpt3-ai-content-generator'), __('AI Forms', 'gpt3-ai-content-generator')],
     'write' => [__('Write and schedule content in WordPress', 'gpt3-ai-content-generator'), __('Posts and product descriptions, one at a time or on a schedule.', 'gpt3-ai-content-generator'), __('Content Writer', 'gpt3-ai-content-generator')],
 ];
@@ -508,7 +508,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                 ['Yoast SEO', defined('WPSEO_VERSION'), 'yoast-seo/poor-scores/', __('Find posts with poor SEO scores', 'gpt3-ai-content-generator')],
                 ['Elementor', defined('ELEMENTOR_VERSION'), 'elementor/draft-page/', __('Create an Elementor page', 'gpt3-ai-content-generator')],
                 ['ACF', class_exists('ACF'), 'acf/custom-text-field/', __('Update a custom text field', 'gpt3-ai-content-generator')],
-                ['WordPress', true, 'wordpress/notes-to-draft/', __('Turn notes into a draft post', 'gpt3-ai-content-generator')],
+                ['WordPress', true, 'wordpress/notes-to-draft/', __('Turn notes into a post', 'gpt3-ai-content-generator')],
                 ['WordPress', true, 'wordpress/edit-a-post/', __('Fix something in a post or page', 'gpt3-ai-content-generator')],
                 ['WordPress', true, 'wordpress/blocks-page/', __('Build a page from blocks', 'gpt3-ai-content-generator')],
             ] as [$aipkit_recipe_plugin, $aipkit_recipe_active, $aipkit_recipe_path, $aipkit_recipe_title]) {

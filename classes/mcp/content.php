@@ -144,8 +144,10 @@ final class Content
             $definition = ['post_type' => $type, 'singular' => $input['singular'], 'plural' => $input['plural'], 'public' => $input['public'] ?? true, 'hierarchical' => $input['hierarchical'] ?? false];
             $existing = $before['types'][$type] ?? null;
             if ($existing !== null && $existing !== $definition) { return Operations::error('definition_conflict', 'This type already has a different definition. Existing content is preserved.'); }
+            // Settings updates are allowed, but their reserved route names must never become content types.
             if ((post_type_exists($type) && !self::owns_type($type)) || strpos($type, 'wp_') === 0 || strpos($type, 'aipkit_') === 0
-                || in_array($type, $GLOBALS['wp']->public_query_vars, true) || taxonomy_exists($type) || !Guard::allows_rest('POST', '/wp/v2/' . $type)
+                || in_array($type, ['options', 'settings'], true) || in_array($type, $GLOBALS['wp']->public_query_vars, true)
+                || taxonomy_exists($type) || !Guard::allows_rest('POST', '/wp/v2/' . $type)
                 || get_page_by_path($type) || isset(rest_get_server()->get_routes()['/wp/v2/' . $type])) {
                 // The REST route of our own already-loaded type is expected on an identical repeat.
                 if ($existing === null || !self::owns_type($type)) { return Operations::error('definition_conflict', 'That name is already used by WordPress, an existing page, taxonomy or plugin route.'); }

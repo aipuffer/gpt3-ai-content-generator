@@ -1,6 +1,6 @@
 {
   "name": "gpt3-ai-content-generator",
-  "version": "2.5.15",
+  "version": "2.5.16",
   "private": true,
   "description": "Source build for the free AI Puffer WordPress plugin.",
   "license": "GPL-2.0-or-later",

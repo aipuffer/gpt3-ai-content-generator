@@ -346,7 +346,7 @@ final class Engines
             if ($query !== '' && strpos($text, $query) === false) { continue; }
             $risk = self::ability_risk($ability);
             $items[] = ['name' => $ability->get_name(), 'label' => mb_substr($ability->get_label(), 0, 300),
-                'description' => mb_substr($ability->get_description(), 0, 600), 'category' => $ability->get_category(),
+                'description' => class_exists(Elementor::class) ? mb_substr(Elementor::native_description($ability->get_name(), $ability->get_description()), 0, 600) : mb_substr($ability->get_description(), 0, 600), 'category' => $ability->get_category(),
                 'risk' => $risk, 'tool' => $risk === 'read' ? 'read_ability' : 'run_ability'];
         }
         usort($items, static function (array $a, array $b): int { return strcmp($a['name'], $b['name']); });
@@ -383,6 +383,10 @@ final class Engines
             return self::ability_diagnostics($error ? self::ability_result($error) : Operations::error('invalid_input'), $ability->get_name(), 'preflight', $error);
         }
         $phase = 'before_execution';
+        if (class_exists(Elementor::class)) {
+            $unavailable = Elementor::native_availability($ability->get_name(), (array) $input);
+            if ($unavailable) { return self::ability_diagnostics($unavailable, $ability->get_name(), 'preflight'); }
+        }
         $result = self::execute_ability($ability, $input, $phase);
         if ($args->name === 'ai-puffer/audit-page' && is_array($result) && is_array($result['audit_request'] ?? null)) {
             return ['state' => 'unknown', 'actions_used' => 0, 'result' => ['audit_request' => $result['audit_request']]];
@@ -405,6 +409,10 @@ final class Engines
         $valid = $ability->validate_input($input);
         if (is_wp_error($valid)) { return self::ability_diagnostics(self::ability_result($valid), $ability->get_name(), 'preflight', $valid); }
         if ($ability->check_permissions($input) !== true) { return Operations::error('permission_denied'); }
+        if (class_exists(Elementor::class)) {
+            $unavailable = Elementor::native_availability($ability->get_name(), (array) $input);
+            if ($unavailable) { return $unavailable; }
+        }
         return $ability;
     }
 
@@ -428,8 +436,24 @@ final class Engines
         $extension = apply_filters('aipkit_mcp_ability_result', null, $args->name, self::input($args, $ability), false);
         if (is_array($extension)) { return $extension; }
         $phase = 'before_execution';
+        $native_refusal = null;
         Operations::$mutation_started = true;
-        $result = self::filtered_change(static function () use ($ability, $args, &$phase) { return self::execute_ability($ability, self::input($args, $ability), $phase); });
+        $result = self::filtered_change(static function () use ($ability, $args, &$phase, &$native_refusal) {
+            $work = static function () use ($ability, $args, &$phase) { return self::execute_ability($ability, self::input($args, $ability), $phase); };
+            return class_exists(Elementor::class) ? Elementor::native_change($ability->get_name(), (array) self::input($args, $ability), $work, $native_refusal) : $work();
+        });
+        // Only our wrapper can identify a refusal before invoking the native callback.
+        if ($native_refusal !== null && $phase === 'before_execution') {
+            Operations::$mutation_started = false;
+            return self::ability_diagnostics($native_refusal, $ability->get_name(), 'preflight');
+        }
+        if (class_exists(Elementor::class)) {
+            $native = Elementor::native_outcome($ability->get_name(), (array) self::input($args, $ability), $result);
+            if ($native) {
+                $native['result'] = ['data_json' => self::bounded($result)];
+                return self::ability_diagnostics($native, $ability->get_name(), $phase, $result);
+            }
+        }
         // Refused before the callback (input or permission, as checked above): nothing ran. Any other error came from
         // the callback, an output check after it, or another plugin's short-circuit: something may have changed.
         if (is_wp_error($result) && ($phase !== 'before_execution' || !in_array($result->get_error_code(), ['ability_invalid_input', 'ability_invalid_permissions'], true))) {
@@ -573,7 +597,12 @@ final class Engines
         if (!Guard::allows_rest('GET', $route)) { return Operations::error('blocked_route'); }
         $request = new \WP_REST_Request('GET', $route);
         $request->set_query_params($query);
-        return self::rest_result(rest_do_request($request), false, $request);
+        $result = self::rest_result(rest_do_request($request), false, $request);
+        if ($route === '/wp-super-cache/v1/settings' && $result['state'] === 'succeeded') {
+            // The vendor's time-settings handler treats an omitted email checkbox as enabled.
+            $result['result']['guidance'] = 'When changing WP Super Cache time settings, explicitly include the current cache_gc_email_me boolean from this read to preserve notification preferences. Read back all settings after saving; garbage-collection scheduling may advance.';
+        }
+        return $result;
     }
 
     /** Checks a REST change before it runs or waits; returns the request, or the refusal. */
@@ -655,8 +684,29 @@ final class Engines
             if ($matched === $request && $result !== null && $result !== $before_result) { $intercepted = true; }
             return $result;
         };
+        // Plugins can register additional post fields during rest_pre_dispatch, after core cached its route args.
+        // Validate those fields against their live schemas before any update callback can save them.
+        $validate_fields = static function ($result, $handler, $matched) use ($request) {
+            if ($matched !== $request || $result !== null || !in_array($request->get_method(), ['POST', 'PUT', 'PATCH'], true)) { return $result; }
+            $callback = $handler['callback'] ?? null;
+            if (!is_array($callback) || !($callback[0] instanceof \WP_REST_Posts_Controller)) { return $result; }
+            foreach (get_post_types(['show_in_rest' => true], 'objects') as $type) {
+                $base = '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $type->name);
+                if (!preg_match('~^' . preg_quote($base, '~') . '(?:/[0-9]+)?/?$~D', $request->get_route())) { continue; }
+                foreach (($GLOBALS['wp_rest_additional_fields'][$type->name] ?? []) as $name => $field) {
+                    if (!$request->has_param($name) || !is_array($field['schema'] ?? null)) { continue; }
+                    $valid = rest_validate_value_from_schema($request->get_param($name), $field['schema'], $name);
+                    if (is_wp_error($valid)) {
+                        return new \WP_Error('rest_invalid_param', $valid->get_error_message(), ['status' => 400, 'params' => [$name => $valid->get_error_message()]]);
+                    }
+                }
+                break;
+            }
+            return $result;
+        };
         add_filter('rest_dispatch_request', $mark, PHP_INT_MIN, 2);
         add_filter('rest_pre_dispatch', $pre, PHP_INT_MAX, 3);
+        add_filter('rest_request_before_callbacks', $validate_fields, PHP_INT_MIN, 3);
         add_filter('rest_request_before_callbacks', $observe_before, PHP_INT_MIN, 3);
         add_filter('rest_request_before_callbacks', $before, PHP_INT_MAX, 3);
         Operations::$mutation_started = true;
@@ -666,6 +716,7 @@ final class Engines
             remove_filter('rest_pre_dispatch', $pre, PHP_INT_MAX);
             remove_filter('rest_request_before_callbacks', $observe_before, PHP_INT_MIN);
             remove_filter('rest_request_before_callbacks', $before, PHP_INT_MAX);
+            remove_filter('rest_request_before_callbacks', $validate_fields, PHP_INT_MIN);
         }
         return self::rest_result($response, $entered || $intercepted, $request);
     }

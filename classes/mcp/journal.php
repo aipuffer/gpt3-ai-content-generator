@@ -126,7 +126,7 @@ final class Journal
     public static function acknowledge(array $row, object $receipt): bool
     {
         $response = self::response($row);
-        if (!in_array($row['state'], self::FINISHED, true) || ($receipt->state ?? null) !== $row['state']
+        if (!in_array($row['state'], self::FINISHED, true) || $response['state'] !== $row['state'] || ($receipt->state ?? null) !== $row['state']
             || !is_int($receipt->actions_used ?? null) || $receipt->actions_used !== ($response['actions_used'] ?? 0)) { return false; }
         global $wpdb;
         $table = Schema::table('operations');
@@ -184,20 +184,51 @@ final class Journal
         global $wpdb;
         $table = Schema::table('operations');
         if (!in_array($response['state'] ?? '', ['succeeded', 'failed', 'conflict', 'unknown', 'pending_approval', 'declined', 'expired'], true)) { return false; }
+        $encoded = wp_json_encode($response);
+        if (!is_string($encoded)) { return false; }
         // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        return $wpdb->query($wpdb->prepare("UPDATE $table SET state = %s, response = %s, expires_at = %d, updated_at = %d WHERE operation_id = %s AND state = 'executing'",
-            $response['state'], wp_json_encode($response), $response['state'] === 'pending_approval' ? time() + 900 : 0, time(), $id)) === 1;
+        for ($attempt = 0; $attempt < 2; ++$attempt) {
+            $changed = $wpdb->query($wpdb->prepare("UPDATE $table SET state = %s, response = %s, expires_at = %d, updated_at = %d WHERE operation_id = %s AND state = 'executing'",
+                $response['state'], $encoded, $response['state'] === 'pending_approval' ? time() + 900 : 0, time(), $id));
+            if ($changed === 1) { return true; }
+            // A lost acknowledgement is not a lost result. Retry only this save, never the handler,
+            // and never overwrite another terminal result or owner review.
+            $row = self::get($id);
+            if (!$row) { return false; }
+            if ($row['state'] === $response['state'] && $row['response'] === $encoded) { return true; }
+            if ($row['state'] !== 'executing') { return false; }
+        }
+        return false;
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
 
     public static function response(array $row): array
     {
         $response = json_decode((string) ($row['response'] ?? ''), true);
-        if (!is_array($response)) {
-            $response = ['state' => in_array($row['state'], ['received', 'executing'], true) ? 'unknown' : $row['state'], 'actions_used' => 0];
+        if (!is_array($response) || !in_array($response['state'] ?? '', ['succeeded','failed','conflict','unknown','pending_approval','declined','expired','fenced'], true)
+            || !is_int($response['actions_used'] ?? null) || $response['actions_used'] < 0
+            || ($response['state'] !== $row['state'] && !($row['state'] === 'executing' && $response['state'] === 'unknown'))) {
+            $response = self::uncertain(in_array($row['state'], ['received', 'executing'], true) ? 'operation_in_progress' : 'operation_record_invalid');
+        } elseif ($response['state'] === 'unknown' && empty($response['error']) && in_array($row['state'], ['received', 'executing'], true)) {
+            $response['error'] = self::uncertain('operation_in_progress')['error'];
         }
         unset($response['local_error']); // Detailed ability errors stay in the local journal, including on replay/recovery.
         return ['operation_id' => $row['operation_id']] + $response;
+    }
+
+    /** Fixed diagnostic codes only: never export database errors, arguments or exception messages. */
+    public static function uncertain(string $code): array
+    {
+        $messages = [
+            'operation_result_not_saved' => 'WordPress completed the handler but could not confirm saving its result.',
+            'operation_storage_unavailable' => 'WordPress could not confirm the operation record before execution.',
+            'operation_in_progress' => 'The original operation record is still unfinished. It may be running or may have been interrupted.',
+            'operation_record_invalid' => 'WordPress found the operation record but its saved result is missing or invalid.',
+            'operation_interrupted' => 'WordPress execution was interrupted before a confirmed result was returned.',
+            'idempotency_conflict' => 'This operation ID belongs to a different request.',
+        ];
+        return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => $code,
+            'message' => ($messages[$code] ?? 'The original operation has no confirmed result.') . ' Do not repeat a website change; the website owner can inspect its local operation record.']];
     }
 
     /** A local owner decision is recorded separately from an automatic outcome. */

@@ -53,6 +53,7 @@ final class Executor
         $signature = '';
         $config = [];
         $authenticated = false;
+        $operation_id = null;
         $before = get_current_user_id();
         try {
             if (strlen($raw) > 262144) { throw new \RuntimeException('request_too_large'); }
@@ -69,6 +70,7 @@ final class Executor
             } else {
                 $authenticated = true;
                 $body = $verified['body'];
+                $operation_id = $body->operation_id;
                 $grant = $verified['grant'];
                 wp_set_current_user($body->acting_user);
                 $out = self::execute($body, $grant);
@@ -76,7 +78,9 @@ final class Executor
             }
         } catch (\Throwable $error) {
             // A storage/transport failure never claims a website mutation failed to happen.
-            $out = ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'site_unavailable', 'message' => 'Check this operation before trying a new request.']];
+            $out = $operation_id !== null
+                ? ['operation_id' => $operation_id] + Journal::uncertain('operation_interrupted')
+                : ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'site_unavailable', 'message' => 'Check this operation before trying a new request.']];
         } finally {
             wp_set_current_user($before);
         }
@@ -142,13 +146,13 @@ final class Executor
         if (Registry::get($body->tool) === null) { return Operations::error('unsupported_tool'); }
         $row = Journal::get($body->operation_id);
         if ($row) {
-            if (!Journal::same($row, $body, $grant)) { return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'idempotency_conflict', 'message' => 'The operation ID belongs to a different request.']]; }
+            if (!Journal::same($row, $body, $grant)) { return ['operation_id' => $body->operation_id] + Journal::uncertain('idempotency_conflict'); }
             Journal::reported($body->operation_id);
             return Journal::response($row);
         }
         if (!Journal::receive($body, $grant)) {
             $row = Journal::get($body->operation_id);
-            if (!$row || !Journal::same($row, $body, $grant)) { return ['state' => 'unknown', 'actions_used' => 0]; }
+            if (!$row || !Journal::same($row, $body, $grant)) { return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable'); }
             Journal::reported($body->operation_id);
             return Journal::response($row);
         }
@@ -158,13 +162,13 @@ final class Executor
             $response = ['state' => 'failed', 'actions_used' => 0,
                 'error' => ['code' => 'site_busy', 'message' => 'The website is busy. Nothing ran and no action was charged. Try a new request shortly.']];
             if (!Journal::claim($body->operation_id, 'received') || !Journal::finish($body->operation_id, $response)) {
-                return ['state' => 'unknown', 'operation_id' => $body->operation_id, 'actions_used' => 0];
+                return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable');
             }
             Journal::reported($body->operation_id);
             return ['operation_id' => $body->operation_id] + $response;
         }
         try {
-            if (!Journal::claim($body->operation_id, 'received')) { return ['state' => 'unknown', 'actions_used' => 0]; }
+            if (!Journal::claim($body->operation_id, 'received')) { return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable'); }
             $current = Store::grant($grant['grant_id']);
             if (!Identity::active() || !$current || $current['state'] !== 'active'
                 || $current['instance_id'] !== Identity::registration()['instance_id']) {
@@ -177,7 +181,7 @@ final class Executor
                 Operations::$mutation_started = false;
                 Operations::$operation_id = $body->operation_id;
                 try { $response = Operations::run($body->tool, $body->args, $current); }
-                catch (\Throwable $error) { $response = Operations::$mutation_started ? ['state' => 'unknown', 'actions_used' => 0] : Operations::error('site_unavailable'); }
+                catch (\Throwable $error) { $response = Operations::$mutation_started ? Journal::uncertain('operation_interrupted') : Operations::error('operation_interrupted'); }
                 finally { Operations::$operation_id = ''; }
             }
             if ($response['state'] === 'pending_approval') {
@@ -186,7 +190,9 @@ final class Executor
             // Keep preview bytes transient; recovery/history retains image identity and dimensions only.
             $recorded = $response;
             if ($body->tool === 'inspect_media') { unset($recorded['result']['image_preview']['data']); }
-            if (!Journal::finish($body->operation_id, $recorded)) { $response = ['state' => 'unknown', 'actions_used' => 0]; }
+            if (!Journal::finish($body->operation_id, $recorded)) {
+                $response = Journal::uncertain('operation_result_not_saved') + array_intersect_key($response, ['operation_diagnostics' => true]);
+            }
             Journal::reported($body->operation_id);
             unset($response['local_error']);
             return ['operation_id' => $body->operation_id] + $response;

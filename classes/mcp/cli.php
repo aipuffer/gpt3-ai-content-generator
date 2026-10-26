@@ -146,9 +146,16 @@ final class Cli
         foreach ([self::READ => true, self::WRITE => false] as $name => $read) {
             wp_register_ability($name, [
                 'label' => $read ? 'WP-CLI: read' : 'WP-CLI: change',
-                'description' => ($read ? 'Run a read-only WP-CLI-compatible command. ' : 'Run one supported WP-CLI-compatible website change. Same user permissions and approval policy as website tools. ') . 'Inspect or manage posts, media, comments, menus, options/settings, users, roles/capabilities, cache, cron, rewrite rules, plugins, themes and WordPress core. Software installation and updates use official WordPress.org packages. Use wp help for exact commands/flags and the read/write tool. Quote --expected-version from a fresh post/media read before editing. ' . self::HELP,
+                // Discovery returns at most 600 characters. Keep each complete description within that budget.
+                'description' => $read
+                    ? 'Run one supported read-only WordPress command, starting with wp. Examples: wp plugin list; wp plugin search rank-math; wp help. Only commands and flags listed by wp help are supported. Call wp help without arguments; this is a WordPress API adapter, not a shell or full WP-CLI. Do not add --fields; JSON output is the default. Inspect plugins, themes, posts, media, comments, users, roles/capabilities, menus, options/settings, cache, cron, rewrite, WordPress core and SQL/database tables. Use ai-puffer/wp-cli-write for changes.'
+                    : 'Run one supported WordPress change, starting with wp. Example: wp plugin install seo-by-rank-math --activate. Only commands and flags listed by wp help are supported. Do not add --fields; JSON is default. A WordPress API adapter, not a shell or full WP-CLI. Existing user permissions and approvals apply. Post/media edits need --expected-version from a fresh read. Plugin/theme installs and updates use official WordPress.org packages. Manage WordPress core, posts, media, comments, menus, options/settings, users, roles/capabilities, plugins, themes, cache, cron, rewrite and SQL/database tables.',
                 'category' => Abilities::CATEGORY,
-                'input_schema' => ['type' => 'object', 'properties' => ['command' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 12000]], 'required' => ['command'], 'additionalProperties' => false],
+                'input_schema' => ['type' => 'object', 'properties' => ['command' => [
+                    'type' => 'string', 'minLength' => 1, 'maxLength' => 12000,
+                    'description' => 'One complete command starting with wp. Use only commands and flags listed by wp help; call wp help without arguments. Normal WP-CLI flags are not automatically supported. Omit --fields; JSON is the default output. ' . ($read ? 'Read-only commands only. Examples: wp plugin list; wp plugin search rank-math; wp help.' : 'Website changes only. Example: wp plugin install seo-by-rank-math --activate. Read help with ai-puffer/wp-cli-read.'),
+                    'examples' => $read ? ['wp plugin list', 'wp plugin search rank-math', 'wp help'] : ['wp plugin install seo-by-rank-math --activate'],
+                ]], 'required' => ['command'], 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => !$read]],
                 'permission_callback' => static function (): bool { return current_user_can('read'); },
                 'execute_callback' => static function ($input) use ($read) {
@@ -842,6 +849,9 @@ final class Cli
             if (in_array($field, $large_fields, true)) { $select[] = 'IF(OCTET_LENGTH(`' . $field . '`) > 65536, NULL, `' . $field . '`) AS `' . $field . '`'; }
             else { $select[] = '`' . $field . '`'; }
         }
+        // COUNT(*) on a table without a single-column primary key still needs one
+        // marker per visible row. Never generate an empty SELECT list or load private columns.
+        if (!$select) { $select[] = '1 AS `_mcp_row`'; }
         $order = $schema['id'] ?: $schema['columns'][0]; $descending = false;
         if ($plan['order'] && !$aggregate) {
             $order = $plan['order']['column']; foreach ($expanded as $field) { if (strcasecmp($field['alias'], $order) === 0) { $order = $field['column']; break; } }
@@ -1507,11 +1517,21 @@ final class Cli
         $package = $theme ? ($update['package'] ?? '') : ($update->package ?? '');
         if (!$package || !self::official_package($package)) { return Operations::error('unsupported_update_source', 'This command supports official WordPress.org packages. Use the vendor’s normal updater for private packages.'); }
         if ($preview) { return $pending; } require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php'; if (!WP_Filesystem()) { return Operations::error('filesystem_access_required'); }
+        $was_active = !$theme && is_plugin_active($file);
+        $was_network_active = !$theme && is_plugin_active_for_network($file);
         Operations::$mutation_started = true; $upgrader = $theme ? new \Theme_Upgrader(new \Automatic_Upgrader_Skin()) : new \Plugin_Upgrader(new \Automatic_Upgrader_Skin());
-        $upgraded = $upgrader->upgrade($theme ? $slug : $file); wp_clean_plugins_cache(); wp_clean_themes_cache();
+        // The single-plugin browser updater silently deactivates the plugin and expects a later browser reactivation.
+        // WordPress's bulk path preserves activation, including network activation; pass only the selected plugin.
+        $upgraded = $theme ? $upgrader->upgrade($slug) : $upgrader->bulk_upgrade([$file]);
+        if (!$theme) { $upgraded = is_array($upgraded) ? ($upgraded[$file] ?? false) : false; }
+        wp_clean_plugins_cache(); wp_clean_themes_cache();
         $expected = $theme ? ($update['new_version'] ?? '') : ($update->new_version ?? '');
         $version = $theme ? wp_get_theme($slug)->get('Version') : (get_plugins()[$file]['Version'] ?? '');
-        return is_wp_error($upgraded) || !$upgraded || !$expected || $version !== $expected ? self::native_unknown() : $ok(['name' => $slug, 'updated' => true, 'version' => $version]);
+        $activation_preserved = $theme || (is_plugin_active($file) === $was_active && is_plugin_active_for_network($file) === $was_network_active);
+        if (is_wp_error($upgraded) || !$upgraded || !$expected || $version !== $expected || !$activation_preserved) { return self::native_unknown(); }
+        $result = ['name' => $slug, 'updated' => true, 'version' => $version];
+        if (!$theme) { $result['active'] = $was_active; $result['network_active'] = $was_network_active; }
+        return $ok($result);
     }
 
     private static function official_package(string $url): bool

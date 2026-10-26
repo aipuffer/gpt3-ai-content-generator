@@ -20,10 +20,10 @@ if (!defined('ABSPATH')) { exit; }
 final class Guard
 {
     /**
-     * Site options and settings, users and roles, installing or switching plugins and themes, files, code and raw
+     * Users and roles, installing or switching plugins and themes, files, code and raw
      * SQL. These change how the whole site works or who controls it.
      */
-    public const BLOCKED_DOMAINS = ['options', 'settings', 'users', 'roles', 'capabilities', 'plugins', 'themes', 'files', 'code', 'sql'];
+    public const BLOCKED_DOMAINS = ['users', 'roles', 'capabilities', 'plugins', 'themes', 'files', 'code', 'sql'];
 
     public static function allows_domain(string $domain): bool
     {
@@ -31,7 +31,7 @@ final class Guard
     }
 
     /** Words that name a blocked domain in an ability's name or category, or in a REST route segment. */
-    private const BLOCKED_WORDS = ['option', 'options', 'setting', 'settings', 'user', 'users', 'role', 'roles', 'capability',
+    private const BLOCKED_WORDS = ['user', 'users', 'role', 'roles', 'capability',
         'capabilities', 'plugin', 'plugins', 'theme', 'themes', 'file', 'files', 'code', 'sql', 'database'];
 
     /** REST namespaces and routes no call may reach: this plugin's own, batch and bulk routes anywhere (one request
@@ -44,21 +44,21 @@ final class Guard
     /** Words that name a composite change in an ability's name: many actions in one call, never run as one. */
     private const COMPOSITE_WORDS = ['batch', 'bulk'];
 
-    /** Route segments a change may not touch: site-wide settings, accounts, code and site design, outbound hooks. */
-    private const BLOCKED_SEGMENTS = ['settings', 'options', 'users', 'roles', 'capabilities', 'plugins', 'themes',
+    /** Route segments a change may not touch: accounts, code and site design, outbound hooks. */
+    private const BLOCKED_SEGMENTS = ['users', 'roles', 'capabilities', 'plugins', 'themes',
         'templates', 'template-parts', 'global-styles', 'font-families', 'font-collections', 'webhooks', 'system_status'];
 
     /**
      * An ability may run unless it changes something and its category or a word of its name names a blocked domain
-     * (such as "update-settings" or "delete-user") or a composite change ("products-batch"). Reading is allowed: the
-     * acting user's permissions still apply.
+     * (such as "delete-user" or "activate-plugin") or a composite change ("products-batch"). Ordinary settings follow Registry’s connection policy.
+     * Reading is allowed; the acting user's permissions still apply.
      */
     public static function allows_ability(string $name, string $category, string $risk): bool
     {
         if ($risk === 'read') { return true; }
-        // WPForms uses "settings" for a form's title, description and submit-button text. Its native typed
-        // action changes form content, not WordPress site settings; WPForms permissions and opt-in still apply.
-        if ($name === 'wpforms/update-form-settings' && $category === 'wpforms-forms') { return true; }
+        // Preferences change Rank Math configuration, not installed-plugin activation. Native capabilities,
+        // schema validation and the connection's selected approval policy still apply.
+        if ($name === 'rank-math/set-plugin-preferences' && $category === 'rank-math-settings') { return true; }
         $words = preg_split('/[\/_-]+/', strtolower($name . '/' . $category), -1, PREG_SPLIT_NO_EMPTY);
         return !array_intersect($words, array_merge(self::BLOCKED_WORDS, self::COMPOSITE_WORDS));
     }

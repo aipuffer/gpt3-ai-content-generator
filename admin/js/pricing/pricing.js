@@ -78,7 +78,7 @@ function initPricing() {
           : __('Your own API keys', 'gpt3-ai-content-generator')));
         copy.append(element('span', '', credits ? __('Renews monthly', 'gpt3-ai-content-generator') : __('No monthly plan credits', 'gpt3-ai-content-generator')));
         const actions = element('div', 'aipkit-pricing-actions');
-        actions.append(element('strong', '', sprintf(__('%s website actions', 'gpt3-ai-content-generator'), new Intl.NumberFormat(document.documentElement.lang || 'en').format(websiteActions))), element('span', '', __('Renews monthly', 'gpt3-ai-content-generator')));
+        actions.append(element('strong', '', sprintf(__('%s website actions', 'gpt3-ai-content-generator'), new Intl.NumberFormat(document.documentElement.lang || 'en').format(websiteActions))), element('span', '', __('Plus 2,000 free every month', 'gpt3-ai-content-generator')));
         copy.append(actions);
         panel.append(copy);
         header.replaceChildren(element('h2', '', name), element('p', '', subtitle), panel);
