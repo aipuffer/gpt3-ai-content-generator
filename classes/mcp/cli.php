@@ -138,7 +138,7 @@ final class Cli
         'sidebar list' => [true, 'edit_theme_options', 0, 0, []],
         'widget list' => [true, 'edit_theme_options', 1, 1, []],
     ];
-    private const HELP = 'WP-CLI-compatible commands run through WordPress APIs, without shell access or a WP-CLI binary. Use wp help: additional_commands lists exact native command names, permissions, positional argument counts and flags; flags lists content/media/term adapters. One command per child operation. Use start_fleet_job for ordered background commands across explicit connected sites, get_fleet_job for progress, and cancel_fleet_job to stop commands not yet started. JSON is default; ids/count apply to returned list pages. Post creates are drafts. Read a post/media version before editing and pass --expected-version. Publication is separate from content edits. Settings values are literal strings by default. On option add/update/patch and theme mod set, --format=json decodes the input value; use --format=plaintext for literal text. Example: wp option patch update my_option layout color green --format=plaintext. db query SELECT/COUNT uses the read ability; INSERT/UPDATE/DELETE uses the write ability. Database reads support single tables or up to four INNER/LEFT joined tables, COUNT/SUM/AVG/MIN/MAX, selected pure functions, OR/IN/BETWEEN and expressions. Use wp db columns TABLE to discover custom-plugin columns. Joins use authorized/redacted snapshots capped at1000 rows/table and4MiB; narrow single-table reads for larger data. Core changes use typed WordPress APIs. Custom-table INSERT/UPDATE/DELETE uses atomic InnoDB batches of at most100 matching rows; WHERE is required, and optional --expected-count binds the match count. No DDL, credentials, connection-control tables, filesystem SQL or executable functions. Search-replace --dry-run uses the read ability; live changes use the write ability. Configuration inspection returns non-secret flags only. Unlisted commands are not implemented.';
+    private const HELP = 'WP-CLI-compatible commands run through WordPress APIs, without shell access or a WP-CLI binary. Use wp help: additional_commands lists exact native command names, permissions, positional argument counts and flags; flags lists content/media/term adapters. One command per child operation. Use start_fleet_job for ordered background commands across explicit connected sites, get_fleet_job for progress, and cancel_fleet_job to stop commands not yet started. JSON is default; ids/count apply to returned list pages. Post creates are drafts. Ordinary post commands support posts/pages only; for custom types use the actual rest_route from wp post-type list, or inspect the plugin REST namespace index. Read a post/media version before editing and pass --expected-version. Publication is separate from content edits. Settings values are literal strings by default. On option add/update/patch and theme mod set, --format=json decodes the input value; use --format=plaintext for literal text. Example: wp option patch update my_option layout color green --format=plaintext. db query SELECT/COUNT uses the read ability; INSERT/UPDATE/DELETE uses the write ability. Database reads support single tables or up to four INNER/LEFT joined tables, COUNT/SUM/AVG/MIN/MAX, selected pure functions, OR/IN/BETWEEN and expressions. Use wp db columns TABLE to discover custom-plugin columns. Joins use authorized/redacted snapshots capped at1000 rows/table and4MiB; narrow single-table reads for larger data. Core changes use typed WordPress APIs. Custom-table INSERT/UPDATE/DELETE uses atomic InnoDB batches of at most100 matching rows; WHERE is required, and optional --expected-count binds the match count. No DDL, credentials, connection-control tables, filesystem SQL or executable functions. Search-replace --dry-run uses the read ability; live changes use the write ability. Configuration inspection returns non-secret flags only. Unlisted commands are not implemented.';
 
     public static function register_abilities(): void
     {
@@ -153,7 +153,7 @@ final class Cli
                 'category' => Abilities::CATEGORY,
                 'input_schema' => ['type' => 'object', 'properties' => ['command' => [
                     'type' => 'string', 'minLength' => 1, 'maxLength' => 12000,
-                    'description' => 'One complete command starting with wp. Use only commands and flags listed by wp help; call wp help without arguments. Normal WP-CLI flags are not automatically supported. Omit --fields; JSON is the default output. ' . ($read ? 'Read-only commands only. Examples: wp plugin list; wp plugin search rank-math; wp help.' : 'Website changes only. Example: wp plugin install seo-by-rank-math --activate. Read help with ai-puffer/wp-cli-read.'),
+                    'description' => 'One complete command starting with wp. Use only commands and flags listed by wp help; call wp help without arguments. Normal WP-CLI flags are not automatically supported. Ordinary post commands support posts/pages only; discover custom-type REST routes with wp post-type list. Omit --fields; JSON is the default output. ' . ($read ? 'Read-only commands only. Examples: wp plugin list; wp plugin search rank-math; wp help.' : 'Website changes only. Example: wp plugin install seo-by-rank-math --activate. Read help with ai-puffer/wp-cli-read.'),
                     'examples' => $read ? ['wp plugin list', 'wp plugin search rank-math', 'wp help'] : ['wp plugin install seo-by-rank-math --activate'],
                 ]], 'required' => ['command'], 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => !$read]],
@@ -457,7 +457,12 @@ final class Cli
             $objects = $key === 'taxonomy list' ? get_taxonomies([], 'objects') : get_post_types([], 'objects');
             foreach ($objects as $name => $object) {
                 if (isset($f['object_type']) && !in_array($f['object_type'], (array) ($object->object_type ?? []), true)) { continue; }
-                $items[] = ['name' => $name, 'label' => $object->label, 'public' => (bool) $object->public, 'show_in_rest' => (bool) $object->show_in_rest];
+                $item = ['name' => $name, 'label' => $object->label, 'public' => (bool) $object->public, 'show_in_rest' => (bool) $object->show_in_rest];
+                if ($key !== 'taxonomy list') {
+                    $routes = $object->show_in_rest ? Engines::post_type_routes($name) : [];
+                    $item += ['rest_route' => count($routes) === 1 ? $routes[0] : null, 'rest_routes' => $routes];
+                }
+                $items[] = $item;
             }
             return $ok(['items' => $items]);
         }
@@ -469,7 +474,8 @@ final class Cli
             $post_id = $id($p[0]); $post = get_post($post_id);
             if (!$post || !current_user_can(strpos($key, 'get') !== false || strpos($key, 'list') !== false ? 'read_post' : 'edit_post', $post_id)) { return Operations::error('permission_denied'); }
             if ($key === 'post delete') {
-                if (!current_user_can('delete_post', $post_id) || !in_array($post->post_type, ['post', 'page'], true)) { return Operations::error('permission_denied'); }
+                if (!current_user_can('delete_post', $post_id)) { return Operations::error('permission_denied'); }
+                if (!in_array($post->post_type, ['post', 'page'], true)) { return Operations::unsupported_post_type($post->post_type); }
                 if ($post->post_status === 'trash' && empty($f['force'])) { return Operations::error('already_trashed'); }
                 if ($preview) { return $approval(); }
                 $deleted = $effect(static function () use ($post_id, $f) { return !empty($f['force']) ? wp_delete_post($post_id, true) : wp_trash_post($post_id); });
@@ -970,7 +976,18 @@ final class Cli
             elseif ($take('*')) { $node = ['star', null]; }
             else {
                 $word = $name();
-                if ($take('(')) { $function = strtoupper($word); if (!in_array($function, $functions, true)) { throw new \InvalidArgumentException('SQL function is not supported'); } $args = []; if (!$take(')')) { do { $args[] = $expr(); } while ($take(',')); $need(')'); } if (!$args || count($args) > 20) { throw new \InvalidArgumentException('Invalid function arguments'); } $node = ['function', $function, $args]; }
+                if ($take('(')) {
+                    $function = strtoupper($word);
+                    if (!in_array($function, $functions, true)) { throw new \InvalidArgumentException('SQL function is not supported'); }
+                    $args = [];
+                    if (!$take(')')) { do { $args[] = $expr(); } while ($take(',')); $need(')'); }
+                    $bounds = ['ROUND' => [1, 2], 'IFNULL' => [2, 2], 'COALESCE' => [1, 20], 'CONCAT' => [1, 20]][$function] ?? [1, 1];
+                    if (count($args) < $bounds[0] || count($args) > $bounds[1]) { throw new \InvalidArgumentException(esc_html('Invalid number of arguments for SQL function ' . $function . '.')); }
+                    foreach ($args as $arg) {
+                        if ($arg[0] === 'star' && ($function !== 'COUNT' || $arg[1] !== null)) { throw new \InvalidArgumentException('Only COUNT(*) accepts a wildcard argument.'); }
+                    }
+                    $node = ['function', $function, $args];
+                }
                 elseif ($take('.')) { $node = $take('*') ? ['star', $word] : ['column', $word, $name()]; }
                 else { $node = ['column', null, $word]; }
             }
@@ -1251,7 +1268,8 @@ final class Cli
             }
             if (array_keys($where) !== ['ID'] || !ctype_digit((string) $where['ID']) || !(int) $where['ID']) { return Operations::error('single_record_required'); }
             $id = (int) $where['ID']; $post = get_post($id);
-            if (!$post || !in_array($post->post_type, ['post', 'page'], true) || !current_user_can($plan['type'] === 'DELETE' ? 'delete_post' : 'edit_post', $id)) { return Operations::error('permission_denied'); }
+            if (!$post || !current_user_can($plan['type'] === 'DELETE' ? 'delete_post' : 'edit_post', $id)) { return Operations::error('permission_denied'); }
+            if (!in_array($post->post_type, ['post', 'page'], true)) { return Operations::unsupported_post_type($post->post_type); }
             if ($plan['type'] === 'DELETE') { return self::native(['key' => 'post delete', 'positionals' => [(string) $id], 'flags' => ['force' => true], 'cap' => 'delete_posts'], $preview); }
             if (isset($body['post_type'])) { return Operations::error('post_type_change_not_supported'); }
             $route = '/wp/v2/' . ($post->post_type === 'page' ? 'pages' : 'posts') . '/' . $id;

@@ -224,7 +224,9 @@ final class Operations
 
     public static function search_content(object $args): array
     {
-        if (!in_array($args->post_type ?? 'post', ['post', 'page'], true)) { return self::error('invalid_input'); }
+        if (!in_array($args->post_type ?? 'post', ['post', 'page'], true)) {
+            return is_string($args->post_type) && post_type_exists($args->post_type) ? self::unsupported_post_type($args->post_type) : self::error('invalid_input');
+        }
         if (isset($args->query) && (!is_string($args->query) || mb_strlen($args->query) > 200)) { return self::error('invalid_input'); }
         $statuses = ['publish', 'draft', 'pending', 'private', 'future'];
         if (isset($args->status) && $args->status !== 'any' && !in_array($args->status, $statuses, true)) { return self::error('invalid_input'); }
@@ -302,7 +304,7 @@ final class Operations
     public static function create_draft(object $args): array
     {
         $type = $args->post_type ?? 'post';
-        if (!in_array($type, ['post', 'page'], true)) { return self::error('invalid_input'); }
+        if (!in_array($type, ['post', 'page'], true)) { return is_string($type) && post_type_exists($type) ? self::unsupported_post_type($type) : self::error('invalid_input'); }
         if (!current_user_can($type === 'page' ? 'edit_pages' : 'edit_posts')) { return self::error('permission_denied'); }
         $fields = self::content_fields($args, $type, true);
         if (is_wp_error($fields)) { return self::content_fields_error($fields); }
@@ -320,8 +322,9 @@ final class Operations
     {
         if (!is_int($args->id ?? null) || !is_string($args->version ?? null)) { return self::error('invalid_input'); }
         $post = get_post($args->id);
-        if (!$post || !in_array($post->post_type, ['post', 'page'], true) || !current_user_can('edit_post', $post->ID)
+        if (!$post || !current_user_can('edit_post', $post->ID)
             || !in_array($post->post_status, ['draft', 'pending', 'publish', 'private', 'future'], true)) { return self::error('permission_denied'); }
+        if (!in_array($post->post_type, ['post', 'page'], true)) { return self::unsupported_post_type($post->post_type); }
         if (in_array($post->post_status, ['publish', 'private', 'future'], true)
             && !current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { return self::error('permission_denied'); }
         if (!hash_equals(self::version($post), $args->version)) { return ['state' => 'conflict', 'actions_used' => 0, 'error' => ['code' => 'content_changed', 'message' => 'This content changed since it was read. Read it again before editing or publishing.']]; }
@@ -387,11 +390,20 @@ final class Operations
         return ['post_status' => 'future', 'edit_date' => true, 'post_date_gmt' => $gmt, 'post_date' => get_date_from_gmt($gmt)];
     }
 
+    /** Scope errors are not permission errors. Check an item's capability before revealing its type. */
+    public static function unsupported_post_type(string $type): array
+    {
+        $routes = Engines::post_type_routes($type);
+        return self::error('unsupported_post_type', 'This content tool supports ordinary posts and pages. Use the native REST route for this custom type: '
+            . ($routes ? implode(', ', array_slice($routes, 0, 3)) . '. Read the route schema before changing it.' : 'discover it through the site\'s REST namespace index.'));
+    }
+
     public static function get_content(object $args): array
     {
         if (!is_int($args->id ?? null) || $args->id < 1) { return self::error('invalid_input'); }
         $post = get_post($args->id);
-        if (!$post || !in_array($post->post_type, ['post', 'page'], true) || !current_user_can('read_post', $post->ID)) { return self::error('permission_denied'); }
+        if (!$post || !current_user_can('read_post', $post->ID)) { return self::error('permission_denied'); }
+        if (!in_array($post->post_type, ['post', 'page'], true)) { return self::unsupported_post_type($post->post_type); }
         if (!is_int($args->offset ?? 0) || ($args->offset ?? 0) < 0) { return self::error('invalid_input'); }
         $offset = $args->offset ?? 0;
         $content = mb_substr($post->post_content, $offset, 20000);
@@ -403,8 +415,9 @@ final class Operations
     {
         if (!is_int($args->id ?? null) || !is_string($args->version ?? null)) { return self::error('invalid_input'); }
         $post = get_post($args->id);
-        if (!$post || !in_array($post->post_type, ['post', 'page'], true) || !current_user_can('edit_post', $post->ID)
-            || !current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { return self::error('permission_denied'); }
+        if (!$post || !current_user_can('edit_post', $post->ID)) { return self::error('permission_denied'); }
+        if (!in_array($post->post_type, ['post', 'page'], true)) { return self::unsupported_post_type($post->post_type); }
+        if (!current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { return self::error('permission_denied'); }
         if (!hash_equals(self::version($post), $args->version)) { return ['state' => 'conflict', 'actions_used' => 0, 'error' => ['code' => 'content_changed', 'message' => 'This content changed since it was read. Read it again before editing or publishing.']]; }
         if (!in_array($post->post_status, ['draft', 'pending'], true)) { return self::error('invalid_status'); }
         $fields = self::publication_fields($args);

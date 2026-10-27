@@ -828,12 +828,14 @@ if (root) {
                 ? sprintf(__('%s can now manage your site. Everything it does shows up in Website activity.', 'gpt3-ai-content-generator'), { chatgpt: 'ChatGPT', claude: 'Claude' }[active.client_hint] || __('Your assistant', 'gpt3-ai-content-generator'))
                 : __('Still to do: connect ChatGPT or Claude to manage your website.', 'gpt3-ai-content-generator');
         } else {
-            lead = sprintf(others.length > 1 ? __('%s are ready.', 'gpt3-ai-content-generator') : __('%s is ready.', 'gpt3-ai-content-generator'), joined);
+            lead = aiReady
+                ? sprintf(others.length > 1 ? __('%s are ready.', 'gpt3-ai-content-generator') : __('%s is ready.', 'gpt3-ai-content-generator'), joined)
+                : __('Connect AI to finish setting up your tools.', 'gpt3-ai-content-generator');
+            if (websiteGoal() && active && !aiReady) lead = sprintf(__('%s is connected. Connect AI to finish setting up your tools.', 'gpt3-ai-content-generator'), assistantHomes[active.client_hint]?.[0] || __('Your assistant', 'gpt3-ai-content-generator'));
             if (websiteGoal() && active && aiReady) lead = sprintf(others.length > 1
                 ? __('%1$s is connected and %2$s are ready.', 'gpt3-ai-content-generator')
                 : __('%1$s is connected and %2$s is ready.', 'gpt3-ai-content-generator'), assistantHomes[active.client_hint]?.[0] || __('Your assistant', 'gpt3-ai-content-generator'), joined);
             if (websiteGoal() && !active) lead += ' ' + __('Still to do: connect ChatGPT or Claude to manage your website.', 'gpt3-ai-content-generator');
-            else if (state.power === 'later' || !state.connection) lead += ' ' + __('Connect AI anytime in Settings.', 'gpt3-ai-content-generator');
         }
         $('[data-summary-lead]').textContent = lead;
         // The setup checklist: one row per step with its state in a few words and its own action.

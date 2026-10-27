@@ -443,6 +443,7 @@ details.description .aipkit_privacy_list li { margin: 2px 0; }
 .aipkit-setup__flow-step + .aipkit-setup__flow-step { border-top: 1px solid #eef1f5; }
 .aipkit-setup__flow-num { display: inline-flex; flex: 0 0 28px; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--aipkit-setup-accent); color: #ffffff; font-size: 13px; font-weight: 700; }
 .aipkit-setup__flow-body { display: flex; flex: 1; flex-direction: column; gap: 12px; min-width: 0; }
+.aipkit-setup__flow [data-flow-email-summary] { max-width: 100%; overflow-wrap: anywhere; }
 .aipkit-setup__flow-title { margin: 0; padding-top: 3px; font-size: 16px !important; font-weight: 700; color: var(--aipkit-setup-text); }
 .aipkit-setup__flow [data-flow-step="connect"][data-state="locked"] { opacity: 0.5; }
 .aipkit-setup__flow [data-flow-step="connect"][data-state="locked"] .aipkit-setup__flow-num { background: #eef1f5; color: #8a94a6; }

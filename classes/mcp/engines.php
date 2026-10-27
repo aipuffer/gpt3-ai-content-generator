@@ -556,7 +556,16 @@ final class Engines
 
     private static function ability_error_code($code, string $fallback = 'ability_failed'): string
     {
-        return is_string($code) && in_array($code, self::ABILITY_ERROR_CODES, true) ? $code : $fallback;
+        if (!is_string($code)) { return $fallback; }
+        // Known native refusals use existing public codes; arbitrary plugin identifiers remain private.
+        $code = [
+            'yoast_seo_missing_identifier' => 'invalid_input',
+            'yoast_seo_invalid_post_id' => 'not_found',
+            'yoast_seo_invalid_permalink' => 'not_found',
+            'yoast_seo_invalid_title' => 'not_found',
+            'yoast_seo_cannot_edit_post' => 'permission_denied',
+        ][$code] ?? $code;
+        return in_array($code, self::ABILITY_ERROR_CODES, true) ? $code : $fallback;
     }
 
     // REST routes -------------------------------------------------------------------------------------------------
@@ -605,6 +614,40 @@ final class Engines
         return $result;
     }
 
+    /** Actual post-controller routes, not the type's potentially stale namespace metadata. */
+    public static function post_type_routes(string $name): array
+    {
+        $routes = [];
+        foreach (rest_get_server()->get_routes() as $route => $handlers) {
+            if (!preg_match('~^/[a-zA-Z0-9/_.-]+$~D', $route) || !Guard::allows_rest('GET', $route)) { continue; }
+            foreach ($handlers as $handler) {
+                $callback = is_array($handler) ? ($handler['callback'] ?? null) : null;
+                if (!is_array($callback) || !($callback[0] instanceof \WP_REST_Posts_Controller) || $callback[1] !== 'get_items' || empty($handler['methods']['GET'])) { continue; }
+                if (($callback[0]->get_item_schema()['title'] ?? null) === $name) { $routes[] = $route; }
+            }
+        }
+        $routes = array_values(array_unique($routes));
+        sort($routes);
+        return $routes;
+    }
+
+    /** Match the registered controller and route before looking up an existing post. No callback is executed. */
+    private static function rest_post_target(\WP_REST_Request $request): ?\WP_Post
+    {
+        foreach (rest_get_server()->get_routes() as $route => $handlers) {
+            if (!preg_match('~^' . str_replace('~', '\\~', $route) . '$~iD', $request->get_route(), $matches) || !isset($matches['id']) || !ctype_digit($matches['id'])) { continue; }
+            foreach ($handlers as $handler) {
+                $callback = is_array($handler) ? ($handler['callback'] ?? null) : null;
+                if (!is_array($callback) || !($callback[0] instanceof \WP_REST_Posts_Controller) || empty($handler['methods'][$request->get_method()])) { continue; }
+                // Body/query id has the same precedence as in core dispatch.
+                $id = $request->get_param('id') ?? $matches['id'];
+                $post = is_scalar($id) ? get_post((int) $id) : null;
+                return $post && ($callback[0]->get_item_schema()['title'] ?? null) === $post->post_type ? $post : null;
+            }
+        }
+        return null;
+    }
+
     /** Checks a REST change before it runs or waits; returns the request, or the refusal. */
     private static function check_rest(object $args)
     {
@@ -628,19 +671,12 @@ final class Engines
             $request->set_body((string) $args->body_json);
         }
         if (in_array($method, ['POST', 'PUT', 'PATCH'], true) && (array_key_exists('content', $body ?? []) || array_key_exists('content', $query))) {
-            $post_route = rtrim($route, '/');
-            foreach (get_post_types(['show_in_rest' => true], 'objects') as $type) {
-                $base = '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $type->name) . '/';
-                if (stripos($post_route, $base) !== 0 || !ctype_digit(substr($post_route, strlen($base)))) { continue; }
-                // WordPress gives body/query parameters precedence over URL parameters, including id.
-                $target_id = $request->get_param('id') ?? substr($post_route, strlen($base));
-                $post = is_scalar($target_id) ? get_post((int) $target_id) : null;
-                if ($post && $post->post_type === $type->name && current_user_can('edit_post', $post->ID)) {
-                    $error = self::preserve_blocks($post, array_key_exists('content', $body ?? []) ? 'body' : 'query', ['content']);
-                    if ($error) {
-                        if (preg_match('~^/wp/v2/(posts|pages|media|categories|tags)(/[0-9]{1,10})?$~D', $route)) { $error['operation_diagnostics']['rest_route'] = $route; }
-                        return $error;
-                    }
+            $post = self::rest_post_target($request);
+            if ($post && current_user_can('edit_post', $post->ID)) {
+                $error = self::preserve_blocks($post, array_key_exists('content', $body ?? []) ? 'body' : 'query', ['content']);
+                if ($error) {
+                    if (preg_match('~^/wp/v2/(posts|pages|media|categories|tags)(/[0-9]{1,10})?$~D', $route)) { $error['operation_diagnostics']['rest_route'] = $route; }
+                    return $error;
                 }
             }
         }
@@ -690,17 +726,15 @@ final class Engines
             if ($matched !== $request || $result !== null || !in_array($request->get_method(), ['POST', 'PUT', 'PATCH'], true)) { return $result; }
             $callback = $handler['callback'] ?? null;
             if (!is_array($callback) || !($callback[0] instanceof \WP_REST_Posts_Controller)) { return $result; }
-            foreach (get_post_types(['show_in_rest' => true], 'objects') as $type) {
-                $base = '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $type->name);
-                if (!preg_match('~^' . preg_quote($base, '~') . '(?:/[0-9]+)?/?$~D', $request->get_route())) { continue; }
-                foreach (($GLOBALS['wp_rest_additional_fields'][$type->name] ?? []) as $name => $field) {
+            $type = $callback[0]->get_item_schema()['title'] ?? null;
+            if (is_string($type) && post_type_exists($type)) {
+                foreach (($GLOBALS['wp_rest_additional_fields'][$type] ?? []) as $name => $field) {
                     if (!$request->has_param($name) || !is_array($field['schema'] ?? null)) { continue; }
                     $valid = rest_validate_value_from_schema($request->get_param($name), $field['schema'], $name);
                     if (is_wp_error($valid)) {
                         return new \WP_Error('rest_invalid_param', $valid->get_error_message(), ['status' => 400, 'params' => [$name => $valid->get_error_message()]]);
                     }
                 }
-                break;
             }
             return $result;
         };

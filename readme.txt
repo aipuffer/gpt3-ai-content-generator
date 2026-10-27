@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.17
+Stable tag: 2.5.18
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.18 =
+Improves onboarding, custom-content route discovery and SQL/SEO error reporting while preserving permissions and content formatting.
+
 = 2.5.17 =
 Improves guided setup for website management and AI tools, and adds Gutenberg output to manual and automated content rewrites.
 
@@ -257,6 +260,13 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.18 =
+* Fixed: website tools discover custom content's registered REST routes and explain unsupported custom types accurately, while preserving permissions and existing blocks.
+* Fixed: invalid SQL function calls are rejected before database execution, and known Yoast SEO lookup errors report missing input, unmatched records or denied permissions accurately.
+
+- Fixed long account emails being clipped on narrow onboarding screens.
+- Fixed the setup summary calling AI tools ready when their AI connection was deferred.
 
 = 2.5.17 =
 

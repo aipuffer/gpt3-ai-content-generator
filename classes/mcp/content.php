@@ -117,9 +117,10 @@ final class Content
         $items = [];
         foreach (array_slice($names, ($page - 1) * $per_page, $per_page) as $name) {
             $type = get_post_type_object($name);
+            $routes = $type && $type->show_in_rest ? Engines::post_type_routes($name) : [];
             $items[] = ['post_type' => $name, 'definition' => $model['types'][$name] ?? null,
                 'registered' => isset($model['types'][$name]) ? self::owns_type($name) : (bool) $type,
-                'rest_route' => $type && $type->show_in_rest ? '/' . ($type->rest_namespace ?: 'wp/v2') . '/' . ($type->rest_base ?: $name) : null,
+                'rest_route' => count($routes) === 1 ? $routes[0] : null, 'rest_routes' => $routes,
                 'fields' => array_values($model['fields'][$name] ?? []),
                 'registered_fields' => array_values(array_filter(array_keys(self::$defined_fields[$name] ?? []), static function ($key) use ($name): bool { return self::owns_field($name, $key); }))];
         }
@@ -199,7 +200,8 @@ final class Content
                 if (!self::owns_type($type)) { throw new \RuntimeException('Type did not register.'); }
                 flush_rewrite_rules(false); // Once after a real type creation, never on page loads or repeats.
             } elseif (!self::owns_field($type, $key)) { throw new \RuntimeException('Field did not register.'); }
-            return self::ok(['definition' => $definition, 'rest_route' => $is_type ? '/wp/v2/' . $type : '/' . ($post_type->rest_namespace ?: 'wp/v2') . '/' . ($post_type->rest_base ?: $type), 'unchanged' => false]);
+            $routes = $is_type ? ['/wp/v2/' . $type] : Engines::post_type_routes($type);
+            return self::ok(['definition' => $definition, 'rest_route' => count($routes) === 1 ? $routes[0] : null, 'rest_routes' => $routes, 'unchanged' => false]);
         } catch (\Throwable $error) {
             return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'definition_unconfirmed', 'message' => 'Definition storage or registration could not be confirmed. Read list-content-definitions before retrying; existing content was not removed.']];
         }
