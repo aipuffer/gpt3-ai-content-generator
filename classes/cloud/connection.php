@@ -674,14 +674,33 @@ final class Connection
             || empty($user->id) || empty($site->id) || (string) $site->user_id !== (string) $user->id) {
             wp_send_json_error(['code' => 'account_unavailable'], 409);
         }
+        // The SDK returns null for an empty HTTP response. Accept it only with a verified successful response for this request.
+        $empty_success = false;
+        $observe_response = static function ($response, $context, $transport, $args, $url) use (&$empty_success, $user): void {
+            if ($context !== 'response' || strtoupper($args['method'] ?? '') !== 'PUT'
+                || wp_parse_url($url, PHP_URL_HOST) !== 'api.freemius.com'
+                || !preg_match('~/users/' . (int) $user->id . '\\.json$~', (string) wp_parse_url($url, PHP_URL_PATH))) { return; }
+            $empty_success = !is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200
+                && wp_remote_retrieve_body($response) === '';
+        };
+        add_action('http_api_debug', $observe_response, PHP_INT_MAX, 5);
         // Same API and arguments as Freemius::init_change_owner; Freemius retains both approval gates.
-        $result = $fs->get_api_site_scope()->call('/users/' . (int) $user->id . '.json', 'put', [
-            'email' => $email,
-            'transfer_type' => $type,
-            'install_ids' => (string) $site->id,
-            'after_confirm_url' => $fs->get_account_url('change_owner', [], false),
-        ]);
-        if (is_wp_error($result) || !is_object($result) || \FS_Api::is_api_error($result)) {
+        try {
+            // The SDK's site-only getter is private. This public accessor uses site scope after the registration guard above.
+            $result = $fs->get_api_site_or_plugin_scope()->call('/users/' . (int) $user->id . '.json', 'put', [
+                'email' => $email,
+                'transfer_type' => $type,
+                'install_ids' => (string) $site->id,
+                'after_confirm_url' => $fs->get_account_url('change_owner', [], false),
+            ]);
+        } catch (\Throwable $error) {
+            // The request may have reached Freemius. Never claim success or retry it automatically.
+            wp_send_json_error(['code' => 'ownership_request_unconfirmed'], 502);
+        } finally {
+            remove_action('http_api_debug', $observe_response, PHP_INT_MAX);
+        }
+        // A missing response without the successful HTTP receipt remains unconfirmed; never retry it automatically.
+        if (is_wp_error($result) || ($result !== true && !is_object($result) && !($result === null && $empty_success)) || \FS_Api::is_api_error($result)) {
             wp_send_json_error(['code' => 'ownership_request_unconfirmed'], 502);
         }
         wp_send_json_success(['status' => 'confirmation_requested']);

@@ -13,6 +13,16 @@ class AIPKit_Content_Writer_Output_Cleaner
 {
     private const META_DESCRIPTION_MAX_LENGTH = 156;
 
+    /** One sanitized rewrite format for the manual updater and scheduled worker. */
+    public static function prepare_rewritten_content(string $content, $format = 'html'): string
+    {
+        $html = wp_kses_post(self::convert_basic_markdown_to_html($content));
+        if ($format !== 'gutenberg') { return $html; }
+        if (!class_exists(AIPKit_Content_Writer_Block_Converter::class)) { require_once __DIR__ . '/blocks.php'; }
+        return AIPKit_Content_Writer_Block_Converter::convert($html);
+    }
+
+
     public static function clean_title(string $title, string $focus_keyword = ''): string
     {
         $title = trim(str_replace(["\n", "\r"], ' ', $title));

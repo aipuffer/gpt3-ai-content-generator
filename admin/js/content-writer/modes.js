@@ -40,7 +40,7 @@
   const INSPECTOR_SECTION_VISIBILITY_BY_MODE = Object.freeze({
     "existing-content": Object.freeze({
       seo: false,
-      publishing: false,
+      publishing: true,
       images: false,
     }),
     "existing-images": Object.freeze({
@@ -62,6 +62,9 @@
 
     const visibility = INSPECTOR_SECTION_VISIBILITY_BY_MODE[mode] || {};
     let promptEditorWasHidden = false;
+    form.querySelectorAll('[data-aipkit-cw-publishing-create-only]').forEach(row => {
+      row.hidden = mode === 'existing-content';
+    });
 
     form
       .querySelectorAll("[data-aipkit-cw-mode-section]")
@@ -106,16 +109,16 @@
       const panel = section?.querySelector(
         "[data-aipkit-cw-inspector-disclosure-panel]"
       );
-      const heading = section?.querySelector(headingSelector);
+      const heading = headingSelector ? section?.querySelector(headingSelector) : null;
       const wasFlat = Boolean(section?.classList.contains("is-flat-fields"));
 
-      if (!section || !toggle || !panel || !heading) {
+      if (!section || !toggle || !panel || (headingSelector && !heading)) {
         return;
       }
 
       section.classList.toggle("is-flat-fields", shouldShowFlat);
       toggle.hidden = shouldShowFlat;
-      heading.hidden = !shouldShowFlat;
+      if (heading) heading.hidden = !shouldShowFlat;
 
       if (shouldShowFlat) {
         toggle.setAttribute("aria-expanded", "true");
@@ -133,6 +136,7 @@
       "[data-aipkit-cw-existing-fields-heading]",
       mode === "existing-content" || mode === "existing-products"
     );
+    syncFlatFieldsSection("publishing", null, mode === "existing-content");
     syncFlatFieldsSection(
       "images",
       "[data-aipkit-cw-existing-image-fields-heading]",

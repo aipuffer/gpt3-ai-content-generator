@@ -82,6 +82,7 @@
         "ce_ai_model",
         "ce_ai_temperature",
         "ce_content_max_tokens",
+        "ce_post_content_format",
         "ce_enable_vector_store",
         "ce_vector_store_provider",
         "ce_openai_vector_store_ids",

@@ -2358,6 +2358,117 @@ button.aipkit_stats_status_pill {
     cursor: not-allowed;
 }
 
+/* Finish setting up: open first-run steps with their action, done steps on one line, and Hide. */
+#aipkit_stats_container .aipkit_setup_checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 18px;
+    padding: 16px 18px;
+    border: 2px solid var(--aipkit_brand-primary);
+    border-radius: 14px;
+    background: var(--aipkit_container-bg, #ffffff);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_heading {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_heading h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--aipkit_text-heading);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_meter {
+    display: block;
+    max-width: 360px;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--aipkit_brand-primary) var(--aipkit-setup-done, 0%), #dfe4ec 0);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_hide {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--aipkit_container-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--aipkit_text-secondary);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_hide:is(:hover, :focus-visible) {
+    color: var(--aipkit_text-heading);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #eef1ff;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_open {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    box-sizing: border-box;
+    border: 2px dashed var(--aipkit_brand-primary);
+    border-radius: 50%;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--aipkit_text-secondary);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_text strong {
+    font-size: 14px;
+    color: var(--aipkit_text-heading);
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_item .aipkit_btn {
+    flex: none;
+    white-space: nowrap;
+}
+
+#aipkit_stats_container .aipkit_setup_checklist_done {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    font-size: 13px;
+    color: var(--aipkit_text-secondary);
+}
+
+@media (max-width: 600px) {
+    #aipkit_stats_container .aipkit_setup_checklist_item {
+        flex-wrap: wrap;
+    }
+}
+
 /* Balance cards */
 #aipkit_stats_container .aipkit_usage_cards {
     display: grid;

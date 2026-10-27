@@ -93,7 +93,12 @@ final class Onboarding
     {
         if (!AIPKit_Role_Manager::user_can_manage_settings()) { return; }
         // Hidden page (no menu entry): reached by the first-visit redirect or from Settings.
-        add_submenu_page('', __('Set up AI Puffer', 'gpt3-ai-content-generator'), '', 'read', self::PAGE, [self::class, 'render']);
+        $hook = add_submenu_page('', __('Set up AI Puffer', 'gpt3-ai-content-generator'), '', 'read', self::PAGE, [self::class, 'render']);
+        if ($hook) {
+            add_action('load-' . $hook, static function (): void {
+                $GLOBALS['title'] = __('Set up AI Puffer', 'gpt3-ai-content-generator');
+            });
+        }
     }
 
     /**
@@ -164,6 +169,9 @@ final class Onboarding
         if (!AIPKit_Role_Manager::user_can_manage_settings()) {
             wp_die(esc_html__('You do not have permission to set up AI Puffer.', 'gpt3-ai-content-generator'), 403);
         }
+        $chosen = self::chosen();
+        $provider = $chosen[0] ?? '';
+        $ai_ready = $provider === 'AIPufferCloud' ? self::cloud_view_data()['ready'] : ($provider !== '' && trim((string) (AIPKit_Providers::get_provider_data($provider)['api_key'] ?? '')) !== '');
         wp_localize_script('aipkit-onboarding', 'aipkitSetup', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce(self::NONCE),
@@ -175,6 +183,13 @@ final class Onboarding
             'mcpNonce' => wp_create_nonce('aipkit_mcp_settings'),
             'assistants' => \WPAICG\Mcp\Settings::onboarding_connections(),
             'goals' => array_values(array_intersect((array) (self::state()['goals'] ?? []), array_keys(self::GOALS))),
+            'websiteLater' => !empty(self::state()['website_later']),
+            'power' => self::state()['power'] ?? 'cloud',
+            'availableCredits' => self::cloud_view_data()['availableCredits'],
+            'connection' => $ai_ready ? ($provider === 'AIPufferCloud' ? __('AI Puffer Cloud', 'gpt3-ai-content-generator') : (self::KEY_PROVIDERS[$provider] ?? $provider) . ' · ' . $chosen[1]) : '',
+            // Outcome names only (tried, published, created), so Done describes what setup actually did.
+            'results' => array_values((array) (self::state()['results'] ?? [])),
+            'saved' => array_values((array) (self::state()['saved'] ?? [])),
         ]);
         include WPAICG_PLUGIN_DIR . 'admin/views/onboarding/page.php';
     }
@@ -195,8 +210,88 @@ final class Onboarding
             'registered' => $cloud['registered'],
             'providers' => self::KEY_PROVIDERS,
             'has_provider_key' => $provider_keys,
+            'key_provider' => self::state()['provider'] ?? AIPKit_Providers::get_current_provider(),
             'products' => self::products(),
         ];
+    }
+
+    /**
+     * The setup checklist once setup is finished: the same steps as Done (account, website, each picked tool),
+     * done or open. Null when setup was skipped, the checklist was hidden, or every step is done. Local state only.
+     *
+     * @return array<int, array{done: bool, title: string, text: string, action: string, url: string}>|null
+     */
+    public static function checklist(): ?array
+    {
+        $state = self::state();
+        $goals = (array) ($state['goals'] ?? []);
+        if (($state['status'] ?? '') !== 'done' || !$goals || !empty($state['checklist_hidden']) || !AIPKit_Role_Manager::user_can_manage_settings()) { return null; }
+        $display = class_exists(Connection::class) && Connection::allowed() ? Connection::display() : [];
+        $cloud = !empty($display['connected']);
+        $website = in_array('website', $goals, true);
+        $settings = admin_url('admin.php?page=wpaicg&aipkit_module=settings&aipkit_settings_page=');
+        $items = [];
+        if ($website || ($state['power'] ?? '') === 'cloud') {
+            $ready = $cloud && ($display['email_verified'] ?? null) === true;
+            $items[] = ['done' => $ready, 'title' => $ready ? __('Account ready', 'gpt3-ai-content-generator') : __('Finish your free account', 'gpt3-ai-content-generator'),
+                'text' => __('Confirm your email to get your free monthly allowances.', 'gpt3-ai-content-generator'), 'action' => __('Finish', 'gpt3-ai-content-generator'), 'url' => self::url() . ($website ? '#website' : '#connect')];
+        }
+        if ($website) {
+            $ready = $cloud && \WPAICG\Mcp\Identity::active() && array_filter(\WPAICG\Mcp\Settings::onboarding_connections(), static fn (array $item): bool => $item['state'] === 'active');
+            $items[] = ['done' => (bool) $ready, 'title' => $ready ? __('ChatGPT or Claude connected', 'gpt3-ai-content-generator') : __('Connect ChatGPT or Claude', 'gpt3-ai-content-generator'),
+                /* translators: %s: this website's address, such as example.com. */
+                'text' => sprintf(__('Then ask it to write a post, update products or redesign a page on %s.', 'gpt3-ai-content-generator'), (string) wp_parse_url(home_url('/'), PHP_URL_HOST)),
+                'action' => __('Connect now', 'gpt3-ai-content-generator'), 'url' => self::url() . ($website ? '#website' : '#connect')];
+        }
+        // Each picked tool needs the site's AI connection: Cloud, or a provider key.
+        $provider = AIPKit_Providers::get_current_provider();
+        $ai_ready = $provider === 'AIPufferCloud' ? $cloud : trim((string) (AIPKit_Providers::get_provider_data($provider)['api_key'] ?? '')) !== '';
+        $names = ['chatbot' => __('Chatbot', 'gpt3-ai-content-generator'), 'forms' => __('AI Forms', 'gpt3-ai-content-generator'), 'write' => __('Content Writer', 'gpt3-ai-content-generator')];
+        $saved = (array) ($state['saved'] ?? []);
+        // Done titles say what happened: live only after it was added to the site, tested after a real reply.
+        $outcomes = [
+            'chatbot' => in_array('chatbot', $saved, true) ? __('Chatbot is live', 'gpt3-ai-content-generator') : (in_array('chatbot', (array) ($state['results'] ?? []), true) ? __('Chatbot tested', 'gpt3-ai-content-generator') : ''),
+            'forms' => in_array('forms', $saved, true) ? __('AI form created', 'gpt3-ai-content-generator') : '',
+            'write' => in_array('write', $saved, true) ? __('First draft saved', 'gpt3-ai-content-generator') : (in_array('auto', $saved, true) ? __('Automation created', 'gpt3-ai-content-generator') : ''),
+        ];
+        foreach (array_intersect(array_keys($names), $goals) as $goal) {
+            $items[] = ['done' => $ai_ready,
+                /* translators: %s: tool name, such as "Chatbot". */
+                'title' => $ai_ready ? ($outcomes[$goal] ?: sprintf(__('%s is ready', 'gpt3-ai-content-generator'), $names[$goal])) : sprintf(__('Connect AI for %s', 'gpt3-ai-content-generator'), $names[$goal]),
+                'text' => __('Use AI Puffer Cloud for free or your own API key.', 'gpt3-ai-content-generator'), 'action' => __('Connect AI', 'gpt3-ai-content-generator'), 'url' => $settings . 'ai'];
+        }
+        return array_filter($items, static fn (array $item): bool => !$item['done']) ? $items : null;
+    }
+
+    /** Dashboard card: Finish setting up, its open steps with their action, the done steps on one line, and Hide. */
+    public static function render_checklist(): void
+    {
+        $items = self::checklist();
+        if (!$items) { return; }
+        $done = array_values(array_filter($items, static fn (array $item): bool => $item['done']));
+        $percent = (int) round(count($done) / count($items) * 100);
+        ?>
+        <section class="aipkit_setup_checklist" data-aipkit-setup-checklist data-nonce="<?php echo esc_attr(wp_create_nonce(self::NONCE)); ?>" aria-labelledby="aipkit_setup_checklist_title">
+            <div class="aipkit_setup_checklist_head">
+                <div class="aipkit_setup_checklist_heading">
+                    <?php /* translators: 1: steps done. 2: all steps. */ ?>
+                    <h2 id="aipkit_setup_checklist_title"><?php echo esc_html(sprintf(__('Finish setting up · %1$d of %2$d done', 'gpt3-ai-content-generator'), count($done), count($items))); ?></h2>
+                    <span class="aipkit_setup_checklist_meter" style="<?php echo esc_attr('--aipkit-setup-done: ' . $percent . '%'); ?>" aria-hidden="true"></span>
+                </div>
+                <button type="button" class="aipkit_setup_checklist_hide" data-aipkit-setup-checklist-hide aria-label="<?php esc_attr_e('Hide setup checklist', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Hide', 'gpt3-ai-content-generator'); ?>">×</button>
+            </div>
+            <?php foreach ($items as $item) : if ($item['done']) { continue; } ?>
+                <div class="aipkit_setup_checklist_item">
+                    <span class="aipkit_setup_checklist_open" aria-hidden="true"></span>
+                    <span class="aipkit_setup_checklist_text"><strong><?php echo esc_html($item['title']); ?></strong><span><?php echo esc_html($item['text']); ?></span></span>
+                    <a class="aipkit_btn aipkit_btn-primary" href="<?php echo esc_url($item['url']); ?>"><?php echo esc_html($item['action']); ?></a>
+                </div>
+            <?php endforeach; ?>
+            <?php if ($done) : ?>
+                <p class="aipkit_setup_checklist_done"><?php foreach ($done as $item) : ?><span>✓ <?php echo esc_html($item['title']); ?></span><?php endforeach; ?></p>
+            <?php endif; ?>
+        </section>
+        <?php
     }
 
     /** Reuse confirmed cached allowances; rendering must never fetch usage or infer a plan. */
@@ -212,7 +307,7 @@ final class Onboarding
         $included = $credits['includedAllowance']['total'] ?? '0';
         $actions = $usage['monthly_allowance'] ?? null;
         $included_known = is_string($included) && ctype_digit($included);
-        $confirmed = ((is_string($free) && ctype_digit($free)) || ($included_known && (int) $included > 0)) && $included_known && is_int($actions) && $actions >= 0;
+        $confirmed = ((is_string($free) && ctype_digit($free)) || ($included_known && (int) $included > 0)) && $included_known && is_int($actions) && $actions >= 0 && ($actions > 0 || !empty($usage['period_ends_at']));
         return [
             'label' => $confirmed ? __('Included every month', 'gpt3-ai-content-generator') : __('Free monthly allowances', 'gpt3-ai-content-generator'),
             'amounts' => $confirmed
@@ -272,6 +367,7 @@ final class Onboarding
             'emailUpdate' => $display['email_update'] ?? null,
             'connectionDiagnostic' => \WPAICG\Cloud\ConnectionDiagnostics::report(),
             'allowanceOffer' => self::allowance_offer(),
+            'availableCredits' => $connected && $credits_ready && is_array($credits) && isset($credits['available']) ? Connection::format_credits($credits['available']) : null,
             'resendEmailUrl' => (string) ($display['resend_email_url'] ?? ''), 'ready' => $ready, 'message' => $message,
             'retry' => $connected && ($display['email_verified'] === null || (!$ready && (!$credits_ready || !is_array($credits) || $display['email_verified'] === true || $has_credits))),
         ];
@@ -327,6 +423,10 @@ final class Onboarding
             case 'updates': self::op_updates(); break;
             case 'finish': self::op_finish('done'); break;
             case 'skip': self::op_finish('skipped'); break;
+            case 'hide_checklist': self::save(['checklist_hidden' => true]); wp_send_json_success(); break;
+            // Mixed picks: "Do this later" on the website step survives a reload or an email-confirmation return.
+            case 'website_later': self::save(['website_later' => self::post('later') === 'yes']); wp_send_json_success(); break;
+            case 'assistant_status': self::op_assistant_status(); break;
             default: wp_send_json_error(['message' => __('Unknown setup step.', 'gpt3-ai-content-generator')], 400);
         }
     }
@@ -353,7 +453,7 @@ final class Onboarding
             $opts['module_settings'] = $modules;
             update_option('aipkit_options', $opts, 'no');
         }
-        self::save(['goals' => $goals, 'status' => 'pending']);
+        self::save(['goals' => $goals, 'status' => 'pending', 'website_later' => false]);
         wp_send_json_success(['goals' => $goals]);
     }
 
@@ -371,6 +471,7 @@ final class Onboarding
         if (!class_exists(Connection::class)) { wp_send_json_error(['message' => __('AI Puffer Cloud is not available.', 'gpt3-ai-content-generator')], 400); }
         $consent = self::post('consent') === 'yes' || (self::post('check_email') === 'yes' && self::post('consent') !== 'no' && self::pending_cloud_consent());
         $display = Connection::display();
+        $website_only = self::post('website_only') === 'yes' && in_array('website', (array) (self::state()['goals'] ?? []), true);
         $connected = $display['connected'];
         // Confirmation returns through Freemius's own activation handler. Checking never resends email.
         if (self::post('check_email') === 'yes' && !$display['registered']) {
@@ -378,18 +479,19 @@ final class Onboarding
         }
         $status = $connected ? 'connected' : Connection::transition('connect', $consent, self::post('marketing') === 'yes', self::post('email'), 'onboarding');
         if ($status === 'confirm_email') {
-            self::save(['power' => 'cloud', 'cloud_consent' => $consent ? ['version' => Connection::CONSENT_VERSION, 'user' => get_current_user_id(), 'email' => Connection::display()['email']] : null]);
+            self::save(['power' => $website_only ? (self::state()['power'] ?? 'cloud') : 'cloud', 'cloud_consent' => $consent ? ['version' => Connection::CONSENT_VERSION, 'user' => get_current_user_id(), 'email' => Connection::display()['email']] : null]);
             wp_send_json_success(self::cloud_view_data());
         }
         if ($status !== 'connected') {
             wp_send_json_error(['status' => $status, 'connectionDiagnostic' => \WPAICG\Cloud\ConnectionDiagnostics::report(), 'message' => Connection::connection_message($status) ?: __('Could not connect to AI Puffer Cloud. Please try again.', 'gpt3-ai-content-generator')], 400);
         }
-        self::save(['power' => 'cloud', 'cloud_consent' => null]);
+        self::save(['power' => $website_only ? (self::state()['power'] ?? 'cloud') : 'cloud', 'cloud_consent' => null]);
         $credits_ready = !$connected || Connection::transition('verify') !== 'balance_unavailable';
         // Re-entry and an explicit retry refresh the catalog before making Cloud active.
         $synced = !$connected || Connection::transition('sync') === 'synced';
         $view = self::cloud_view_data($synced, $credits_ready);
         if (!$view['ready']) { wp_send_json_success($view); }
+        if ($website_only) { wp_send_json_success($view); }
         $model = Connection::default_model();
         self::use_provider('AIPufferCloud', $model);
         wp_send_json_success($view + ['provider' => 'AIPufferCloud', 'model' => $model, 'label' => __('AI Puffer Cloud', 'gpt3-ai-content-generator')]);
@@ -461,7 +563,7 @@ final class Onboarding
         $state = self::state();
         $grant = \WPAICG\Mcp\Store::grant($grant_id);
         $registration = \WPAICG\Mcp\Identity::registration();
-        if (!in_array($mode, ['start', 'check', 'retry'], true) || ($state['goals'] ?? []) !== ['website']
+        if (!in_array($mode, ['start', 'check', 'retry'], true) || !in_array('website', (array) ($state['goals'] ?? []), true)
             || !\WPAICG\Mcp\Identity::active() || !$grant || $grant['state'] !== 'active'
             || (int) $grant['wp_user_id'] !== get_current_user_id() || $grant['instance_id'] !== ($registration['instance_id'] ?? '')) {
             wp_send_json_error(['message' => __('This assistant connection is no longer available. Return to Connect and check it again.', 'gpt3-ai-content-generator')], 409);
@@ -497,6 +599,20 @@ final class Onboarding
             }
         }
         wp_send_json_success(['attempt_id' => $attempt['id'], 'expires_at' => $attempt['expires'], 'status' => !empty($attempt['verified']) ? 'verified' : (time() >= $attempt['expires'] ? 'timeout' : 'waiting')]);
+    }
+
+    /**
+     * Setup's automatic link check: one bridge status read for this administrator's own pending link, which marks it
+     * connected once approved. No usage refresh, safety-level sync, Cloud or AI calls; a failed read waits for the next one.
+     */
+    private static function op_assistant_status(): void
+    {
+        $grant = \WPAICG\Mcp\Store::grant(self::post('grant_id'));
+        if ($grant && $grant['state'] === 'pending' && (int) $grant['wp_user_id'] === get_current_user_id() && \WPAICG\Mcp\Identity::active()
+            && $grant['instance_id'] === (\WPAICG\Mcp\Identity::registration()['instance_id'] ?? '')) {
+            \WPAICG\Mcp\BridgeClient::status($grant['grant_id']);
+        }
+        wp_send_json_success(['assistants' => \WPAICG\Mcp\Settings::onboarding_connections()]);
     }
 
     /** Save outcomes locally after successful actions; never store prompts or generated text here. */
@@ -821,7 +937,7 @@ final class Onboarding
         $first = $other_goals[0] ?? ($goals[0] ?? '');
         if ($goals === ['website']) {
             $connected = array_filter(\WPAICG\Mcp\Settings::onboarding_connections(), static fn (array $item): bool => $item['state'] === 'active');
-            wp_send_json_success(['url' => admin_url($connected ? 'admin.php?page=wpaicg&aipkit_module=stats&aipkit_stats_tab=website' : 'admin.php?page=wpaicg&aipkit_module=settings&aipkit_settings_page=connections')]);
+            wp_send_json_success(['url' => admin_url($connected ? 'admin.php?page=wpaicg&aipkit_module=stats&aipkit_stats_tab=website' : 'admin.php?page=wpaicg')]);
         }
         $module = self::GOALS[$first]['module'] ?? '';
         wp_send_json_success(['url' => $module ? admin_url('admin.php?page=wpaicg&aipkit_module=' . $module) : admin_url('admin.php?page=wpaicg')]);

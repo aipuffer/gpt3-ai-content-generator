@@ -24,7 +24,7 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
-        <div class="aipkit_cw_publishing_row">
+        <div class="aipkit_cw_publishing_row" data-aipkit-cw-publishing-create-only>
             <label class="aipkit_cw_panel_label" for="aipkit_content_writer_post_type">
                 <?php esc_html_e('Post type', 'gpt3-ai-content-generator'); ?>
             </label>
@@ -44,7 +44,7 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
-        <div class="aipkit_cw_publishing_row">
+        <div class="aipkit_cw_publishing_row" data-aipkit-cw-publishing-create-only>
             <label class="aipkit_cw_panel_label" for="aipkit_content_writer_post_author">
                 <?php esc_html_e('Author', 'gpt3-ai-content-generator'); ?>
             </label>
@@ -68,7 +68,7 @@ if (!defined('ABSPATH')) {
             </div>
         </div>
 
-        <div class="aipkit_cw_publishing_row">
+        <div class="aipkit_cw_publishing_row" data-aipkit-cw-publishing-create-only>
             <label class="aipkit_cw_panel_label" for="aipkit_content_writer_categories">
                 <?php esc_html_e('Categories', 'gpt3-ai-content-generator'); ?>
             </label>

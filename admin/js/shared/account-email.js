@@ -12,6 +12,10 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
     };
     const span = (text) => Object.assign(document.createElement('span'), { textContent: text });
     const title = (text) => Object.assign(document.createElement('strong'), { textContent: text });
+    async function readUpdateResponse(response) {
+        try { return await response.json(); }
+        catch (_) { throw new Error(__('Could not confirm the account update. Check your inbox and reload this page before trying again.', 'gpt3-ai-content-generator')); }
+    }
     function pendingMessage() {
         // Settings and Usage replace the account section when they refresh; follow it to the new one.
         if (!pending.controls.isConnected) pending.controls = root.querySelector('[data-cloud-account-controls]') || pending.controls;
@@ -113,7 +117,7 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
                 const body = new FormData();
                 for (const [key, value] of Object.entries({ action: form.dataset.emailAction, security: form.dataset.emailSecurity, module_id: form.dataset.emailModule, email_address: email, transfer_type: transferType })) body.append(key, value);
                 const response = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body });
-                const result = await response.json();
+                const result = await readUpdateResponse(response);
                 if (!result?.success) {
                     const error = result?.error || result?.data;
                     if (error?.code === 'change_ownership' && typeof error.url === 'string') {
@@ -129,7 +133,7 @@ export function bindAccountEmail(root, { busy, refresh, onEdit = () => {} }) {
                             const ownershipBody = new FormData();
                             for (const [key, value] of Object.entries({ action: 'aipkit_cloud_email_ownership', security: target.searchParams.get('_wpnonce'), email_address: email, transfer_type: transferType })) ownershipBody.append(key, value);
                             const confirmation = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body: ownershipBody });
-                            const receipt = await confirmation.json();
+                            const receipt = await readUpdateResponse(confirmation);
                             if (!receipt?.success || receipt?.data?.status !== 'confirmation_requested') throw new Error(__('Could not confirm whether the ownership email was sent. Check your inbox before trying again.', 'gpt3-ai-content-generator'));
                             ownershipNotice = __('Check your current email to confirm this account change.', 'gpt3-ai-content-generator');
                             return;

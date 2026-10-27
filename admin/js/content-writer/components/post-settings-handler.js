@@ -275,7 +275,8 @@
     if (!container) return false;
 
     const generationMode = getCurrentGenerationMode();
-    const shouldShowPublishing = PUBLISHING_VISIBLE_MODES.has(generationMode);
+    const shouldShowStatus = PUBLISHING_VISIBLE_MODES.has(generationMode);
+    const shouldShowPublishing = shouldShowStatus || generationMode === "existing-content";
     const contentWriterRoot = getContentWriterRoot(container);
     const statusRow = contentWriterRoot?.querySelector(
       "[data-aipkit-cw-core-status-row]"
@@ -287,10 +288,10 @@
       shouldShowPublishing ? "false" : "true"
     );
     if (statusRow) {
-      statusRow.hidden = !shouldShowPublishing;
+      statusRow.hidden = !shouldShowStatus;
       statusRow.setAttribute(
         "aria-hidden",
-        shouldShowPublishing ? "false" : "true"
+        shouldShowStatus ? "false" : "true"
       );
     }
 

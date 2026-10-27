@@ -208,6 +208,19 @@ import { createWebsiteActivity } from './website-activity.js';
         }
         container.dataset.aipkitUsageBound = 'true';
         bindCloudConnection(container);
+        // Finish setting up: Hide removes the card for good; a failed save leaves it in place.
+        const setupChecklist = container.querySelector('[data-aipkit-setup-checklist]');
+        setupChecklist?.querySelector('[data-aipkit-setup-checklist-hide]')?.addEventListener('click', async (event) => {
+            const hide = event.currentTarget;
+            if (typeof window.aipkit_apiRequest !== 'function' || hide.disabled) return;
+            hide.disabled = true;
+            try {
+                await window.aipkit_apiRequest('aipkit_onboarding', { _wpnonce: setupChecklist.dataset.nonce, op: 'hide_checklist' });
+                setupChecklist.remove();
+            } catch (_) {
+                hide.disabled = false;
+            }
+        });
         const closeHints = (except = null) => {
             container.querySelectorAll('[data-aipkit-usage-hint]').forEach((open) => {
                 if (open !== except) {

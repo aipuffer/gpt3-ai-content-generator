@@ -9393,7 +9393,8 @@
 #aipkit_content_writer_container
   :is(
     .aipkit_cw_inspector_disclosure--prompts,
-    .aipkit_cw_inspector_disclosure--images
+    .aipkit_cw_inspector_disclosure--images,
+    .aipkit_cw_publishing_panel
   ).is-flat-fields
   > .aipkit_cw_inspector_disclosure_panel {
   border-top: 0;

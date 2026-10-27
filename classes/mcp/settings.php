@@ -437,9 +437,10 @@ final class Settings
             wp_send_json_error(['message' => __('You cannot manage website access. Reload Settings and try again.', 'gpt3-ai-content-generator')], 403);
         }
         $action = isset($_POST['mcp_action']) && is_string($_POST['mcp_action']) ? sanitize_key(wp_unslash($_POST['mcp_action'])) : '';
+        $surface = isset($_POST['surface']) && is_string($_POST['surface']) ? sanitize_key(wp_unslash($_POST['surface'])) : '';
         if ($action === 'diagnostics') {
             $report = self::run_connection_check();
-            if (isset($_POST['surface']) && is_string($_POST['surface']) && sanitize_key(wp_unslash($_POST['surface'])) === 'onboarding') {
+            if ($surface === 'onboarding') {
                 ob_start(); self::render_connection_check(true); $html = ob_get_clean();
                 wp_send_json_success(['websiteBlocked' => self::connection_blocked(), 'addressBlocked' => self::connection_issue() !== '', 'diagnosticHtml' => $html, 'ready' => $report['status'] === 'passed', 'rows' => $report['rows']]);
             }
@@ -459,7 +460,7 @@ final class Settings
                 $usage = self::usage_data(true);
                 if (Identity::active() && $usage === null) { throw new \RuntimeException('usage_unavailable'); }
                 ob_start(); self::render_usage($usage); $card = ob_get_clean();
-                wp_send_json_success(['enabled' => Identity::active(), 'card' => $card, 'navStatusHtml' => \WPAICG\Cloud\StatusChip::html()]);
+                wp_send_json_success(['enabled' => Identity::active(), 'card' => $card, 'navStatusHtml' => \WPAICG\Cloud\StatusChip::html()] + ($surface === 'onboarding' ? ['allowanceOffer' => \WPAICG\Admin\Onboarding::allowance_offer()] : []));
             }
             $message = '';
             $pair = null;
@@ -557,7 +558,7 @@ final class Settings
                             : sprintf(__('The bridge still hasn’t confirmed the %s safety level; this website keeps the safer level.', 'gpt3-ai-content-generator'), Registry::level_label($level_sync['level'])));
                     } }
             } elseif ($action !== 'view') { throw new \RuntimeException('invalid_input'); }
-            if (isset($_POST['surface']) && is_string($_POST['surface']) && sanitize_key(wp_unslash($_POST['surface'])) === 'onboarding') {
+            if ($surface === 'onboarding') {
                 if (in_array($action, ['connect', 'recheck'], true) && Identity::active()) { self::usage_data(true); }
                 wp_send_json_success(['assistants' => self::onboarding_connections(), 'message' => $message, 'pair' => $pair, 'allowanceOffer' => \WPAICG\Admin\Onboarding::allowance_offer()]);
             }

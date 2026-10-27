@@ -140,6 +140,8 @@ $activity_views = [
         <?php include __DIR__ . '/cloud-account-line.php'; ?>
     </div>
 
+    <?php // Open first-run setup steps stay here until they are done or hidden. ?>
+    <?php if (class_exists('\\WPAICG\\Admin\\Onboarding')) { \WPAICG\Admin\Onboarding::render_checklist(); } ?>
     <?php if (class_exists('\\WPAICG\\Mcp\\Screens')) { \WPAICG\Mcp\Screens::render_usage_attention(); } ?>
     <?php // Two cards: AI credits, and website actions read left to right (what is left, then what this site used). A half
     // without data hides, and a card with no visible half hides; with one card left, the period summary fills the

@@ -7,11 +7,11 @@ import { beginCloudConnectionChange, publishCloudConnectionChange, watchCloudCon
  * Setup actions and the shared provider connection check run server-side.
  */
 const __ = window.wp?.i18n?.__ || ((text) => text);
-const sprintf = window.wp?.i18n?.sprintf || ((text, ...args) => args.reduce((out, arg) => out.replace(/%s/, arg), text));
+const sprintf = window.wp?.i18n?.sprintf || ((text, ...args) => { let next = 0; return text.replace(/%(?:(\d+)\$)?s/g, (_, position) => String(args[position ? position - 1 : next++])); });
 
 const config = window.aipkitSetup || {};
 // wp_localize_script serializes top-level booleans as strings.
-['cloudConnected', 'resume', 'cloudConsent'].forEach(key => { config[key] = config[key] === true || config[key] === '1'; });
+['cloudConnected', 'resume', 'cloudConsent', 'websiteLater'].forEach(key => { config[key] = config[key] === true || config[key] === '1'; });
 const root = document.getElementById('aipkit-setup');
 
 async function post(action, fields, keepalive = false, signal) {
@@ -70,8 +70,12 @@ if (root) {
         goals: Array.isArray(config.goals) ? config.goals : [],
         assistants: Array.isArray(config.assistants) ? config.assistants : [],
         assistant: '',
-        power: 'cloud',
-        connection: '',
+        power: ['cloud', 'key', 'later'].includes(config.power) ? config.power : 'cloud',
+        connection: typeof config.connection === 'string' ? config.connection : '',
+        aiChoice: false,
+        // Website setup uses Cloud for the account; retain the separate AI provider preference.
+        aiPower: ['cloud', 'key', 'later'].includes(config.power) ? config.power : 'cloud',
+        availableCredits: typeof config.availableCredits === 'string' ? config.availableCredits : null,
         keyReady: false,
         busy: false,
         connectionCheck: 'idle',
@@ -79,12 +83,21 @@ if (root) {
         chatModel: '',
         chatWidget: '',
         product: null,
+        // Website picked with other tools: Do this later moves on to them (saved, so a reload keeps it); the checklist keeps website open.
+        websiteLater: config.websiteLater === true,
+        // Assistant links started on this screen, and whether the Connect click copied the address.
+        linkGrants: [],
+        addressCopied: false,
+        // What setup already produced, for the checklist: tried, published, created.
+        results: new Set(Array.isArray(config.results) ? config.results : []),
+        saved: new Set(Array.isArray(config.saved) ? config.saved : []),
     };
     let checkRequest = null;
     let pageGone = false;
     const verification = { generation: 0, timer: null, requestTimer: null, controller: null, attempt: '', grant: '', until: 0, status: 'idle' };
+    // A link waiting for Allow: a short automatic check while this screen is visible, and other ways to finish after a minute.
+    const linkWatch = { grant: '', timer: null, slowTimer: null, since: 0, stopped: false, turn: 0, controller: null, generation: 0 };
     const backTo = { goals: 'welcome', connect: 'goals', 'try-chat': 'connect', 'try-write': 'connect', 'try-auto': 'connect', 'try-forms': 'connect', 'try-products': 'connect' };
-    const progressIndex = { goals: 0, connect: 1, 'try-chat': 2, 'try-write': 2, 'try-auto': 2, 'try-forms': 2, 'try-products': 2 };
     const firstSteps = { chatbot: 'try-chat', forms: 'try-forms', write: 'try-write' };
     const writingSteps = ['try-write', 'try-products', 'try-auto'];
 
@@ -123,7 +136,7 @@ if (root) {
     }
 
     function go(step) {
-        if (step !== 'connect') pauseWebsiteVerification();
+        if (step !== 'connect') { pauseWebsiteVerification(); watchAssistantLink(null); }
         if (step === 'connect' && state.step !== 'connect' && !checkRequest) { state.connectionCheck = 'idle'; }
         if (state.step === 'try-chat' && step !== 'try-chat') pauseChatWidget();
         if (step !== 'connect' && keyRequest) { keyRequest = null; renderPower(); }
@@ -132,13 +145,7 @@ if (root) {
         root.dataset.step = step;
         showError('');
         $$('.aipkit-setup__step').forEach((section) => { section.hidden = section.dataset.step !== step; });
-        const current = progressIndex[step];
-        root.querySelector('.aipkit-setup__progress').hidden = current === undefined;
-        $$('.aipkit-setup__progress li').forEach((item, index) => {
-            item.classList.toggle('is-current', index === current);
-            item.classList.toggle('is-done', current !== undefined && index < current);
-            item.querySelector('.aipkit-setup__dot').textContent = current !== undefined && index < current ? '✓' : String(index + 1);
-        });
+        renderProgress();
         root.querySelector('[data-action="skip"]').textContent = step === 'done' ? __('Close', 'gpt3-ai-content-generator') : __('Skip setup', 'gpt3-ai-content-generator');
         if (step === 'done') renderSummary();
         if (step === 'connect') renderPower();
@@ -156,15 +163,61 @@ if (root) {
         $$('[data-goal]').forEach((card) => card.setAttribute('aria-pressed', state.goals.includes(card.dataset.goal) ? 'true' : 'false'));
         const count = state.goals.length;
         $('[data-action="save-goals"]').disabled = state.busy || !count;
+        // Your setup: the steps these picks run, in order (website first), and about how long they take.
+        const plan = $('[data-goal-plan]');
+        if (!plan) return;
+        if (!count) { plan.textContent = __('Pick what you need to see your setup.', 'gpt3-ai-content-generator'); return; }
+        const website = state.goals.includes('website');
+        const tool = state.goals.find(goal => goal !== 'website');
+        const steps = [website ? __('Account', 'gpt3-ai-content-generator') : __('Connect AI', 'gpt3-ai-content-generator')];
+        if (website) steps.push(__('Website', 'gpt3-ai-content-generator'));
+        if (tool) steps.push($(`[data-goal="${tool}"]`)?.dataset.moduleName || '');
+        steps.push(__('Done', 'gpt3-ai-content-generator'));
+        const parts = [__('Your setup:', 'gpt3-ai-content-generator')];
+        steps.forEach((label, index) => {
+            if (index) parts.push('→');
+            const name = document.createElement('strong'); name.textContent = label; parts.push(name);
+        });
+        parts.push(sprintf(__('· about %s minutes', 'gpt3-ai-content-generator'), 1 + Number(website) + Number(Boolean(tool))));
+        plan.replaceChildren(...parts);
     }
 
     const websiteGoal = () => state.goals.includes('website');
     const deferredWebsite = () => websiteGoal() && (root.dataset.websiteAddressBlocked === 'true' || root.dataset.websiteConnectionBlocked === 'true');
     const otherGoal = () => state.goals.find(goal => goal !== 'website');
-    const websiteFlow = () => websiteGoal() && !otherGoal();
+    // Website first: a website pick runs its connect steps before any other tool. With other tools picked,
+    // Do this later or a site that can't be reached moves on to them; website-only keeps its own blocked screen.
+    const websiteFlow = () => websiteGoal() && !state.aiChoice && (!otherGoal() || (!state.websiteLater && !deferredWebsite()));
+    const moduleName = (goal) => $(`[data-goal="${goal}"]`)?.dataset.moduleName || '';
+
+    /** Setup progress: Choose, Account, Website (when picked), the first tool (when picked), Done. */
+    function renderProgress() {
+        const tool = otherGoal();
+        const accountDone = root.dataset.cloud === 'connected' && (websiteGoal() ? root.dataset.websiteReady : root.dataset.cloudReady) === 'true';
+        const shown = { goals: true, account: true, website: websiteGoal(), try: Boolean(tool), done: true };
+        let current = { goals: 'goals', done: 'done' }[state.step] || (state.step.startsWith('try-') ? 'try' : '');
+        if (state.step === 'connect') current = state.aiChoice ? 'try' : (websiteFlow() && root.dataset.websiteReady === 'true') || (websiteGoal() && connectedAssistant()) ? 'website' : 'account';
+        const list = root.querySelector('.aipkit-setup__progress');
+        list.hidden = !current;
+        const items = $$('.aipkit-setup__progress li').filter(item => { item.hidden = !shown[item.dataset.for]; return !item.hidden; });
+        const at = items.findIndex(item => item.dataset.for === current);
+        items.forEach((item, index) => {
+            // A step that was passed but not finished (website set up later) keeps its number instead of a tick.
+            const passed = at >= 0 && index < at;
+            const done = passed && (item.dataset.for !== 'website' || Boolean(connectedAssistant())) && (item.dataset.for !== 'account' || accountDone || state.power !== 'cloud');
+            item.classList.toggle('is-current', index === at);
+            item.classList.toggle('is-done', done);
+            item.querySelector('.aipkit-setup__dot').textContent = done ? '✓' : String(index + 1);
+        });
+        const label = $('.aipkit-setup__progress [data-for="try"] [data-progress-label]');
+        if (label && tool) label.textContent = moduleName(tool);
+        const account = $('.aipkit-setup__progress [data-for="account"] [data-progress-label]');
+        if (account) account.textContent = websiteGoal() ? __('Account', 'gpt3-ai-content-generator') : __('Connect', 'gpt3-ai-content-generator');
+    }
     const connectedAssistant = () => {
         const awaiting = state.assistantAwaiting || (state.assistant && state.assistants.find(item => item.state === 'pending' && item.client_hint === state.assistant)?.grant_id);
-        return state.assistants.find(item => item.state === 'active' && (!state.assistant || item.client_hint === state.assistant) && (!awaiting || item.grant_id === awaiting));
+        return state.assistants.find(item => item.state === 'active' && (!state.assistant || item.client_hint === state.assistant) && (!awaiting || item.grant_id === awaiting))
+            || state.assistants.find(item => item.state === 'active' && state.linkGrants.includes(item.grant_id));
     };
 
     // ChatGPT and Claude get one button that copies the prompt and opens them; other apps copy only.
@@ -198,7 +251,7 @@ if (root) {
         const step = $('[data-website-first-request]');
         step.dataset.status = verification.status;
         $('[data-read-num]').textContent = verified ? '✓' : '3';
-        $('[data-read-title]').textContent = verified ? __('Website read confirmed', 'gpt3-ai-content-generator') : __('Try your first request', 'gpt3-ai-content-generator');
+        $('[data-read-title]').textContent = verified ? __('Website read confirmed', 'gpt3-ai-content-generator') : __('Try it now', 'gpt3-ai-content-generator');
         $('[data-website-hint]').textContent = verified
             ? sprintf(__('%s can use your site. Everything it does shows up in Website activity.', 'gpt3-ai-content-generator'), name.charAt(0).toUpperCase() + name.slice(1))
             : sprintf(__('In %s, select AI Puffer and send this. It only reads your site.', 'gpt3-ai-content-generator'), name);
@@ -208,9 +261,6 @@ if (root) {
         const retry = $('[data-action="retry-website-verification"]');
         retry.hidden = !['timeout', 'error'].includes(verification.status);
         retry.textContent = verification.status === 'timeout' ? __('Check again', 'gpt3-ai-content-generator') : __('Try again', 'gpt3-ai-content-generator');
-        // Footer: Set up later while waiting, Continue once the read is confirmed.
-        $('[data-action="after-connect"]').hidden = !verified;
-        if (websiteFlow()) $('[data-action="website-later"]').hidden = verified && websiteVerificationVisible();
     }
     async function checkWebsiteRead(mode = 'check') {
         if (pageGone || !websiteVerificationVisible() || document.visibilityState === 'hidden') return;
@@ -248,11 +298,41 @@ if (root) {
         }
     }
 
+    /**
+     * The website step's heading follows where the person is: link an assistant, finish in its tab (a pill shows
+     * that this page is checking), other ways to finish, or connected. Other screens keep the AI connection heading.
+     */
+    function renderConnectHead(website, ready, active, view) {
+        const title = $('[data-connect-title]');
+        const sub = $('[data-connect-sub]');
+        const pill = $('[data-connect-pill]');
+        const name = assistantNames[active?.client_hint || state.assistant] || '';
+        const linking = ready && Boolean(name) && (view === 'waiting' || view === 'notyet') && !active;
+        let head = [__('How should AI Puffer connect to AI?', 'gpt3-ai-content-generator'), sub.dataset.default || ''];
+        if (website && active) {
+            head = [name ? sprintf(__('%s is connected', 'gpt3-ai-content-generator'), name) : __('Your assistant is connected', 'gpt3-ai-content-generator'),
+                sprintf(__('It can now read and update %s. Everything it does shows up in Website activity.', 'gpt3-ai-content-generator'), root.dataset.siteHost || __('your site', 'gpt3-ai-content-generator'))];
+        } else if (linking && state.assistantSlow) {
+            head = [__('Still setting up? Here are the steps', 'gpt3-ai-content-generator'), __('Adding a connector can take a few minutes. Any of these can help.', 'gpt3-ai-content-generator')];
+        } else if (linking) {
+            head = [sprintf(state.assistantOpened ? __('Finish in the %s tab', 'gpt3-ai-content-generator') : __('Set up %s', 'gpt3-ai-content-generator'), name),
+                sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name)];
+        } else if (website && ready) {
+            head = [__('Let ChatGPT or Claude manage your site', 'gpt3-ai-content-generator'), __('Pick the assistant you already use. It takes about a minute, and every change it makes shows up in Website activity.', 'gpt3-ai-content-generator')];
+        } else if (website) {
+            head = [__('Connect your website', 'gpt3-ai-content-generator'), __('Verify your email, then connect your assistant.', 'gpt3-ai-content-generator')];
+        }
+        title.textContent = head[0];
+        sub.textContent = head[1];
+        pill.textContent = linking ? $('[data-assistant-chip]').textContent : '';
+        pill.hidden = !pill.textContent;
+        $('[data-connect-check]').hidden = !(website && active);
+    }
+
     function renderPower() {
         const website = websiteFlow();
         root.dataset.website = String(website);
         if (website) state.power = 'cloud';
-        $('[data-connect-title]').textContent = website ? __('Connect your website', 'gpt3-ai-content-generator') : __('How should AI Puffer connect to AI?', 'gpt3-ai-content-generator');
         $$('[data-power-option="key"], [data-power-option="later"], [data-updates-optin]').forEach(el => { el.hidden = website; });
         const connectionBlocked = deferredWebsite();
         const ready = root.dataset.cloud === 'connected' && root.dataset.websiteReady === 'true';
@@ -260,21 +340,31 @@ if (root) {
         if (!ready) $('[data-connection-progress]').hidden = true;
         $('[data-ai-options]').hidden = website && ready;
         $('[data-assistant-setup]').hidden = !website || !ready || connectionBlocked;
-        const sub = $('[data-connect-sub]');
-        sub.textContent = website ? __('Verify your email, then connect your assistant.', 'gpt3-ai-content-generator') : (sub.dataset.default || '');
-        // When the website can't connect, Continue can't work: Set up later becomes the main button instead.
+        // When the website can't connect, Continue can't work: Do this later becomes the main button instead.
         const later = $('[data-action="website-later"]');
         const laterFirst = website && connectionBlocked;
-        later.hidden = !website || (websiteVerificationVisible() && verification.status === 'verified');
-        later.className = laterFirst ? 'aipkit-setup__btn' : 'aipkit-setup__link';
-        renderAssistant();
+        const view = renderAssistant();
         const active = connectedAssistant();
+        const linked = Boolean(active) && websiteVerificationVisible();
+        renderConnectHead(website, ready && !connectionBlocked, linked ? active : null, view);
+        // Once an assistant is connected, Continue replaces Do this later; the first request stays visible, never required.
+        later.hidden = !website || linked;
+        later.className = laterFirst ? 'aipkit-setup__btn' : 'aipkit-setup__link';
         root.dataset.power = state.power;
         $$('[data-power-option]').forEach((option) => option.classList.toggle('is-on', option.dataset.powerOption === state.power));
         const next = $('[data-action="after-connect"]');
-        next.textContent = state.power === 'later' ? __('Continue without AI', 'gpt3-ai-content-generator') : __('Continue', 'gpt3-ai-content-generator');
+        const tool = otherGoal();
+        next.textContent = state.power === 'later' ? __('Continue without AI', 'gpt3-ai-content-generator')
+            : website && tool && !state.websiteReturn ? sprintf(__('Continue to %s', 'gpt3-ai-content-generator'), moduleName(tool)) : __('Continue', 'gpt3-ai-content-generator');
         // Website setup shows Continue only once an assistant is connected; never as a disabled button.
-        next.hidden = laterFirst || (website && (!active || verification.grant !== active.grant_id || verification.status !== 'verified'));
+        next.hidden = laterFirst || (website && !linked);
+        const aiChoice = state.aiChoice && Boolean(tool);
+        $('[data-ai-credit-title]').hidden = !aiChoice;
+        $('[data-ai-credit-balance]').hidden = !aiChoice;
+        ['[data-cloud-offer-label]', '[data-cloud-offer]', '[data-cloud-offer-description]'].forEach(selector => { $(selector).hidden = aiChoice; });
+        $('[data-ai-credit-balance]').textContent = typeof state.availableCredits === 'string'
+            ? sprintf(__('%s AI credits available', 'gpt3-ai-content-generator'), state.availableCredits)
+            : __('Balance unavailable', 'gpt3-ai-content-generator');
         const editingEmail = !$('[data-cloud-email-editor]').hidden;
         next.disabled = website ? state.busy || state.connectionCheck !== 'passed' || connectionBlocked || !ready || !active : state.busy || (state.power === 'cloud' && editingEmail) || (state.power !== 'later' && !(state.power === 'cloud' ? root.dataset.cloud === 'connected' && root.dataset.cloudReady === 'true' : state.keyReady));
         $('[data-action="cloud"]').textContent = cloudButtonLabel();
@@ -325,7 +415,18 @@ if (root) {
         if (state.step === 'connect' && website && ready && !state.busy && state.connectionCheck === 'idle') {
             void checkConnection().catch(error => showError(error.message));
         }
+        renderProgress();
+    }
 
+    // Reuse the AI options as a separate screen, without marking a connected website as deferred.
+    async function showAIChoice() {
+        state.aiChoice = true;
+        state.power = state.aiPower;
+        pauseWebsiteVerification();
+        watchAssistantLink(null);
+        window.history?.replaceState(null, '', '#ai');
+        go('connect');
+        if (state.power === 'key') await loadProviderKey();
     }
 
     async function loadProviderKey() {
@@ -385,6 +486,7 @@ if (root) {
         const accountChanged = $('[data-cloud-email]').textContent !== (data.email || '');
         if (accountChanged || (root.dataset.websiteReady === 'true') !== (data.websiteReady === true) || (root.dataset.cloud === 'connected') !== (data.connected === true)) state.connectionCheck = 'idle';
         updateAllowanceOffer(data.allowanceOffer);
+        state.availableCredits = typeof data.availableCredits === 'string' ? data.availableCredits : null;
         cloudConnected = data.connected === true;
         root.dataset.cloud = data.connected ? 'connected' : 'none';
         $('[data-action="disconnect-cloud"]').hidden = !data.connected;
@@ -452,12 +554,12 @@ if (root) {
         },
     });
 
-    async function connectCloud(checkEmail = false) {
+    async function connectCloud(checkEmail = false, selectAI = false) {
         // Continue carries the displayed agreement only on an explicit click. Return checks reuse saved consent.
         const consent = field('consent').checked || (websiteFlow() && (!checkEmail || config.cloudConsent === true));
         const data = await setup('cloud', {
             email: field('cloud_email').value, check_email: checkEmail ? 'yes' : '',
-            consent: consent ? 'yes' : 'no',
+            consent: consent ? 'yes' : 'no', website_only: websiteFlow() && !selectAI ? 'yes' : '',
             marketing: !websiteFlow() && field('marketing').checked ? 'yes' : '',
         });
         updateCloud(data);
@@ -510,14 +612,22 @@ if (root) {
         else if (state.assistantAwaiting) view = 'expired';
         const name = assistantNames[active?.client_hint || state.assistant] || __('your assistant', 'gpt3-ai-content-generator');
         const panel = $('[data-assistant-panel]');
+        const known = Boolean(assistantNames[state.assistant]);
+        const linking = (view === 'waiting' || view === 'notyet') && known;
+        watchAssistantLink(view === 'waiting' || view === 'notyet' ? pending : null);
         $('[data-onboarding-assistant]').hidden = view !== 'form';
         panel.hidden = view === 'form';
         panel.dataset.state = view;
         panel.dataset.client = active?.client_hint || state.assistant || '';
+        panel.dataset.slow = String(linking && state.assistantSlow === true);
+        // While ChatGPT or Claude is linking, the page heading carries the title and the pill; the panel holds the steps.
+        panel.dataset.linking = String(linking);
         // While setting up, the panel is the guide: its title names the app, a small chip carries the state.
-        const guideTitle = state.assistant === 'other' ? __('Set up another MCP app', 'gpt3-ai-content-generator') : sprintf(__('Set up %s', 'gpt3-ai-content-generator'), name);
+        const guideTitle = state.assistant === 'other' ? __('Set up another MCP app', 'gpt3-ai-content-generator')
+            : state.assistantSlow ? __('Still setting up? Here are the steps', 'gpt3-ai-content-generator')
+                : state.assistantOpened ? sprintf(__('Finish in the %s tab', 'gpt3-ai-content-generator'), name) : sprintf(__('Set up %s', 'gpt3-ai-content-generator'), name);
         const copy = {
-            waiting: [guideTitle, ''],
+            waiting: [guideTitle, known && !state.assistantSlow ? sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name) : ''],
             notyet: [guideTitle, sprintf(__('Choose Allow on the connection page in %s. Return here and select Check.', 'gpt3-ai-content-generator'), name)],
             connected: [sprintf(__('%s is connected', 'gpt3-ai-content-generator'), name), sprintf(__('You can now manage this site from %s.', 'gpt3-ai-content-generator'), name)],
             failed: [sprintf(__('%s couldn’t be connected', 'gpt3-ai-content-generator'), name), state.assistantFailed],
@@ -529,20 +639,92 @@ if (root) {
         $('[data-assistant-text]').hidden = !copy[1];
         $('[data-assistant-icon]').textContent = view === 'connected' ? '✓' : (['waiting', 'notyet'].includes(view) ? '' : '!');
         const chip = $('[data-assistant-chip]');
-        chip.textContent = view === 'waiting' ? __('Waiting', 'gpt3-ai-content-generator') : view === 'notyet' ? __('Not allowed yet', 'gpt3-ai-content-generator') : '';
+        const waitingFor = !state.assistantSlow ? __('Waiting for %s…', 'gpt3-ai-content-generator')
+            : linkWatch.stopped ? __('Still waiting for %s', 'gpt3-ai-content-generator') : __('Still waiting for %s · checking every few seconds', 'gpt3-ai-content-generator');
+        chip.textContent = view === 'waiting' ? (known ? sprintf(waitingFor, name) : __('Waiting', 'gpt3-ai-content-generator'))
+            : view === 'notyet' ? __('Not allowed yet', 'gpt3-ai-content-generator') : '';
         chip.hidden = !chip.textContent;
         root.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== (state.assistant || 'other'); });
-        $('[data-mcp-setup]').hidden = !['waiting', 'notyet'].includes(view);
+        // ChatGPT and Claude get three short steps; another MCP app keeps the full manual setup.
+        $('[data-mcp-setup]').hidden = !['waiting', 'notyet'].includes(view) || known;
+        $$('[data-assistant-steps]').forEach(steps => { steps.hidden = !linking || state.assistantSlow === true || steps.dataset.assistantSteps !== state.assistant; });
+        $$('[data-address-title]').forEach(line => { line.textContent = state.addressCopied ? line.dataset.copied : line.dataset.manual; });
 
         let link = '';
         try { link = view === 'waiting' || view === 'notyet' ? handoff(pending.connect_url) : ''; } catch (_) { link = ''; }
         $('[data-assistant-handoff]').hidden = !link;
-        $('[data-action="check-assistant"]').textContent = view === 'notyet' ? __('Check again', 'gpt3-ai-content-generator') : __('Check', 'gpt3-ai-content-generator');
+        // Waiting controls: Open again, Use Claude instead and Check now; after a minute each gets a line (and the guide joins).
+        const fix = (key, shown) => { const row = $(`[data-fix="${key}"]`); if (row) row.hidden = !shown; };
+        fix('open', Boolean(link) && known);
+        fix('guide', linking && state.assistantSlow === true);
+        fix('switch', linking);
+        $('[data-assistant-open]').textContent = sprintf(state.assistantOpened ? __('Open %s again', 'gpt3-ai-content-generator') : __('Open %s', 'gpt3-ai-content-generator'), name);
+        $('[data-assistant-guide]').href = assistantGuides[state.assistant] || assistantGuides.other;
+        const other = state.assistant === 'claude' ? 'chatgpt' : 'claude';
+        $('[data-assistant-fix-other]').textContent = sprintf(__('Try %s instead', 'gpt3-ai-content-generator'), assistantNames[other]);
+        const change = $('[data-action="assistant-switch"]');
+        change.className = state.assistantSlow ? 'aipkit-setup__btn aipkit-setup__btn--ghost' : 'aipkit-setup__link';
+        change.textContent = sprintf(state.assistantSlow ? __('Use %s', 'gpt3-ai-content-generator') : __('Use %s instead', 'gpt3-ai-content-generator'), assistantNames[other]);
+        $('[data-action="check-assistant"]').textContent = view === 'notyet' || (linking && linkWatch.stopped) ? __('Check again', 'gpt3-ai-content-generator') : linking ? __('Check now', 'gpt3-ai-content-generator') : __('Check', 'gpt3-ai-content-generator');
         const again = $('[data-action="assistant-again"]');
         again.hidden = view !== 'failed' && view !== 'expired';
         again.textContent = view === 'expired' ? __('Start again', 'gpt3-ai-content-generator') : __('Try again', 'gpt3-ai-content-generator');
-        $('[data-action="assistant-choose"]').hidden = view === 'connected';
+        // While ChatGPT or Claude is waiting, Use Claude instead covers switching; the full chooser stays for the rest.
+        $('[data-action="assistant-choose"]').hidden = view === 'connected' || linking;
+        return view;
+    }
 
+    const assistantGuides = {
+        chatgpt: 'https://aipower.org/docs/start/connect-chatgpt/',
+        claude: 'https://aipower.org/docs/start/connect-claude/',
+        other: 'https://aipower.org/docs/start/connect-cursor-claude-code/',
+    };
+
+    /**
+     * Setup only: while a link waits for Allow and this screen is visible, ask the bridge every few seconds whether
+     * it was approved (one status read, nothing else). Hidden tabs pause and check again on return; it stops once
+     * connected, skipped or left, and after five minutes Check again takes over. After a minute, other ways to finish show.
+     */
+    function watchAssistantLink(pending) {
+        const grant = pending && state.step === 'connect' && !pageGone ? pending.grant_id : '';
+        if (grant !== linkWatch.grant) {
+            clearTimeout(linkWatch.timer); clearTimeout(linkWatch.slowTimer);
+            linkWatch.controller?.abort(); linkWatch.controller = null; linkWatch.generation++;
+            Object.assign(linkWatch, { grant, timer: null, slowTimer: null, since: Date.now(), stopped: false });
+            state.assistantSlow = false;
+            if (grant) linkWatch.slowTimer = setTimeout(() => { linkWatch.slowTimer = null; state.assistantSlow = true; renderPower(); }, 60000);
+        }
+        if (!grant || document.visibilityState === 'hidden') { clearTimeout(linkWatch.timer); linkWatch.timer = null; return; }
+        if (!linkWatch.timer && !linkWatch.controller && !linkWatch.stopped) linkWatch.timer = setTimeout(() => { linkWatch.timer = null; void pollAssistantLink(grant); }, 4000);
+    }
+
+    async function pollAssistantLink(grant) {
+        const generation = linkWatch.generation;
+        const current = () => !pageGone && state.step === 'connect' && websiteFlow() && !state.assistantChoosing && linkWatch.grant === grant && linkWatch.generation === generation && document.visibilityState !== 'hidden';
+        if (!current() || linkWatch.controller) return;
+        clearTimeout(linkWatch.timer); linkWatch.timer = null;
+        if (Date.now() - linkWatch.since >= 300000) { linkWatch.stopped = true; renderPower(); return; }
+        if (state.busy) { renderPower(); return; }
+        const controller = new AbortController(); linkWatch.controller = controller;
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const links = state.assistants.filter(item => item.state === 'pending' && (item.grant_id === grant || state.linkGrants.includes(item.grant_id)));
+        const checked = links.length ? links[(linkWatch.turn = (linkWatch.turn || 0) + 1) % links.length].grant_id : grant;
+        try {
+            const data = await post('aipkit_onboarding', { _wpnonce: config.nonce, op: 'assistant_status', grant_id: checked }, false, controller.signal);
+            if (current() && Array.isArray(data.assistants)) state.assistants = data.assistants;
+        } catch (_) { /* Check now stays available; one later tick can retry. */ }
+        finally {
+            clearTimeout(timeout);
+            if (linkWatch.controller === controller) linkWatch.controller = null;
+            if (current()) renderPower();
+        }
+    }
+
+    async function refreshWebsiteAllowance() {
+        try {
+            const data = await post('aipkit_mcp_settings', { _wpnonce: config.mcpNonce, surface: 'onboarding', mcp_action: 'usage' });
+            if (!pageGone) updateAllowanceOffer(data.allowanceOffer);
+        } catch (_) { /* An allowance refresh must never prevent finishing setup. */ }
     }
 
     async function assistantRequest(action, fields = {}, accept = null) {
@@ -638,20 +820,23 @@ if (root) {
         const active = connectedAssistant() || state.assistants.find(item => item.state === 'active');
         const others = unique.filter((name) => name !== $('[data-goal="website"]').dataset.moduleName);
         const joined = others.length > 1 ? sprintf(__('%1$s and %2$s', 'gpt3-ai-content-generator'), others.slice(0, -1).join(', '), others.at(-1)) : (others[0] || '');
+        const websiteOnly = websiteGoal() && !otherGoal();
+        const aiReady = state.power !== 'later' && Boolean(state.connection);
         let lead;
-        if (websiteFlow()) {
+        if (websiteOnly) {
             lead = active
                 ? sprintf(__('%s can now manage your site. Everything it does shows up in Website activity.', 'gpt3-ai-content-generator'), { chatgpt: 'ChatGPT', claude: 'Claude' }[active.client_hint] || __('Your assistant', 'gpt3-ai-content-generator'))
-                : __('Connect ChatGPT or Claude anytime from Settings.', 'gpt3-ai-content-generator');
+                : __('Still to do: connect ChatGPT or Claude to manage your website.', 'gpt3-ai-content-generator');
         } else {
             lead = sprintf(others.length > 1 ? __('%s are ready.', 'gpt3-ai-content-generator') : __('%s is ready.', 'gpt3-ai-content-generator'), joined);
-            if (websiteGoal()) lead += ' ' + __('Website management: set up later in Settings.', 'gpt3-ai-content-generator');
+            if (websiteGoal() && active && aiReady) lead = sprintf(others.length > 1
+                ? __('%1$s is connected and %2$s are ready.', 'gpt3-ai-content-generator')
+                : __('%1$s is connected and %2$s is ready.', 'gpt3-ai-content-generator'), assistantHomes[active.client_hint]?.[0] || __('Your assistant', 'gpt3-ai-content-generator'), joined);
+            if (websiteGoal() && !active) lead += ' ' + __('Still to do: connect ChatGPT or Claude to manage your website.', 'gpt3-ai-content-generator');
             else if (state.power === 'later' || !state.connection) lead += ' ' + __('Connect AI anytime in Settings.', 'gpt3-ai-content-generator');
         }
         $('[data-summary-lead]').textContent = lead;
-        $('[data-website-settings]').hidden = !websiteGoal() || websiteFlow();
-        // One row per picked tool: its state in a few words and its own action.
-        const aiReady = state.power !== 'later' && Boolean(state.connection);
+        // The setup checklist: one row per step with its state in a few words and its own action.
         const doneRow = (row, ready, status) => {
             row.dataset.ready = String(ready);
             row.querySelector('[data-done-status]').textContent = status;
@@ -659,22 +844,49 @@ if (root) {
             if (open) open.hidden = !ready;
             row.querySelector('[data-done-connect]').hidden = ready;
         };
-        ['chatbot', 'forms', 'write'].forEach((goal) => {
-            const row = $(`[data-done-row="${goal}"]`);
-            row.hidden = !state.goals.includes(goal);
-            doneRow(row, aiReady, aiReady ? __('Ready', 'gpt3-ai-content-generator')
-                : goal === 'chatbot' ? __('Needs an AI connection to answer', 'gpt3-ai-content-generator') : __('Needs an AI connection', 'gpt3-ai-content-generator'));
-        });
+        // The free account comes first whenever Cloud runs the setup; its allowance is the status.
+        const accountRow = $('[data-done-row="account"]');
+        const accountReady = root.dataset.cloud === 'connected' && (websiteGoal() ? root.dataset.websiteReady : root.dataset.cloudReady) === 'true';
+        accountRow.hidden = !(websiteGoal() || state.power === 'cloud');
+        accountRow.querySelector('[data-done-title]').textContent = accountReady ? __('Account ready', 'gpt3-ai-content-generator') : __('Finish your free account', 'gpt3-ai-content-generator');
+        doneRow(accountRow, accountReady, accountReady ? sprintf(__('%s every month', 'gpt3-ai-content-generator'), $('[data-cloud-offer]').textContent) : __('Confirm your email to start', 'gpt3-ai-content-generator'));
         const home = assistantHomes[active?.client_hint];
         const assistant = home ? home[0] : __('your assistant', 'gpt3-ai-content-generator');
         const websiteRow = $('[data-done-row="website"]');
-        websiteRow.hidden = !websiteFlow();
-        doneRow(websiteRow, Boolean(active), !active ? __('Not connected yet', 'gpt3-ai-content-generator')
+        websiteRow.hidden = !websiteGoal();
+        websiteRow.querySelector('[data-done-title]').textContent = active ? $('[data-goal="website"]').dataset.moduleName : __('Connect ChatGPT or Claude', 'gpt3-ai-content-generator');
+        doneRow(websiteRow, Boolean(active), !active ? sprintf(__('Lets them manage %s for you · about 1 minute', 'gpt3-ai-content-generator'), root.dataset.siteHost || __('your site', 'gpt3-ai-content-generator'))
             : verification.status === 'verified' ? sprintf(__('Connected to %s', 'gpt3-ai-content-generator'), assistant)
                 : sprintf(__('Connected to %s · website read not confirmed', 'gpt3-ai-content-generator'), assistant));
+        // Each tool says what setup actually did with it: live, tested, created, or just ready.
+        const toolStatus = {
+            chatbot: () => state.saved.has('chatbot') ? __('Live on your site', 'gpt3-ai-content-generator')
+                : state.results.has('chatbot') ? __('Tested · not on your site yet', 'gpt3-ai-content-generator') : __('Ready to try', 'gpt3-ai-content-generator'),
+            forms: () => state.saved.has('forms') ? __('Form created', 'gpt3-ai-content-generator') : __('Ready', 'gpt3-ai-content-generator'),
+            write: () => state.saved.has('write') ? __('Draft saved to Posts', 'gpt3-ai-content-generator')
+                : state.saved.has('auto') ? __('Automation created', 'gpt3-ai-content-generator')
+                    : state.saved.has('products') ? __('Product description saved', 'gpt3-ai-content-generator') : __('Ready', 'gpt3-ai-content-generator'),
+        };
+        ['chatbot', 'forms', 'write'].forEach((goal) => {
+            const row = $(`[data-done-row="${goal}"]`);
+            row.hidden = !state.goals.includes(goal);
+            doneRow(row, aiReady, aiReady ? toolStatus[goal]()
+                : goal === 'chatbot' ? __('Needs an AI connection to answer', 'gpt3-ai-content-generator') : __('Needs an AI connection', 'gpt3-ai-content-generator'));
+        });
+        // Every step done: "You're all set". Otherwise how many are done, and the open steps wait on the Dashboard.
+        const rows = ['account', 'website', 'chatbot', 'forms', 'write'].map(key => $(`[data-done-row="${key}"]`)).filter(row => !row.hidden);
+        const doneCount = rows.filter(row => row.dataset.ready === 'true').length;
+        const complete = doneCount === rows.length;
+        $('[data-done-heading]').textContent = complete ? __('You’re all set', 'gpt3-ai-content-generator')
+            : sprintf(__('Almost there: %1$s of %2$s done', 'gpt3-ai-content-generator'), doneCount, rows.length);
+        $('[data-done-hero]').hidden = !complete;
+        const meter = $('[data-done-meter]');
+        meter.hidden = complete;
+        meter.style?.setProperty('--aipkit-setup-done', `${rows.length ? Math.round(doneCount / rows.length * 100) : 0}%`);
+        $('[data-done-note]').hidden = complete;
         // Connected website setup: tested recipes for this site's plugins. A skipped read check starts with the safe first requests.
         const next = $('[data-done-next]');
-        next.hidden = !(websiteFlow() && active);
+        next.hidden = !(websiteGoal() && active);
         $('[data-done-next-title]').textContent = sprintf(__('Try next in %s', 'gpt3-ai-content-generator'), assistant);
         const readSkipped = verification.status !== 'verified';
         $('[data-done-first]').hidden = !readSkipped;
@@ -682,9 +894,15 @@ if (root) {
         recipes.forEach((recipe, index) => { recipe.hidden = readSkipped && index === recipes.length - 1 && recipes.length > 2; });
         // Connected website setup: keep Done available after launching the assistant; activity has its own action.
         const finish = $('[data-action="finish"]');
-        finish.dataset.url = websiteFlow() && active && home ? home[1] : '';
+        finish.dataset.url = complete && websiteGoal() && active ? (home?.[1] || $('[data-done-activity]').href || '') : '';
+        // An open step finishes on the Dashboard, where the checklist stays until it is done.
+        finish.dataset.home = String(!complete);
+        // With a step open, Connect now is the main action; going to the Dashboard is secondary.
+        finish.classList.toggle('aipkit-setup__btn--ghost', !complete);
         $('[data-done-activity]').hidden = !finish.dataset.url;
-        finish.textContent = websiteFlow() ? (active ? (home ? sprintf(__('Open %s', 'gpt3-ai-content-generator'), home[0]) : __('View website activity', 'gpt3-ai-content-generator')) : __('Go to Settings', 'gpt3-ai-content-generator')) : sprintf(__('Go to %s', 'gpt3-ai-content-generator'), $(`[data-goal="${otherGoal()}"]`).dataset.moduleName || unique[0]);
+        finish.textContent = !complete ? __('Go to Dashboard', 'gpt3-ai-content-generator')
+            : websiteGoal() && active ? (home ? sprintf(__('Open %s', 'gpt3-ai-content-generator'), home[0]) : __('View website activity', 'gpt3-ai-content-generator'))
+                : sprintf(__('Go to %s', 'gpt3-ai-content-generator'), moduleName(otherGoal()) || unique[0]);
     }
 
     function firstResultStep() {
@@ -732,7 +950,7 @@ if (root) {
             if (!chat || typeof window.aipkit_initializeChatInstance !== 'function') throw new Error(__('Your chatbot could not be shown. Open it in Chatbots instead.', 'gpt3-ai-content-generator'));
             chatNode = chat;
             // Keep the first-result metric tied to a completed reply, never a failed submission.
-            chat.addEventListener('aipkit:messageReceived', () => { void setup('chat_result').catch(() => {}); }, { once: true });
+            chat.addEventListener('aipkit:messageReceived', () => { state.results.add('chatbot'); void setup('chat_result').catch(() => {}); }, { once: true });
             await window.aipkit_initializeChatInstance(chat);
             if (!current()) return;
             if (!chat.classList.contains('aipkit-initialized')) throw new Error(__('Your chatbot could not be shown. Try again or open it in Chatbots.', 'gpt3-ai-content-generator'));
@@ -757,6 +975,7 @@ if (root) {
         const section = trigger.closest('.aipkit-setup__step');
         await busy(trigger, async () => {
             const data = await setup('template', { template, ...fields });
+            state.saved.add(template === 'auto_blog' ? 'auto' : 'forms');
             section.querySelectorAll('[data-templates], [data-template-options]').forEach((el) => { el.hidden = true; });
             section.querySelector('[data-template-skip]').hidden = true;
             const result = section.querySelector('[data-template-result]');
@@ -773,10 +992,23 @@ if (root) {
 
     const actions = {
         start: () => go('goals'),
-        back: () => go(backTo[state.step] || 'welcome'),
-        skip: (button) => leave(state.step === 'done' ? 'finish' : 'skip', button),
+        back: (button) => {
+            if (state.step === 'connect' && state.aiChoice && !deferredWebsite()) {
+                return busy(button, async () => {
+                    if (state.websiteLater) await setup('website_later', { later: '' });
+                    state.aiPower = state.power;
+                    state.aiChoice = false;
+                    state.websiteLater = false;
+                    window.history?.replaceState(null, '', '#connect');
+                    go('connect');
+                });
+            }
+            go(state.step === 'connect' && state.websiteReturn ? 'done' : backTo[state.step] || 'welcome');
+        },
+        skip: (button) => leave(state.step === 'done' ? 'finish' : 'skip', button, state.step === 'done' && $('[data-action="finish"]').dataset.home === 'true' ? config.dashboardUrl : undefined),
         finish: (button) => {
             if (state.busy) return;
+            if (button.dataset.home === 'true') return leave('finish', button, config.dashboardUrl);
             if (!button.dataset.url) return leave('finish', button);
             // Reserve a tab during the click, but only launch after completion is saved. This tab stays on Done,
             // where View website activity and the recipes remain one click away.
@@ -794,17 +1026,19 @@ if (root) {
                 } catch (error) { tab.close(); throw error; }
             });
         },
-        'website-settings': (button) => leave('finish', button, button.href),
         'done-open': (button) => leave('finish', button, button.href),
         done: () => go('done'),
         'save-goals': (button) => busy(button, async () => {
             state.goals = (await setup('goals', { goals: state.goals })).goals;
+            Object.assign(state, { websiteLater: false, websiteReturn: false, aiChoice: false });
+            window.history?.replaceState(null, '', '#connect');
             go('connect');
             if (websiteFlow() && root.dataset.websiteReady === 'true' && !deferredWebsite()) await assistantRequest('view');
         }),
         power: (button) => {
             accountEmail.cancel();
             state.power = button.dataset.power;
+            state.aiPower = state.power;
             if (state.power !== 'key') keyRequest = null;
             renderPower();
             if (state.power === 'key') return loadProviderKey();
@@ -871,7 +1105,33 @@ if (root) {
             message.hidden = false;
             renderPower();
         }),
-        'website-later': () => go('done'),
+        // Website-only finishes on Done. With other tools picked, they come next: straight to the first one when
+        // Cloud already works, otherwise to the AI choices. Website stays open on the setup checklist.
+        'website-later': (button) => busy(button, async () => {
+            await setup('website_later', { later: 'yes' });
+            state.websiteLater = true;
+            if (!otherGoal() || state.websiteReturn) { go('done'); return; }
+            accountEmail.cancel();
+            await showAIChoice();
+        }),
+        // Done checklist: Connect now returns to the website step; a site that can't connect from here opens Settings.
+        'website-connect': (button) => deferredWebsite() ? leave('finish', button, button.href) : busy(button, async () => {
+            if (state.websiteLater) await setup('website_later', { later: '' });
+            state.websiteLater = false;
+            state.aiChoice = false;
+            window.history?.replaceState(null, '', '#website');
+            state.websiteReturn = Boolean(otherGoal());
+            go('connect');
+            // Like the first entry: read this site's assistants, which may have changed since.
+            if (websiteFlow() && root.dataset.websiteReady === 'true') await assistantRequest('view');
+        }),
+        // While ChatGPT waits, switch to Claude (and back) with a new link, opened by this click.
+        'assistant-switch': () => {
+            const form = $('[data-onboarding-assistant]');
+            const other = form.querySelector(`[data-assistant="${state.assistant === 'claude' ? 'chatgpt' : 'claude'}"]`);
+            if (!other || typeof form.requestSubmit !== 'function') { state.assistantChoosing = true; renderPower(); return; }
+            form.requestSubmit(other);
+        },
         'writing-mode': (button) => {
             if (state.goals.includes('write') && writingSteps.includes(state.step) && writingSteps.includes(button.dataset.writingStep)) go(button.dataset.writingStep);
         },
@@ -885,7 +1145,7 @@ if (root) {
             form.requestSubmit(button);
         },
         'assistant-choose': () => {
-            Object.assign(state, { assistant: '', assistantChoosing: true, assistantFailed: '', assistantNotYet: false, assistantAwaiting: '' });
+            Object.assign(state, { assistant: '', assistantChoosing: true, assistantFailed: '', assistantNotYet: false, assistantAwaiting: '', assistantOpened: false });
             renderPower();
         },
         // Reserve the tab during the click; navigate only after the copy actually succeeds.
@@ -914,15 +1174,19 @@ if (root) {
             } catch (error) { showError(__('Copying failed. Select the text and copy it yourself.', 'gpt3-ai-content-generator')); }
         }),
         'after-connect': (button) => busy(button, async () => {
-            if (websiteFlow()) {
-                if (deferredWebsite()) return;
-                if (!websiteVerificationVisible() || verification.status !== 'verified' || verification.grant !== connectedAssistant()?.grant_id) return;
-                go('done');
+            const website = websiteFlow();
+            if (website) {
+                if (deferredWebsite() || !websiteVerificationVisible()) return;
+                // Back from Done, the other tools are already set up: never redo their AI connection.
+                await refreshWebsiteAllowance();
+                if (!otherGoal() || state.websiteReturn) { go('done'); return; }
+                await showAIChoice();
                 return;
             }
             if (state.power === 'cloud') {
-                const data = await connectCloud();
-                if (!data.ready) return;
+                const data = await connectCloud(false, true);
+                // The website is connected but Cloud can't run AI yet (credits or models): show the AI choices and why.
+                if (!data.ready) { if (website) state.websiteLater = true; return; }
             }
             else if (state.power === 'key') {
                 if (!state.keyReady) throw new Error(__('Check your API key before continuing.', 'gpt3-ai-content-generator'));
@@ -938,6 +1202,7 @@ if (root) {
         'save-product': (button) => busy(button, async () => {
             if (!state.product) return;
             const data = await setup('save_product', state.product);
+            state.saved.add('products');
             state.product = null;
             $('[data-product-replaces]').hidden = true;
             $('[data-product-title]').textContent = data.message;
@@ -958,6 +1223,7 @@ if (root) {
         'load-chat': () => loadChatWidget(true),
         'publish-bot': (button) => busy(button, async () => {
             await setup('publish_bot');
+            state.saved.add('chatbot');
             const item = $('[data-bot-visibility] span');
             item.textContent = __('Live on your site as a chat bubble', 'gpt3-ai-content-generator');
             button.hidden = true;
@@ -1006,16 +1272,38 @@ if (root) {
             event.preventDefault();
             const button = event.submitter;
             if (!button || state.busy || state.connectionCheck !== 'passed' || !assistantForm.reportValidity()) return;
-            button.dataset.connectLabel ||= button.textContent;
+            // A large ChatGPT or Claude button keeps its layout: only its name line changes on a failed attempt.
+            const label = button.querySelector('strong') || button;
+            button.dataset.connectLabel ||= label.textContent;
+            // ChatGPT and Claude: this click copies the connection address and reserves their tab, which opens on
+            // the new link once it exists. A blocked tab leaves Open ChatGPT in the panel; a failed copy shows the address to copy.
+            const client = button.dataset.assistant;
+            let tab = null;
+            if (assistantNames[client]) {
+                const address = $('[data-assistant-address]')?.textContent.trim();
+                state.addressCopied = false;
+                if (address && typeof navigator.clipboard?.writeText === 'function') {
+                    navigator.clipboard.writeText(address).then(() => { state.addressCopied = true; renderPower(); }, () => {});
+                }
+                try { tab = typeof window.open === 'function' ? window.open('', '_blank') : null; } catch (_) { tab = null; }
+                if (tab) tab.opener = null;
+            }
             busy(button, async () => {
-                state.assistant = button.dataset.assistant;
-                Object.assign(state, { assistantChoosing: false, assistantFailed: '', assistantNotYet: false, assistantAwaiting: '' });
+                state.assistant = client;
+                Object.assign(state, { assistantChoosing: false, assistantFailed: '', assistantNotYet: false, assistantAwaiting: '', assistantOpened: false });
                 try {
-                    if (state.connectionCheck !== 'passed') return;
-                    await assistantRequest('connect', { client: state.assistant });
-                    button.textContent = button.dataset.connectLabel;
+                    if (state.connectionCheck !== 'passed') { tab?.close(); return; }
+                    const data = await assistantRequest('connect', { client });
+                    label.textContent = button.dataset.connectLabel;
+                    // Links started here stay usable: approving an earlier one (ChatGPT after switching to Claude) still counts.
+                    const created = pendingFor(client)?.grant_id;
+                    if (created && !state.linkGrants.includes(created)) state.linkGrants.push(created);
+                    let link = '';
+                    try { link = handoff(data.pair?.connect_url || pendingFor(client)?.connect_url); } catch (_) { link = ''; }
+                    if (tab && link) { tab.location.replace(link); state.assistantOpened = true; } else tab?.close();
                 } catch (error) {
-                    button.textContent = __('Retry connection', 'gpt3-ai-content-generator');
+                    tab?.close();
+                    label.textContent = __('Retry connection', 'gpt3-ai-content-generator');
                     state.assistantFailed = error.message || __('Something went wrong. Try again.', 'gpt3-ai-content-generator');
                 }
             });
@@ -1104,6 +1392,7 @@ if (root) {
             $('[data-draft]').hidden = true;
             try {
                 const data = await setup('draft', { topic });
+                state.saved.add('write');
                 $('[data-draft-title]').textContent = data.title;
                 $('[data-draft-excerpt]').textContent = data.excerpt;
                 $('[data-draft-meta]').textContent = sprintf(__('Draft saved to Posts · About %s words', 'gpt3-ai-content-generator'), Number(data.words).toLocaleString());
@@ -1119,8 +1408,11 @@ if (root) {
     renderGoals();
     renderPower();
     field('consent').checked = config.cloudConsent === true;
-    go(window.location.hash === '#connect' || config.resume === true ? 'connect' : 'welcome');
-    // Entry, return and manual checks reconcile once; no recurring status requests.
+    if (window.location.hash === '#website') { state.websiteLater = false; state.websiteReturn = Boolean(otherGoal()); }
+    if (window.location.hash === '#ai' && websiteGoal() && otherGoal()) { state.aiChoice = true; state.power = state.aiPower; }
+    go(['#connect', '#website', '#ai'].includes(window.location.hash) || config.resume === true ? 'connect' : 'welcome');
+    if (state.step === 'connect' && state.power === 'key') void loadProviderKey();
+    // A return checks the same lightweight status as the bounded watcher, without usage or safety-level refreshes.
     let returning = false;
     async function resumeConnection() {
         if (state.step !== 'connect' || state.busy || returning || document.visibilityState === 'hidden') return;
@@ -1134,18 +1426,17 @@ if (root) {
             if (websiteFlow() && root.dataset.websiteReady === 'true' && !deferredWebsite() && pending) {
                 // Background reconciliation must not lock the screen or overwrite a later user choice.
                 try {
-                    await assistantRequest('recheck', { grant_id: pending.grant_id }, () => !pageGone && state.step === 'connect'
-                        && !state.assistantChoosing && state.assistant === client && pendingFor(client)?.grant_id === pending.grant_id);
+                    await pollAssistantLink(pending.grant_id);
                 } catch (_) { /* Keep the current screen; manual Check remains available. */ }
             }
         } finally { returning = false; }
     }
     window.addEventListener('focus', resumeConnection);
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') pauseWebsiteVerification();
+        if (document.visibilityState === 'hidden') { pauseWebsiteVerification(); clearTimeout(linkWatch.timer); linkWatch.timer = null; }
         else { void resumeConnection(); if (websiteVerificationVisible() && verification.status === 'waiting') void checkWebsiteRead(verification.attempt ? 'check' : 'start'); }
     });
-    window.addEventListener('pagehide', () => { pageGone = true; pauseWebsiteVerification(); });
+    window.addEventListener('pagehide', () => { pageGone = true; pauseWebsiteVerification(); watchAssistantLink(null); });
     window.addEventListener('pageshow', () => { pageGone = false; renderPower(); });
     if (state.step === 'connect') void resumeConnection();
 }

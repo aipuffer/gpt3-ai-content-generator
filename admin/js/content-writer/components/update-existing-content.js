@@ -924,6 +924,7 @@
       const maxTokens = lengthMap[contentLengthKey] || lengthMap.medium;
 
       const baseConfig = {
+        ...(getExistingMode() === "existing-content" ? { post_content_format: config.post_content_format === "gutenberg" ? "gutenberg" : "html" } : {}),
         ai_provider: config.ai_provider || "openai",
         ai_model: config.ai_model || "",
         temperature: parseFloat(config.ai_temperature || "1"),

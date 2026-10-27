@@ -1007,7 +1007,7 @@ class AIPKit_PostEnhancer_Bulk_Process_Single_Field extends AIPKit_Post_Enhancer
             }
         }
 
-        $new_value = trim(str_replace('"', '', $ai_result['content']));
+        $new_value = $field === 'content' ? trim($ai_result['content']) : trim(str_replace('"', '', $ai_result['content']));
         $success_message = '';
         $updated_value = null;
 
@@ -1048,8 +1048,8 @@ class AIPKit_PostEnhancer_Bulk_Process_Single_Field extends AIPKit_Post_Enhancer
                 $success_message = 'Excerpt updated successfully';
                 break;
             case 'content':
-                $html_content = AIPKit_Content_Writer_Output_Cleaner::convert_basic_markdown_to_html($new_value);
-                $saved = wp_update_post(wp_slash(['ID' => $post->ID, 'post_content' => wp_kses_post($html_content)]), true);
+                $html_content = AIPKit_Content_Writer_Output_Cleaner::prepare_rewritten_content($new_value, $post->post_type === 'attachment' ? 'html' : ($item_config['post_content_format'] ?? 'html'));
+                $saved = wp_update_post(wp_slash(['ID' => $post->ID, 'post_content' => $html_content]), true);
                 $success_message = 'Content updated successfully';
                 break;
             case 'tags':
