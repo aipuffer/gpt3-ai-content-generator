@@ -389,7 +389,7 @@ final class Cli
     /** Values associated with credentials or this connection's internal state never become assistant input/output. */
     private static function private_key(string $key): bool
     {
-        return (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?key|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
+        return (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?(?:key|email)|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
     }
 
     private static function public_data($value, int $depth = 0)

@@ -15,6 +15,13 @@ final class Abilities
     {
         add_action('init', [Content::class, 'register_definitions'], 20);
         add_filter('rest_pre_dispatch', [Content::class, 'protect_private_types'], 10, 3);
+        add_filter('register_block_type_args', [Content::class, 'pagelayer_block_args'], 10, 2);
+        add_filter('wp_register_ability_args', [Content::class, 'pagelayer_ability_args'], 10, 2);
+        add_filter('wp_register_ability_args', [Content::class, 'seedprod_ability_args'], 10, 2);
+        add_action('wp_after_insert_post', [Content::class, 'seedprod_editor_saved'], 10, 2);
+        add_filter('pre_post_content', [Content::class, 'seedprod_editor_html'], -1000);
+        add_filter('aipkit_mcp_ability_content_error', [Content::class, 'builder_content_error'], 10, 3);
+        add_filter('aipkit_mcp_ability_content_error', [Content::class, 'pagelayer_preflight'], 20, 3);
         add_filter('aipkit_mcp_ability_result', [Chatbots::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [ProductSales::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [CacheSettings::class, 'dispatch'], 10, 4);

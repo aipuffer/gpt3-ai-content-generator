@@ -306,6 +306,22 @@ final class Engines
     /** The plain-content API cannot represent an existing block document without losing structure. */
     public static function preserve_blocks(\WP_Post $post, string $source, array $path): ?array
     {
+        if (get_post_meta($post->ID, '_seedprod_page', true)) {
+            return self::content_refusal('layout_replacement_required', $source, $path,
+                'This page uses SeedProd. Discover seedprod/get-page and save-page; preserve the complete native sections and pass source_version. Free layouts need a native builder Save to generate visitor HTML. Omit content for metadata-only edits.');
+        }
+        if (get_post_meta($post->ID, 'pagelayer-data', true)) {
+            return self::content_refusal('layout_replacement_required', $source, $path,
+                'This page uses Pagelayer. Discover pagelayer-pages/get-page and update-element for native fields. Generic post-body replacement does not update its saved layout. Preserve unmentioned nodes and styling; omit content for metadata-only edits.');
+        }
+        if (get_post_meta($post->ID, '_fl_builder_enabled', true)) {
+            return self::content_refusal('layout_replacement_required', $source, $path,
+                'This page uses Beaver Builder. Discover ai-puffer/beaver-get-document and beaver-update-document for supported module fields. Generic post-body replacement does not update the visible builder layout. Omit content for metadata-only edits.');
+        }
+        if (get_post_meta($post->ID, 'panels_data', true)) {
+            return self::content_refusal('layout_replacement_required', $source, $path,
+                'This page uses SiteOrigin Page Builder. Discover siteorigin-panels/layout-get and layout-update. Preserve the complete native layout and unmentioned widgets. Generic post-body replacement does not update the visible layout. Omit content for metadata-only edits.');
+        }
         return has_blocks($post->post_content) ? self::content_refusal('existing_block_document', $source, $path,
             'This is an existing Gutenberg document. Preserve its block markup. Discover ai-puffer/gutenberg-update-document: on 2.5.15+ use edits_json for partial inline edits and adding blocks, or create-document with source_post_id/source_version for a separate edited draft. Whole-layout replacement still requires explicit intent. Omit content for metadata-only edits.') : null;
     }
@@ -394,6 +410,51 @@ final class Engines
         return self::ability_diagnostics(self::ability_result($result), $ability->get_name(), $phase, $result);
     }
 
+    /** Ignore only native widget bookkeeping returned unchanged from this same stored layout during inspection.
+     * The original input still goes through SiteOrigin's own validation, permission and sanitization pipeline.
+     */
+    private static function siteorigin_check_input(string $name, $input)
+    {
+        if ($name !== 'siteorigin-panels/layout-update' || !is_array($input) || !is_int($input['post_id'] ?? null)
+            || !current_user_can('edit_post', $input['post_id']) || !is_array($input['panels_data']['widgets'] ?? null)) { return $input; }
+        $reader = wp_get_ability('siteorigin-panels/layout-get');
+        $document = $reader ? $reader->execute(['post_id' => $input['post_id']]) : null;
+        if (!is_array($document)) { return $input; }
+        $index = $input['block_index'] ?? null;
+        $layouts = array_values(array_filter($document['layouts'] ?? [], static function ($layout) use ($index) {
+            return is_array($layout) && ($index === null ? ($layout['storage'] ?? '') === 'meta'
+                : (($layout['storage'] ?? '') === 'block' && ($layout['block_index'] ?? null) === $index));
+        }));
+        // With no classic layout, the native callback may target one unambiguous Layout Block.
+        if ($index === null && !$layouts && count($document['layouts'] ?? []) === 1) { $layouts = $document['layouts']; }
+        if (count($layouts) !== 1) { return $input; }
+        $input['panels_data'] = self::siteorigin_check_layout($input['panels_data'], $layouts[0]['panels_data'] ?? [], 0);
+        return $input;
+    }
+
+    /** Match nested widget bookkeeping only within its same stored parent and layout. */
+    private static function siteorigin_check_layout(array $input, array $stored, int $depth): array
+    {
+        if ($depth > 4 || !is_array($input['widgets'] ?? null)) { return $input; }
+        foreach ($input['widgets'] as &$widget) {
+            if (!is_array($widget) || empty($widget['panels_info']['widget_id'])) { continue; }
+            $matches = array_values(array_filter($stored['widgets'] ?? [], static function ($old) use ($widget) {
+                return is_array($old) && ($old['panels_info']['widget_id'] ?? null) === $widget['panels_info']['widget_id']
+                    && ($old['panels_info']['class'] ?? null) === ($widget['panels_info']['class'] ?? null);
+            }));
+            if (count($matches) !== 1) { continue; }
+            foreach (['_sow_form_id', '_sow_form_timestamp'] as $key) {
+                if (array_key_exists($key, $widget) && array_key_exists($key, $matches[0]) && is_scalar($widget[$key]) && wp_json_encode($widget[$key]) === wp_json_encode($matches[0][$key])) { unset($widget[$key]); }
+            }
+            if (($widget['panels_info']['class'] ?? '') === 'SiteOrigin_Panels_Widgets_Layout'
+                && is_array($widget['panels_data'] ?? null) && is_array($matches[0]['panels_data'] ?? null)) {
+                $widget['panels_data'] = self::siteorigin_check_layout($widget['panels_data'], $matches[0]['panels_data'], $depth + 1);
+            }
+        }
+        unset($widget);
+        return $input;
+    }
+
     /** Checks a change before it runs or waits: the ability, its input and the acting user's permission. */
     private static function check_ability(object $args)
     {
@@ -402,7 +463,7 @@ final class Engines
         if (self::ability_risk($ability) === 'read') { return self::refuse('use_read_ability', 'This ability only reads. Use read_ability.'); }
         $input = self::input($args, $ability);
         if ($input === false) { return self::ability_diagnostics(Operations::error('invalid_input'), $ability->get_name(), 'preflight'); }
-        $unsafe = apply_filters('aipkit_mcp_ability_content_error', self::unsafe_content($input), $ability->get_name(), $input);
+        $unsafe = apply_filters('aipkit_mcp_ability_content_error', self::unsafe_content(self::siteorigin_check_input($ability->get_name(), $input)), $ability->get_name(), $input);
         if ($unsafe) { return $unsafe; }
         $input = $ability->normalize_input($input);
         if (is_wp_error($input)) { return self::ability_diagnostics(self::ability_result($input), $ability->get_name(), 'preflight', $input); }
@@ -438,10 +499,29 @@ final class Engines
         $phase = 'before_execution';
         $native_refusal = null;
         Operations::$mutation_started = true;
-        $result = self::filtered_change(static function () use ($ability, $args, &$phase, &$native_refusal) {
-            $work = static function () use ($ability, $args, &$phase) { return self::execute_ability($ability, self::input($args, $ability), $phase); };
-            return class_exists(Elementor::class) ? Elementor::native_change($ability->get_name(), (array) self::input($args, $ability), $work, $native_refusal) : $work();
-        });
+        // SiteOrigin's cached static-widget shortcodes carry hidden form inputs, which WordPress KSES removes.
+        // Cache their native rendered HTML instead; it still passes the same post-content sanitizer. No input tags
+        // or unfiltered_html exemption is granted; untested interactive widgets keep native copy-content behaviour.
+        $fallback = static function ($html, $widget, $widget_args, $instance) {
+            if (empty($GLOBALS['SITEORIGIN_PANELS_POST_CONTENT_RENDER']) || !is_object($widget)
+                || !in_array(get_class($widget), ['SiteOrigin_Widget_Button_Widget', 'SiteOrigin_Widget_Image_Widget', 'SiteOrigin_Widget_Headline_Widget', 'SiteOrigin_Widget_Features_Widget', 'SiteOrigin_Widgets_Testimonials_Widget'], true)) { return $html; }
+            // The Page Builder renderer supplies the outer panel once around this filter's result.
+            $widget_args['before_widget'] = '';
+            $widget_args['after_widget'] = '';
+            ob_start();
+            try { $widget->widget($widget_args, $instance); return ob_get_contents(); }
+            finally { ob_end_clean(); }
+        };
+        $siteorigin = $ability->get_name() === 'siteorigin-panels/layout-update';
+        if ($siteorigin) { add_filter('siteorigin_panels_the_widget_html', $fallback, 20, 4); }
+        try {
+            $result = self::filtered_change(static function () use ($ability, $args, &$phase, &$native_refusal) {
+                $work = static function () use ($ability, $args, &$phase) { return self::execute_ability($ability, self::input($args, $ability), $phase); };
+                return class_exists(Elementor::class) ? Elementor::native_change($ability->get_name(), (array) self::input($args, $ability), $work, $native_refusal) : $work();
+            });
+        } finally {
+            if ($siteorigin) { remove_filter('siteorigin_panels_the_widget_html', $fallback, 20); }
+        }
         // Only our wrapper can identify a refusal before invoking the native callback.
         if ($native_refusal !== null && $phase === 'before_execution') {
             Operations::$mutation_started = false;
@@ -453,6 +533,14 @@ final class Engines
                 $native['result'] = ['data_json' => self::bounded($result)];
                 return self::ability_diagnostics($native, $ability->get_name(), $phase, $result);
             }
+        }
+        if ($ability->get_name() === 'siteorigin-panels/layout-update' && is_array($result) && ($result['updated'] ?? null) === false) {
+            // These native sources decline before saving. A failed block save can already have started: keep recovery.
+            $declined = in_array($result['source'] ?? '', ['unsupported', 'block-ambiguous'], true);
+            if ($declined) { Operations::$mutation_started = false; }
+            $out = $declined ? self::refuse('invalid_input', 'SiteOrigin did not save the layout. Read layout-get and preserve its complete widgets, grids and grid_cells structure; supply block_index when needed.') : self::after_start('outcome_unknown');
+            $out['result'] = ['data_json' => self::bounded($result)];
+            return self::ability_diagnostics($out, $ability->get_name(), $phase);
         }
         // Refused before the callback (input or permission, as checked above): nothing ran. Any other error came from
         // the callback, an output check after it, or another plugin's short-circuit: something may have changed.
@@ -598,6 +686,36 @@ final class Engines
         return $query;
     }
 
+    /** GeoDirectory 2.8.x flattens descriptions in REST even when its advanced editor is enabled.
+     * Correct a copy of native arguments during MCP only; retain configured custom sanitizers and WordPress KSES.
+     * Discovery uses the same correction so assistants see the format this installation actually accepts.
+     */
+    private static function directory_html_routes(array $routes): array
+    {
+        if (!function_exists('geodir_get_field_infoby') || !function_exists('geodir_sanitize_html_field')) { return $routes; }
+        foreach ($routes as &$handlers) {
+            foreach ($handlers as &$handler) {
+                $callback = is_array($handler) ? ($handler['callback'] ?? null) : null;
+                if (!is_array($callback) || !($callback[0] instanceof \GeoDir_REST_Posts_Controller)
+                    || !in_array($callback[1], ['create_item', 'update_item'], true)
+                    || ($handler['args']['content']['format'] ?? null) !== 'textarea-field'
+                    || !in_array($handler['args']['content']['sanitize_callback'] ?? '', ['rest_sanitize_request_arg', 'geodir_rest_sanitize_request_arg'], true)) { continue; }
+                $type = $callback[0]->get_item_schema()['title'] ?? '';
+                $field = geodir_get_field_infoby('htmlvar_name', 'post_content', $type);
+                $extra = is_array($field) ? maybe_unserialize($field['extra_fields'] ?? '') : null;
+                if (!is_array($extra) || empty($extra['advanced_editor']) || empty($field['is_active'])
+                    || ($field['field_type'] ?? null) !== 'textarea') { continue; }
+                $handler['args']['content']['format'] = 'html-field';
+                $handler['args']['content']['sanitize_callback'] = static function ($value) {
+                    return is_string($value) ? wp_kses_post(geodir_sanitize_html_field(wp_slash($value))) : $value;
+                };
+            }
+            unset($handler);
+        }
+        unset($handlers);
+        return $routes;
+    }
+
     public static function read_rest_route(object $args): array
     {
         $route = self::route($args);
@@ -606,7 +724,10 @@ final class Engines
         if (!Guard::allows_rest('GET', $route)) { return Operations::error('blocked_route'); }
         $request = new \WP_REST_Request('GET', $route);
         $request->set_query_params($query);
-        $result = self::rest_result(rest_do_request($request), false, $request);
+        $directory_html = static function (array $routes): array { return self::directory_html_routes($routes); };
+        add_filter('rest_endpoints', $directory_html);
+        try { $result = self::rest_result(rest_do_request($request), false, $request); }
+        finally { remove_filter('rest_endpoints', $directory_html); }
         if ($route === '/wp-super-cache/v1/settings' && $result['state'] === 'succeeded') {
             // The vendor's time-settings handler treats an omitted email checkbox as enabled.
             $result['result']['guidance'] = 'When changing WP Super Cache time settings, explicitly include the current cache_gc_email_me boolean from this read to preserve notification preferences. Read back all settings after saving; garbage-collection scheduling may advance.';
@@ -738,6 +859,8 @@ final class Engines
             }
             return $result;
         };
+        $directory_html = static function (array $routes): array { return self::directory_html_routes($routes); };
+        add_filter('rest_endpoints', $directory_html);
         add_filter('rest_dispatch_request', $mark, PHP_INT_MIN, 2);
         add_filter('rest_pre_dispatch', $pre, PHP_INT_MAX, 3);
         add_filter('rest_request_before_callbacks', $validate_fields, PHP_INT_MIN, 3);
@@ -746,6 +869,7 @@ final class Engines
         Operations::$mutation_started = true;
         try { $response = self::filtered_change(static function () use ($request) { return rest_do_request($request); }); }
         finally {
+            remove_filter('rest_endpoints', $directory_html);
             remove_filter('rest_dispatch_request', $mark, PHP_INT_MIN);
             remove_filter('rest_pre_dispatch', $pre, PHP_INT_MAX);
             remove_filter('rest_request_before_callbacks', $observe_before, PHP_INT_MIN);
@@ -777,6 +901,9 @@ final class Engines
         if ($status < 200 || $status >= 300) {
             $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';
             $code = is_array($data) && is_string($data['code'] ?? null) ? $data['code'] : 'rest_error';
+            if ($code === 'rest_no_route') {
+                $message = 'No registered REST route matches this path and method. Read the plugin namespace index and use its exact registered route and schema. Custom type names and rest_namespace metadata may differ from the actual route. Do not guess another path or retry this unchanged request.';
+            }
             return ['state' => 'failed', 'actions_used' => 0, 'error' => ['code' => $status === 401 || $status === 403 ? 'permission_denied' : 'rest_error',
                 'message' => mb_substr(trim($message) !== '' ? $message : 'The route refused this request.', 0, 300), 'status' => $status, 'route_code' => mb_substr($code, 0, 80)]];
         }
