@@ -645,3 +645,7 @@ details.description .aipkit_privacy_list li { margin: 2px 0; }
 .aipkit-setup__later-note { margin-left: auto; font-size: 13.5px; color: var(--aipkit-setup-muted); }
 .aipkit-setup__later-note:has(+ [data-action="website-later"]:is([hidden], .aipkit-setup__btn)) { display: none; }
 .aipkit-setup__later-note + [data-action="website-later"] { margin-left: 0; }
+
+.aipkit-setup__assist .aipkit_mcp_manual { margin-top: 12px; }
+.aipkit-setup__assist .aipkit_mcp_manual > summary { cursor: pointer; width: fit-content; font-weight: 600; }
+.aipkit-setup__assist .aipkit_mcp_manual > summary:focus-visible { outline: 2px solid #2271b1; outline-offset: 3px; border-radius: 2px; }

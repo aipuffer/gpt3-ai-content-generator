@@ -92,7 +92,7 @@ window.aipkit_initManageWebsite = function () {
             url.searchParams.set('launch', '1');
             current.querySelector('[data-mcp-connect-link]').href = url.href;
             current.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== data.pair.client_hint; });
-            current.querySelector('[data-mcp-connect-link]').textContent = data.pair.client_hint === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : data.pair.client_hint === 'claude' ? __('Open Claude setup', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator');
+            current.querySelector('[data-mcp-connect-link]').textContent = data.pair.client_hint === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : data.pair.client_hint === 'claude' ? __('Open AI Puffer in Claude', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator');
             current.querySelector('[data-mcp-handoff]').hidden = false;
         }
         if (focusKey) {

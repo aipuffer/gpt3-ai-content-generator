@@ -73,6 +73,7 @@ class AIPKit_Hook_Manager
         if (class_exists(\WPAICG\Cloud\Connection::class)) {
             \WPAICG\Mcp\Executor::register();
             \WPAICG\Mcp\Settings::register();
+            \WPAICG\Mcp\DirectoryConnect::register();
             \WPAICG\Mcp\Screens::register();
             \WPAICG\Mcp\Activity::register();
             \WPAICG\Mcp\Registry::register_hooks();

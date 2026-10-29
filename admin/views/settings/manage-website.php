@@ -279,7 +279,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                     <strong><?php echo esc_html($aipkit_mcp_title); ?></strong>
                     <span><?php echo esc_html($aipkit_mcp_detail); ?></span>
                     <?php if ($aipkit_mcp_continue) : ?>
-                        <a class="aipkit_mcp_status_link" href="<?php echo esc_url(add_query_arg('launch', '1', $aipkit_mcp_continue)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($aipkit_mcp_hint === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : ($aipkit_mcp_hint === 'claude' ? __('Open Claude setup', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator'))); ?> ↗</a>
+                        <a class="aipkit_mcp_status_link" href="<?php echo esc_url(add_query_arg('launch', '1', $aipkit_mcp_continue)); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($aipkit_mcp_hint === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : ($aipkit_mcp_hint === 'claude' ? __('Open AI Puffer in Claude', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator'))); ?> ↗</a>
                     <?php endif; ?>
                 </span>
                 <span class="aipkit_mcp_row_actions">
@@ -506,7 +506,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
         <div data-mcp-handoff <?php echo $aipkit_mcp_pending_setup ? '' : 'hidden'; ?>>
             <div class="aipkit_cloud_connect">
                 <div class="aipkit_cloud_notice aipkit_cloud_notice--info"><?php esc_html_e('Finish the approval in your assistant, in this browser, within 10 minutes. Then come back here and select Check next to the assistant.', 'gpt3-ai-content-generator'); ?></div>
-                <div class="aipkit_cloud_balance_actions"><a class="aipkit_btn aipkit_btn-primary" data-mcp-connect-link href="<?php echo $aipkit_mcp_pending_setup ? esc_url(add_query_arg('launch', '1', $aipkit_mcp_pending_setup['url'])) : ''; ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(($aipkit_mcp_pending_setup['client'] ?? '') === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : (($aipkit_mcp_pending_setup['client'] ?? '') === 'claude' ? __('Open Claude setup', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator'))); ?><span class="dashicons dashicons-external" aria-hidden="true"></span></a></div>
+                <div class="aipkit_cloud_balance_actions"><a class="aipkit_btn aipkit_btn-primary" data-mcp-connect-link href="<?php echo $aipkit_mcp_pending_setup ? esc_url(add_query_arg('launch', '1', $aipkit_mcp_pending_setup['url'])) : ''; ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(($aipkit_mcp_pending_setup['client'] ?? '') === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : (($aipkit_mcp_pending_setup['client'] ?? '') === 'claude' ? __('Open AI Puffer in Claude', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator'))); ?><span class="dashicons dashicons-external" aria-hidden="true"></span></a></div>
                 <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit_settings_provider_option_help', $aipkit_mcp_pending_setup['client'] ?? 'chatgpt'); ?>
             </div>
         </div>

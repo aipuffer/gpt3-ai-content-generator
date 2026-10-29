@@ -357,3 +357,13 @@ details.description .aipkit_privacy_list li { margin: 2px 0; }
 #aipkit_settings_container .aipkit_cloud_panel_footer > .aipkit_cloud_panel_disconnect { color: #b42318; font-weight: 600; }
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] [data-cloud-provider-only] { display: none; }
 #aipkit_settings_container .aipkit_cloud_panel_pill[hidden] { display: none; }
+
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual { margin-top: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual > summary { cursor: pointer; width: fit-content; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual > summary:focus-visible { outline: 2px solid #2271b1; outline-offset: 3px; border-radius: 2px; }
+
+/* Directory entry reuses the account sheet, while approval remains a normal WordPress form. */
+.aipkit_directory_connect { max-width: 620px; padding: 24px; margin-top: 20px; }
+.aipkit_directory_connect h1 { font-size: 23px; line-height: 1.3; margin: 0 0 16px; }
+.aipkit_directory_connect p { line-height: 1.6; overflow-wrap: anywhere; }
+.aipkit_directory_connect [role="alert"] { color: #b32d2e; }

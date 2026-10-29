@@ -91,7 +91,8 @@ async function openInWorkspace(opener) {
     const requestedStep = pendingStep;
     opener.setAttribute('aria-busy', 'true');
     const feedback = opener.closest('[data-aipkit-cloud-announcement]')?.querySelector('[data-cloud-announcement-feedback]')
-        || opener.closest('[data-aipkit-website-tip]')?.querySelector('[data-website-tip-feedback]');
+        || opener.closest('[data-aipkit-website-tip]')?.querySelector('[data-website-tip-feedback]')
+        || opener.closest('#aipkit-directory-connect')?.querySelector('[data-directory-feedback]');
     if (feedback) feedback.hidden = true;
     try {
         if (!panelRequest) {

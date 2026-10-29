@@ -288,8 +288,8 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                 <div class="aipkit-setup__happens">
                                     <p><?php esc_html_e('What happens', 'gpt3-ai-content-generator'); ?></p>
                                     <ol>
-                                        <li><?php esc_html_e('Your assistant opens with the AI Puffer address already copied.', 'gpt3-ai-content-generator'); ?></li>
-                                        <li><?php esc_html_e('You add it as a custom connector and approve access once.', 'gpt3-ai-content-generator'); ?></li>
+                                        <li><?php esc_html_e('Your assistant opens in a new tab.', 'gpt3-ai-content-generator'); ?></li>
+                                        <li><?php esc_html_e('Follow its connection steps and approve access to your website.', 'gpt3-ai-content-generator'); ?></li>
                                         <li><?php esc_html_e('This page shows when your assistant is connected.', 'gpt3-ai-content-generator'); ?></li>
                                     </ol>
                                 </div>
@@ -307,7 +307,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                 <p class="aipkit-setup__assist-title"><span class="aipkit-setup__assist-icon" aria-hidden="true" data-assistant-icon></span><span data-assistant-title></span><span class="aipkit-setup__assist-chip" data-assistant-chip hidden></span></p>
                                 <p class="aipkit-setup__assist-text" data-assistant-text></p>
                                 <?php
-                                // ChatGPT and Claude: three short steps, with the address the Connect click already copied.
+                                // ChatGPT uses custom setup; Claude uses the shared directory instructions below.
                                 $aipkit_setup_address_step = static function () use ($aipkit_setup_mcp_address): void { ?>
                                     <span class="aipkit-setup__address"><code data-assistant-address><?php echo esc_html($aipkit_setup_mcp_address); ?></code><button type="button" class="aipkit-setup__btn aipkit-setup__btn--ghost" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($aipkit_setup_mcp_address); ?>"><?php esc_html_e('Copy again', 'gpt3-ai-content-generator'); ?></button></span>
                                 <?php };
@@ -316,11 +316,6 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                         [__('Add a new MCP server in ChatGPT', 'gpt3-ai-content-generator'), __('In Plugins, select + (Add), then Add custom MCP server. Name it AI Puffer.', 'gpt3-ai-content-generator')],
                                         [[__('Paste the address. It is already copied.', 'gpt3-ai-content-generator'), __('Copy this address and paste it.', 'gpt3-ai-content-generator')], __('Choose Server URL and leave Authentication set to OAuth.', 'gpt3-ai-content-generator')],
                                         [__('Approve AI Puffer when ChatGPT asks', 'gpt3-ai-content-generator'), __('Select I understand and want to continue, then Create. You can disconnect it anytime in Settings.', 'gpt3-ai-content-generator')],
-                                    ],
-                                    'claude' => [
-                                        [__('Check the AI Puffer form in Claude', 'gpt3-ai-content-generator'), __('The tab we opened fills in the name and address. Select Continue.', 'gpt3-ai-content-generator')],
-                                        [[__('Empty form? Paste the address. It is already copied.', 'gpt3-ai-content-generator'), __('Empty form? Copy this address and paste it.', 'gpt3-ai-content-generator')], __('Customize → Connectors → Add connector → Add custom connector.', 'gpt3-ai-content-generator')],
-                                        [__('Approve AI Puffer when Claude asks', 'gpt3-ai-content-generator'), __('Sign in if asked. You can disconnect it anytime in Settings.', 'gpt3-ai-content-generator')],
                                     ],
                                 ] as $aipkit_client => $aipkit_client_steps) : ?>
                                     <ol class="aipkit-setup__link-steps" data-assistant-steps="<?php echo esc_attr($aipkit_client); ?>" hidden>
@@ -333,12 +328,12 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                         <?php endforeach; ?>
                                     </ol>
                                 <?php endforeach; ?>
-                                <?php // Another MCP app keeps the full manual setup shared with Settings. ?>
+                                <?php // Claude directory setup and other-app instructions are shared with Settings. ?>
                                 <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit-setup__muted', 'chatgpt', true); ?>
                                 <?php // One set of controls: inline while waiting; after a minute the same controls become a list of fixes. ?>
                                 <div class="aipkit-setup__row aipkit-setup__fixes">
                                     <span class="aipkit-setup__fix" data-fix="open" hidden>
-                                        <span class="aipkit-setup__fix-text"><strong><?php esc_html_e('It may be in another window', 'gpt3-ai-content-generator'); ?></strong><span><?php esc_html_e('Open it again; the address is copied for you.', 'gpt3-ai-content-generator'); ?></span></span>
+                                        <span class="aipkit-setup__fix-text"><strong><?php esc_html_e('It may be in another window', 'gpt3-ai-content-generator'); ?></strong><span><?php esc_html_e('Open your assistant again to finish connecting.', 'gpt3-ai-content-generator'); ?></span></span>
                                         <a class="aipkit-setup__btn aipkit-setup__btn--ghost" data-assistant-link data-assistant-open target="_blank" rel="noopener noreferrer"></a>
                                     </span>
                                     <span class="aipkit-setup__fix" data-fix="guide" hidden>
@@ -346,7 +341,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                         <a class="aipkit-setup__btn aipkit-setup__btn--ghost" data-assistant-guide href="https://aipower.org/docs/start/connect-chatgpt/" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open guide', 'gpt3-ai-content-generator'); ?> ↗</a>
                                     </span>
                                     <span class="aipkit-setup__fix" data-fix="switch" hidden>
-                                        <span class="aipkit-setup__fix-text"><strong data-assistant-fix-other></strong><span><?php esc_html_e('The same three steps.', 'gpt3-ai-content-generator'); ?></span></span>
+                                        <span class="aipkit-setup__fix-text"><strong data-assistant-fix-other></strong><span><?php esc_html_e('Follow its connection steps.', 'gpt3-ai-content-generator'); ?></span></span>
                                         <button type="button" class="aipkit-setup__link" data-action="assistant-switch"></button>
                                     </span>
                                     <span class="aipkit-setup__fix" data-fix="check" data-assistant-handoff hidden>

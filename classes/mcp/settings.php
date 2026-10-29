@@ -245,35 +245,11 @@ final class Settings
         ); ?></p><?php
     }
 
-    /** Required setup stays visible in WordPress; authorization remains on the hosted bridge. */
+    /** Directory setup leads for Claude; manual details remain available without bypassing Bridge authorization. */
     public static function render_assistant_instructions(string $class = 'aipkit_settings_provider_option_help', string $client = 'chatgpt', bool $onboarding = false): void
     {
         $url = Store::config()['mcp_url'] ?? 'https://mcp.aipuffer.org/mcp';
-        ?><div class="<?php echo esc_attr($class . ($onboarding ? '' : ' aipkit_mcp_setup')); ?>" data-mcp-setup>
-            <div data-mcp-instructions="chatgpt" <?php echo $client === 'chatgpt' ? '' : 'hidden'; ?>>
-                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up ChatGPT', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
-                <ol>
-                    <li><?php esc_html_e('Open ChatGPT plugins. Select + (Add), then Add custom MCP server.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open ChatGPT plugins', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
-                    <li><?php esc_html_e('Enter AI Puffer as the name. Choose Server URL, paste the address below and leave Authentication set to OAuth.', 'gpt3-ai-content-generator'); ?></li>
-                    <li><?php esc_html_e('Review ChatGPT’s notice, select I understand and want to continue, then Create as a plugin. Complete the AI Puffer authorization when prompted.', 'gpt3-ai-content-generator'); ?></li>
-                </ol>
-                <p><?php esc_html_e('Already added AI Puffer? Open it under Plugins → Manage and choose Connect, Reconnect or Connect another account. If custom MCP setup is unavailable, check your ChatGPT plan or workspace permissions.', 'gpt3-ai-content-generator'); ?></p>
-            </div>
-            <div data-mcp-instructions="claude" <?php echo $client === 'claude' ? '' : 'hidden'; ?>>
-                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up Claude', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
-                <ol>
-                    <li><?php esc_html_e('Open Claude setup below. Check the prefilled AI Puffer name and server URL, then select Continue and follow Claude’s connection prompts.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open Claude setup', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
-                    <li><?php esc_html_e('Complete the AI Puffer authorization when prompted. Already added it? Open Customize → Connectors → Yours → AI Puffer. If it is connected, choose Disconnect, then Connect. Otherwise, choose Connect.', 'gpt3-ai-content-generator'); ?></li>
-                </ol>
-                <p><?php esc_html_e('If the prefilled form does not appear after signing in, open Claude setup again. You can also use Customize → Connectors → Add connector → Add custom connector and enter the details below.', 'gpt3-ai-content-generator'); ?></p>
-            </div>
-            <div data-mcp-instructions="other" <?php echo !in_array($client, ['chatgpt', 'claude'], true) ? '' : 'hidden'; ?>>
-                <p><?php esc_html_e('Add a remote MCP server in your assistant using the name and address below, with OAuth authentication.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open assistant setup', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></p>
-                <p><strong>Cursor:</strong> <?php esc_html_e('Open Customize → MCPs and add a custom remote MCP server using the address below. Select Authenticate, then allow access in the browser.', 'gpt3-ai-content-generator'); ?></p>
-                <p><strong>Claude Code:</strong> <?php esc_html_e('Run these commands in your terminal, then allow access in the browser:', 'gpt3-ai-content-generator'); ?></p>
-                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code><?php echo esc_html('claude mcp add --scope user --transport http ai-puffer ' . $url); ?></code></p>
-                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code>claude mcp login ai-puffer</code></p>
-            </div>
+        $render_details = static function () use ($url, $onboarding): void { ?>
             <?php $details = [__('Name', 'gpt3-ai-content-generator') => 'AI Puffer', __('MCP server address', 'gpt3-ai-content-generator') => $url];
             if (!$onboarding) { $details[__('Test prompt', 'gpt3-ai-content-generator')] = sprintf(
                     /* translators: %s: WordPress website address. */
@@ -284,8 +260,46 @@ final class Settings
                     <button type="button" class="aipkit_btn <?php echo $onboarding ? 'aipkit_btn-secondary aipkit-setup__link' : ''; ?>" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($value); ?>"><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
                 </p>
             <?php endforeach; ?>
+        <?php };
+        ?><div class="<?php echo esc_attr($class . ($onboarding ? '' : ' aipkit_mcp_setup')); ?>" data-mcp-setup>
+            <div data-mcp-instructions="chatgpt" <?php echo $client === 'chatgpt' ? '' : 'hidden'; ?>>
+                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up ChatGPT', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
+                <ol>
+                    <li><?php esc_html_e('Open ChatGPT plugins. Select + (Add), then Add custom MCP server.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open ChatGPT plugins', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
+                    <li><?php esc_html_e('Enter AI Puffer as the name. Choose Server URL, paste the address below and leave Authentication set to OAuth.', 'gpt3-ai-content-generator'); ?></li>
+                    <li><?php esc_html_e('Review ChatGPT’s notice, select I understand and want to continue, then Create as a plugin. Complete the AI Puffer authorization when prompted.', 'gpt3-ai-content-generator'); ?></li>
+                </ol>
+                <p><?php esc_html_e('Already added AI Puffer? Open it under Plugins → Manage and choose Connect, Reconnect or Connect another account. If custom MCP setup is unavailable, check your ChatGPT plan or workspace permissions.', 'gpt3-ai-content-generator'); ?></p>
+                <?php $render_details(); ?>
+            </div>
+            <div data-mcp-instructions="claude" <?php echo $client === 'claude' ? '' : 'hidden'; ?>>
+                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up Claude', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
+                <ol>
+                    <li><?php esc_html_e('Open AI Puffer in Claude’s connector directory and choose Connect.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open AI Puffer in Claude', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
+                    <li><?php esc_html_e('Choose Allow when AI Puffer asks for access to this website, then return here.', 'gpt3-ai-content-generator'); ?></li>
+                </ol>
+                <p><?php esc_html_e('Already added AI Puffer? Open it in Claude’s connectors and choose Connect or Reconnect.', 'gpt3-ai-content-generator'); ?></p>
+                <details class="aipkit_mcp_manual">
+                    <summary><?php esc_html_e('Connect manually', 'gpt3-ai-content-generator'); ?></summary>
+                    <ol>
+                        <li><?php esc_html_e('In Claude, open Customize → Connectors and add a custom connector.', 'gpt3-ai-content-generator'); ?></li>
+                        <li><?php esc_html_e('Enter AI Puffer as the name and paste the server address below. Keep OAuth authentication, then add the connector and choose Connect.', 'gpt3-ai-content-generator'); ?></li>
+                        <li><?php esc_html_e('Choose Allow when AI Puffer asks for access to this website.', 'gpt3-ai-content-generator'); ?></li>
+                    </ol>
+                    <?php $render_details(); ?>
+                </details>
+            </div>
+            <div data-mcp-instructions="other" <?php echo !in_array($client, ['chatgpt', 'claude'], true) ? '' : 'hidden'; ?>>
+                <p><?php esc_html_e('Add a remote MCP server in your assistant using the name and address below, with OAuth authentication.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open assistant setup', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></p>
+                <p><strong>Cursor:</strong> <?php esc_html_e('Open Customize → MCPs and add a custom remote MCP server using the address below. Select Authenticate, then allow access in the browser.', 'gpt3-ai-content-generator'); ?></p>
+                <p><strong>Claude Code:</strong> <?php esc_html_e('Run these commands in your terminal, then allow access in the browser:', 'gpt3-ai-content-generator'); ?></p>
+                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code><?php echo esc_html('claude mcp add --scope user --transport http ai-puffer ' . $url); ?></code></p>
+                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code>claude mcp login ai-puffer</code></p>
+                <?php $render_details(); ?>
+            </div>
+
             <p class="<?php echo $onboarding ? 'aipkit-setup__allow-line' : 'aipkit_mcp_setup_note'; ?>"><?php esc_html_e('Choose Allow when AI Puffer asks, then return here and select Check. Setup links last 10 minutes; start again if yours expires.', 'gpt3-ai-content-generator'); ?></p>
-            <?php if (!$onboarding) : ?><p class="aipkit_mcp_setup_note"><?php esc_html_e('In a new chat, select AI Puffer (type @ in ChatGPT), then send the test prompt above. Opening the assistant alone does not connect your website.', 'gpt3-ai-content-generator'); ?></p><?php endif; ?>
+            <?php if (!$onboarding) : ?><p class="aipkit_mcp_setup_note"><?php esc_html_e('After connecting, open a new chat and select AI Puffer to start using your website.', 'gpt3-ai-content-generator'); ?></p><?php endif; ?>
         </div><?php
     }
 
@@ -429,6 +443,29 @@ final class Settings
         return $user;
     }
 
+    /** Shared by Settings and directory entry; callers must validate their own WordPress nonce. */
+    public static function create_pair(string $level, string $client, \WP_User $acting_user): array
+    {
+        if (!Connection::allowed() || !in_array($level, Registry::LEVELS, true) || !in_array($client, ['chatgpt', 'claude', 'other'], true)) { throw new \RuntimeException('invalid_input'); }
+        if (self::connection_issue() !== '') { throw new \RuntimeException('connection_unavailable'); }
+        global $wpdb;
+        $grants_table = Schema::table('grants');
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Read current assistant state for authorization; Schema allowlists tables and IDs are prepared; cached grants could retain revoked access.
+        if (Schema::ready() && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $grants_table WHERE instance_id = %s AND state = 'pending' AND created_at > %d", Identity::registration()['instance_id'] ?? '', time() - 600)) >= 5) { throw new \RuntimeException('pending_limit'); }
+        $cloud = Connection::display();
+        if (!empty($cloud['connected']) && ($cloud['status'] ?? '') === 'unavailable') { throw new \RuntimeException('identity_check_unavailable'); }
+        if (Store::site_token() === '') { throw new \RuntimeException('cloud_required'); }
+        if (Connection::display()['email_verified'] !== true) { throw new \RuntimeException('verification_required'); }
+        Identity::enable(); Store::record_consent(get_current_user_id());
+        $config = Store::config();
+        $expect = isset($config['account_id'], $config['site_id']) ? ['account_id' => $config['account_id'], 'site_id' => $config['site_id']] : null;
+        $result = BridgeClient::register($expect);
+        if (is_wp_error($result)) { throw new \RuntimeException('connection_unavailable'); }
+        $pair = BridgeClient::pair($level, $client, $acting_user);
+        if (is_wp_error($pair)) { throw new \RuntimeException('connection_unavailable'); }
+        return $pair;
+    }
+
     public static function handle(): void
     {
         $method = isset($_SERVER['REQUEST_METHOD']) && is_string($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
@@ -471,21 +508,7 @@ final class Settings
                 if (!in_array($client, ['chatgpt', 'claude', 'other'], true) || !in_array($level, Registry::LEVELS, true)) { throw new \RuntimeException('invalid_input'); }
                 if (isset($_POST['act_as']) && !is_string($_POST['act_as']) && !is_int($_POST['act_as'])) { throw new \RuntimeException('invalid_input'); }
                 $acting_user = self::acting_user(isset($_POST['act_as']) ? absint(wp_unslash($_POST['act_as'])) : 0);
-                global $wpdb;
-                $grants_table = Schema::table('grants');
-                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Read current assistant state for authorization; Schema allowlists tables and IDs are prepared; cached grants could retain revoked access.
-                if (Schema::ready() && (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $grants_table WHERE instance_id = %s AND state = 'pending' AND created_at > %d", Identity::registration()['instance_id'] ?? '', time() - 600)) >= 5) { throw new \RuntimeException('pending_limit'); }
-                $cloud = Connection::display();
-                if (!empty($cloud['connected']) && ($cloud['status'] ?? '') === 'unavailable') { throw new \RuntimeException('identity_check_unavailable'); }
-                if (Store::site_token() === '') { throw new \RuntimeException('cloud_required'); }
-                if (Connection::display()['email_verified'] !== true) { throw new \RuntimeException('verification_required'); }
-                Identity::enable(); Store::record_consent(get_current_user_id());
-                $config = Store::config();
-                $expect = isset($config['account_id'], $config['site_id']) ? ['account_id' => $config['account_id'], 'site_id' => $config['site_id']] : null;
-                $result = BridgeClient::register($expect);
-                if (is_wp_error($result)) { throw new \RuntimeException('connection_unavailable'); }
-                $pair = BridgeClient::pair($level, $client, $acting_user);
-                if (is_wp_error($pair)) { throw new \RuntimeException('connection_unavailable'); }
+                $pair = self::create_pair($level, $client, $acting_user);
                 $message = __('Finish connecting in your assistant, then return here and select Check.', 'gpt3-ai-content-generator');
             } elseif ($action === 'level') {
                 $id = isset($_POST['grant_id']) && is_string($_POST['grant_id']) ? sanitize_text_field(wp_unslash($_POST['grant_id'])) : '';

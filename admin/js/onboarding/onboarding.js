@@ -316,7 +316,7 @@ if (root) {
             head = [__('Still setting up? Here are the steps', 'gpt3-ai-content-generator'), __('Adding a connector can take a few minutes. Any of these can help.', 'gpt3-ai-content-generator')];
         } else if (linking) {
             head = [sprintf(state.assistantOpened ? __('Finish in the %s tab', 'gpt3-ai-content-generator') : __('Set up %s', 'gpt3-ai-content-generator'), name),
-                sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name)];
+                assistantSetupHint(state.assistant, name)];
         } else if (website && ready) {
             head = [__('Let ChatGPT or Claude manage your site', 'gpt3-ai-content-generator'), __('Pick the assistant you already use. It takes about a minute, and every change it makes shows up in Website activity.', 'gpt3-ai-content-generator')];
         } else if (website) {
@@ -590,6 +590,9 @@ if (root) {
     }
 
     const assistantNames = { chatgpt: 'ChatGPT', claude: 'Claude' };
+    const assistantSetupHint = (client, name) => client === 'claude'
+        ? __('Click Connect in Claude, then approve access to this website.', 'gpt3-ai-content-generator')
+        : sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name);
     const pendingFor = (client) => state.assistants.find(item => item.state === 'pending' && item.client_hint === client);
 
     /**
@@ -627,7 +630,7 @@ if (root) {
             : state.assistantSlow ? __('Still setting up? Here are the steps', 'gpt3-ai-content-generator')
                 : state.assistantOpened ? sprintf(__('Finish in the %s tab', 'gpt3-ai-content-generator'), name) : sprintf(__('Set up %s', 'gpt3-ai-content-generator'), name);
         const copy = {
-            waiting: [guideTitle, known && !state.assistantSlow ? sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name) : ''],
+            waiting: [guideTitle, known && !state.assistantSlow ? assistantSetupHint(state.assistant, name) : ''],
             notyet: [guideTitle, sprintf(__('Choose Allow on the connection page in %s. Return here and select Check.', 'gpt3-ai-content-generator'), name)],
             connected: [sprintf(__('%s is connected', 'gpt3-ai-content-generator'), name), sprintf(__('You can now manage this site from %s.', 'gpt3-ai-content-generator'), name)],
             failed: [sprintf(__('%s couldn’t be connected', 'gpt3-ai-content-generator'), name), state.assistantFailed],
@@ -645,8 +648,8 @@ if (root) {
             : view === 'notyet' ? __('Not allowed yet', 'gpt3-ai-content-generator') : '';
         chip.hidden = !chip.textContent;
         root.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== (state.assistant || 'other'); });
-        // ChatGPT and Claude get three short steps; another MCP app keeps the full manual setup.
-        $('[data-mcp-setup]').hidden = !['waiting', 'notyet'].includes(view) || known;
+        // Claude uses directory instructions with a manual fold; ChatGPT retains its short custom setup.
+        $('[data-mcp-setup]').hidden = !['waiting', 'notyet'].includes(view) || state.assistant === 'chatgpt';
         $$('[data-assistant-steps]').forEach(steps => { steps.hidden = !linking || state.assistantSlow === true || steps.dataset.assistantSteps !== state.assistant; });
         $$('[data-address-title]').forEach(line => { line.textContent = state.addressCopied ? line.dataset.copied : line.dataset.manual; });
 
@@ -1277,14 +1280,14 @@ if (root) {
             // A large ChatGPT or Claude button keeps its layout: only its name line changes on a failed attempt.
             const label = button.querySelector('strong') || button;
             button.dataset.connectLabel ||= label.textContent;
-            // ChatGPT and Claude: this click copies the connection address and reserves their tab, which opens on
-            // the new link once it exists. A blocked tab leaves Open ChatGPT in the panel; a failed copy shows the address to copy.
+            // Reserve the assistant tab during the click, then open the signed handoff once it exists.
+            // ChatGPT also needs the copied address; Claude uses the directory and offers manual copy in its fold.
             const client = button.dataset.assistant;
             let tab = null;
             if (assistantNames[client]) {
                 const address = $('[data-assistant-address]')?.textContent.trim();
                 state.addressCopied = false;
-                if (address && typeof navigator.clipboard?.writeText === 'function') {
+                if (client === 'chatgpt' && address && typeof navigator.clipboard?.writeText === 'function') {
                     navigator.clipboard.writeText(address).then(() => { state.addressCopied = true; renderPower(); }, () => {});
                 }
                 try { tab = typeof window.open === 'function' ? window.open('', '_blank') : null; } catch (_) { tab = null; }

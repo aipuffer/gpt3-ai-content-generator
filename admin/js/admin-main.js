@@ -64,6 +64,7 @@ import "./settings/ai-provider-cards.js";
 import "./settings/cloud-connection.js";
 import "./settings/manage-website.js";
 import "./settings/cloud-panel.js";
+import "./settings/directory-connect.js";
 import "./settings/integration-cards.js";
 import "./settings/navigation.js";
 import "./settings/event-webhooks.js";

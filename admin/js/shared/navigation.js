@@ -5,6 +5,8 @@
  * and loads the default module.
  */
 document.addEventListener("DOMContentLoaded", function () {
+  // Directory approval uses shared account controls, without the dashboard module navigation.
+  if (document.getElementById("aipkit-directory-connect")) return;
   const closeCompactNavigation = () => {
     document
       .querySelectorAll(".aipkit_module-menu[open]")
