@@ -298,7 +298,7 @@ final class Settings
                 <?php $render_details(); ?>
             </div>
 
-            <p class="<?php echo $onboarding ? 'aipkit-setup__allow-line' : 'aipkit_mcp_setup_note'; ?>"><?php esc_html_e('Choose Allow when AI Puffer asks, then return here and select Check. Setup links last 10 minutes; start again if yours expires.', 'gpt3-ai-content-generator'); ?></p>
+            <p class="<?php echo $onboarding ? 'aipkit-setup__allow-line' : 'aipkit_mcp_setup_note'; ?>"><?php esc_html_e('Choose Allow when AI Puffer asks, then return here. Your connection updates automatically; select Check if needed. Setup links last 10 minutes; start again if yours expires.', 'gpt3-ai-content-generator'); ?></p>
             <?php if (!$onboarding) : ?><p class="aipkit_mcp_setup_note"><?php esc_html_e('After connecting, open a new chat and select AI Puffer to start using your website.', 'gpt3-ai-content-generator'); ?></p><?php endif; ?>
         </div><?php
     }
@@ -466,6 +466,20 @@ final class Settings
         return $pair;
     }
 
+    /** Status-only reconciliation for an existing pairing; never changes safety levels or starts access. */
+    public static function pending_status(string $id)
+    {
+        if (!Connection::allowed() || !Identity::active()) { return new \WP_Error('invalid_input'); }
+        $grant = Store::grant($id);
+        if (!$grant
+            || $grant['instance_id'] !== (Identity::registration()['instance_id'] ?? null)) {
+            return new \WP_Error('invalid_input');
+        }
+        if ($grant['state'] !== 'pending') { return ['state' => $grant['state']]; }
+        if ((int) $grant['created_at'] <= time() - 600) { return ['state' => 'expired']; }
+        return BridgeClient::status($id);
+    }
+
     public static function handle(): void
     {
         $method = isset($_SERVER['REQUEST_METHOD']) && is_string($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
@@ -493,6 +507,12 @@ final class Settings
                 // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Reject any normalization of exact enums or grant IDs; sanitization must not retarget access changes.
                 if (isset($_POST[$field]) && (!is_string($_POST[$field]) || wp_unslash($_POST[$field]) !== sanitize_text_field(wp_unslash($_POST[$field])))) { throw new \RuntimeException('invalid_input'); }
             }
+            if ($action === 'assistant_status') {
+                $id = isset($_POST['grant_id']) && is_string($_POST['grant_id']) ? sanitize_text_field(wp_unslash($_POST['grant_id'])) : '';
+                $status = self::pending_status($id);
+                if (is_wp_error($status)) { throw new \RuntimeException($status->get_error_code()); }
+                wp_send_json_success($status);
+            }
             if ($action === 'usage') {
                 $usage = self::usage_data(true);
                 if (Identity::active() && $usage === null) { throw new \RuntimeException('usage_unavailable'); }
@@ -509,7 +529,7 @@ final class Settings
                 if (isset($_POST['act_as']) && !is_string($_POST['act_as']) && !is_int($_POST['act_as'])) { throw new \RuntimeException('invalid_input'); }
                 $acting_user = self::acting_user(isset($_POST['act_as']) ? absint(wp_unslash($_POST['act_as'])) : 0);
                 $pair = self::create_pair($level, $client, $acting_user);
-                $message = __('Finish connecting in your assistant, then return here and select Check.', 'gpt3-ai-content-generator');
+                $message = __('Finish connecting in your assistant, then return here. Your connection updates automatically; select Check if needed.', 'gpt3-ai-content-generator');
             } elseif ($action === 'level') {
                 $id = isset($_POST['grant_id']) && is_string($_POST['grant_id']) ? sanitize_text_field(wp_unslash($_POST['grant_id'])) : '';
                 $level = isset($_POST['access_level']) && is_string($_POST['access_level']) ? sanitize_text_field(wp_unslash($_POST['access_level'])) : '';

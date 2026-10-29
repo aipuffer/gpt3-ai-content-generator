@@ -3486,12 +3486,6 @@ hr.aipkit_hr {
     background: #3450d1;
     color: #ffffff;
 }
-:is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn--block {
-    width: 100%;
-    height: 38px;
-    font-size: 13px;
-    font-weight: 600;
-}
 :is(#aipkit_settings_container, #aipkit_stats_container, .aipkit_connect_dialog) .aipkit_cloud_btn .aipkit_spinner {
     display: none;
 }

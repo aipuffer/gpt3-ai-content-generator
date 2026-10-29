@@ -63,9 +63,6 @@ $activity_views = [
                 <h1 class="aipkit_container-title"><?php esc_html_e('Dashboard', 'gpt3-ai-content-generator'); ?></h1>
                 <span id="aipkit_stats_status" class="aipkit_training_status aipkit_global_status_area" aria-live="polite"></span>
             </div>
-            <p class="aipkit_stats_header_hint"><?php echo $cloud_connected
-                ? esc_html__('Your balances and what happened on this site.', 'gpt3-ai-content-generator')
-                : esc_html__('What happened on this site.', 'gpt3-ai-content-generator'); ?></p>
         </div>
         <div class="aipkit_usage_header_actions">
             <?php // The period as one button with a menu: it sets "Used on this site", the summary and Activity. ?>

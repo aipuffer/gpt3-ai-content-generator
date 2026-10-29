@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.20
+Stable tag: 2.5.21
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.21 =
+Assistant connections now update automatically after approval in the Dashboard and Settings.
+
 = 2.5.20 =
 Connect your website through the Claude directory, from WordPress setup or directly from Claude.
 
@@ -266,6 +269,10 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.21 =
+* Fixed pending ChatGPT and Claude connections not updating automatically after approval in the Dashboard and Settings.
+* Improved the Cloud connection button styling and simplified the Dashboard header.
 
 = 2.5.20 =
 * Added Claude directory connections from WordPress setup, Settings and Claude, using your WordPress login and existing account verification.

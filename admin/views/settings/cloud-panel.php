@@ -149,7 +149,7 @@ $aipkit_render_account_fields = static function (string $aipkit_cloud_notice = '
                 <?php if ($aipkit_cloud_display['confirm_email']) : ?>
                     <button class="aipkit_btn aipkit_cloud_btn aipkit_cloud_btn--primary" name="cloud_action" value="check_email" disabled><?php esc_html_e('Check again', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
                 <?php endif; ?>
-                <button class="aipkit_btn aipkit_cloud_btn<?php echo $aipkit_cloud_display['confirm_email'] ? '' : ' aipkit_cloud_btn--primary aipkit_cloud_btn--block'; ?>" name="cloud_action" value="connect" disabled><?php echo esc_html($aipkit_cloud_display['confirm_email'] ? __('Resend email', 'gpt3-ai-content-generator') : __('Connect for free', 'gpt3-ai-content-generator')); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
+                <button class="aipkit_btn<?php echo $aipkit_cloud_display['confirm_email'] ? ' aipkit_cloud_btn' : ' aipkit_btn-primary'; ?>" name="cloud_action" value="connect" disabled><?php echo esc_html($aipkit_cloud_display['confirm_email'] ? __('Resend email', 'gpt3-ai-content-generator') : __('Connect for free', 'gpt3-ai-content-generator')); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
             </form>
         <?php endif; ?>
     </section>

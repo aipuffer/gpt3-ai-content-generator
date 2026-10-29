@@ -1,4 +1,5 @@
-/** Explicit opt-in flow. No autosave, timers, credential transport or provider selection. */
+/** Explicit opt-in flow, with bounded pending-connection checks in the visible website sheet. */
+import { watchPendingAssistant } from './pending-assistant.js';
 import { cloudConnectionRevision, watchCloudConnection, publishCloudConnectionChange } from '../shared/cloud-connection-sync.js';
 import { refreshWebsiteActions } from './cloud-connection.js';
 const __ = window.wp?.i18n?.__ || ((text) => text);
@@ -22,6 +23,8 @@ window.aipkit_initManageWebsite = function () {
     let busy = false;
     let revision = 0;
     let setupButton = null;
+    let pendingWatch;
+    let pageHidden = false;
     // The card sits in Connections; everything it manages is the Website tab of the AI Puffer Cloud panel.
     const card = () => settings.querySelector('#aipkit_manage_website');
     const panel = () => settings.querySelector('#aipkit_cloud_website');
@@ -106,8 +109,9 @@ window.aipkit_initManageWebsite = function () {
             target.focus();
         }
     };
-    const request = async (action, fields = {}) => {
+    const request = async (action, fields = {}, background = false) => {
         if (busy || !panel()) return;
+        pendingWatch?.invalidate();
         busy = true;
         const current = panel();
         const requestedFocus = focusIdentity(current);
@@ -119,7 +123,7 @@ window.aipkit_initManageWebsite = function () {
         current.setAttribute('aria-busy', 'true');
         try {
             const data = await window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: nonce, mcp_action: action, ...fields });
-            if (!settings.isConnected || expected !== revision || cloud !== cloudConnectionRevision()) return;
+            if (!settings.isConnected || expected !== revision || cloud !== cloudConnectionRevision() || (background && !visibleWebsite())) return;
             apply(data, action === 'view' || action === 'diagnostics', requestedFocus);
             if (action !== 'view' && action !== 'diagnostics') publishCloudConnectionChange();
             return data;
@@ -133,6 +137,7 @@ window.aipkit_initManageWebsite = function () {
         } finally {
             current.removeAttribute('aria-busy'); controls.forEach(el => { el.disabled = false; }); busy = false;
             if (cloud !== cloudConnectionRevision() && settings.isConnected) void request('view');
+            pendingWatch?.sync();
         }
     };
     settings.addEventListener('submit', event => {
@@ -238,9 +243,31 @@ window.aipkit_initManageWebsite = function () {
         }
         run();
     });
-    window.addEventListener('aipkit:cloud-connection-changed', () => { revision++; if (settings.isConnected) void request('view'); }, { signal: dispose.signal });
+    const visibleWebsite = () => !pageHidden && settings.isConnected && document.visibilityState !== 'hidden'
+        && Boolean(panel()?.getClientRects().length)
+        && settings.querySelector('#aipkit_cloud_panel')?.dataset.cloudTab === 'website'
+        && settings.querySelector('#aipkit_cloud_panel')?.classList.contains('aipkit-active');
+    pendingWatch = watchPendingAssistant({
+        pending: () => [...(panel()?.querySelectorAll('[data-mcp-pending]') || [])].map(row => ({ id: row.dataset.mcpPending, expires: Number(row.dataset.mcpExpires) * 1000 })),
+        visible: visibleWebsite,
+        busy: () => busy,
+        signal: dispose.signal,
+        check: (id, signal) => window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: panel()?.querySelector('[data-mcp-nonce]').value, mcp_action: 'assistant_status', grant_id: id }, { signal, timeout: 12000 }),
+        changed: () => request('view', {}, true),
+    });
+    const observer = new MutationObserver(() => { if (!settings.isConnected) dispose.abort(); else pendingWatch.sync(); });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-cloud-tab'] });
+    dispose.signal.addEventListener('abort', () => observer.disconnect(), { once: true });
+    window.addEventListener('pagehide', () => { pageHidden = true; pendingWatch.invalidate(); }, { signal: dispose.signal });
+    window.addEventListener('pageshow', () => { pageHidden = false; pendingWatch.sync(true); }, { signal: dispose.signal });
+    document.addEventListener('visibilitychange', () => pendingWatch.sync(true), { signal: dispose.signal });
+    window.addEventListener('aipkit:cloud-connection-changed', () => { pendingWatch.invalidate(); revision++; if (settings.isConnected) void request('view'); }, { signal: dispose.signal });
     // Back from an assistant's approval page: refresh whatever shows this state, the card or the open panel.
-    window.addEventListener('focus', () => { if (settings.isConnected && (settings.querySelector('[data-aipkit-settings-section="connections"]')?.hidden === false || settings.querySelector('#aipkit_cloud_panel.aipkit-active'))) void request('view'); }, { signal: dispose.signal });
+    window.addEventListener('focus', () => {
+        if (visibleWebsite() && panel()?.querySelector('[data-mcp-pending]')) pendingWatch.sync(true);
+        else if (settings.isConnected && (settings.querySelector('[data-aipkit-settings-section="connections"]')?.hidden === false || settings.querySelector('#aipkit_cloud_panel.aipkit-active'))) void request('view');
+    }, { signal: dispose.signal });
     window.aipkitMcpSettingsController = { dispose, read: () => settings.isConnected ? window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: panel()?.querySelector('[data-mcp-nonce]').value, mcp_action: 'view' }) : null, apply: data => { if (data && settings.isConnected && !busy) { revision++; apply(data); } } };
     watchCloudConnection('mcp-settings', () => window.aipkitMcpSettingsController?.read(), data => window.aipkitMcpSettingsController?.apply(data));
+    pendingWatch.sync();
 };

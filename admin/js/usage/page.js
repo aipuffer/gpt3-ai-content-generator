@@ -2490,10 +2490,6 @@ import { createWebsiteActivity } from './website-activity.js';
 
             if (event.detail?.action === 'balance') return;
 
-            const headerHint = container.querySelector('.aipkit_stats_header_hint');
-            if (headerHint) headerHint.textContent = account
-                ? __('Your balances and what happened on this site.', 'gpt3-ai-content-generator')
-                : __('What happened on this site.', 'gpt3-ai-content-generator');
             fetchOverview();
             if (state.view === 'requests') fetchRequests(1);
             if (!account) {

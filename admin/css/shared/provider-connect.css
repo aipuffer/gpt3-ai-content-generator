@@ -164,7 +164,6 @@
 }
 .aipkit_connect_dialog .aipkit_btn[aria-busy="true"] { cursor: progress; opacity: .8; }
 
-.aipkit_connect_dialog .aipkit_cloud_btn--block { width: 100%; }
 .aipkit_connect_dialog .aipkit_btn-danger { background: #fff; border-color: #f3d0d0; color: #c53030; }
 .aipkit_connect_dialog .aipkit_btn-danger:hover:not(:disabled) { background: #fff5f5; border-color: #e8b4b4; color: #c53030; }
 
