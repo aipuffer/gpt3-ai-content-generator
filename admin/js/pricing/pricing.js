@@ -1,6 +1,11 @@
 /* The SDK owns prices and checkout; these controls use its native selections. */
 const { __, sprintf } = wp.i18n;
 
+// Titles can be cached by the SDK; internal tier keys stay unchanged.
+function pricingTier(title) {
+  return /pro plus/i.test(title) || /^max$/i.test(title) ? 'plus' : /pro max/i.test(title) || /^ultra$/i.test(title) ? 'max' : /^(professional|pro|single site|2 sites)$/i.test(title) ? 'pro' : null;
+}
+
 function initPricing() {
   const root = document.getElementById('fs_pricing_wrapper');
   if (!root) return;
@@ -39,15 +44,15 @@ function initPricing() {
 
   function enhanceCards() {
     const cards = Array.from(root.querySelectorAll('.fs-package'));
-    // The SDK renders inherited features as placeholders on Plus and Max.
+    // The SDK renders inherited features as placeholders on the higher tiers.
     const sources = cards.filter((card) => card.classList.contains('fs-free-plan') || /^(professional|pro|single site|2 sites)$/i.test(card.querySelector('.fs-plan-title')?.textContent.trim() || ''));
     const baseFeatures = [...new Set(sources.flatMap((card) => Array.from(card.querySelectorAll('.fs-plan-features > li .fs-feature-title')).map((item) => item.textContent.trim()).slice(1)))].filter((title) => !/monthly\s+(?:(?:cloud|ai)\s+)?credits|website actions/i.test(title));
     cards.forEach((card) => {
       const content = card.querySelector('.fs-package-content');
       const nativeTitle = card.querySelector('.fs-plan-title')?.textContent.trim() || '';
-      const tier = /pro plus/i.test(nativeTitle) ? 'plus' : /pro max/i.test(nativeTitle) ? 'max' : /^(professional|pro|single site|2 sites)$/i.test(nativeTitle) ? 'pro' : null;
+      const tier = pricingTier(nativeTitle);
       if (!content || !tier || !baseFeatures.length) return;
-      const name = tier === 'plus' ? 'Pro Plus' : tier === 'max' ? 'Pro Max' : 'Pro';
+      const name = tier === 'plus' ? 'Max' : tier === 'max' ? 'Ultra' : 'Pro';
       const creditFeature = Array.from(card.querySelectorAll('.fs-plan-features-with-value > li')).find((item) => /monthly\s+(?:(?:cloud|ai)\s+)?credits/i.test(item.textContent));
       const creditValue = creditFeature?.querySelector('strong')?.textContent || '';
       const credits = tier === 'pro' ? 1000 : Number(creditValue.replace(/[^0-9]/g, ''));

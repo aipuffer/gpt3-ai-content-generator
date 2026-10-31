@@ -1115,19 +1115,23 @@ final class Content
         }
     }
 
-    /** Per-page native GeneratePress settings; no global theme or paid Elements changes. */
+    /** Per-page native theme settings; no global theme or paid template changes. */
     private static function register_page_layout(): void
     {
-        if (wp_get_theme()->get_template() !== 'generatepress' || !function_exists('generate_get_layout')) { return; }
+        $blocksy = wp_get_theme()->get_template() === 'blocksy' && function_exists('blocksy_get_post_options');
+        if (!$blocksy && (wp_get_theme()->get_template() !== 'generatepress' || !function_exists('generate_get_layout'))) { return; }
+        $theme = $blocksy ? 'Blocksy' : 'GeneratePress';
         foreach ([false,true] as $write) {
             $properties = ['post_id' => ['type' => 'integer', 'minimum' => 1]]; $required = ['post_id'];
             if ($write) {
-                $properties += ['version' => ['type' => 'string'], 'sidebar' => ['type' => 'string', 'enum' => ['default','no-sidebar','left-sidebar','right-sidebar','both-sidebars','both-left','both-right']],
-                    'content_container' => ['type' => 'string', 'enum' => ['default','full_width','contained']], 'hide_title' => ['type' => 'boolean']]; $required[] = 'version';
+                $properties += ['version' => ['type' => 'string'], 'sidebar' => ['type' => 'string', 'enum' => $blocksy ? ['default','no-sidebar','left-sidebar','right-sidebar'] : ['default','no-sidebar','left-sidebar','right-sidebar','both-sidebars','both-left','both-right']],
+                    'hide_title' => ['type' => 'boolean']];
+                if (!$blocksy) { $properties['content_container'] = ['type' => 'string', 'enum' => ['default','full_width','contained']]; }
+                $required[] = 'version';
             }
             wp_register_ability('ai-puffer/' . ($write ? 'update-page-layout' : 'get-page-layout'), [
-                'label' => $write ? 'Update GeneratePress page layout' : 'Inspect GeneratePress page layout',
-                'description' => 'GeneratePress Free/child-theme per-page layout: sidebar, content_container and hide_title. First read get-page-layout and use its version. Updates preserve content, publication and unrelated metadata; omitted fields stay unchanged. Full-width landing page: sidebar=no-sidebar, content_container=full_width, hide_title=true. No global settings, headers/footers or Premium Elements. Standard asks approval; Trusted follows permissions. Read stored values back and inspect published desktop/mobile output; theme filters may override settings.',
+                'label' => ($write ? 'Update ' : 'Inspect ') . $theme . ' page layout',
+                'description' => $blocksy ? 'Blocksy Free/child-theme per-page sidebar and theme-title visibility. First read get-page-layout; update with its current version and sidebar=default/no-sidebar/left-sidebar/right-sidebar or hide_title=true. hide_title=false restores theme defaults. Uses native Blocksy sanitization and CSS generation. Preserves content, status and all unmentioned page options. No global Customizer, headers/footers, Pro features or arbitrary metadata. Standard asks approval; Trusted follows permissions. Editor locks and stale versions stop saves. Verify native editor and desktop/mobile preview; saved flags alone do not prove rendered output.' : 'GeneratePress Free/child-theme per-page layout: sidebar, content_container and hide_title. First read get-page-layout and use its version. Updates preserve content, publication and unrelated metadata; omitted fields stay unchanged. Full-width landing page: sidebar=no-sidebar, content_container=full_width, hide_title=true. No global settings, headers/footers or Premium Elements. Standard asks approval; Trusted follows permissions. Read stored values back and inspect published desktop/mobile output; theme filters may override settings.',
                 'category' => Abilities::CATEGORY, 'input_schema' => ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => !$write, 'destructive' => false]],
                 'permission_callback' => static function ($input): bool { return current_user_can('edit_post', (int) (((array) $input)['post_id'] ?? 0)); },
@@ -1144,8 +1148,11 @@ final class Content
     {
         global $wpdb; $locked = false; $started = false; $id = (int) ($input['post_id'] ?? 0);
         try {
-            if (wp_get_theme()->get_template() !== 'generatepress' || !function_exists('generate_get_layout')) { return Operations::error('ability_unavailable'); }
-            if (array_diff(array_keys($input), $write ? ['post_id','version','sidebar','content_container','hide_title'] : ['post_id'])) { return Operations::error('invalid_input'); }
+            $blocksy = wp_get_theme()->get_template() === 'blocksy' && function_exists('blocksy_get_post_options');
+            if (!$blocksy && (wp_get_theme()->get_template() !== 'generatepress' || !function_exists('generate_get_layout'))) { return Operations::error('ability_unavailable'); }
+            $theme = $blocksy ? 'Blocksy' : 'GeneratePress';
+            $fields = $blocksy ? ['post_id','version','sidebar','hide_title'] : ['post_id','version','sidebar','content_container','hide_title'];
+            if (array_diff(array_keys($input), $write ? $fields : ['post_id'])) { return Operations::error('invalid_input'); }
             $read_post = static function () use ($id): \WP_Post {
                 clean_post_cache($id); $post = get_post($id);
                 if (!$post || !in_array($post->post_type, ['page','post'], true) || !in_array($post->post_status, ['draft','pending','publish','private','future'], true) || !current_user_can('edit_post',$id)) { throw new \InvalidArgumentException('This page is not accessible for layout changes.'); } return $post;
@@ -1163,28 +1170,60 @@ final class Content
                 $wpdb->get_var($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE ID=%d FOR UPDATE", $id)); $post = $read_post();
             }
             $map = ['sidebar' => '_generate-sidebar-layout-meta', 'content_container' => '_generate-full-width-content', 'hide_title' => '_generate-disable-headline'];
-            $stored = []; foreach ($map as $field => $meta) { $stored[$field] = get_post_meta($id, $meta, true); }
-            $version = hash('sha256', wp_json_encode([Operations::version($post),$stored]));
-            $values = ['sidebar' => $stored['sidebar'] ?: 'default', 'content_container' => $stored['content_container'] === 'true' ? 'full_width' : ($stored['content_container'] ?: 'default'), 'hide_title' => (bool) $stored['hide_title']];
-            $out = ['post_id' => $id, 'theme' => 'GeneratePress', 'version' => $version, 'settings' => $values, 'status' => $post->post_status, 'url' => get_permalink($id), 'public_output_verified' => false];
+            $stored = [];
+            if ($blocksy) {
+                $map = ['sidebar' => 'page_structure_type', 'hide_title' => 'has_hero_section'];
+                $stored = get_post_meta($id, 'blocksy_post_meta_options', true);
+                if ($stored === '') { $stored = []; }
+                if (!is_array($stored)) { return Operations::error('invalid_input'); }
+            } else { foreach ($map as $field => $meta) { $stored[$field] = get_post_meta($id, $meta, true); } }
+            $version_values = $stored;
+            // A Blocksy preview can populate this derived CSS cache without changing the owner's layout.
+            // All actual page options remain part of the version; generated cache changes cannot strand approval.
+            if ($blocksy) { unset($version_values['styles_descriptor']); }
+            $version = hash('sha256', wp_json_encode([Operations::version($post),$version_values]));
+            $values = $blocksy
+                ? ['sidebar' => ['type-1'=>'right-sidebar','type-2'=>'left-sidebar','type-3'=>'no-sidebar','type-4'=>'no-sidebar'][$stored['page_structure_type'] ?? ''] ?? 'default', 'hide_title' => ($stored['has_hero_section'] ?? '') === 'disabled']
+                : ['sidebar' => $stored['sidebar'] ?: 'default', 'content_container' => $stored['content_container'] === 'true' ? 'full_width' : ($stored['content_container'] ?: 'default'), 'hide_title' => (bool) $stored['hide_title']];
+            $out = ['post_id' => $id, 'theme' => $theme, 'version' => $version, 'settings' => $values, 'status' => $post->post_status, 'url' => get_permalink($id), 'public_output_verified' => false];
             if (!$write) { return self::ok($out); }
             if (!is_string($input['version'] ?? null) || !hash_equals($version, $input['version'])) { return Operations::error('content_changed', 'Read get-page-layout again before changing its settings.'); }
             if (in_array($post->post_status, ['publish','private','future'], true) && !current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { return Operations::error('permission_denied'); }
             self::unlocked($id); $changes = [];
             foreach ($map as $field => $meta) {
                 if (!array_key_exists($field, $input)) { continue; } $value = $input[$field];
-                if (($field === 'hide_title' && !is_bool($value)) || ($field === 'sidebar' && !in_array($value, ['default','no-sidebar','left-sidebar','right-sidebar','both-sidebars','both-left','both-right'], true))
+                if (($field === 'hide_title' && !is_bool($value)) || ($field === 'sidebar' && !in_array($value, ($blocksy ? ['default','no-sidebar','left-sidebar','right-sidebar'] : ['default','no-sidebar','left-sidebar','right-sidebar','both-sidebars','both-left','both-right']), true))
                     || ($field === 'content_container' && !in_array($value, ['default','full_width','contained'], true))) { return Operations::error('invalid_input'); }
                 if ($value !== $values[$field]) { $changes[$field] = $value; }
             }
             if (!$changes) { $result = self::ok($out + ['unchanged' => true]); $result['actions_used'] = 0; return $result; }
-            if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'publish', 'name' => 'ai-puffer/update-page-layout', 'title' => 'Update GeneratePress page layout', 'post_id' => $id, 'input' => wp_json_encode($changes)]]; }
+            if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'publish', 'name' => 'ai-puffer/update-page-layout', 'title' => 'Update ' . $theme . ' page layout', 'post_id' => $id, 'input' => wp_json_encode($changes)]]; }
+            $native = null;
+            if ($blocksy) {
+                rest_get_server();
+                $native = $GLOBALS['wp_rest_additional_fields'][$post->post_type]['blocksy_meta']['update_callback'] ?? null;
+                if (!is_callable($native)) { return Operations::error('ability_unavailable'); }
+            }
             $all_meta = get_post_meta($id); $before = get_object_vars($post); Operations::$mutation_started = true; $started = true;
-            foreach ($changes as $field => $value) {
+            if ($blocksy) {
+                $options = $stored;
+                foreach ($changes as $field => $value) {
+                    $options[$map[$field]] = $field === 'hide_title' ? ($value ? 'disabled' : 'default')
+                        : ['default'=>'default','no-sidebar'=>'type-4','left-sidebar'=>'type-2','right-sidebar'=>'type-1'][$value];
+                }
+                $result = $native($options, $post);
+                if (is_wp_error($result)) { throw new \RuntimeException('Blocksy did not confirm the layout.'); }
+                $saved = get_post_meta($id, 'blocksy_post_meta_options', true);
+                $expected = $options; $confirmed = is_array($saved) ? $saved : [];
+                // Native generated CSS descriptors may change; every other requested/unmentioned option must match.
+                unset($expected['styles_descriptor'], $confirmed['styles_descriptor']);
+                if ($expected !== $confirmed) { throw new \RuntimeException('Blocksy layout fields could not be confirmed.'); }
+                $all_meta['blocksy_post_meta_options'] = [maybe_serialize($saved)];
+            } else { foreach ($changes as $field => $value) {
                 $raw = $field === 'hide_title' ? ($value ? 'true' : '') : ($value === 'default' ? '' : ($value === 'full_width' ? 'true' : $value));
                 if ($raw === '') { delete_post_meta($id, $map[$field]); unset($all_meta[$map[$field]]); }
                 else { update_post_meta($id, $map[$field], $raw); $all_meta[$map[$field]] = [$raw]; }
-            }
+            } }
             clean_post_cache($id); $after = get_post($id); $actual = get_post_meta($id); ksort($all_meta); ksort($actual);
             if ($actual !== $all_meta || get_object_vars($after) !== $before) { throw new \RuntimeException('The layout save could not be confirmed.'); }
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Commit only confirmed settings; request accounting remains managed separately.

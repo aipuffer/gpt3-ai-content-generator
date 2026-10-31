@@ -373,7 +373,7 @@ final class Engines
         // Broad discovery stays compact. An exact-name search can return a larger native schema (for example
         // WooCommerce's product-type alternatives), so clients never have to guess its required input fields.
         foreach ($result['items'] as $index => $item) {
-            $encoded = (string) wp_json_encode(wp_get_ability($item['name'])->get_input_schema() ?: (object) []);
+            $encoded = (string) wp_json_encode(Guard::public_data(wp_get_ability($item['name'])->get_input_schema() ?: (object) [], 0, true));
             $limit = $query === $normalize($item['name']) ? 50000 : 6000;
             $result['items'][$index]['input_schema_json'] = $encoded;
             if (strlen($encoded) > $limit || strlen((string) wp_json_encode($result)) > self::MAX_RESULT - 1024) {
@@ -567,6 +567,18 @@ final class Engines
         add_action('wp_before_execute_ability', $mark, PHP_INT_MIN, 1);
         add_filter('wp_ability_execute_result', $output, PHP_INT_MAX, 2);
         add_filter('wp_ability_validate_input', $validation, PHP_INT_MAX, 3);
+        // Greenshift 13.2 encodes these collections, but its native editor/frontend expect arrays.
+        // Normalize only the selected native save, before persistence: no second write or global option filter.
+        $fields = ['greenshift/update-gs-custom-colors' => 'colours', 'greenshift/update-element-styles' => 'elements'];
+        $field = $fields[$ability->get_name()] ?? null;
+        $normalize = static function ($settings) use ($field) {
+            if (is_array($settings) && is_string($settings[$field] ?? null)) {
+                $decoded = json_decode($settings[$field], true);
+                if (is_array($decoded) && json_last_error() === JSON_ERROR_NONE) { $settings[$field] = $decoded; }
+            }
+            return $settings;
+        };
+        if ($field !== null) { add_filter('pre_update_option_gspb_global_settings', $normalize); }
         try {
             $result = $ability->execute($input);
             // WordPress 6.9/7.0 do not expose the validation observer filter.
@@ -579,6 +591,7 @@ final class Engines
             remove_action('wp_before_execute_ability', $mark, PHP_INT_MIN);
             remove_filter('wp_ability_execute_result', $output, PHP_INT_MAX);
             remove_filter('wp_ability_validate_input', $validation, PHP_INT_MAX);
+            if ($field !== null) { remove_filter('pre_update_option_gspb_global_settings', $normalize); }
         }
     }
 
@@ -937,6 +950,8 @@ final class Engines
      */
     private static function bounded($data): string
     {
+        // Redact before anything leaves WordPress, including nested JSON from third-party callbacks.
+        $data = Guard::public_data($data, 0, true);
         $encoded = (string) wp_json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if (strlen($encoded) <= self::MAX_RESULT) { return $encoded; }
         return (string) wp_json_encode(['truncated' => true, 'size' => strlen($encoded), 'excerpt' => mb_strcut($encoded, 0, self::MAX_RESULT),

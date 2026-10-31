@@ -25,6 +25,12 @@ final class Abilities
         add_filter('aipkit_mcp_ability_result', [Chatbots::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [ProductSales::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [CacheSettings::class, 'dispatch'], 10, 4);
+        add_filter('aipkit_mcp_ability_result', [ContactForm7::class, 'dispatch'], 10, 4);
+        add_filter('aipkit_mcp_ability_result', [UpdraftPlus::class, 'dispatch'], 10, 4);
+        add_action('aipkit_mcp_updraft_backup', [UpdraftPlus::class, 'run_backup']);
+        add_filter('updraftplus_backup_complete', [UpdraftPlus::class, 'completed']);
+        add_filter('updraftplus_get_option', [UpdraftPlus::class, 'job_option'], 10, 2);
+        add_filter('updraft_backup_databases', [UpdraftPlus::class, 'job_databases']);
         add_filter('aipkit_mcp_ability_result', [IntegrationSettings::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [Cli::class, 'dispatch'], 10, 4);
         add_filter('aipkit_mcp_ability_result', [Content::class, 'dispatch'], 10, 4);
@@ -97,6 +103,8 @@ final class Abilities
         }
         ProductSales::register();
         CacheSettings::register();
+        ContactForm7::register();
+        UpdraftPlus::register();
         IntegrationSettings::register();
         Chatbots::register();
         Elementor::register_abilities();
@@ -1072,5 +1080,486 @@ final class IntegrationSettings
                 'message' => 'The integration did not confirm every change. Check the original operation and WordPress settings; do not repeat it.']]
                 : Operations::error('settings_unavailable', 'Native settings could not be read. No change was started.');
         }
+    }
+}
+
+/** Scoped Contact Form 7 form management, shared by both AI Puffer editions. */
+final class ContactForm7
+{
+    private const PREFIX = 'ai-puffer/cf7-';
+    private const MAX_TEMPLATE = 30000;
+
+    private static function available(): bool
+    {
+        return defined('WPCF7_VERSION') && version_compare(WPCF7_VERSION, '6.1.7', '>=')
+            && function_exists('wpcf7_contact_form') && function_exists('wpcf7_sanitize_form')
+            && function_exists('wpcf7_sanitize_mail') && function_exists('wpcf7_sanitize_messages')
+            && class_exists('WPCF7_ConfigValidator');
+    }
+
+    private static function fields(): array
+    {
+        $text = ['type' => 'string', 'maxLength' => 1000];
+        return [
+            'title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 200],
+            'form_template' => ['type' => 'string', 'minLength' => 1, 'maxLength' => self::MAX_TEMPLATE,
+                'description' => 'Complete reviewed CF7 form template, preserving unmentioned fields and layout. Safe label/p/div/span/br/fieldset/legend markup and native text, email, tel, url, number, date, textarea, select, checkbox, radio, acceptance and submit tags only. Example: <label>Name [text* your-name]</label><label>Email [email* your-email]</label><label>Message [textarea your-message]</label>[submit "Send"]. No outer form, scripts, file/hidden/payment/custom tags or WordPress shortcodes.'],
+            'mail' => ['type' => 'object', 'properties' => [
+                'recipient' => $text, 'sender' => $text, 'subject' => $text,
+                'body' => ['type' => 'string', 'maxLength' => 10000, 'description' => 'Primary notification body. Native mail-tags such as [your-email] are supported; preserve unmentioned wording.'],
+                'reply_to' => $text + ['description' => 'Reply-To value, e.g. [your-email]. Empty removes only Reply-To; preserves other existing headers.'],
+            ], 'minProperties' => 1, 'additionalProperties' => false,
+                'description' => 'Patch only requested primary notification fields. Use an owner-selected recipient. Sender should use the site domain; visitor email belongs in reply_to. Omitted fields, attachments, HTML mode and Mail (2) remain unchanged.'],
+            'messages' => ['type' => 'object', 'properties' => array_fill_keys(array_keys(wpcf7_messages()), ['type' => 'string', 'maxLength' => 1000]),
+                'minProperties' => 1, 'additionalProperties' => false, 'description' => 'Patch only requested native visitor messages, e.g. {"mail_sent_ok":"Thanks, we received your message.","invalid_required":"Please complete this field."}.'],
+        ];
+    }
+
+    public static function register(): void
+    {
+        if (!self::available()) { return; }
+        $id = ['type' => 'integer', 'minimum' => 1];
+        $schemas = [
+            'list-forms' => ['type' => 'object', 'properties' => [
+                'search' => ['type' => 'string', 'maxLength' => 100],
+                'page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100, 'default' => 1],
+                'per_page' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20, 'default' => 10],
+            ], 'additionalProperties' => false, 'default' => []],
+            'get-form' => ['type' => 'object', 'properties' => ['id' => $id], 'required' => ['id'], 'additionalProperties' => false],
+            'create-form' => ['type' => 'object', 'properties' => self::fields(), 'required' => ['title', 'form_template', 'mail'], 'additionalProperties' => false],
+            'update-form' => ['type' => 'object', 'properties' => ['id' => $id,
+                'version' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$', 'description' => 'Exact fresh version from cf7-get-form. A stale version or active native editor lock refuses the save.'],
+                'changes' => ['type' => 'object', 'properties' => self::fields(), 'minProperties' => 1, 'additionalProperties' => false]],
+                'required' => ['id', 'version', 'changes'], 'additionalProperties' => false],
+        ];
+        foreach ($schemas as $action => $schema) {
+            $read = in_array($action, ['list-forms', 'get-form'], true);
+            wp_register_ability(self::PREFIX . $action, [
+                'label' => 'Contact Form 7: ' . str_replace('-', ' ', $action),
+                'description' => 'Contact Form 7 forms and primary mail settings. List forms, then cf7-get-form for the complete template, mail, messages, configuration warnings and version. Create requires an explicit mail recipient/sender/subject/body. Update patches only changes with the fresh version; preserves Mail (2), attachments and additional settings. Common native field tags only when changing the template. No submission history, delivery guarantee or page insertion. Standard asks; Trusted follows native permissions. No-op costs zero. Check the original operation after an uncertain save.',
+                'category' => Abilities::CATEGORY, 'input_schema' => $schema,
+                'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
+                'permission_callback' => static function ($input) use ($action): bool {
+                    if (!self::available()) { return false; }
+                    if ($action === 'list-forms') { return current_user_can('wpcf7_read_contact_forms'); }
+                    if ($action === 'create-form') { return current_user_can('wpcf7_edit_contact_forms'); }
+                    return is_array($input) && current_user_can('wpcf7_edit_contact_form', (int) ($input['id'] ?? 0));
+                },
+                'execute_callback' => $read ? static function ($input) use ($action) { return self::read($action, (array) $input); }
+                    : static function () { return new \WP_Error('managed_execution_required', 'Use run_ability.'); },
+            ]);
+        }
+    }
+
+    private static function form(int $id)
+    {
+        clean_post_cache($id);
+        $post = get_post($id);
+        if (!$post || $post->post_type !== 'wpcf7_contact_form' || $post->post_status === 'trash') { return null; }
+        return wpcf7_contact_form($post);
+    }
+
+    private static function version($form): string
+    {
+        $post = get_post($form->id());
+        return hash('sha256', serialize([WPCF7_VERSION, $form->id(), $post ? $post->post_modified_gmt : '', $form->title(), $form->locale(), $form->get_properties()]));
+    }
+
+    private static function warnings($form): array
+    {
+        $validator = new \WPCF7_ConfigValidator($form);
+        $validator->validate(); // Memory-only; do not call the validator's save() during inspection or preview.
+        return (array) $validator->collect_error_messages(['decodes_html_entities' => true]);
+    }
+
+    private static function reply_to(string $headers): string
+    {
+        return preg_match('/^Reply-To:\s*(.*)$/im', $headers, $match) ? trim($match[1]) : '';
+    }
+
+    private static function document($form): array
+    {
+        $mail = (array) $form->prop('mail');
+        $tags = [];
+        foreach ($form->scan_form_tags() as $tag) {
+            $tags[] = ['type' => $tag->type, 'name' => $tag->name, 'required' => $tag->is_required(), 'values' => $tag->values];
+        }
+        return ['id' => $form->id(), 'title' => $form->title(), 'locale' => $form->locale(), 'version' => self::version($form),
+            'form_template' => (string) $form->prop('form'), 'fields' => $tags,
+            'mail' => array_intersect_key($mail, array_flip(['recipient', 'sender', 'subject', 'body']))
+                + ['reply_to' => self::reply_to((string) ($mail['additional_headers'] ?? ''))],
+            'messages' => (array) $form->prop('messages'), 'config_warnings' => self::warnings($form),
+            'mail_2_enabled' => !empty($form->prop('mail_2')['active']),
+            'attachments_configured' => !empty($mail['attachments']),
+            'additional_settings_present' => trim((string) $form->prop('additional_settings')) !== '',
+            'shortcode' => $form->shortcode(), 'editor_url' => admin_url('admin.php?page=wpcf7&post=' . $form->id() . '&action=edit'),
+            'note' => 'Saved configuration and syntactic warnings only; no email was sent and inbox delivery is unverified. CF7 does not itself store submitted messages. Embedding or changing a page is separate.'];
+    }
+
+    public static function read(string $action, array $input)
+    {
+        if (!self::available()) { return new \WP_Error('unsupported_tool', 'Contact Form 7 6.1.7 or later is required.'); }
+        if ($action === 'list-forms') {
+            if (!current_user_can('wpcf7_read_contact_forms')) { return new \WP_Error('permission_denied'); }
+            $page = $input['page'] ?? 1; $limit = $input['per_page'] ?? 10;
+            $forms = \WPCF7_ContactForm::find(['s' => $input['search'] ?? '', 'posts_per_page' => $limit, 'offset' => ($page - 1) * $limit, 'orderby' => 'ID', 'order' => 'ASC']);
+            $total = \WPCF7_ContactForm::count();
+            $items = [];
+            foreach ($forms as $form) {
+                if (current_user_can('wpcf7_edit_contact_form', $form->id())) { $items[] = ['id' => $form->id(), 'title' => $form->title(), 'locale' => $form->locale()]; }
+            }
+            return ['items' => $items, 'page' => $page, 'has_more' => $page * $limit < $total];
+        }
+        $id = (int) ($input['id'] ?? 0);
+        if (!current_user_can('wpcf7_edit_contact_form', $id)) { return new \WP_Error('permission_denied'); }
+        $form = self::form($id);
+        if (!$form) { return new \WP_Error('not_found', 'The requested contact form is unavailable.'); }
+        $document = self::document($form);
+        return strlen((string) wp_json_encode($document)) > 50000
+            ? new \WP_Error('source_too_large', 'The complete form exceeds the safe inspection size. Use the native editor; do not edit from a truncated read.') : $document;
+    }
+
+    /** Safe common field templates; never grant generic shortcode, script or protected-metadata exceptions. */
+    private static function template(string $value): bool
+    {
+        $allowed = ['label' => ['for' => true, 'class' => true], 'p' => ['class' => true], 'div' => ['class' => true],
+            'span' => ['class' => true], 'br' => [], 'fieldset' => ['class' => true], 'legend' => [], 'strong' => [], 'em' => [], 'a' => ['href' => true]];
+        if ($value !== wp_kses($value, $allowed) || strpos($value, '<?') !== false) { return false; }
+        preg_match_all('/\[\/?([^\s\]\/]+)[^\]]*\]/', $value, $matches);
+        foreach ($matches[1] as $tag) {
+            if (!in_array($tag, ['text', 'text*', 'email', 'email*', 'tel', 'tel*', 'url', 'url*', 'number', 'number*', 'date', 'date*',
+                'textarea', 'textarea*', 'select', 'select*', 'checkbox', 'checkbox*', 'radio', 'acceptance', 'submit'], true)) { return false; }
+        }
+        return true;
+    }
+
+    private static function prepare($form, array $changes)
+    {
+        $properties = $form->get_properties();
+        if (isset($changes['title'])) {
+            if ($changes['title'] !== sanitize_text_field($changes['title']) || trim($changes['title']) === '') { return Operations::error('invalid_input', 'Use a nonempty plain-text form title.'); }
+            $form->set_title($changes['title']);
+        }
+        if (isset($changes['form_template'])) {
+            if (!self::template($changes['form_template'])) { return Operations::error('unsupported_content', 'Use the supported common CF7 field tags and safe label/layout markup. Existing custom, hidden, file and payment tags need the native editor for template changes.'); }
+            $properties['form'] = wpcf7_sanitize_form($changes['form_template']);
+        }
+        if (isset($changes['mail'])) {
+            $patch = $changes['mail'];
+            foreach ($patch as $key => $value) {
+                if ($key !== 'body' && preg_match('/[\r\n]/', $value)) { return Operations::error('invalid_input', 'Mail header fields must be single-line values.'); }
+                // Display-name email headers legitimately contain <address@example.org>.
+                if ($key === 'body' && preg_match('/<\/?[a-z]+(?:\s|>|\/)/i', $value) && $value !== wp_kses_post($value)) { return Operations::error('unsupported_content', 'Mail templates cannot contain executable markup.'); }
+            }
+            if (array_key_exists('reply_to', $patch)) {
+                $headers = preg_split('/\r?\n/', (string) ($properties['mail']['additional_headers'] ?? ''));
+                $headers = array_values(array_filter($headers, static function ($line): bool { return !preg_match('/^Reply-To:/i', $line); }));
+                if ($patch['reply_to'] !== '') { $headers[] = 'Reply-To: ' . $patch['reply_to']; }
+                $properties['mail']['additional_headers'] = implode("\n", $headers);
+                unset($patch['reply_to']);
+            }
+            $properties['mail'] = array_replace((array) $properties['mail'], $patch);
+            // Sanitize only editable fields, retaining every omitted native/extension field exactly.
+            $sanitized = wpcf7_sanitize_mail($properties['mail']);
+            foreach ($patch as $key => $value) { $properties['mail'][$key] = $sanitized[$key]; }
+        }
+        if (isset($changes['messages'])) {
+            foreach ($changes['messages'] as $value) {
+                if ($value !== sanitize_textarea_field($value)) { return Operations::error('invalid_input', 'Visitor messages must be plain text.'); }
+            }
+            $sanitized = wpcf7_sanitize_messages(array_replace((array) $properties['messages'], $changes['messages']));
+            foreach ($changes['messages'] as $key => $value) { $properties['messages'][$key] = $sanitized[$key]; }
+        }
+        $form->set_properties($properties);
+        return $form;
+    }
+
+    public static function dispatch($result, string $name, $input, bool $preview)
+    {
+        if (!in_array($name, [self::PREFIX . 'create-form', self::PREFIX . 'update-form'], true)) { return $result; }
+        if (!self::available() || !is_array($input)) { return Operations::error('unsupported_tool'); }
+        $create = $name === self::PREFIX . 'create-form'; $id = (int) ($input['id'] ?? 0);
+        if (!current_user_can($create ? 'wpcf7_edit_contact_forms' : 'wpcf7_edit_contact_form', $id)) { return Operations::error('permission_denied'); }
+        $started = false;
+        try {
+            $before = $create ? \WPCF7_ContactForm::get_template() : self::form($id);
+            if (!$before) { return Operations::error('not_found'); }
+            if (!$create) {
+                if (!is_string($input['version'] ?? null) || !hash_equals(self::version($before), $input['version'])) { return Operations::error('content_changed', 'The form changed. Read it again and review the intended patch.'); }
+                if (!function_exists('wp_check_post_lock')) { require_once ABSPATH . 'wp-admin/includes/post.php'; }
+                if (wp_check_post_lock($id)) { return Operations::error('content_changed', 'The form is open in another editor. Close that editor and inspect the form again before saving.'); }
+            }
+            $changes = $create ? $input : ($input['changes'] ?? []);
+            if (!$changes || is_wp_error(rest_validate_value_from_schema($changes, ['type' => 'object', 'properties' => self::fields(), 'additionalProperties' => false], 'changes'))) { return Operations::error('invalid_input'); }
+            if ($create && array_diff(['recipient', 'sender', 'subject', 'body'], array_keys($changes['mail'] ?? []))) { return Operations::error('invalid_input', 'Creating a form requires an explicit primary mail recipient, sender, subject and body.'); }
+            $unsafe = Engines::unsafe_content($changes);
+            if ($unsafe) { return $unsafe; }
+            $after = self::prepare(clone $before, $changes);
+            if (is_array($after)) { return $after; }
+            $document = self::document($after);
+            if (strlen((string) wp_json_encode($document)) > 50000) { return Operations::error('source_too_large', 'The complete form exceeds the safe inspection size. Use the native editor.'); }
+            if (!$create && $after->title() === $before->title() && $after->get_properties() === $before->get_properties()) {
+                return ['state' => 'succeeded', 'actions_used' => 0, 'result' => ['no_op' => true, 'id' => $id, 'version' => self::version($before)]];
+            }
+            if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'title' => $create ? 'Create Contact Form 7 form' : 'Update Contact Form 7 form', 'name' => $name, 'input' => wp_json_encode(['id' => $id, 'changed_fields' => array_keys($changes)]), 'config_warnings' => $document['config_warnings']]]; }
+            Operations::$mutation_started = true; $started = true;
+            $saved = $after->save();
+            if (!$saved || !$after->id()) { return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown', 'message' => 'Inspect the original operation before another save.']]; }
+            $fresh = self::form($after->id());
+            if (!$fresh || $fresh->title() !== $after->title() || $fresh->get_properties() !== wpcf7_normalize_newline_deep($after->get_properties())) {
+                return ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown', 'message' => 'The complete native save was not confirmed. Inspect the original operation before another save.']];
+            }
+            return ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['data_json' => wp_json_encode(Guard::public_data(self::document($fresh), 0, true))]];
+        } catch (\Throwable $error) {
+            return $started ? ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown', 'message' => 'Inspect the original operation before another save.']]
+                : Operations::error('invalid_input', 'The native form could not be prepared. Read it again and use the supported fields.');
+        }
+    }
+}
+
+/** Local UpdraftPlus backups use its native engine and resumptions, inside the existing abilities module. */
+final class UpdraftPlus
+{
+    private const PREFIX = 'ai-puffer/updraftplus-';
+    private const JOB = 'aipkit_mcp_updraft_';
+    private const HOOK = 'aipkit_mcp_updraft_backup';
+    private const COMPONENTS = ['db', 'plugins', 'themes', 'uploads', 'mu-plugins', 'others'];
+
+    private static function available(): bool
+    {
+        global $updraftplus;
+        return !is_multisite() && is_object($updraftplus) && is_a($updraftplus, 'UpdraftPlus')
+            && version_compare($updraftplus->version, '1.26.14', '>=')
+            && class_exists('UpdraftPlus_Options') && class_exists('UpdraftPlus_Backup_History')
+            && is_callable([$updraftplus, 'boot_backup']) && is_callable([$updraftplus, 'jobdata_getarray']);
+    }
+
+    public static function can_manage(): bool
+    {
+        return self::available() && \UpdraftPlus_Options::user_can_manage();
+    }
+
+    public static function register(): void
+    {
+        if (!self::available()) { return; }
+        $job = ['type' => 'string', 'pattern' => '^[a-f0-9]{12}$', 'description' => 'Exact job_id returned by creation or backup history. Never invent one.'];
+        $schemas = [
+            'status' => ['type' => 'object', 'properties' => [], 'additionalProperties' => false, 'default' => []],
+            'list-backups' => ['type' => 'object', 'properties' => [
+                'offset' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10000, 'default' => 0],
+                'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 20, 'default' => 10],
+            ], 'additionalProperties' => false, 'default' => []],
+            'get-backup' => ['type' => 'object', 'properties' => ['job_id' => $job], 'required' => ['job_id'], 'additionalProperties' => false],
+            'create-backup' => ['type' => 'object', 'properties' => [
+                'scope' => ['type' => 'string', 'enum' => ['database', 'files', 'database_and_files'], 'description' => 'Database, configured WordPress content files, or both. Native exclusions remain in effect; not a server/core/wp-config backup.'],
+                'settings_version' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$', 'description' => 'Fresh settings_version from status. Refuses changed configuration before queueing and again before execution.'],
+                'label' => ['type' => 'string', 'maxLength' => 80, 'description' => 'Optional plain-text label; no credentials or instructions.'],
+            ], 'required' => ['scope', 'settings_version'], 'additionalProperties' => false],
+        ];
+        foreach ($schemas as $action => $schema) {
+            $read = $action !== 'create-backup';
+            wp_register_ability(self::PREFIX . $action, [
+                'label' => 'UpdraftPlus: ' . str_replace('-', ' ', $action),
+                'description' => 'UpdraftPlus local backups. Read status and settings_version, then create database, configured files or both; use returned job_id with get-backup until completed. Queued is not completed. Native exclusions apply. Local files only; no remote upload, email, automatic pruning, restore, deletion or downloads. History alone does not prove completion or restorability. Standard asks; Trusted follows native permissions. After uncertainty inspect the original operation and job; never start a replacement blindly. Requires AI Puffer 2.5.22+, UpdraftPlus 1.26.14+, single-site WordPress.',
+                'category' => Abilities::CATEGORY, 'input_schema' => $schema,
+                'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
+                'permission_callback' => [self::class, 'can_manage'],
+                'execute_callback' => $read ? static function ($input) use ($action) { return self::read($action, (array) $input); }
+                    : static function () { return new \WP_Error('managed_execution_required', 'Use run_ability.'); },
+            ]);
+        }
+    }
+
+    private static function settings(): array
+    {
+        global $updraftplus;
+        $components = []; $fingerprint = [$updraftplus->version, \UpdraftPlus_Options::get_updraft_option('updraft_dir', '')];
+        foreach (array_slice(self::COMPONENTS, 1) as $component) {
+            $enabled = (bool) \UpdraftPlus_Options::get_updraft_option('updraft_include_' . $component, true);
+            if ($enabled) { $components[] = $component; }
+            $fingerprint[$component] = [$enabled, \UpdraftPlus_Options::get_updraft_option('updraft_include_' . $component . '_exclude', '')];
+        }
+        return ['configured_file_components' => $components, 'settings_version' => hash('sha256', serialize($fingerprint)),
+            'destination' => 'local', 'native_exclusions_apply' => true, 'core_and_wp_config_included' => false,
+            'note' => 'Native exclusions can omit files. Local archives are not off-site recovery or a tested restore. Manage remote storage, retention and restores in UpdraftPlus.'];
+    }
+
+    /** Resolve existing native storage without backups_dir_location(), which can create files or migrate an option. */
+    private static function backup_dir()
+    {
+        $dir = \UpdraftPlus_Options::get_updraft_option('updraft_dir', '');
+        $dir = is_string($dir) ? untrailingslashit($dir) : '';
+        if (strpos($dir, 'wp-content/') === 0 && ABSPATH . 'wp-content' === WP_CONTENT_DIR) { $dir = WP_CONTENT_DIR . '/' . substr($dir, 11); }
+        if (!$dir) { $dir = WP_CONTENT_DIR . '/updraft'; }
+        if ($dir[0] !== '/' && $dir[0] !== '\\' && !preg_match('/^[a-zA-Z]:/', $dir)) {
+            $legacy = ABSPATH . $dir;
+            $legacy_layout = is_dir($legacy) && is_file($legacy . '/index.html') && is_file($legacy . '/.htaccess')
+                && !is_file($legacy . '/index.php') && is_readable($legacy . '/.htaccess')
+                && strpos((string) file_get_contents($legacy . '/.htaccess', false, null, 0, 20), 'deny from all') !== false;
+            $dir = $legacy_layout ? $legacy : trailingslashit(WP_CONTENT_DIR) . $dir;
+        }
+        return realpath($dir);
+    }
+
+    /** Publish only counts; backup filenames, paths, options, log content and download nonces stay private. */
+    private static function item(int $timestamp, array $backup): array
+    {
+        $root = self::backup_dir(); $components = [];
+        foreach (self::COMPONENTS as $component) {
+            if (empty($backup[$component])) { continue; }
+            $files = is_array($backup[$component]) ? array_values($backup[$component]) : [$backup[$component]];
+            $count = count($files); $local = 0; $bytes = 0;
+            foreach (array_slice($files, 0, 200) as $file) {
+                if (!$root || !is_string($file) || $file !== basename($file)) { continue; }
+                $path = realpath($root . '/' . $file);
+                if ($path && strpos($path, $root . DIRECTORY_SEPARATOR) === 0 && is_file($path) && is_readable($path)) {
+                    $size = filesize($path);
+                    if ($size > 0) { $local++; $bytes += $size; }
+                }
+            }
+            $components[$component] = ['files' => $count, 'local_files' => $local, 'local_bytes' => $bytes, 'all_local' => $count > 0 && $local === $count];
+        }
+        $id = is_string($backup['nonce'] ?? null) && preg_match('/^[a-f0-9]{12}$/D', $backup['nonce']) ? $backup['nonce'] : '';
+        return ['job_id' => $id, 'created_at_utc' => gmdate('c', $timestamp), 'components' => $components,
+            'label' => mb_substr(sanitize_text_field(is_string($backup['label'] ?? null) ? $backup['label'] : ''), 0, 80),
+            'native_completion_verified' => false, 'restore_verified' => false];
+    }
+
+    private static function job(string $id)
+    {
+        global $updraftplus;
+        $record = get_option(self::JOB . $id, []); $backup = \UpdraftPlus_Backup_History::get_backup_set_by_nonce($id);
+        if (!$record && !$backup) { return new \WP_Error('not_found', 'No backup or queued job with this ID was found.'); }
+        $item = $backup ? self::item((int) $backup['timestamp'], $backup) : ['job_id' => $id, 'components' => [], 'restore_verified' => false];
+        $native = $updraftplus->jobdata_getarray($id);
+        $state = $record['status'] ?? 'recorded_unverified';
+        if ($state === 'queued' && !wp_next_scheduled(self::HOOK, [$id])) { $state = 'needs_attention'; }
+        if ($state === 'running' && !$native) { $state = 'needs_attention'; }
+        $item['status'] = $state; $item['scope'] = $record['scope'] ?? null;
+        $item['requested_components'] = $record['components'] ?? [];
+        $item['missing_components'] = array_values(array_diff($item['requested_components'], array_keys($item['components'])));
+        $item['native_completion_verified'] = $state === 'completed' && (bool) $backup;
+        $item['warnings'] = (int) ($record['warnings'] ?? 0);
+        $item['native_errors'] = is_array($native['errors'] ?? null) ? count($native['errors']) : 0;
+        $item['can_proceed'] = $item['native_completion_verified'] && $item['warnings'] === 0 && !empty($item['components']) && !$item['missing_components'];
+        foreach ($item['components'] as $component) { if (!$component['all_local']) { $item['can_proceed'] = false; } }
+        $item['note'] = 'can_proceed concerns this requested scope and recorded local files, not a full-server backup or proven restore. Verify required components before the next change. Never restart an uncertain job blindly.';
+        return $item;
+    }
+
+    public static function read(string $action, array $input)
+    {
+        if (!self::can_manage()) { return new \WP_Error('permission_denied'); }
+        if ($action === 'get-backup') { return self::job($input['job_id']); }
+        $history = \UpdraftPlus_Backup_History::get_history();
+        if ($action === 'status') {
+            global $updraftplus;
+            return self::settings() + ['plugin_version' => $updraftplus->version, 'backup_count' => count($history),
+                'native_backup_running' => (bool) $updraftplus->is_backup_running(),
+                'automatic_cron_disabled' => defined('DISABLE_WP_CRON') && DISABLE_WP_CRON,
+                'cron_note' => 'When automatic cron is disabled, your host must run WordPress cron separately. A queued job is not proof that a runner is available.',
+                'admin_url' => admin_url('options-general.php?page=updraftplus')];
+        }
+        $offset = $input['offset'] ?? 0; $limit = $input['limit'] ?? 10; $items = [];
+        foreach (array_slice($history, $offset, $limit, true) as $timestamp => $backup) {
+            if (is_array($backup)) { $items[] = self::item((int) $timestamp, $backup); }
+        }
+        return ['items' => $items, 'total' => count($history), 'offset' => $offset, 'has_more' => $offset + $limit < count($history),
+            'note' => 'Recorded history and local file presence only. Use get-backup for completion of an AI Puffer job. Remote availability and restore integrity are unverified.'];
+    }
+
+    public static function dispatch($result, string $name, $input, bool $preview)
+    {
+        if ($name !== self::PREFIX . 'create-backup') { return $result; }
+        if (!self::can_manage()) { return Operations::error('permission_denied'); }
+        $settings = self::settings();
+        if (!hash_equals($settings['settings_version'], (string) ($input['settings_version'] ?? ''))) { return Operations::error('content_changed', 'Backup settings changed. Read status and review the requested scope again.'); }
+        $label = $input['label'] ?? '';
+        if ($label !== sanitize_text_field($label)) { return Operations::error('invalid_input', 'Use a plain-text label.'); }
+        if ($input['scope'] !== 'database' && !$settings['configured_file_components']) { return Operations::error('invalid_input', 'No supported content-file components are configured. Review UpdraftPlus settings.'); }
+        if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'name' => $name, 'title' => 'Create local UpdraftPlus backup', 'input' => wp_json_encode(['scope' => $input['scope'], 'label' => $label, 'destination' => 'local', 'automatic_pruning' => false])]]; }
+        if (!Operations::$operation_id) { return Operations::error('invalid_input', 'A managed operation is required.'); }
+        $id = substr(hash('sha256', get_current_blog_id() . ':' . Operations::$operation_id), 0, 12);
+        $key = self::JOB . $id; $request = hash('sha256', wp_json_encode($input));
+        $operation = Journal::get(Operations::$operation_id);
+        $record = ['scope' => $input['scope'], 'label' => $label, 'settings_version' => $settings['settings_version'],
+            'grant_id' => $operation['grant_id'] ?? '',
+            'components' => array_merge($input['scope'] !== 'files' ? ['db'] : [], $input['scope'] !== 'database' ? $settings['configured_file_components'] : []),
+            'actor' => get_current_user_id(), 'request' => $request, 'created_at' => time(), 'status' => 'queued'];
+        Operations::$mutation_started = true;
+        if (!add_option($key, $record, '', false)) {
+            $existing = get_option($key, []);
+            if (($existing['request'] ?? '') !== $request) { return Operations::error('content_changed', 'This operation already has a different backup request. Inspect the original operation.'); }
+            return ['state' => 'succeeded', 'actions_used' => 0, 'result' => ['data_json' => wp_json_encode(['job_id' => $id, 'status' => $existing['status'], 'no_op' => true])]];
+        }
+        $scheduled = wp_schedule_single_event(time() + 1, self::HOOK, [$id], true);
+        if (is_wp_error($scheduled) || !$scheduled) {
+            $record['status'] = 'not_scheduled'; update_option($key, $record, false);
+            return Operations::error('ability_failed', 'The backup could not be scheduled. Check WordPress cron and inspect the original operation.');
+        }
+        return ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['data_json' => wp_json_encode(['job_id' => $id, 'status' => 'queued', 'scope' => $record['scope'], 'destination' => 'local', 'completed' => false,
+            'note' => 'The request was queued, not completed. Read get-backup with this job_id. WordPress cron runs the native backup; do not begin the next change yet.'])]];
+    }
+
+    /** Native continuations keep this job's local/no-mail/no-pruning policy without changing saved settings. */
+    public static function job_option($value, string $option)
+    {
+        global $updraftplus;
+        $id = is_object($updraftplus) ? ($updraftplus->nonce ?? '') : '';
+        if (!is_string($id) || !preg_match('/^[a-f0-9]{12}$/D', $id) || !get_option(self::JOB . $id)) { return $value; }
+        if ($option === 'updraft_delete_local') { return 0; }
+        if ($option === 'updraft_email') { return ''; }
+        return $value;
+    }
+
+    public static function job_databases($databases)
+    {
+        global $updraftplus;
+        $id = is_object($updraftplus) ? ($updraftplus->nonce ?? '') : '';
+        return is_string($id) && preg_match('/^[a-f0-9]{12}$/D', $id) && get_option(self::JOB . $id) && is_array($databases)
+            ? array_intersect_key($databases, ['wp' => true]) : $databases;
+    }
+
+    public static function completed($delete_jobdata)
+    {
+        global $updraftplus;
+        $id = $updraftplus->nonce ?? ''; $record = get_option(self::JOB . $id);
+        if (is_array($record)) {
+            $record['status'] = 'completed'; $record['warnings'] = (int) $updraftplus->error_count('warning');
+            update_option(self::JOB . $id, $record, false);
+        }
+        return $delete_jobdata;
+    }
+
+    public static function run_backup(string $id): void
+    {
+        if (!preg_match('/^[a-f0-9]{12}$/D', $id)) { return; }
+        $key = self::JOB . $id; $record = get_option($key, []);
+        if (($record['status'] ?? '') !== 'queued' || !add_option($key . '_started', time(), '', false)) { return; }
+        $actor = get_current_user_id(); wp_set_current_user((int) $record['actor']);
+        try {
+            $authorized = self::can_manage() && empty(get_option('aipkit_mcp_settings', [])['paused']);
+            if (!empty($record['grant_id'])) {
+                $grant = Store::grant($record['grant_id']);
+                $args = (object) ['name' => self::PREFIX . 'create-backup'];
+                $authorized = $authorized && Identity::active() && $grant && $grant['state'] === 'active'
+                    && $grant['instance_id'] === (Identity::registration()['instance_id'] ?? '')
+                    && $grant['wp_user_id'] === (int) $record['actor'] && Registry::allowed('run_ability', $grant, $args);
+            }
+            if (!$authorized || !hash_equals($record['settings_version'], self::settings()['settings_version'])) {
+                $record['status'] = 'not_started'; update_option($key, $record, false); return;
+            }
+            global $updraftplus;
+            $record['status'] = 'running'; update_option($key, $record, false);
+            $timestamp = time(); $history = \UpdraftPlus_Backup_History::get_history();
+            while (isset($history[$timestamp])) { $timestamp++; }
+            // Integers force a manual backup; boolean arguments use the vendor's combined schedule semantics.
+            $updraftplus->boot_backup($record['scope'] !== 'database' ? 1 : 0, $record['scope'] !== 'files' ? 1 : 0, self::settings()['configured_file_components'], false, 'none',
+                ['use_nonce' => $id, 'use_timestamp' => $timestamp, 'label' => $record['label'], 'always_keep' => true]);
+            $current = get_option($key, []);
+            if (($current['status'] ?? '') === 'running' && !$updraftplus->jobdata_getarray($id)) {
+                $current['status'] = 'needs_attention'; update_option($key, $current, false);
+            }
+        } finally { wp_set_current_user($actor); }
     }
 }

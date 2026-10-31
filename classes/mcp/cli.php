@@ -386,25 +386,6 @@ final class Cli
         }
     }
 
-    /** Values associated with credentials or this connection's internal state never become assistant input/output. */
-    private static function private_key(string $key): bool
-    {
-        return (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?(?:key|email)|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
-    }
-
-    private static function public_data($value, int $depth = 0)
-    {
-        if ($depth > 12) { return '[depth limit]'; }
-        if (is_string($value) && preg_match('/^\s*[\[{]/', $value)) {
-            $decoded = json_decode($value, true);
-            if (is_array($decoded)) { $safe = self::public_data($decoded, $depth + 1); return $safe === $decoded ? $value : wp_json_encode($safe); }
-        }
-        if (is_object($value)) { $value = get_object_vars($value); }
-        if (!is_array($value)) { return $value; }
-        foreach ($value as $key => $item) { $value[$key] = is_string($key) && self::private_key($key) ? '[redacted]' : self::public_data($item, $depth + 1); }
-        return $value;
-    }
-
     private static function native(array $args, bool $preview): array
     {
         $key = $args['key']; $p = $args['positionals']; $f = $args['flags'];
@@ -421,7 +402,7 @@ final class Cli
                 return ['state' => Operations::$mutation_started ? 'unknown' : 'failed', 'actions_used' => 0,
                     'error' => ['code' => Operations::$mutation_started ? 'outcome_unknown' : 'command_failed', 'message' => is_wp_error($data) ? $data->get_error_message() : 'WordPress did not confirm this command.']];
             }
-            return ['state' => 'succeeded', 'actions_used' => 1, 'result' => self::public_data(is_array($data) ? $data : ['value' => $data])];
+            return ['state' => 'succeeded', 'actions_used' => 1, 'result' => Guard::public_data(is_array($data) ? $data : ['value' => $data])];
         };
         $approval = static function () use ($key, $p, $f): array {
             return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'title' => 'WP-CLI: ' . $key,
@@ -483,11 +464,11 @@ final class Cli
             }
             if (strpos($key, 'post meta ') === 0) {
                 $meta = $p[1] ?? ''; $verb = substr($key, 10);
-                if ($meta !== '' && self::private_key($meta)) { return Operations::error('private_metadata'); }
+                if ($meta !== '' && Guard::private_key($meta)) { return Operations::error('private_metadata'); }
                 if ($verb === 'list') {
                     $items = []; $keys = isset($f['keys']) ? explode(',', $f['keys']) : array_keys(get_post_meta($post_id));
                     // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key, WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- These are response field labels, not WP_Query arguments.
-                    foreach ($keys as $name) { if (!self::private_key($name)) { $items[] = ['post_id' => $post_id, 'meta_key' => $name, 'meta_value' => get_post_meta($post_id, $name, false)]; } }
+                    foreach ($keys as $name) { if (!Guard::private_key($name)) { $items[] = ['post_id' => $post_id, 'meta_key' => $name, 'meta_value' => get_post_meta($post_id, $name, false)]; } }
                     return $ok(['items' => $items]);
                 }
                 if ($meta === '' || strlen($meta) > 200) { $fail('Invalid metadata key.'); }
@@ -678,7 +659,7 @@ final class Cli
     private static function writable_option(string $name): bool
     {
         global $wpdb; if (!preg_match('/^[a-zA-Z0-9_.:-]{1,172}$/D', $name)) { return false; } $name = strtolower($name);
-        return !self::private_key($name) && !in_array($name, ['active_plugins', 'active_sitewide_plugins', 'cron', 'rewrite_rules', 'stylesheet', 'template', 'users_can_register', 'default_role', 'auto_update_plugins', 'auto_update_themes', 'allowedthemes', 'uninstall_plugins', strtolower($wpdb->prefix . 'user_roles')], true)
+        return !Guard::private_key($name) && !in_array($name, ['active_plugins', 'active_sitewide_plugins', 'cron', 'rewrite_rules', 'stylesheet', 'template', 'users_can_register', 'default_role', 'auto_update_plugins', 'auto_update_themes', 'allowedthemes', 'uninstall_plugins', strtolower($wpdb->prefix . 'user_roles')], true)
             && strpos($name, 'theme_mods_') !== 0 && strpos($name, '_transient_') !== 0 && strpos($name, '_site_transient_') !== 0;
     }
 
@@ -698,7 +679,7 @@ final class Cli
             'usermeta' => ['table' => $wpdb->usermeta, 'id' => 'umeta_id', 'columns' => ['umeta_id', 'user_id', 'meta_key', 'meta_value'], 'search' => []],
         ];
         if ($custom !== null && !isset($tables[$custom]) && !in_array($custom, array_column($tables, 'table'), true)) {
-            if (strpos($custom, $wpdb->prefix) !== 0 || !preg_match('/^[a-zA-Z0-9_]{1,64}$/D', $custom) || self::private_key($custom) || preg_match('/(?:aipkit|aipuffer|wpaicg|freemius|sessions?|oauth|credentials?)/i', $custom)) { return $tables; }
+            if (strpos($custom, $wpdb->prefix) !== 0 || !preg_match('/^[a-zA-Z0-9_]{1,64}$/D', $custom) || Guard::private_key($custom) || preg_match('/(?:aipkit|aipuffer|wpaicg|freemius|sessions?|oauth|credentials?)/i', $custom)) { return $tables; }
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Exact escaped table lookup; views cannot disguise another schema or protected source.
             $kind = $wpdb->get_row($wpdb->prepare('SHOW FULL TABLES LIKE %s', $wpdb->esc_like($custom)), ARRAY_N);
             if (!$kind || ($kind[1] ?? '') !== 'BASE TABLE') { return $tables; }
@@ -707,7 +688,7 @@ final class Cli
             if ($wpdb->last_error || !$columns) { return $tables; }
             $public = []; $text = []; $types = []; $primary = [];
             foreach ($columns as $column) {
-                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $column['Field']) || self::private_key($column['Field']) || preg_match('/binary|blob|geometry/i', $column['Type'])) { continue; }
+                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $column['Field']) || Guard::private_key($column['Field']) || preg_match('/binary|blob|geometry/i', $column['Type'])) { continue; }
                 $field = $column['Field']; $public[] = $field; $types[$field] = $column['Type'];
                 if ($column['Key'] === 'PRI') { $primary[] = $field; }
                 if (preg_match('/char|text|json/i', $column['Type'])) { $text[] = $field; }
@@ -883,7 +864,7 @@ final class Cli
             $projected = []; foreach ($groups as $group) { $item = []; foreach ($expanded as $field) { $item[$field['alias']] = $field['count'] ? $group['count'] : ($group['row'][$field['column']] ?? null); } $projected[] = $item; }
             if ($plan['order']) { $sort = $plan['order']['column']; foreach (array_column($expanded, 'alias') as $alias) { if (strcasecmp($alias, $sort) === 0) { $sort = $alias; break; } } if (!in_array($sort, array_column($expanded, 'alias'), true)) { return Operations::error('unknown_order_alias'); } $direction = $plan['order']['descending'] ? -1 : 1; usort($projected, static function ($a, $b) use ($sort, $direction) { return ($a[$sort] <=> $b[$sort]) * $direction; }); }
             $items = array_slice($projected, $plan['offset'], $plan['limit']);
-        } else { $projected = []; foreach ($items as $row) { $item = []; foreach ($expanded as $field) { $item[$field['alias']] = $row[$field['column']] ?? null; } $projected[] = self::public_data($item); } $items = $projected; }
+        } else { $projected = []; foreach ($items as $row) { $item = []; foreach ($expanded as $field) { $item[$field['alias']] = $row[$field['column']] ?? null; } $projected[] = Guard::public_data($item); } $items = $projected; }
         return $ok(['items' => $items, 'limit' => $plan['limit'], 'offset' => $plan['offset'], 'has_more' => $has_more, 'protected_rows_omitted' => $omitted,
             'scope' => 'Supported single-table query facade, not unrestricted SQL. Credential/control data excluded. Values over64KB are omitted as null; use a specific WordPress read tool for large content.']);
     }
@@ -897,7 +878,7 @@ final class Cli
         foreach ($plan['values'] as $field => $value) {
             if ($field === $schema['id'] || !is_scalar($value) && $value !== null) { return Operations::error('unsupported_write_column'); }
             if (strlen((string) $value) > 65536) { return Operations::error('value_too_large'); }
-            if (in_array($field, ['meta_key', 'option_name', 'setting_key', 'key_name'], true) && self::private_key((string) $value)) { return Operations::error('protected_key'); }
+            if (in_array($field, ['meta_key', 'option_name', 'setting_key', 'key_name'], true) && Guard::private_key((string) $value)) { return Operations::error('protected_key'); }
         }
         if (isset($flags['expected-count']) && (!ctype_digit((string) $flags['expected-count']) || (int) $flags['expected-count'] > 100)) { return Operations::error('invalid_input'); }
         $where = []; $params = [];
@@ -1225,22 +1206,22 @@ final class Cli
 
     private static function database_value($value)
     {
-        if (!is_string($value) || !is_serialized($value)) { return self::public_data($value); }
+        if (!is_string($value) || !is_serialized($value)) { return Guard::public_data($value); }
         // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Existing WordPress data only; classes disabled and depth bounded, so no object callbacks can run.
         $decoded = @unserialize($value, ['allowed_classes' => false, 'max_depth' => 32]);
-        return is_object($decoded) ? '[serialized object omitted]' : self::public_data($decoded);
+        return is_object($decoded) ? '[serialized object omitted]' : Guard::public_data($decoded);
     }
 
     private static function database_row_visible(string $table, array $row): bool
     {
-        if ($table === 'options') { return !self::private_key($row['option_name']); }
-        if (in_array($table, ['postmeta', 'commentmeta', 'usermeta'], true) && self::private_key($row['meta_key'])) { return false; }
+        if ($table === 'options') { return !Guard::private_key($row['option_name']); }
+        if (in_array($table, ['postmeta', 'commentmeta', 'usermeta'], true) && Guard::private_key($row['meta_key'])) { return false; }
         if ($table === 'posts') { return current_user_can('read_post', (int) $row['ID']); }
         if ($table === 'postmeta') { return current_user_can('read_post', (int) $row['post_id']); }
         if ($table === 'comments') { return $row['comment_approved'] === '1' || current_user_can('edit_comment', (int) $row['comment_ID']); }
         if ($table === 'commentmeta') { return current_user_can('edit_comment', (int) $row['comment_id']); }
         if ($table === 'users' || $table === 'usermeta') { $id = (int) ($row['ID'] ?? $row['user_id']); return current_user_can('list_users') && (!is_multisite() || current_user_can('manage_network_users') || is_user_member_of_blog($id)); }
-        foreach (['meta_key', 'option_name', 'setting_key', 'key_name'] as $key) { if (isset($row[$key]) && self::private_key((string) $row[$key])) { return false; } }
+        foreach (['meta_key', 'option_name', 'setting_key', 'key_name'] as $key) { if (isset($row[$key]) && Guard::private_key((string) $row[$key])) { return false; } }
         return true;
     }
 
@@ -1289,7 +1270,7 @@ final class Cli
     private static function replace_value($value, string $old, string $new, int &$matches, int &$skipped, int &$growth, int $depth = 0)
     {
         if ($depth > 32 || is_object($value)) { $skipped++; return $value; }
-        if (is_array($value)) { foreach ($value as $key => $child) { if (!is_string($key) || !self::private_key($key)) { $value[$key] = self::replace_value($child, $old, $new, $matches, $skipped, $growth, $depth + 1); } } return $value; }
+        if (is_array($value)) { foreach ($value as $key => $child) { if (!is_string($key) || !Guard::private_key($key)) { $value[$key] = self::replace_value($child, $old, $new, $matches, $skipped, $growth, $depth + 1); } } return $value; }
         if (!is_string($value)) { return $value; }
         if (is_serialized($value)) {
             // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Classes disabled and object/deep trees rejected before any edit; never caller-created PHP objects.
@@ -1584,7 +1565,7 @@ final class Cli
                 }
             }
             if ($key === 'cron event list') { $items = array_slice($events, 0, 100); foreach ($items as &$listed) { $listed['argument_count'] = count($listed['args']); unset($listed['args']); } unset($listed); return $ok(['items' => $items, 'limit' => 100, 'has_more' => count($events) > 100]); }
-            if (self::private_key($selected) || strpos($selected, 'aipkit_') === 0) { return Operations::error('connection_cron_protected'); }
+            if (Guard::private_key($selected) || strpos($selected, 'aipkit_') === 0) { return Operations::error('connection_cron_protected'); }
             if (!$events) { return Operations::error('cron_event_not_found'); }
             if (count($events) > 100) { return Operations::error('too_many_events', 'Manage this unusually large hook through WordPress.'); }
             if ($key === 'cron event run' && has_action($selected) === false) { return Operations::error('cron_callback_not_registered'); }
@@ -1740,13 +1721,13 @@ final class Cli
         if ($write && !current_user_can('edit_user', $user->ID)) { return Operations::error('permission_denied'); }
         if (strpos($key, 'user meta ') === 0) {
             $verb = substr($key, 10); $meta = $p[1] ?? '';
-            if ($verb !== 'list' && (self::private_key($meta) || !preg_match('/^[a-zA-Z0-9_.:-]{1,172}$/D', $meta))) { return Operations::error('protected_user_metadata'); }
+            if ($verb !== 'list' && (Guard::private_key($meta) || !preg_match('/^[a-zA-Z0-9_.:-]{1,172}$/D', $meta))) { return Operations::error('protected_user_metadata'); }
             if ($verb === 'list') {
                 $items = []; $selected = isset($f['keys']) ? explode(',', $f['keys']) : [];
-                foreach (get_user_meta($user->ID) as $name => $values) { if (self::private_key($name) || ($selected && !in_array($name, $selected, true))) { continue; } $items[] = ['name' => $name, 'values' => self::public_data(array_map('maybe_unserialize', $values))]; }
+                foreach (get_user_meta($user->ID) as $name => $values) { if (Guard::private_key($name) || ($selected && !in_array($name, $selected, true))) { continue; } $items[] = ['name' => $name, 'values' => Guard::public_data(array_map('maybe_unserialize', $values))]; }
                 return $ok(['items' => array_slice($items, 0, 100), 'limit' => 100]);
             }
-            if ($verb === 'get') { return metadata_exists('user', $user->ID, $meta) ? $ok(['id' => $user->ID, 'key' => $meta, 'value' => self::public_data(get_user_meta($user->ID, $meta, true))]) : Operations::error('metadata_not_found'); }
+            if ($verb === 'get') { return metadata_exists('user', $user->ID, $meta) ? $ok(['id' => $user->ID, 'key' => $meta, 'value' => Guard::public_data(get_user_meta($user->ID, $meta, true))]) : Operations::error('metadata_not_found'); }
             if ($verb === 'delete' && !metadata_exists('user', $user->ID, $meta)) { return Operations::error('metadata_not_found'); }
             $value = $p[2] ?? ''; if ($preview) { return $pending; }
             Operations::$mutation_started = true;
@@ -1802,11 +1783,11 @@ final class Cli
         $write = !self::NATIVE[$key][0]; $theme = strpos($key, 'theme mod ') === 0; $transient = strpos($key, 'transient ') === 0;
         $verb = substr($key, strrpos($key, ' ') + 1); $patch = $key === 'option patch';
         if ($patch) { $verb = array_shift($p); if (!in_array($verb, ['insert', 'update', 'delete'], true)) { return Operations::error('invalid_patch_action'); } }
-        $valid = static function (string $name): bool { return (bool) preg_match('/^[a-zA-Z0-9_.:-]{1,172}$/D', $name) && !self::private_key($name); };
-        $ok = static function (array $data): array { return ['state' => 'succeeded', 'actions_used' => 1, 'result' => self::public_data($data)]; };
+        $valid = static function (string $name): bool { return (bool) preg_match('/^[a-zA-Z0-9_.:-]{1,172}$/D', $name) && !Guard::private_key($name); };
+        $ok = static function (array $data): array { return ['state' => 'succeeded', 'actions_used' => 1, 'result' => Guard::public_data($data)]; };
         if ($verb === 'list') {
             if ($theme) {
-                $items = []; foreach ((array) get_theme_mods() as $name => $value) { if ($valid((string) $name)) { $items[] = ['name' => $name, 'value' => self::public_data($value)]; } }
+                $items = []; foreach ((array) get_theme_mods() as $name => $value) { if ($valid((string) $name)) { $items[] = ['name' => $name, 'value' => Guard::public_data($value)]; } }
                 return $ok(['items' => array_slice($items, 0, 100), 'limit' => 100]);
             }
             $search = $f['search'] ?? '*';
@@ -1824,7 +1805,7 @@ final class Cli
                 if (isset($f['autoload']) && $autoload !== in_array($f['autoload'], ['yes', 'on', 'true', '1'], true)) { continue; }
                 $value = $transient ? get_transient($name) : get_option($name);
                 if ($transient && $value === false) { continue; }
-                $items[] = ['name' => $name, 'value' => self::public_data($value), 'autoload' => $autoload];
+                $items[] = ['name' => $name, 'value' => Guard::public_data($value), 'autoload' => $autoload];
                 if (count($items) === 100) { break; }
             }
             return $ok(['items' => $items, 'limit' => 100, 'possibly_truncated' => count($rows) > 100,
@@ -1838,10 +1819,10 @@ final class Cli
         if (!$write) {
             if (!$exists) { return Operations::error('setting_not_found'); }
             foreach ($p as $segment) {
-                if (self::private_key($segment) || !is_array($current) || !array_key_exists($segment, $current)) { return Operations::error('setting_path_not_found'); }
+                if (Guard::private_key($segment) || !is_array($current) || !array_key_exists($segment, $current)) { return Operations::error('setting_path_not_found'); }
                 $current = $current[$segment];
             }
-            return $ok(['name' => $name, 'value' => self::public_data($current)]);
+            return $ok(['name' => $name, 'value' => Guard::public_data($current)]);
         }
         if (isset($f['autoload']) && !in_array($f['autoload'], ['yes', 'no', 'on', 'off', 'true', 'false', '1', '0'], true)) { return Operations::error('invalid_input'); }
         $autoload = isset($f['autoload']) ? in_array($f['autoload'], ['yes', 'on', 'true', '1'], true) : null;
@@ -1856,18 +1837,18 @@ final class Cli
         if ($patch) {
             if ($verb !== 'delete' && count($p) < 2) { return Operations::error('invalid_patch_path'); }
             $value = $verb === 'delete' ? null : $decode(array_pop($p));
-            if (!is_array($current) || !$p || self::public_data($value) !== $value) { return Operations::error('invalid_patch_value'); }
+            if (!is_array($current) || !$p || Guard::public_data($value) !== $value) { return Operations::error('invalid_patch_value'); }
             $next = $current; $node =& $next; $last = array_pop($p);
             foreach ($p as $segment) {
-                if (self::private_key($segment) || !isset($node[$segment]) || !is_array($node[$segment])) { return Operations::error('setting_path_not_found'); }
+                if (Guard::private_key($segment) || !isset($node[$segment]) || !is_array($node[$segment])) { return Operations::error('setting_path_not_found'); }
                 $node =& $node[$segment];
             }
-            if (self::private_key($last) || ($verb === 'insert' ? array_key_exists($last, $node) : !array_key_exists($last, $node))) { return Operations::error('invalid_patch_path'); }
+            if (Guard::private_key($last) || ($verb === 'insert' ? array_key_exists($last, $node) : !array_key_exists($last, $node))) { return Operations::error('invalid_patch_path'); }
             if ($verb === 'delete') { unset($node[$last]); } else { $node[$last] = $value; }
             unset($node);
         } elseif ($verb !== 'delete') {
             $next = $decode($p[0]);
-            if (self::public_data($next) !== $next || ($exists && self::public_data($current) !== $current)) { return Operations::error('protected_setting_fields', 'Use a non-secret option patch path to preserve credential fields.'); }
+            if (Guard::public_data($next) !== $next || ($exists && Guard::public_data($current) !== $current)) { return Operations::error('protected_setting_fields', 'Use a non-secret option patch path to preserve credential fields.'); }
         }
         if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'title' => 'WP-CLI: ' . $key,
             'name' => self::WRITE, 'description' => 'Change the selected WordPress setting.', 'risk' => 'publish', 'input' => wp_json_encode($preview_input)]]; }
@@ -1882,7 +1863,7 @@ final class Cli
             if ($verb === 'add') { add_option($name, $next, '', $autoload); } else { update_option($name, $next, $autoload); }
             $saved = get_option($name, $missing);
         }
-        return $saved === $next ? $ok(['name' => $name, 'value' => self::public_data($saved)]) : self::native_unknown();
+        return $saved === $next ? $ok(['name' => $name, 'value' => Guard::public_data($saved)]) : self::native_unknown();
     }
 
     private static function native_unknown(): array

@@ -59,6 +59,8 @@ final class Guard
         // Preferences change Rank Math configuration, not installed-plugin activation. Native capabilities,
         // schema validation and the connection's selected approval policy still apply.
         if ($name === 'rank-math/set-plugin-preferences' && $category === 'rank-math-settings') { return true; }
+        // Greenshift's plugin variables are design tokens, not plugin installation or activation.
+        if ($name === 'greenshift/add-plugin-variables' && $category === 'greenshift') { return true; }
         $words = preg_split('/[\/_-]+/', strtolower($name . '/' . $category), -1, PREG_SPLIT_NO_EMPTY);
         return !array_intersect($words, array_merge(self::BLOCKED_WORDS, self::COMPOSITE_WORDS));
     }
@@ -80,5 +82,41 @@ final class Guard
         if (!self::allows_domain($domain)) {
             throw new \LogicException('This operation domain is not supported by website management.');
         }
+    }
+    /** Credential values only: ordinary token counts, permissions and licence status are not secrets. */
+    private static function credential_key(string $key): bool
+    {
+        $key = strtolower((string) preg_replace('/[^a-zA-Z0-9]/', '', $key));
+        return (bool) preg_match('/(?:password|passwd|userpass|smtppass|secretkey|secret|apikey|privatekey|accesskey|authkey|authsalt|secureauth|nonce|clientsecret|consumerkey|licensekey|licencekey|applicationpassword|refreshtoken|accesstoken|idtoken|authtoken|bearertoken|authorization|backupcodes|totp|otpcode|sessiontoken|sessioncookie|authcookie|loggedincookie|useractivationkey|loggedinsalt)$/', $key)
+            || in_array($key, ['token', 'credentials', 'credential', 'cookie', 'cookies', 'salt', 'salts', 'passkey', 'pwd', 'jwt'], true);
+    }
+
+    /** Values associated with credentials or this connection's internal state never become assistant input/output. */
+    public static function private_key(string $key): bool
+    {
+        return (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?(?:key|email)|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
+    }
+
+    public static function public_data($value, int $depth = 0, bool $credentials_only = false)
+    {
+        if ($depth > ($credentials_only ? 512 : 12)) { return '[depth limit]'; }
+        if (is_string($value) && preg_match('/^\s*[\[{]/', $value)) {
+            $decoded = json_decode($value, !$credentials_only);
+            if (is_array($decoded) || is_object($decoded)) { $safe = self::public_data($decoded, $depth + 1, $credentials_only); return wp_json_encode($safe) === wp_json_encode($decoded) ? $value : wp_json_encode($safe); }
+        }
+        $object = is_object($value);
+        if ($object) { $value = get_object_vars($value); }
+        if (!is_array($value)) { return $value; }
+        foreach ($value as $key => $item) {
+            $private = is_string($key) && ($credentials_only ? self::credential_key($key) && !is_bool($item) && $item !== null : self::private_key($key));
+            // Discovery describes secret inputs; keep the schema, never a supplied default/example value.
+            $schema = is_object($item) ? get_object_vars($item) : $item;
+            if ($credentials_only && $private && is_array($schema) && in_array($schema['type'] ?? '', ['string', 'number', 'integer', 'boolean', 'object', 'array', 'null'], true)) {
+                $item = array_intersect_key($schema, array_flip(['type', 'description', 'title', 'format', 'properties', 'required', 'items', 'additionalProperties', 'minLength', 'maxLength', 'minimum', 'maximum', 'pattern', 'oneOf', 'anyOf', 'allOf']));
+                $private = false;
+            }
+            $value[$key] = $private ? '[redacted]' : self::public_data($item, $depth + 1, $credentials_only);
+        }
+        return $credentials_only && $object ? (object) $value : $value;
     }
 }
