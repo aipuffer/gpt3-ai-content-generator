@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.22
+Stable tag: 2.5.23
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.23 =
+Improves website-management error reporting, registered REST route discovery and Gutenberg content-type guidance.
+
 = 2.5.22 =
 Added website-management integrations for Blocksy, Greenshift, Contact Form 7 and UpdraftPlus.
 
@@ -272,6 +275,11 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.23 =
+* Fixed misleading Gutenberg permission errors for unsupported custom content types and clarified native route discovery.
+* Improved website-management error reporting and diagnostics for slow or busy requests.
+* Added registered REST route hints when a requested path is unavailable.
 
 = 2.5.22 =
 * Added website-management integrations for UpdraftPlus, Contact Form 7, Blocksy and Greenshift.

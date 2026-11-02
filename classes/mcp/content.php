@@ -570,7 +570,7 @@ final class Content
         $edits = ['type' => 'string', 'maxLength' => 200000, 'description' => 'JSON array of 1–100 edits against the original version. Inline edit: {"op":"replace_inline","path":[0],"find":"exact existing text or balanced inline HTML","replace":"new text or safe inline HTML"}. path is the zero-based index path in get-document blocks_json, including unnamed freeform nodes; descend through innerBlocks. find must occur exactly once inside that paragraph, heading or leaf list-item, never inside a tag attribute. Preserve existing links/formatting when translating. Add new top-level blocks with {"op":"prepend_blocks","blocks":[layout nodes]} or {"op":"append_blocks","blocks":[layout nodes]}. Unchanged blocks, attributes, wrappers and whitespace are preserved byte-for-byte. No removal/reordering or changes to unsupported/synced blocks. Active GenerateBlocks v2 also supports replace_inline on static generateblocks/text inside static generateblocks/element containers. Update an existing anchor: {"op":"generateblocks_set_link","path":[0,2],"url":"https://example.org/book/","find":"Contact us","replace":"Book a visit"}; find/replace are optional together. Replace an existing generateblocks/media image using {"op":"generateblocks_replace_image","path":[0,3],"media_id":123,"alt":"New image description"}; use an existing accessible Media Library ID. Keeps layout/CSS and unrelated fields. No dynamic tags/bindings, icons, query loops or synced templates. Other third-party blocks stay unsupported. Do not use layout_json or replace_layout for partial edits.'];
         $copy_edits = $edits;
         $copy_edits['description'] = strstr($edits['description'], ' Active GenerateBlocks', true);
-        $id = ['type' => 'integer', 'minimum' => 1];
+        $id = ['type' => 'integer', 'minimum' => 1, 'description' => 'An editable ordinary WordPress post or page ID. Custom post types, including GeoDirectory listings/events, are not supported by this document tool. Discover native plugin abilities or registered REST routes instead; never infer a route from a post-type name.'];
         $definitions = [
             'validate-layout' => [true, 'Validate a Gutenberg layout', ['layout_json' => $layout], ['layout_json']],
             'get-document' => [true, 'Read a Gutenberg document', ['post_id' => $id,
@@ -583,7 +583,7 @@ final class Content
         ];
         foreach ($definitions as $action => [$read, $label, $properties, $required]) {
             wp_register_ability(self::PREFIX . $action, [
-                'label' => $label, 'description' => $label . (in_array($action, ['get-document', 'update-document'], true) ? '. Read all blocks with get-document first. Active GenerateBlocks v2: edits_json supports static text, anchor label/link and existing Media Library image replacement; see field examples. Keeps existing containers, CSS and responsive styles. No dynamic bindings, icons, query loops or synced blocks. Older installed schemas may not offer these edits.' : '. Build new core or active GenerateBlocks v2 pages with typed layout_json container/text/button/image nodes and bounded styles; see field examples. GenerateBlocks grids stack on mobile. No raw CSS, dynamic tags or global templates. Validate first and verify native editor and public output.') . ' On 2.5.15+ use edits_json for small inline edits, translations and adding summary/FAQ blocks; safe inline links/bold are supported. Create with source_post_id + source_version to update/translate into a separate draft, leaving the source unchanged. Discover and follow this offered schema even when older guidance describes plain-text-only layouts. Read results use the WordPress block tree, NOT layout_json input nodes. Large reads return blocks_json_chunk and next_offset; collect every page using its version before parsing. Whole-layout replacement via layout_json still requires replace_layout:true and a fresh version; never use it for a small edit or rebuild unsupported blocks. Title, author and status are preserved on update. Create makes a draft. Supported blocks: ' . implode(', ', self::BLOCKS) . '.',
+                'label' => $label, 'description' => $label . '. Ordinary posts/pages only; custom types such as GeoDirectory listings/events require native plugin abilities or registered REST routes. Never infer routes from post-type names' . (in_array($action, ['get-document', 'update-document'], true) ? '. Read all blocks with get-document first. Active GenerateBlocks v2: edits_json supports static text, anchor label/link and existing Media Library image replacement; see field examples. Keeps existing containers, CSS and responsive styles. No dynamic bindings, icons, query loops or synced blocks. Older installed schemas may not offer these edits.' : '. Build new core or active GenerateBlocks v2 pages with typed layout_json container/text/button/image nodes and bounded styles; see field examples. GenerateBlocks grids stack on mobile. No raw CSS, dynamic tags or global templates. Validate first and verify native editor and public output.') . ' On 2.5.15+ use edits_json for small inline edits, translations and adding summary/FAQ blocks; safe inline links/bold are supported. Create with source_post_id + source_version to update/translate into a separate draft, leaving the source unchanged. Discover and follow this offered schema even when older guidance describes plain-text-only layouts. Read results use the WordPress block tree, NOT layout_json input nodes. Large reads return blocks_json_chunk and next_offset; collect every page using its version before parsing. Whole-layout replacement via layout_json still requires replace_layout:true and a fresh version; never use it for a small edit or rebuild unsupported blocks. Title, author and status are preserved on update. Create makes a draft. Supported blocks: ' . implode(', ', self::BLOCKS) . '.',
                 'category' => Abilities::CATEGORY,
                 'input_schema' => ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
@@ -1322,6 +1322,7 @@ final class Content
         try {
             if (!in_array($action, ['list', 'get', 'restore'], true)) { return Operations::error('invalid_input'); }
             $post = self::document($post_id);
+            if (is_wp_error($post)) { return Operations::error($post->get_error_code(), $post->get_error_message()); }
             if ($action === 'restore' && !$preview) {
                 foreach ([$wpdb->posts, $wpdb->postmeta] as $table) {
                     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Restoration requires rollback-capable native tables; exact prepared table names only.
@@ -1335,6 +1336,7 @@ final class Content
                 $rows = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE ID IN (%d, %d) ORDER BY ID FOR UPDATE", $post_id, (int) ($input['revision_id'] ?? 0)));
                 if (count($rows) !== 2) { return Operations::error('not_found', 'The selected revision is unavailable.'); }
                 $post = self::document($post_id);
+                if (is_wp_error($post)) { return Operations::error($post->get_error_code(), $post->get_error_message()); }
             }
             $version = Operations::version($post);
             if ($action === 'list') {
@@ -1582,16 +1584,22 @@ final class Content
         return ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['data_json' => wp_json_encode($data)]];
     }
 
-    private static function document(int $id): \WP_Post
+    /** @return \WP_Post|\WP_Error */
+    private static function document(int $id)
     {
         clean_post_cache($id);
         $post = get_post($id);
-        if (!$post || !in_array($post->post_type, ['post', 'page'], true) || !in_array($post->post_status, ['draft', 'pending', 'publish', 'private', 'future'], true) || !current_user_can('edit_post', $id)) {
-            throw new \InvalidArgumentException('This post or page is not editable by the connected user.');
+        if (!$post) { return new \WP_Error('not_found', 'This document is unavailable.'); }
+        // Check access before describing the document's type or status.
+        if (!current_user_can('edit_post', $id)) { return new \WP_Error('permission_denied', 'The connected user cannot edit this document.'); }
+        if (!in_array($post->post_type, ['post', 'page'], true)) {
+            $refusal = Operations::unsupported_post_type($post->post_type);
+            return new \WP_Error($refusal['error']['code'], $refusal['error']['message']);
         }
-        if (get_post_meta($id, '_elementor_edit_mode', true) === 'builder') { throw new \InvalidArgumentException('Use the Elementor actions for this document.'); }
-        if (get_post_meta($id, '_fl_builder_enabled', true)) { throw new \InvalidArgumentException('Use beaver-get-document and beaver-update-document for this page.'); }
-        if (get_post_meta($id, '_seedprod_page', true)) { throw new \InvalidArgumentException('Use the native SeedProd page abilities for this document.'); }
+        if (!in_array($post->post_status, ['draft', 'pending', 'publish', 'private', 'future'], true)) { return new \WP_Error('invalid_status', 'This document status is not supported. Open the document in WordPress to check its status.'); }
+        if (get_post_meta($id, '_elementor_edit_mode', true) === 'builder') { return new \WP_Error('gutenberg_failed', 'Use the Elementor actions for this document.'); }
+        if (get_post_meta($id, '_fl_builder_enabled', true)) { return new \WP_Error('gutenberg_failed', 'Use beaver-get-document and beaver-update-document for this page.'); }
+        if (get_post_meta($id, '_seedprod_page', true)) { return new \WP_Error('gutenberg_failed', 'Use the native SeedProd page abilities for this document.'); }
         return $post;
     }
 
@@ -1942,6 +1950,7 @@ final class Content
             if ($action === 'validate-layout' && !current_user_can('edit_posts') && !current_user_can('edit_pages')) { throw new \InvalidArgumentException('Content editing permission is required.'); }
             if ($action === 'get-document') {
                 $post = self::document((int) $input['post_id']);
+                if (is_wp_error($post)) { return Operations::error($post->get_error_code(), $post->get_error_message()); }
                 $version = Operations::version($post);
                 $offset = $input['offset'] ?? 0;
                 if (!is_int($offset) || $offset < 0) { return Operations::error('invalid_input'); }
@@ -1973,6 +1982,7 @@ final class Content
                 if (!$wpdb->get_row($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE ID = %d FOR UPDATE", $locked))) { throw new \RuntimeException('The document is unavailable.'); }
             }
             $source = $target ? self::document($target) : null;
+            if (is_wp_error($source)) { return Operations::error($source->get_error_code(), $source->get_error_message()); }
             $post = $action === 'update-document' ? $source : null;
             if ($source) {
                 if (Operations::version($source) !== ($input[$copy ? 'source_version' : 'version'] ?? null)) { return ['state' => 'conflict', 'actions_used' => 0, 'error' => ['code' => 'content_changed', 'message' => 'Read the current document before editing or copying it.']]; }

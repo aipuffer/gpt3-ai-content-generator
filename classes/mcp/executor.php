@@ -102,6 +102,8 @@ final class Executor
 
     private static function execute(object $body, array $grant): array
     {
+        $began = microtime(true);
+        $bootstrap_ms = self::elapsed(is_numeric($_SERVER['REQUEST_TIME_FLOAT'] ?? null) ? (float) $_SERVER['REQUEST_TIME_FLOAT'] : $began);
         // Internal renewal is not an assistant tool and spends no website action.
         // It may refresh only the already-authorized account/site binding.
         if ($body->tool === 'register_again') {
@@ -156,11 +158,17 @@ final class Executor
             Journal::reported($body->operation_id);
             return Journal::response($row);
         }
-        if (!Journal::lock(5)) {
+        $timing = ['phase' => 'lock', 'bootstrap_ms' => $bootstrap_ms,
+            'preflight_ms' => self::elapsed($began)];
+        $lock_started = microtime(true);
+        $locked = Journal::lock(5);
+        $timing += ['lock_wait_ms' => self::elapsed($lock_started), 'lock_result' => Journal::$lock_result];
+        if (!$locked) {
             // This delivery inserted the row but has not called a handler. Close it atomically so a busy site
             // does not leave a never-started request looking like an uncertain website change.
             $response = ['state' => 'failed', 'actions_used' => 0,
-                'error' => ['code' => 'site_busy', 'message' => 'The website is busy. Nothing ran and no action was charged. Try a new request shortly.']];
+                'error' => ['code' => 'site_busy', 'message' => 'The website is busy. Nothing ran and no action was charged. Try a new request shortly.'],
+                'operation_diagnostics' => ['execution' => $timing]];
             if (!Journal::claim($body->operation_id, 'received') || !Journal::finish($body->operation_id, $response)) {
                 return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable');
             }
@@ -168,7 +176,11 @@ final class Executor
             return ['operation_id' => $body->operation_id] + $response;
         }
         try {
-            if (!Journal::claim($body->operation_id, 'received')) { return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable'); }
+            $timing['phase'] = 'handler';
+            // Persist the last observed phase in the existing claim write. A killed PHP handler
+            // leaves useful evidence without an extra query, timer or background job.
+            if (!Journal::claim($body->operation_id, 'received', ['execution' => $timing])) { return ['operation_id' => $body->operation_id] + Journal::uncertain('operation_storage_unavailable'); }
+            $handler_started = microtime(true);
             $current = Store::grant($grant['grant_id']);
             if (!Identity::active() || !$current || $current['state'] !== 'active'
                 || $current['instance_id'] !== Identity::registration()['instance_id']) {
@@ -187,16 +199,25 @@ final class Executor
             if ($response['state'] === 'pending_approval') {
                 $response['approval_url'] = admin_url('admin-post.php?action=aipkit_mcp_confirm&operation_id=' . rawurlencode($body->operation_id));
             }
+            $timing['phase'] = 'complete';
+            $timing['handler_ms'] = self::elapsed($handler_started);
+            $response['operation_diagnostics']['execution'] = $timing;
             // Keep preview bytes transient; recovery/history retains image identity and dimensions only.
             $recorded = $response;
             if ($body->tool === 'inspect_media') { unset($recorded['result']['image_preview']['data']); }
             if (!Journal::finish($body->operation_id, $recorded)) {
                 $response = Journal::uncertain('operation_result_not_saved') + array_intersect_key($response, ['operation_diagnostics' => true]);
+                $response['operation_diagnostics']['execution']['phase'] = 'persistence';
             }
             Journal::reported($body->operation_id);
             unset($response['local_error']);
             return ['operation_id' => $body->operation_id] + $response;
         } finally { Journal::unlock(); }
+    }
+
+    private static function elapsed(float $since): int
+    {
+        return (int) max(0, min(120000, round((microtime(true) - $since) * 1000)));
     }
 
     public static function confirm(): void

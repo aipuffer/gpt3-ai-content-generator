@@ -139,12 +139,13 @@ final class Journal
         return $current && $current['state'] === $row['state'] && (int) $current['reported_at'] > 0;
     }
 
-    public static function claim(string $id, string $from): bool
+    public static function claim(string $id, string $from, array $diagnostic = []): bool
     {
         global $wpdb;
         $table = Schema::table('operations');
+        $checkpoint = $diagnostic ? wp_json_encode(['state' => 'unknown', 'actions_used' => 0, 'operation_diagnostics' => $diagnostic]) : '';
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        return $wpdb->query($wpdb->prepare("UPDATE $table SET state = 'executing', updated_at = %d WHERE operation_id = %s AND state = %s", time(), $id, $from)) === 1;
+        return $wpdb->query($wpdb->prepare("UPDATE $table SET state = 'executing', response = IF(%s = '', response, %s), updated_at = %d WHERE operation_id = %s AND state = %s", $checkpoint, $checkpoint, time(), $id, $from)) === 1;
     }
 
     public static function write_gate(string $except): ?array
@@ -250,11 +251,15 @@ final class Journal
         // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
 
+    public static $lock_result = 'not_attempted';
+
     public static function lock(int $wait_seconds = 0): bool
     {
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        return (string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', self::lock_name(), max(0, min(5, $wait_seconds)))) === '1';
+        $result = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', self::lock_name(), max(0, min(5, $wait_seconds))));
+        self::$lock_result = (string) $result === '1' ? 'acquired' : ((string) $result === '0' ? 'timeout' : 'database_error');
+        return self::$lock_result === 'acquired';
     }
 
     public static function unlock(): void

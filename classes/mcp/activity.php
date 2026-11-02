@@ -205,7 +205,23 @@ final class Activity
         if (!is_string($code) || !preg_match('/^[a-z0-9_]{1,80}$/D', $code)) { return null; }
         $diagnostic = $response['operation_diagnostics'] ?? [];
         $message = __('The site refused this request. Ask the assistant to check the operation before retrying.', 'gpt3-ai-content-generator');
-        if ($code === 'ability_invalid_input' && ($diagnostic['ability_name'] ?? '') === 'ai-puffer/audit-page') {
+        if ($code === 'site_busy') {
+            $message = ($diagnostic['execution']['lock_result'] ?? '') === 'database_error'
+                ? __('WordPress could not acquire its execution lock because the database lock query failed. Nothing ran and no action was charged.', 'gpt3-ai-content-generator')
+                : __('The website was busy and this request did not run. No action was charged. Let the current request finish before starting another.', 'gpt3-ai-content-generator');
+        } elseif ($code === 'unsupported_post_type') {
+            $message = __('This content tool supports ordinary posts and pages only. For custom content types such as directory listings or events, ask the assistant to discover native plugin actions or registered REST routes.', 'gpt3-ai-content-generator');
+        } elseif (in_array($code, ['rest_error', 'permission_denied', 'outcome_unknown'], true) && is_int($diagnostic['rest_status'] ?? null)
+            && $diagnostic['rest_status'] >= 100 && $diagnostic['rest_status'] <= 599
+            && in_array($diagnostic['rest_code'] ?? '', ['rest_no_route', 'rest_invalid_param', 'rest_missing_callback_param', 'rest_forbidden', 'rest_forbidden_context', 'rest_not_logged_in', 'rest_invalid_page_number', 'other'], true)) {
+            /* translators: 1: REST HTTP status, 2: fixed REST reason code. */
+            $message = sprintf(__('REST request refused: HTTP %1$d, %2$s. ', 'gpt3-ai-content-generator'), $diagnostic['rest_status'], $diagnostic['rest_code']);
+            $message .= $diagnostic['rest_code'] === 'rest_no_route'
+                ? __('This path or method is not registered. Ask the assistant to discover the exact route before trying again.', 'gpt3-ai-content-generator')
+                : (($diagnostic['rest_phase'] ?? '') === 'callback'
+                    ? __('The callback started. Check the original operation before repeating a website change.', 'gpt3-ai-content-generator')
+                    : __('Ask the assistant to check the route schema, parameters and the connected user’s permissions.', 'gpt3-ai-content-generator'));
+        } elseif ($code === 'ability_invalid_input' && ($diagnostic['ability_name'] ?? '') === 'ai-puffer/audit-page') {
             $issue = $diagnostic['input_issue'] ?? [];
             $reasons = ['required' => __('Required field missing', 'gpt3-ai-content-generator'), 'type' => __('Incorrect input type', 'gpt3-ai-content-generator'), 'enum' => __('Unsupported choice', 'gpt3-ai-content-generator'), 'max_length' => __('Input too long', 'gpt3-ai-content-generator'), 'additional_property' => __('Unsupported field', 'gpt3-ai-content-generator'), 'invalid_json' => __('Invalid or oversized JSON input', 'gpt3-ai-content-generator'), 'validation' => __('Input validation failed', 'gpt3-ai-content-generator')];
             if (in_array($issue['field'] ?? null, ['$', 'url', 'strategy', 'viewport', 'device', 'page_url', '*'], true) && is_string($issue['reason'] ?? null) && isset($reasons[$issue['reason']])) {

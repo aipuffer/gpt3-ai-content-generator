@@ -910,20 +910,60 @@ final class Engines
         add_filter('rest_pre_dispatch', $guard, PHP_INT_MIN, 3);
         try { $data = rest_get_server()->response_to_data($response, $embed); }
         finally { remove_filter('rest_pre_dispatch', $guard, PHP_INT_MIN); }
-        if (($status < 200 || $status >= 300) && $started) { return self::after_start(); }
         if ($status < 200 || $status >= 300) {
             $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';
             $code = is_array($data) && is_string($data['code'] ?? null) ? $data['code'] : 'rest_error';
             if ($code === 'rest_no_route') {
                 $message = 'No registered REST route matches this path and method. Read the plugin namespace index and use its exact registered route and schema. Custom type names and rest_namespace metadata may differ from the actual route. Do not guess another path or retry this unchanged request.';
             }
-            return ['state' => 'failed', 'actions_used' => 0, 'error' => ['code' => $status === 401 || $status === 403 ? 'permission_denied' : 'rest_error',
-                'message' => mb_substr(trim($message) !== '' ? $message : 'The route refused this request.', 0, 300), 'status' => $status, 'route_code' => mb_substr($code, 0, 80)]];
+            $diagnostic = ['rest_status' => $status, 'rest_code' => in_array($code, ['rest_no_route', 'rest_invalid_param', 'rest_missing_callback_param', 'rest_forbidden', 'rest_forbidden_context', 'rest_not_logged_in', 'rest_invalid_page_number'], true) ? $code : 'other',
+                'rest_phase' => $started ? 'callback' : ($code === 'rest_no_route' ? 'routing' : (in_array($code, ['rest_invalid_param', 'rest_missing_callback_param', 'rest_invalid_page_number'], true) ? 'validation' : (in_array($status, [401, 403], true) ? 'permission' : 'response'))),
+                'rest_method' => $request->get_method()];
+            $fields = is_array($data['data']['params'] ?? null) ? array_keys($data['data']['params']) : [];
+            if ($code === 'rest_missing_callback_param' && is_array($data['data']['params'] ?? null)) { $fields = $data['data']['params']; }
+            if ($fields) {
+                $diagnostic['rest_fields'] = array_slice(array_values(array_unique(array_map(static function ($field): string {
+                    return in_array($field, ['page', 'per_page', 'context', 'orderby', 'order', 'status', 'include', 'exclude'], true) ? $field : '*';
+                }, $fields))), 0, 5);
+            }
+            if ($started) { return self::after_start() + ['operation_diagnostics' => $diagnostic]; }
+            $result = ['state' => 'failed', 'actions_used' => 0, 'error' => ['code' => $status === 401 || $status === 403 ? 'permission_denied' : 'rest_error',
+                'message' => mb_substr(trim($message) !== '' ? $message : 'The route refused this request.', 0, 300), 'status' => $status, 'route_code' => mb_substr($code, 0, 80)], 'operation_diagnostics' => $diagnostic];
+            if ($code === 'rest_no_route') { $result['error']['discovery'] = self::rest_discovery($request); }
+            return $result;
         }
         $headers = array_change_key_case($response->get_headers(), CASE_LOWER);
         return self::ok(['status' => $status, 'data_json' => self::bounded($data)]
             + (isset($headers['x-wp-total']) ? ['total' => (int) $headers['x-wp-total']] : [])
             + (isset($headers['x-wp-totalpages']) ? ['total_pages' => (int) $headers['x-wp-totalpages']] : []));
+    }
+
+    /** Registered route hints only; never substitute a route or execute its callback. */
+    private static function rest_discovery(\WP_REST_Request $request): array
+    {
+        $namespace = '';
+        foreach (rest_get_server()->get_namespaces() as $candidate) {
+            if (strpos($request->get_route(), '/' . $candidate . '/') === 0 && strlen($candidate) > strlen($namespace)) { $namespace = $candidate; }
+        }
+        $type = basename($request->get_route());
+        $preferred = post_type_exists($type) ? self::post_type_routes($type) : [];
+        $routes = [];
+        foreach (rest_get_server()->get_routes() as $route => $handlers) {
+            if (!$namespace || strpos($route, '/' . $namespace . '/') !== 0 || strlen($route) > 200 || !preg_match('~^/[a-zA-Z0-9/_.-]+$~D', $route)) { continue; }
+            $methods = [];
+            foreach ($handlers as $handler) {
+                if (!is_array($handler)) { continue; }
+                foreach ((array) ($handler['methods'] ?? []) as $method => $allowed) {
+                    if ($allowed && in_array($method, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], true) && Guard::allows_rest($method, $route)) { $methods[] = $method; }
+                }
+            }
+            if ($methods) { $routes[] = ['route' => $route, 'methods' => array_values(array_unique($methods))]; }
+        }
+        usort($routes, static function (array $a, array $b) use ($preferred): int {
+            return (int) in_array($b['route'], $preferred, true) <=> (int) in_array($a['route'], $preferred, true) ?: strcmp($a['route'], $b['route']);
+        });
+        return ['namespace_index' => $namespace ? '/' . $namespace : '/', 'registered_routes' => array_slice($routes, 0, 12), 'truncated' => count($routes) > 12,
+            'guidance' => 'Use an exact registered route with its allowed method. Read that route schema from the namespace index before supplying parameters. These hints do not grant permission and were not executed. Do not retry the missing route unchanged.'];
     }
 
     // Shared ------------------------------------------------------------------------------------------------------
