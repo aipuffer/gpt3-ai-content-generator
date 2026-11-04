@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.23
+Stable tag: 2.5.24
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.24 =
+Improves website-management REST discovery, field validation and Yoast SEO lookup guidance.
+
 = 2.5.23 =
 Improves website-management error reporting, registered REST route discovery and Gutenberg content-type guidance.
 
@@ -275,6 +278,10 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.24 =
+* Improved field-level REST validation guidance so connected assistants can correct required values and field types.
+* Improved GeoDirectory route discovery and Yoast SEO lookup guidance for connected assistants.
 
 = 2.5.23 =
 * Fixed misleading Gutenberg permission errors for unsupported custom content types and clarified native route discovery.

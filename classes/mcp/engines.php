@@ -639,8 +639,12 @@ final class Engines
     private static function ability_result($result): array
     {
         if (is_wp_error($result)) {
+            $message = $result->get_error_message();
+            if (in_array($result->get_error_code(), ['yoast_seo_invalid_post_id', 'yoast_seo_invalid_permalink', 'yoast_seo_invalid_title'], true)) {
+                $message = 'Yoast has no SEO index record for this identifier; WordPress content may still exist. Use IDs/permalinks returned by content discovery, never consecutive IDs. Auto-drafts, revisions and menu items may have no SEO data. Do not retry unchanged or start indexing automatically.';
+            }
             $out = $result->get_error_code() === 'ability_invalid_permissions' ? Operations::error('permission_denied')
-                : self::refuse(self::ability_error_code($result->get_error_code()), $result->get_error_message());
+                : self::refuse(self::ability_error_code($result->get_error_code()), $message);
             $data = $result->get_error_data();
             if ($result->get_error_code() === 'unsupported_content' && is_array($data) && isset($data['operation_diagnostics'])) { $out['operation_diagnostics'] = $data['operation_diagnostics']; }
             if ($result->get_error_code() === 'ability_invalid_input' && is_array($data)) {
@@ -751,18 +755,51 @@ final class Engines
     /** Actual post-controller routes, not the type's potentially stale namespace metadata. */
     public static function post_type_routes(string $name): array
     {
+        return self::post_type_route_map([$name])[$name] ?? [];
+    }
+
+    /** Resolve several types in one registry pass; schema inspection never executes a route callback. */
+    private static function post_type_route_map(array $names): array
+    {
         $routes = [];
         foreach (rest_get_server()->get_routes() as $route => $handlers) {
             if (!preg_match('~^/[a-zA-Z0-9/_.-]+$~D', $route) || !Guard::allows_rest('GET', $route)) { continue; }
             foreach ($handlers as $handler) {
                 $callback = is_array($handler) ? ($handler['callback'] ?? null) : null;
                 if (!is_array($callback) || !($callback[0] instanceof \WP_REST_Posts_Controller) || $callback[1] !== 'get_items' || empty($handler['methods']['GET'])) { continue; }
-                if (($callback[0]->get_item_schema()['title'] ?? null) === $name) { $routes[] = $route; }
+                $name = $callback[0]->get_item_schema()['title'] ?? null;
+                if (is_string($name) && in_array($name, $names, true)) { $routes[$name][] = $route; }
             }
         }
-        $routes = array_values(array_unique($routes));
-        sort($routes);
+        foreach ($routes as &$paths) { $paths = array_values(array_unique($paths)); sort($paths); }
+        unset($paths);
         return $routes;
+    }
+
+    /** Compact, permission-filtered type discovery survives a large or incorrectly projected native type map. */
+    private static function rest_type_discovery(\WP_REST_Response $response, \WP_REST_Request $request): ?array
+    {
+        $callback = $request->get_attributes()['callback'] ?? null;
+        if ($request->get_method() !== 'GET' || $response->is_error() || !is_array($callback)
+            || !($callback[0] instanceof \WP_REST_Post_Types_Controller)) { return null; }
+        $data = $response->get_data();
+        if (!is_array($data)) { return null; }
+        $names = $callback[1] === 'get_items' ? array_keys($data) : ($callback[1] === 'get_item' ? [(string) $request['type']] : []);
+        $names = array_values(array_filter($names, static function ($name): bool { return is_string($name) && post_type_exists($name); }));
+        // Public content first keeps directory types ahead of internal templates in the bounded summary.
+        usort($names, static function (string $a, string $b): int {
+            return (int) get_post_type_object($b)->public <=> (int) get_post_type_object($a)->public ?: strcmp($a, $b);
+        });
+        $map = self::post_type_route_map($names);
+        $items = []; $bytes = 0; $truncated = false;
+        foreach ($names as $name) {
+            $item = ['post_type' => $name, 'registered_routes' => array_slice($map[$name] ?? [], 0, 3)];
+            $size = strlen((string) wp_json_encode($item));
+            if (count($items) >= 30 || $bytes + $size > 6000) { $truncated = true; break; }
+            if (count($map[$name] ?? []) > 3) { $truncated = true; }
+            $items[] = $item; $bytes += $size;
+        }
+        return ['post_types' => $items, 'truncated' => $truncated];
     }
 
     /** Match the registered controller and route before looking up an existing post. No callback is executed. */
@@ -900,6 +937,7 @@ final class Engines
     private static function rest_result(\WP_REST_Response $response, bool $started, \WP_REST_Request $request): array
     {
         $status = $response->get_status();
+        $type_discovery = self::rest_type_discovery($response, $request);
         // Internal dispatch omits serve_request's response processing. Use the same core projection/embed helpers.
         $response = rest_filter_response_fields($response, rest_get_server(), $request);
         $embed = $request->has_param('_embed') && $request['_embed'] !== false ? rest_parse_embed_param($request['_embed'] === true ? 'true' : $request['_embed']) : false;
@@ -913,9 +951,6 @@ final class Engines
         if ($status < 200 || $status >= 300) {
             $message = is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '';
             $code = is_array($data) && is_string($data['code'] ?? null) ? $data['code'] : 'rest_error';
-            if ($code === 'rest_no_route') {
-                $message = 'No registered REST route matches this path and method. Read the plugin namespace index and use its exact registered route and schema. Custom type names and rest_namespace metadata may differ from the actual route. Do not guess another path or retry this unchanged request.';
-            }
             $diagnostic = ['rest_status' => $status, 'rest_code' => in_array($code, ['rest_no_route', 'rest_invalid_param', 'rest_missing_callback_param', 'rest_forbidden', 'rest_forbidden_context', 'rest_not_logged_in', 'rest_invalid_page_number'], true) ? $code : 'other',
                 'rest_phase' => $started ? 'callback' : ($code === 'rest_no_route' ? 'routing' : (in_array($code, ['rest_invalid_param', 'rest_missing_callback_param', 'rest_invalid_page_number'], true) ? 'validation' : (in_array($status, [401, 403], true) ? 'permission' : 'response'))),
                 'rest_method' => $request->get_method()];
@@ -929,27 +964,108 @@ final class Engines
             if ($started) { return self::after_start() + ['operation_diagnostics' => $diagnostic]; }
             $result = ['state' => 'failed', 'actions_used' => 0, 'error' => ['code' => $status === 401 || $status === 403 ? 'permission_denied' : 'rest_error',
                 'message' => mb_substr(trim($message) !== '' ? $message : 'The route refused this request.', 0, 300), 'status' => $status, 'route_code' => mb_substr($code, 0, 80)], 'operation_diagnostics' => $diagnostic];
-            if ($code === 'rest_no_route') { $result['error']['discovery'] = self::rest_discovery($request); }
+            if ($code === 'rest_no_route') {
+                $result['error']['discovery'] = self::rest_discovery($request);
+                $result['error']['message'] = 'No registered route matches this path/method. ' . $result['error']['discovery']['guidance'];
+            }
+            if ($status === 400 && in_array($code, ['rest_invalid_param', 'rest_missing_callback_param'], true)) {
+                $validation = self::rest_validation($request, $fields);
+                $result['error']['validation'] = $validation;
+                // Include the same safe hints in the message for older Bridge/text-only clients. Native messages can
+                // quote submitted values, enum contents or arbitrary plugin instructions; never forward those here.
+                $hints = array_map(static function (array $field): string {
+                    $type = implode('|', $field['expected_types'] ?? []) ?: 'the registered schema';
+                    if (!empty($field['item_types'])) { $type .= ' of ' . implode('|', $field['item_types']); }
+                    return $field['field'] . ': ' . $type . ($field['required'] ? ', required' : '') . ', ' . $field['source']
+                        . (!empty($field['has_enum']) ? ', allowed choices in schema' : '');
+                }, $validation['fields']);
+                $result['error']['message'] = 'REST input validation failed. '
+                    . ($hints ? implode('; ', $hints) . '. ' : '')
+                    . ($validation['truncated'] ? 'Some field hints were omitted. ' : '')
+                    . 'Read the exact method schema at ' . $validation['namespace_index'] . '. Correct types and required values; do not drop required fields or retry unchanged. Defaults can fail validation. Use JSON arrays for array fields, preserving spaces inside each item. Verify the saved record after a corrected request.';
+            }
             return $result;
         }
         $headers = array_change_key_case($response->get_headers(), CASE_LOWER);
         return self::ok(['status' => $status, 'data_json' => self::bounded($data)]
+            + ($type_discovery === null ? [] : ['rest_routes_json' => (string) wp_json_encode($type_discovery),
+                'guidance' => 'Use rest_routes.post_types for verified collection paths, not a post-type slug or rest_namespace. Never construct /wp/v2/TYPE. The native /wp/v2/types response is keyed by type; flat _fields may yield an empty result. For one type read /wp/v2/types/TYPE, then its registered collection schema. An empty route list means no matching post-controller collection was verified, not that the plugin has no API.'])
             + (isset($headers['x-wp-total']) ? ['total' => (int) $headers['x-wp-total']] : [])
             + (isset($headers['x-wp-totalpages']) ? ['total_pages' => (int) $headers['x-wp-totalpages']] : []));
+    }
+
+    /** Private hints from registered schema metadata only: no submitted/default/enum values or native text. */
+    private static function rest_validation(\WP_REST_Request $request, array $fields): array
+    {
+        $args = $request->get_attributes()['args'] ?? [];
+        if (!is_array($args)) { $args = []; }
+        // Additional post fields can be registered after core cached its route args (for example ACF).
+        // Recover their declared schema too, without rerunning their validators or update callbacks.
+        $callback = $request->get_attributes()['callback'] ?? null;
+        $missing = array_filter(array_slice($fields, 0, 50), static function ($name) use ($args): bool { return is_string($name) && !isset($args[$name]); });
+        if ($missing && is_array($callback) && ($callback[0] ?? null) instanceof \WP_REST_Posts_Controller) {
+            $type = $callback[0]->get_item_schema()['title'] ?? null;
+            foreach ($missing as $name) {
+                $schema = is_string($type) ? ($GLOBALS['wp_rest_additional_fields'][$type][$name]['schema'] ?? null) : null;
+                if (is_array($schema)) { $args[$name] = $schema; }
+            }
+        }
+        $defaults = $request->get_default_params();
+        $sources = [$request->get_json_params(), $request->get_body_params(), $request->get_query_params(), $request->get_url_params()];
+        $types = ['string', 'integer', 'number', 'boolean', 'array', 'object', 'null'];
+        $out = [];
+        $truncated = count($fields) > 50;
+        foreach (array_slice($fields, 0, 50) as $name) {
+            // Only an actual registered argument can become a field hint. Unexpected or credential-bearing names
+            // stay out of the response; a generic schema lookup still explains how to recover.
+            if (!is_string($name) || !preg_match('/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/D', $name)
+                || Guard::private_key($name) || !is_array($args[$name] ?? null)) { $truncated = true; continue; }
+            if (count($out) >= 10) { $truncated = true; break; }
+            $schema = $args[$name];
+            $items = is_array($schema['items'] ?? null) ? $schema['items'] : [];
+            $source = array_key_exists($name, $defaults) ? 'default' : 'missing';
+            foreach ($sources as $params) {
+                // get_param() uses isset too: explicit JSON null can fall through to a route default.
+                if (isset($params[$name])) { $source = 'supplied'; break; }
+            }
+            $field = ['field' => $name, 'required' => ($schema['required'] ?? false) === true, 'source' => $source,
+                'has_enum' => is_array($schema['enum'] ?? null) || is_array($items['enum'] ?? null)];
+            foreach (['expected_types' => $schema['type'] ?? [], 'item_types' => $items['type'] ?? []] as $key => $declared) {
+                $allowed = array_values(array_intersect($types, array_filter((array) $declared, 'is_string')));
+                if ($allowed) { $field[$key] = $allowed; }
+            }
+            $out[] = $field;
+        }
+        return ['namespace_index' => self::rest_namespace_index($request), 'fields' => $out, 'truncated' => $truncated];
+    }
+
+    private static function rest_namespace_index(\WP_REST_Request $request): string
+    {
+        $namespace = '';
+        foreach (rest_get_server()->get_namespaces() as $candidate) {
+            if (is_string($candidate) && preg_match('~^[a-zA-Z0-9/_.-]{1,199}$~D', $candidate)
+                && strpos($request->get_route(), '/' . $candidate . '/') === 0 && strlen($candidate) > strlen($namespace)) { $namespace = $candidate; }
+        }
+        return $namespace ? '/' . $namespace : '/';
     }
 
     /** Registered route hints only; never substitute a route or execute its callback. */
     private static function rest_discovery(\WP_REST_Request $request): array
     {
-        $namespace = '';
-        foreach (rest_get_server()->get_namespaces() as $candidate) {
-            if (strpos($request->get_route(), '/' . $candidate . '/') === 0 && strlen($candidate) > strlen($namespace)) { $namespace = $candidate; }
-        }
+        $namespace = ltrim(self::rest_namespace_index($request), '/');
         $type = basename($request->get_route());
+        if (ctype_digit($type)) { $type = basename(dirname($request->get_route())); }
         $preferred = post_type_exists($type) ? self::post_type_routes($type) : [];
+        if ($preferred) {
+            $indexes = array_values(array_unique(array_map(static function (string $route): string {
+                return self::rest_namespace_index(new \WP_REST_Request('GET', $route));
+            }, $preferred)));
+            $namespace = count($indexes) === 1 ? ltrim($indexes[0], '/') : '';
+        }
         $routes = [];
         foreach (rest_get_server()->get_routes() as $route => $handlers) {
-            if (!$namespace || strpos($route, '/' . $namespace . '/') !== 0 || strlen($route) > 200 || !preg_match('~^/[a-zA-Z0-9/_.-]+$~D', $route)) { continue; }
+            if ((!in_array($route, $preferred, true) && (!$namespace || strpos($route, '/' . $namespace . '/') !== 0))
+                || strlen($route) > 200 || !preg_match('~^/[a-zA-Z0-9/_.-]+$~D', $route)) { continue; }
             $methods = [];
             foreach ($handlers as $handler) {
                 if (!is_array($handler)) { continue; }
@@ -963,7 +1079,8 @@ final class Engines
             return (int) in_array($b['route'], $preferred, true) <=> (int) in_array($a['route'], $preferred, true) ?: strcmp($a['route'], $b['route']);
         });
         return ['namespace_index' => $namespace ? '/' . $namespace : '/', 'registered_routes' => array_slice($routes, 0, 12), 'truncated' => count($routes) > 12,
-            'guidance' => 'Use an exact registered route with its allowed method. Read that route schema from the namespace index before supplying parameters. These hints do not grant permission and were not executed. Do not retry the missing route unchanged.'];
+            'guidance' => ($preferred ? 'Verified collection: ' . implode(', ', array_slice($preferred, 0, 3)) . '. ' : '')
+                . 'Read the exact registered route and schema at ' . ($namespace ? '/' . $namespace : '/') . '. Never construct /wp/v2/TYPE. These hints grant no permission and executed no callback. Do not retry unchanged.'];
     }
 
     // Shared ------------------------------------------------------------------------------------------------------
