@@ -465,60 +465,7 @@ html {
   background: var(--aipkit-ui-line);
 }
 
-/* With no status chip and no Upgrade button after it, the divider has nothing to set apart. */
-.aipkit_module-tabs_divider:has(+ .aipkit_nav-status:empty:last-child),
-.aipkit_nav-status:empty {
-  display: none;
-}
-
-/* AI status chip: Cloud credits, or Connect AI when no AI is connected. */
-.aipkit_nav-status {
-  display: flex;
-}
-
-.aipkit_nav-status_chip,
-.aipkit_nav-status_chip:visited {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  height: 38px;
-  padding: 0 14px 0 12px;
-  border: 1px solid var(--aipkit-ui-line);
-  border-radius: 999px;
-  background: var(--aipkit-ui-surface);
-  color: var(--aipkit-ui-ink);
-  font: 600 13px/1 var(--aipkit-ui-font);
-  white-space: nowrap;
-  text-decoration: none;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.aipkit_nav-status_chip:hover {
-  border-color: var(--aipkit-ui-line-strong);
-  background: var(--aipkit-ui-hover);
-  color: var(--aipkit-ui-ink);
-}
-
-/* After "Dashboard": balances as an icon and a short number, account steps as a word, website setup as an invitation. */
-.aipkit_nav-status_sep { width: 1px; height: 14px; background: var(--aipkit-ui-line); }
-.aipkit_nav-status_balance { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
-.aipkit_nav-status_icon { width: 14px; height: 14px; flex: none; color: #8a94a6; }
-.aipkit_nav-status_detail { color: #5f6b7a; font-weight: 500; }
-.aipkit_nav-status_detail--warning,
-.aipkit_nav-status_balance--warning,
-.aipkit_nav-status_balance--warning .aipkit_nav-status_icon { color: #8a5300; }
-.aipkit_nav-status_detail--warning { font-weight: 600; }
-.aipkit_nav-status_dot { width: 7px; height: 7px; border-radius: 50%; background: #b56b00; }
-.aipkit_nav-status_setup { display: inline-flex; align-items: center; gap: 5px; color: #3f5fe8; font-weight: 600; }
-.aipkit_nav-status_setup .aipkit_nav-status_icon { color: currentColor; }
-/* Narrow: AI credits and any account step stay; website actions and the setup invitation leave, and the dot still marks a warning. */
-@container aipkit-dashboard-shell (max-width: 782px) {
-  .aipkit_nav-status_balance--actions,
-  .aipkit_nav-status_setup { display: none; }
-}
-
-
+/* Upgrade, on a free plan: soft accent, so it stays findable without being the loudest thing in the bar. */
 .aipkit_upgrade_btn,
 .aipkit_upgrade_btn:visited {
   display: inline-flex;
@@ -529,8 +476,8 @@ html {
   margin-left: 6px;
   padding: 0 16px;
   border-radius: 999px;
-  background: var(--aipkit-ui-accent);
-  color: #fff;
+  background: var(--aipkit-ui-accent-soft);
+  color: var(--aipkit-ui-accent-ink);
   font: 700 14px/1 var(--aipkit-ui-font);
   white-space: nowrap;
   text-decoration: none;
@@ -539,18 +486,16 @@ html {
 
 .aipkit_upgrade_btn:hover,
 .aipkit_upgrade_btn:focus {
-  background: var(--aipkit-ui-accent-hover);
-  color: #fff;
+  background: #e2e7ff;
+  color: var(--aipkit-ui-accent-ink);
 }
 
 /* Keep pill corners when WordPress applies its generic focused-link styles. */
-.aipkit_nav-status_chip:focus,
 .aipkit_upgrade_btn:focus {
   border-radius: 999px;
 }
 
 .aipkit_module-tabs .aipkit_module-tab:focus,
-.aipkit_nav-status_chip:focus,
 .aipkit_upgrade_btn:focus,
 .aipkit_module-menu_trigger:focus {
   outline: none;
@@ -559,7 +504,6 @@ html {
 
 .aipkit_module-tabs .aipkit_module-brand_home:focus-visible,
 .aipkit_module-tabs .aipkit_module-tab:focus-visible,
-.aipkit_nav-status_chip:focus-visible,
 .aipkit_upgrade_btn:focus-visible,
 .aipkit_module-menu_trigger:focus-visible,
 .aipkit_module-menu_link:focus-visible {
@@ -730,12 +674,6 @@ html {
     margin-left: 0;
     padding: 0;
     justify-content: center;
-  }
-
-  .aipkit_nav-status_chip,
-  .aipkit_nav-status_chip:visited {
-    padding: 0 12px 0 10px;
-    gap: 6px;
   }
 }
 

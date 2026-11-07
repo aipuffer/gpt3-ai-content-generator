@@ -10,7 +10,10 @@ $stats_default_days = 30;
 $user_credits_nonce = wp_create_nonce('aipkit_user_credits_nonce');
 $visitor_billing_enabled = \WPAICG\Stats\AIPKit_Stats::visitor_billing_enabled();
 $cloud_allowed = class_exists('\\WPAICG\\Cloud\\Connection') && \WPAICG\Cloud\Connection::allowed();
-$cloud_connected = $cloud_allowed && \WPAICG\Cloud\Connection::display()['connected'];
+$cloud_display = $cloud_allowed ? \WPAICG\Cloud\Connection::display() : null;
+$cloud_connected = $cloud_allowed && $cloud_display['connected'];
+// Not connected (and no reconnect waiting), the AI credits card invites the free account.
+$cloud_invite = $cloud_allowed && !$cloud_connected && empty($cloud_display['revoked']);
 $is_pro = class_exists('\\WPAICG\\aipkit_dashboard')
     ? \WPAICG\aipkit_dashboard::is_pro_plan()
     : false;
@@ -65,7 +68,7 @@ $activity_views = [
             </div>
         </div>
         <div class="aipkit_usage_header_actions">
-            <?php // The period as one button with a menu: it sets "Used on this site", the summary and Activity. ?>
+            <?php // The period as one button with a menu: it sets the summary and Activity. ?>
             <div class="aipkit_usage_period" data-aipkit-usage-period>
                 <button type="button" class="aipkit_usage_period_toggle" data-aipkit-usage-period-toggle aria-haspopup="menu" aria-expanded="false" aria-controls="aipkit_usage_period_menu">
                     <span class="screen-reader-text"><?php esc_html_e('Period:', 'gpt3-ai-content-generator'); ?> </span>
@@ -79,8 +82,6 @@ $activity_views = [
                     <?php endforeach; ?>
                 </div>
             </div>
-            <?php // One refresh for every balance: it submits the AI credits card's refresh form (Cloud then refreshes website actions) and reloads the actions used. ?>
-            <button type="submit" class="aipkit_usage_icon_btn aipkit_usage_refresh" form="aipkit_usage_cloud_refresh" name="cloud_action" value="refresh" data-aipkit-dashboard-refresh aria-label="<?php esc_attr_e('Refresh balances', 'gpt3-ai-content-generator'); ?>" title="<?php esc_attr_e('Refresh', 'gpt3-ai-content-generator'); ?>" <?php echo $cloud_connected ? '' : 'hidden'; ?>><span class="dashicons dashicons-update" aria-hidden="true"></span><span class="aipkit_spinner" aria-hidden="true"></span></button>
             <div class="aipkit_stats_table_menu_wrapper">
                 <button
                     type="button"
@@ -104,6 +105,10 @@ $activity_views = [
                     aria-label="<?php esc_attr_e('More actions', 'gpt3-ai-content-generator'); ?>"
                     hidden
                 >
+                    <button type="button" class="aipkit_stats_table_menu_item" role="menuitem" data-aipkit-dashboard-refresh <?php echo $cloud_connected ? '' : 'hidden'; ?>>
+                        <span class="aipkit_stats_table_menu_item_icon" aria-hidden="true"><span class="dashicons dashicons-update"></span></span>
+                        <span class="aipkit_stats_table_menu_item_label"><?php esc_html_e('Refresh balances', 'gpt3-ai-content-generator'); ?></span>
+                    </button>
                     <button type="button" class="aipkit_stats_table_menu_item" id="aipkit_stats_export_btn" role="menuitem">
                         <span class="aipkit_stats_table_menu_item_icon" aria-hidden="true">
                             <span class="dashicons dashicons-download"></span>
@@ -140,32 +145,34 @@ $activity_views = [
     <?php // Open first-run setup steps stay here until they are done or hidden. ?>
     <?php if (class_exists('\\WPAICG\\Admin\\Onboarding')) { \WPAICG\Admin\Onboarding::render_checklist(); } ?>
     <?php if (class_exists('\\WPAICG\\Mcp\\Screens')) { \WPAICG\Mcp\Screens::render_usage_attention(); } ?>
-    <?php // Two cards: AI credits, and website actions read left to right (what is left, then what this site used). A half
-    // without data hides, and a card with no visible half hides; with one card left, the period summary fills the
-    // second slot. Own API key usage is in the AI requests view. ?>
+    <?php // One balance panel: AI credits and Website actions as halves of the same build, with one Top up before
+    // Manage on Website actions. Not set up, each half keeps its shape and invites setup instead. A half with nothing
+    // to show hides; with one left, the period summary fills the other. This site's own website actions are in
+    // Activity › Website; own API key usage in AI requests. ?>
     <div class="aipkit_usage_cards" data-aipkit-usage-cards>
-        <section class="aipkit_usage_card aipkit_usage_card--stack" data-aipkit-usage-ai-card aria-label="<?php esc_attr_e('AI credits', 'gpt3-ai-content-generator'); ?>" <?php echo $cloud_connected ? '' : 'hidden'; ?>>
+        <section class="aipkit_usage_card" data-aipkit-usage-ai-card aria-label="<?php esc_attr_e('AI credits', 'gpt3-ai-content-generator'); ?>" <?php echo $cloud_connected || $cloud_invite ? '' : 'hidden'; ?>>
             <?php if ($cloud_connected) : ?>
                 <?php include __DIR__ . '/cloud-account.php'; ?>
             <?php endif; ?>
-        </section>
-        <?php // One column: what is left this month (all sites), then what this site used in the period, and on what. ?>
-        <?php // Not set up, the same card invites setup (ChatGPT or Claude) for people who manage settings. ?>
-        <section class="aipkit_usage_card aipkit_usage_card--stack" data-aipkit-usage-website-card aria-label="<?php esc_attr_e('Website actions', 'gpt3-ai-content-generator'); ?>" <?php echo $website_connected || ($cloud_allowed && \WPAICG\Mcp\Settings::offers_setup()) ? '' : 'hidden'; ?>>
-            <?php \WPAICG\Mcp\Settings::render_usage(); ?>
-            <?php if ($website_activity) : ?>
-                <?php // Disconnected sites may have retained history. Wait for it before showing either
-                // this card or its replacement summary, so neither flashes and disappears on entry. Beside the setup
-                // invitation the row always shows (empty or not), so it starts visible there too. ?>
-                <section class="aipkit_usage_half aipkit_usage_breakdown" data-website-breakdown data-website-breakdown-pending aria-labelledby="aipkit_usage_breakdown_title" <?php echo $website_connected || \WPAICG\Mcp\Settings::offers_setup() ? '' : 'hidden'; ?>>
-                    <div class="aipkit_usage_site_head">
-                        <?php // The period picker above already names the period; the title's hint repeats it (usage/page.js). ?>
-                        <h3 class="aipkit_usage_site_title" id="aipkit_usage_breakdown_title"><span data-aipkit-usage-site-hint title="<?php esc_attr_e('Successful website actions in the selected period, counted in UTC.', 'gpt3-ai-content-generator'); ?>"><?php esc_html_e('Used on this site', 'gpt3-ai-content-generator'); ?></span></h3>
-                        <span class="aipkit_usage_site_total" data-website-breakdown-total>—</span>
+            <?php if ($cloud_allowed) : ?>
+                <?php // Not connected: the free monthly credits as the number, and Connect for free at the bottom. It
+                // opens AI Puffer Cloud's sheet, which starts with the free account. usage/page.js hides it while an
+                // account card is here. ?>
+                <section class="aipkit_usage_half aipkit_usage_twin" data-aipkit-usage-cloud-invite aria-labelledby="aipkit_usage_cloud_invite_title" <?php echo $cloud_invite ? '' : 'hidden'; ?>>
+                    <div class="aipkit_usage_card_head">
+                        <h2 class="aipkit_usage_card_title" id="aipkit_usage_cloud_invite_title"><?php esc_html_e('AI credits', 'gpt3-ai-content-generator'); ?></h2>
                     </div>
-                    <div data-website-breakdown-content role="status"><?php esc_html_e('Loading website actions…', 'gpt3-ai-content-generator'); ?></div>
+                    <p class="aipkit_usage_card_value aipkit_usage_card_value--offer"><?php echo esc_html(number_format_i18n(25)); ?><span class="aipkit_usage_card_unit"><?php esc_html_e('free a month', 'gpt3-ai-content-generator'); ?></span></p>
+                    <div class="aipkit_usage_stack is-empty" aria-hidden="true"></div>
+                    <p class="aipkit_usage_card_meta"><?php esc_html_e('Use AI in every tool without your own API key.', 'gpt3-ai-content-generator'); ?></p>
+                    <div class="aipkit_usage_card_foot">
+                        <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="credits" aria-haspopup="dialog"><?php esc_html_e('Connect for free', 'gpt3-ai-content-generator'); ?></button>
+                    </div>
                 </section>
             <?php endif; ?>
+        </section>
+        <section class="aipkit_usage_card" data-aipkit-usage-website-card aria-label="<?php esc_attr_e('Website actions', 'gpt3-ai-content-generator'); ?>" <?php echo $website_connected || ($cloud_allowed && \WPAICG\Mcp\Settings::offers_setup()) ? '' : 'hidden'; ?>>
+            <?php \WPAICG\Mcp\Settings::render_usage(); ?>
         </section>
         <section class="aipkit_usage_card" data-aipkit-usage-summary-card aria-labelledby="aipkit_usage_summary_title" hidden>
             <div class="aipkit_usage_card_head">

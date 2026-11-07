@@ -85,15 +85,28 @@ if (root) {
         product: null,
         // Website picked with other tools: Do this later moves on to them (saved, so a reload keeps it); the checklist keeps website open.
         websiteLater: config.websiteLater === true,
-        // Assistant links started on this screen, and whether the Connect click copied the address.
+        // Assistant links started on this screen.
         linkGrants: [],
-        addressCopied: false,
         // What setup already produced, for the checklist: tried, published, created.
         results: new Set(Array.isArray(config.results) ? config.results : []),
         saved: new Set(Array.isArray(config.saved) ? config.saved : []),
     };
     let checkRequest = null;
     let pageGone = false;
+    const copyTimers = new Map();
+    const clearSetupCopies = () => {
+        copyTimers.forEach((timer, button) => { clearTimeout(timer); button.textContent = __('Copy', 'gpt3-ai-content-generator'); });
+        copyTimers.clear();
+    };
+    const showSetupCopied = (button) => {
+        if (!button || pageGone) return;
+        clearTimeout(copyTimers.get(button));
+        button.textContent = __('Copied', 'gpt3-ai-content-generator');
+        copyTimers.set(button, setTimeout(() => {
+            button.textContent = __('Copy', 'gpt3-ai-content-generator');
+            copyTimers.delete(button);
+        }, 2000));
+    };
     const verification = { generation: 0, timer: null, requestTimer: null, controller: null, attempt: '', grant: '', until: 0, status: 'idle' };
     // A link waiting for Allow: a short automatic check while this screen is visible, and other ways to finish after a minute.
     const linkWatch = { grant: '', timer: null, slowTimer: null, since: 0, stopped: false, turn: 0, controller: null, generation: 0 };
@@ -648,17 +661,23 @@ if (root) {
             : view === 'notyet' ? __('Not allowed yet', 'gpt3-ai-content-generator') : '';
         chip.hidden = !chip.textContent;
         root.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== (state.assistant || 'other'); });
-        // Claude uses directory instructions with a manual fold; ChatGPT retains its short custom setup.
-        $('[data-mcp-setup]').hidden = !['waiting', 'notyet'].includes(view) || state.assistant === 'chatgpt';
-        $$('[data-assistant-steps]').forEach(steps => { steps.hidden = !linking || state.assistantSlow === true || steps.dataset.assistantSteps !== state.assistant; });
-        $$('[data-address-title]').forEach(line => { line.textContent = state.addressCopied ? line.dataset.copied : line.dataset.manual; });
+        // The same steps as Settings for every assistant. After a minute they fold to one line under the ways to finish.
+        const setupSteps = $('[data-mcp-setup]');
+        setupSteps.hidden = !['waiting', 'notyet'].includes(view);
+        const stepsFold = $('[data-setup-again]');
+        if (stepsFold) {
+            const folded = String(linking && state.assistantSlow === true);
+            stepsFold.hidden = setupSteps.hidden;
+            if (stepsFold.dataset.folded !== folded) { stepsFold.dataset.folded = folded; stepsFold.open = folded !== 'true'; }
+        }
 
         let link = '';
         try { link = view === 'waiting' || view === 'notyet' ? handoff(pending.connect_url) : ''; } catch (_) { link = ''; }
         $('[data-assistant-handoff]').hidden = !link;
         // Waiting controls: Open again, Use Claude instead and Check now; after a minute each gets a line (and the guide joins).
         const fix = (key, shown) => { const row = $(`[data-fix="${key}"]`); if (row) row.hidden = !shown; };
-        fix('open', Boolean(link) && known);
+        // Step 1 holds Open while waiting; after a minute Open again also leads the ways to finish.
+        fix('open', Boolean(link) && known && state.assistantSlow === true);
         fix('guide', linking && state.assistantSlow === true);
         fix('switch', linking);
         $('[data-assistant-open]').textContent = sprintf(state.assistantOpened ? __('Open %s again', 'gpt3-ai-content-generator') : __('Open %s', 'gpt3-ai-content-generator'), name);
@@ -1218,7 +1237,7 @@ if (root) {
         }),
         'retry-website-verification': () => checkWebsiteRead('retry'),
         'copy-assistant-setup': async (button) => {
-            try { await navigator.clipboard.writeText(button.dataset.mcpCopy); button.textContent = __('Copied', 'gpt3-ai-content-generator'); }
+            try { await navigator.clipboard.writeText(button.dataset.mcpCopy); showSetupCopied(button); }
             catch (_) { showError(__('Copying failed. Select the text and copy it yourself.', 'gpt3-ai-content-generator')); }
         },
         'copy-product': (button) => {
@@ -1286,9 +1305,9 @@ if (root) {
             let tab = null;
             if (assistantNames[client]) {
                 const address = $('[data-assistant-address]')?.textContent.trim();
-                state.addressCopied = false;
+                clearSetupCopies();
                 if (client === 'chatgpt' && address && typeof navigator.clipboard?.writeText === 'function') {
-                    navigator.clipboard.writeText(address).then(() => { state.addressCopied = true; renderPower(); }, () => {});
+                    navigator.clipboard.writeText(address).then(() => showSetupCopied($('[data-mcp-address]')), () => {});
                 }
                 try { tab = typeof window.open === 'function' ? window.open('', '_blank') : null; } catch (_) { tab = null; }
                 if (tab) tab.opener = null;
@@ -1441,7 +1460,7 @@ if (root) {
         if (document.visibilityState === 'hidden') { pauseWebsiteVerification(); clearTimeout(linkWatch.timer); linkWatch.timer = null; }
         else { void resumeConnection(); if (websiteVerificationVisible() && verification.status === 'waiting') void checkWebsiteRead(verification.attempt ? 'check' : 'start'); }
     });
-    window.addEventListener('pagehide', () => { pageGone = true; pauseWebsiteVerification(); watchAssistantLink(null); });
+    window.addEventListener('pagehide', () => { pageGone = true; clearSetupCopies(); pauseWebsiteVerification(); watchAssistantLink(null); });
     window.addEventListener('pageshow', () => { pageGone = false; renderPower(); });
     if (state.step === 'connect') void resumeConnection();
 }

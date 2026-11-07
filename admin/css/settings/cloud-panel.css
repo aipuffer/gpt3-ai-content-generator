@@ -303,26 +303,86 @@ details.description .aipkit_privacy_list li { margin: 2px 0; }
 #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > summary:hover span { text-decoration: underline; }
 #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts[open] > summary { margin-bottom: 10px; }
 #aipkit_settings_container .aipkit_cloud_website [data-mcp-connect] > .aipkit_cloud_notice--info, #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_more_accounts > .aipkit_cloud_notice--info { margin: 0 0 10px; font-size: 12.5px; }
-/* Setting up an assistant: numbered steps, the details to paste as one list (label, value, Copy), then two quiet
-   notes. The same instructions are styled for first-run setup in onboarding.css. */
-#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff] .aipkit_cloud_balance_actions { margin: 10px 0 0; }
+/* Setting up an assistant: one card with the app and its time left, numbered steps that each hold what they need
+   (step 1 the Open button, step 2 the values to paste), then quiet folds for the rest. First-run setup styles the
+   same steps in onboarding.css. */
 #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup { margin: 14px 0 0; color: #172033; font-size: 13px; line-height: 1.5; }
 #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup p { margin: 0; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] > p:first-child { margin: 0 0 4px; font-size: 13.5px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] ol { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; counter-reset: aipkit-mcp-step; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li { position: relative; margin: 0; padding: 9px 0 9px 32px; counter-increment: aipkit-mcp-step; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li + li { border-top: 1px dashed #e8ecf2; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] li::before { content: counter(aipkit-mcp-step); position: absolute; top: 9px; left: 0; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #f3f5f9; color: #5f6b7a; font-size: 12px; font-weight: 700; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [data-mcp-instructions] > p:not(:first-child) { margin: 0 0 12px; padding-top: 9px; border-top: 1px dashed #e8ecf2; color: #5f6b7a; font-size: 12.5px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1px solid #e6ebf2; background: #ffffff; }
-#aipkit_settings_container .aipkit_cloud_website :not(.aipkit_mcp_copy_row) + .aipkit_mcp_copy_row { border-radius: 12px 12px 0 0; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row + .aipkit_mcp_copy_row { border-top: 0; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row:not(:has(+ .aipkit_mcp_copy_row)) { border-bottom-right-radius: 12px; border-bottom-left-radius: 12px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row > span { flex: 0 0 120px; color: #8a94a6; font-size: 12px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row code { flex: 1; min-width: 0; padding: 0; background: none; color: #172033; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy_row .aipkit_btn { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup .aipkit_mcp_setup_note { margin: 10px 0 0; color: #5f6b7a; font-size: 12.5px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup .aipkit_mcp_copy_row + .aipkit_mcp_setup_note { margin-top: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup b { font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_card { border: 1px solid #e6ebf2; border-radius: 12px; background: #ffffff; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_card[hidden] { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #eef1f5; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_title { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_title strong { font-size: 14px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_title span { color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_status { display: inline-flex; flex: none; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 999px; background: #eef1fb; color: #2c45c4; font-size: 12px; font-weight: 600; white-space: nowrap; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_status::before { content: ""; width: 9px; height: 9px; border: 2px solid #c9d2f5; border-top-color: #3f5fe8; border-radius: 50%; animation: aipkit-mcp-setup-spin 1s linear infinite; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff][data-expired="true"] .aipkit_mcp_setup_status { background: #fffaeb; color: #7a5200; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff][data-expired="true"] .aipkit_mcp_setup_status::before { width: 7px; height: 7px; border: 0; background: #d99a00; animation: none; }
+@keyframes aipkit-mcp-setup-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_status::before { animation: none; } }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps { margin: 0; padding: 4px 14px; list-style: none; counter-reset: aipkit-mcp-step; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li { position: relative; margin: 0; padding: 11px 0 11px 34px; counter-increment: aipkit-mcp-step; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li + li { border-top: 1px dashed #e8ecf2; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li::before { content: counter(aipkit-mcp-step); position: absolute; top: 10px; left: 0; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #eef1fb; color: #3f5fe8; font-size: 12px; font-weight: 700; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li.aipkit_mcp_step_open::before { top: 16px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li.is-quiet::before { background: #f3f5f9; color: #8a94a6; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li.is-quiet > p { color: #5f6b7a; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps > li.is-quiet > p b { color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup [hidden] { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_step_open p { margin-top: 6px; color: #3b4556; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_step_open .aipkit_btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_step_open .aipkit_btn span { font-size: 12px; opacity: 0.85; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_expired p { margin: 2px 0 8px; color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff][data-expired="true"] .aipkit_mcp_step_open::before { content: "!"; background: #fff4d6; color: #8a5a00; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-handoff][data-expired="true"] .aipkit_mcp_steps > li:not(.aipkit_mcp_step_open) { opacity: 0.45; }
+/* The values to paste, inside their step: label, value, Copy. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_fields { margin-top: 8px; overflow: hidden; border: 1px solid #e6ebf2; border-radius: 10px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 4px 6px 4px 12px; background: #fafbfd; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field + .aipkit_mcp_field { border-top: 1px solid #e6ebf2; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field > span { flex: 0 0 78px; color: #8a94a6; font-size: 12px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field code { flex: 1; min-width: 0; padding: 0; background: none; color: #172033; font: 12.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field code.is-plain { font-family: inherit; font-size: 13px; line-height: 1.45; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_prompt code.is-plain { color: #3b4556; font-weight: 400; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy { flex: none; height: 26px; padding: 0 10px; border: 1px solid #dfe4ec; border-radius: 7px; background: #ffffff; color: #3b4556; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_copy:is(:hover, :focus-visible) { border-color: #c8d0dc; background: #f1f4f9; outline: none; }
+/* Other apps: one tab per app; the checked tab shows its steps. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps { display: flex; gap: 4px; margin: 12px 14px 2px; padding: 3px; border-radius: 9px; background: #f1f3f7; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps label { display: flex; flex: 1; margin: 0; cursor: pointer; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps input { position: absolute; opacity: 0; pointer-events: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps span { flex: 1; padding: 5px 6px; border-radius: 7px; color: #5f6b7a; font-size: 12.5px; font-weight: 600; text-align: center; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps input:checked + span { background: #ffffff; color: #172033; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08); }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_apps input:focus-visible + span { background: #e6ebfb; color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website [data-mcp-app] { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_card:has(input[value="cursor"]:checked) [data-mcp-app="cursor"],
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_card:has(input[value="claude-code"]:checked) [data-mcp-app="claude-code"],
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_card:has(input[value="any"]:checked) [data-mcp-app="any"] { display: block; }
+/* Foot: quiet folds (manual setup, Having trouble?) and, for other apps, the setup link. */
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 18px; padding: 10px 14px 12px; border-top: 1px solid #eef1f5; border-radius: 0 0 12px 12px; background: #fafbfc; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot > details { min-width: 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot > details[open] { flex-basis: 100%; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot summary { width: fit-content; color: #5f6b7a; font-size: 12.5px; cursor: pointer; list-style: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot summary::-webkit-details-marker { display: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot summary::after { content: " ›"; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot details[open] > summary::after { content: " ⌄"; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_foot summary:is(:hover, :focus-visible) { color: #172033; text-decoration: underline; text-underline-offset: 2px; outline: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_foot_link { color: #3f5fe8; font-size: 12.5px; font-weight: 600; text-decoration: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_foot_link:is(:hover, :focus-visible) { text-decoration: underline; text-underline-offset: 2px; outline: none; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_trouble ul { margin: 8px 0 2px; padding: 0; list-style: none; color: #5f6b7a; font-size: 12.5px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_trouble li { margin: 0; padding: 6px 0; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_trouble li + li { border-top: 1px dashed #e8ecf2; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_trouble strong { color: #172033; font-weight: 600; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps.is-sub { margin: 8px 0 2px; padding: 0 0 0 2px; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps.is-sub > li { padding: 8px 0 8px 30px; color: #172033; }
+#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_steps.is-sub > li::before { top: 8px; width: 20px; height: 20px; background: #f3f5f9; color: #5f6b7a; font-size: 11px; }
+@media (max-width: 480px) {
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_head { flex-wrap: wrap; }
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_title { flex-basis: calc(100% - 44px); }
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_setup_status { margin-left: 44px; }
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field { flex-wrap: wrap; row-gap: 0; }
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field > span { flex-basis: 100%; padding-top: 4px; }
+    #aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_field code { flex-basis: 0; }
+}
 /* Connection check: one bordered card like the lists, with its result, Check connection, and the details under it. */
 #aipkit_settings_container .aipkit_cloud_website [data-connection-report] { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 12px; padding: 10px 12px; border: 1px solid #e6ebf2; border-radius: 12px; background: #ffffff; }
 #aipkit_settings_container .aipkit_cloud_website [data-connection-report][data-status="failed"] { border-color: #f3dfa6; background: #fffaf0; }
@@ -357,10 +417,6 @@ details.description .aipkit_privacy_list li { margin: 2px 0; }
 #aipkit_settings_container .aipkit_cloud_panel_footer > .aipkit_cloud_panel_disconnect { color: #b42318; font-weight: 600; }
 #aipkit_settings_container .aipkit_cloud_panel[data-cloud-tab="website"] [data-cloud-provider-only] { display: none; }
 #aipkit_settings_container .aipkit_cloud_panel_pill[hidden] { display: none; }
-
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual { margin-top: 12px; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual > summary { cursor: pointer; width: fit-content; font-weight: 600; }
-#aipkit_settings_container .aipkit_cloud_website .aipkit_mcp_manual > summary:focus-visible { outline: 2px solid #2271b1; outline-offset: 3px; border-radius: 2px; }
 
 /* Directory entry reuses the account sheet, while approval remains a normal WordPress form. */
 .aipkit_directory_connect { max-width: 620px; padding: 24px; margin-top: 20px; }

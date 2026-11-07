@@ -245,61 +245,155 @@ final class Settings
         ); ?></p><?php
     }
 
-    /** Directory setup leads for Claude; manual details remain available without bypassing Bridge authorization. */
-    public static function render_assistant_instructions(string $class = 'aipkit_settings_provider_option_help', string $client = 'chatgpt', bool $onboarding = false): void
+    /**
+     * Setup steps for one assistant, shared by the website sheet and first-run setup. Each value to paste sits in the
+     * step that uses it, step 1 holds the Open button, and edge cases fold into Having trouble?. Claude leads with its
+     * directory; manual details remain available without bypassing Bridge authorization. Settings passes the waiting
+     * setup ($handoff: url, expires) for the Open links and the time left; setup sets its links in onboarding.js.
+     */
+    public static function render_assistant_instructions(string $class = 'aipkit_settings_provider_option_help', string $client = 'chatgpt', bool $onboarding = false, array $handoff = []): void
     {
         $url = Store::config()['mcp_url'] ?? 'https://mcp.aipuffer.org/mcp';
-        $render_details = static function () use ($url, $onboarding): void { ?>
-            <?php $details = [__('Name', 'gpt3-ai-content-generator') => 'AI Puffer', __('MCP server address', 'gpt3-ai-content-generator') => $url];
-            if (!$onboarding) { $details[__('Test prompt', 'gpt3-ai-content-generator')] = sprintf(
-                    /* translators: %s: WordPress website address. */
-                    __('Use AI Puffer to show the website name and address for %s. Do not change anything.', 'gpt3-ai-content-generator'), untrailingslashit(home_url())); }
-            foreach ($details as $label => $value) : ?>
-                <?php // Each detail: its label, the value to paste, and Copy. Settings and setup share it; each styles its own. ?>
-                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><span><?php echo esc_html($label); ?></span> <code><?php echo esc_html($value); ?></code>
-                    <button type="button" class="aipkit_btn <?php echo $onboarding ? 'aipkit_btn-secondary aipkit-setup__link' : ''; ?>" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($value); ?>"><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
-                </p>
-            <?php endforeach; ?>
+        $link = !empty($handoff['url']) ? add_query_arg('launch', '1', (string) $handoff['url']) : '';
+        $expires = (int) ($handoff['expires'] ?? 0);
+        $expired = !$onboarding && (!$link || $expires <= time());
+        $minutes = max(0, (int) ceil(($expires - time()) / 60));
+        // A UI name in the assistant, in bold: "+ Add", "Connect".
+        $say = static function (string $format, string ...$names): void {
+            echo vsprintf(esc_html($format), array_map(static function (string $name): string { return '<b>' . esc_html($name) . '</b>'; }, $names)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Format and names are escaped above.
+        };
+        // One value to paste: its label, the value, and Copy. ChatGPT's server address is the one Connect copies in setup.
+        $field = static function (string $label, string $value, bool $plain = false, bool $address = false) use ($onboarding): void { ?>
+            <div class="aipkit_mcp_field">
+                <?php if ($label !== '') : ?><span><?php echo esc_html($label); ?></span><?php endif; ?>
+                <code<?php echo $plain ? ' class="is-plain"' : ''; ?><?php echo $address && $onboarding ? ' data-assistant-address' : ''; ?>><?php echo esc_html($value); ?></code>
+                <button type="button" class="aipkit_mcp_copy" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($value); ?>"<?php echo $address && $onboarding ? ' data-mcp-address' : ''; ?>><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
+            </div>
         <?php };
-        ?><div class="<?php echo esc_attr($class . ($onboarding ? '' : ' aipkit_mcp_setup')); ?>" data-mcp-setup>
-            <div data-mcp-instructions="chatgpt" <?php echo $client === 'chatgpt' ? '' : 'hidden'; ?>>
-                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up ChatGPT', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
-                <ol>
-                    <li><?php esc_html_e('Open ChatGPT plugins. Select + (Add), then Add custom MCP server.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open ChatGPT plugins', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
-                    <li><?php esc_html_e('Enter AI Puffer as the name. Choose Server URL, paste the address below and leave Authentication set to OAuth.', 'gpt3-ai-content-generator'); ?></li>
-                    <li><?php esc_html_e('Review ChatGPT’s notice, select I understand and want to continue, then Create as a plugin. Complete the AI Puffer authorization when prompted.', 'gpt3-ai-content-generator'); ?></li>
+        $name_and_address = static function (bool $copied_by_connect = false) use ($field, $url): void { ?>
+            <div class="aipkit_mcp_fields"><?php $field(__('Name', 'gpt3-ai-content-generator'), 'AI Puffer', true); $field(__('Server URL', 'gpt3-ai-content-generator'), $url, false, $copied_by_connect); ?></div>
+        <?php };
+        $open = static function (string $label, string $class = 'aipkit_mcp_open') use ($link, $onboarding): void { ?>
+            <a class="<?php echo esc_attr($class . ($class === 'aipkit_mcp_open' ? ($onboarding ? ' aipkit-setup__btn' : ' aipkit_btn aipkit_btn-primary') : '')); ?>" data-mcp-connect-link data-assistant-link<?php echo $link ? ' href="' . esc_url($link) . '"' : ''; ?> target="_blank" rel="noopener noreferrer"><?php echo esc_html($label); ?> <span aria-hidden="true">↗</span></a>
+        <?php };
+        // Restart uses the original setup's permissions, never a new form's default safety level.
+        $restart = static function (string $hint) use ($handoff, $expired): void { ?>
+            <div class="aipkit_mcp_expired" data-mcp-expired <?php echo $expired ? '' : 'hidden'; ?>>
+                <p><?php esc_html_e('This setup link expired. Links last 10 minutes.', 'gpt3-ai-content-generator'); ?></p>
+                <?php if (!empty($handoff['can_restart'])) : ?>
+                    <button type="submit" class="aipkit_btn aipkit_btn-primary" form="aipkit_mcp_connect_form" name="client" value="<?php echo esc_attr($hint); ?>" data-mcp-restart data-mcp-access="<?php echo esc_attr($handoff['access_level']); ?>" data-mcp-user="<?php echo esc_attr((string) $handoff['wp_user_id']); ?>"><?php esc_html_e('Start again', 'gpt3-ai-content-generator'); ?></button>
+                <?php else : ?>
+                    <p><?php esc_html_e('Resolve the connection issue above, then start again.', 'gpt3-ai-content-generator'); ?></p>
+                <?php endif; ?>
+            </div>
+        <?php };
+        // Step 1 keeps its Open button beside the action to take in the assistant.
+        $first = static function (string $hint, string $label, string $what, string ...$names) use ($open, $say, $onboarding, $restart, $expired): void { ?>
+            <li class="aipkit_mcp_step_open">
+                <div data-mcp-live <?php echo $expired ? 'hidden' : ''; ?>><?php $open($label); ?><p><?php $say($what, ...$names); ?></p></div>
+                <?php if (!$onboarding) { $restart($hint); } ?>
+            </li>
+        <?php };
+        // Settings ends with a quiet Try it; first-run setup has its own step for the first request.
+        $try = static function () use ($onboarding, $field): void {
+            if ($onboarding) { return; }
+            $prompt = sprintf(
+                /* translators: %s: WordPress website address. */
+                __('Use AI Puffer to show the website name and address for %s. Do not change anything.', 'gpt3-ai-content-generator'), untrailingslashit(home_url())); ?>
+            <li class="is-quiet"><p><b><?php esc_html_e('Try it.', 'gpt3-ai-content-generator'); ?></b> <?php esc_html_e('Open a new chat, select AI Puffer and send:', 'gpt3-ai-content-generator'); ?></p>
+                <div class="aipkit_mcp_fields aipkit_mcp_prompt"><?php $field('', $prompt, true); ?></div></li>
+        <?php };
+        $trouble = static function (array $items): void { ?>
+            <details class="aipkit_mcp_trouble">
+                <summary><?php esc_html_e('Having trouble?', 'gpt3-ai-content-generator'); ?></summary>
+                <ul><?php foreach ($items as [$question, $answer]) : ?><li><strong><?php echo esc_html($question); ?></strong> <?php echo esc_html($answer); ?></li><?php endforeach; ?></ul>
+            </details>
+        <?php };
+        $expired_help = [__('Link expired?', 'gpt3-ai-content-generator'), __('Setup links last 10 minutes. Start again to get a new one.', 'gpt3-ai-content-generator')];
+        $head = static function (string $hint, string $title, string $sub) use ($onboarding, $minutes, $expired): void {
+            if ($onboarding) { return; } ?>
+            <div class="aipkit_mcp_setup_head">
+                <span class="aipkit_mcp_tile aipkit_mcp_tile--<?php echo esc_attr($hint); ?>" aria-hidden="true"></span>
+                <span class="aipkit_mcp_setup_title"><strong><?php echo esc_html($title); ?></strong><span><?php echo esc_html($sub); ?></span></span>
+                <?php /* translators: %s: minutes left before the setup link expires. */ ?>
+                <span class="aipkit_mcp_setup_status" data-mcp-countdown role="status"><?php echo esc_html($expired ? __('Link expired', 'gpt3-ai-content-generator') : sprintf(__('Waiting · %s min left', 'gpt3-ai-content-generator'), number_format_i18n($minutes))); ?></span>
+            </div>
+        <?php };
+        ?><div class="<?php echo esc_attr($class . ' aipkit_mcp_setup'); ?>" data-mcp-setup>
+            <div class="aipkit_mcp_setup_card" data-mcp-instructions="chatgpt" <?php echo $client === 'chatgpt' ? '' : 'hidden'; ?>>
+                <?php $head('chatgpt', __('Set up ChatGPT', 'gpt3-ai-content-generator'), __('3 steps in ChatGPT', 'gpt3-ai-content-generator')); ?>
+                <ol class="aipkit_mcp_steps">
+                    <?php $first('chatgpt', __('Open ChatGPT plugins', 'gpt3-ai-content-generator'), /* translators: 1: Add button label, 2: Add custom MCP server menu label. */ __('There, select %1$s, then %2$s.', 'gpt3-ai-content-generator'), __('+ Add', 'gpt3-ai-content-generator'), __('Add custom MCP server', 'gpt3-ai-content-generator')); ?>
+                    <li><p><?php $say(/* translators: %s: OAuth authentication method. */ __('Enter these, and leave Authentication on %s.', 'gpt3-ai-content-generator'), 'OAuth'); ?></p><?php $name_and_address(true); ?></li>
+                    <li><p><?php $say(/* translators: 1: consent checkbox label, 2: Create button label, 3: Allow button label. */ __('Select %1$s, then %2$s. Choose %3$s when AI Puffer asks.', 'gpt3-ai-content-generator'), __('I understand and want to continue', 'gpt3-ai-content-generator'), __('Create', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $try(); ?>
                 </ol>
-                <p><?php esc_html_e('Already added AI Puffer? Open it under Plugins → Manage and choose Connect, Reconnect or Connect another account. If custom MCP setup is unavailable, check your ChatGPT plan or workspace permissions.', 'gpt3-ai-content-generator'); ?></p>
-                <?php $render_details(); ?>
+                <div class="aipkit_mcp_setup_foot">
+                    <?php $trouble([
+                        [__('Already added AI Puffer?', 'gpt3-ai-content-generator'), __('In ChatGPT, open Plugins → Manage, then choose Connect or Reconnect. For a second account, choose Connect another account.', 'gpt3-ai-content-generator')],
+                        [__('No “Add custom MCP server”?', 'gpt3-ai-content-generator'), __('Check your ChatGPT plan, developer mode and workspace permissions. You can also use Claude.', 'gpt3-ai-content-generator')],
+                        $expired_help,
+                    ]); ?>
+                </div>
             </div>
-            <div data-mcp-instructions="claude" <?php echo $client === 'claude' ? '' : 'hidden'; ?>>
-                <?php if (!$onboarding) : ?><p><strong><?php esc_html_e('Set up Claude', 'gpt3-ai-content-generator'); ?></strong></p><?php endif; ?>
-                <ol>
-                    <li><?php esc_html_e('Open AI Puffer in Claude’s connector directory and choose Connect.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open AI Puffer in Claude', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></li>
-                    <li><?php esc_html_e('Choose Allow when AI Puffer asks for access to this website, then return here.', 'gpt3-ai-content-generator'); ?></li>
+            <div class="aipkit_mcp_setup_card" data-mcp-instructions="claude" <?php echo $client === 'claude' ? '' : 'hidden'; ?>>
+                <?php $head('claude', __('Set up Claude', 'gpt3-ai-content-generator'), __('2 steps in Claude', 'gpt3-ai-content-generator')); ?>
+                <ol class="aipkit_mcp_steps">
+                    <?php $first('claude', __('Open AI Puffer in Claude', 'gpt3-ai-content-generator'), /* translators: %s: Connect button label. */ __('There, select %s.', 'gpt3-ai-content-generator'), __('Connect', 'gpt3-ai-content-generator')); ?>
+                    <li><p><?php $say(/* translators: %s: Allow button label. */ __('Choose %s when AI Puffer asks for access to this website.', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $try(); ?>
                 </ol>
-                <p><?php esc_html_e('Already added AI Puffer? Open it in Claude’s connectors and choose Connect or Reconnect.', 'gpt3-ai-content-generator'); ?></p>
-                <details class="aipkit_mcp_manual">
-                    <summary><?php esc_html_e('Connect manually', 'gpt3-ai-content-generator'); ?></summary>
-                    <ol>
-                        <li><?php esc_html_e('In Claude, open Customize → Connectors and add a custom connector.', 'gpt3-ai-content-generator'); ?></li>
-                        <li><?php esc_html_e('Enter AI Puffer as the name and paste the server address below. Keep OAuth authentication, then add the connector and choose Connect.', 'gpt3-ai-content-generator'); ?></li>
-                        <li><?php esc_html_e('Choose Allow when AI Puffer asks for access to this website.', 'gpt3-ai-content-generator'); ?></li>
-                    </ol>
-                    <?php $render_details(); ?>
-                </details>
+                <div class="aipkit_mcp_setup_foot">
+                    <details class="aipkit_mcp_manual">
+                        <summary><?php esc_html_e('Not in the directory? Add it manually', 'gpt3-ai-content-generator'); ?></summary>
+                        <ol class="aipkit_mcp_steps is-sub">
+                            <li><p><?php $say(/* translators: %s: Customize and Connectors menu path. */ __('In Claude, open %s and add a custom connector.', 'gpt3-ai-content-generator'), __('Customize → Connectors', 'gpt3-ai-content-generator')); ?></p></li>
+                            <li><p><?php $say(/* translators: 1: Add button label, 2: Connect button label. */ __('Enter these, keep OAuth, then %1$s and %2$s.', 'gpt3-ai-content-generator'), __('Add', 'gpt3-ai-content-generator'), __('Connect', 'gpt3-ai-content-generator')); ?></p><?php $name_and_address(); ?></li>
+                            <li><p><?php $say(/* translators: %s: Allow button label. */ __('Choose %s when AI Puffer asks.', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                        </ol>
+                    </details>
+                    <?php $trouble([
+                        [__('Already added AI Puffer?', 'gpt3-ai-content-generator'), __('In Claude, open Customize → Connectors, then choose Connect or Reconnect.', 'gpt3-ai-content-generator')],
+                        $expired_help,
+                    ]); ?>
+                </div>
             </div>
-            <div data-mcp-instructions="other" <?php echo !in_array($client, ['chatgpt', 'claude'], true) ? '' : 'hidden'; ?>>
-                <p><?php esc_html_e('Add a remote MCP server in your assistant using the name and address below, with OAuth authentication.', 'gpt3-ai-content-generator'); ?><?php if ($onboarding) : ?> <a class="aipkit-setup__btn" data-assistant-link target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open assistant setup', 'gpt3-ai-content-generator'); ?></a><?php endif; ?></p>
-                <p><strong>Cursor:</strong> <?php esc_html_e('Open Customize → MCPs and add a custom remote MCP server using the address below. Select Authenticate, then allow access in the browser.', 'gpt3-ai-content-generator'); ?></p>
-                <p><strong>Claude Code:</strong> <?php esc_html_e('Run these commands in your terminal, then allow access in the browser:', 'gpt3-ai-content-generator'); ?></p>
-                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code><?php echo esc_html('claude mcp add --scope user --transport http ai-puffer ' . $url); ?></code></p>
-                <p class="<?php echo $onboarding ? 'aipkit-setup__copy-row' : 'aipkit_mcp_copy_row'; ?>"><code>claude mcp login ai-puffer</code></p>
-                <?php $render_details(); ?>
+            <?php
+            // Other apps: one tab per app, so only the steps for the app in hand show. Radios keep it working without script.
+            $apps = ['cursor' => 'Cursor', 'claude-code' => 'Claude Code', 'any' => __('Any MCP app', 'gpt3-ai-content-generator')];
+            $group = wp_unique_id($onboarding ? 'aipkit_mcp_app_setup_' : 'aipkit_mcp_app_settings_');
+            ?>
+            <div class="aipkit_mcp_setup_card" data-mcp-instructions="other" <?php echo !in_array($client, ['chatgpt', 'claude'], true) ? '' : 'hidden'; ?>>
+                <?php $head('other', __('Set up another MCP app', 'gpt3-ai-content-generator'), __('Works with any app that supports remote MCP and OAuth', 'gpt3-ai-content-generator')); ?>
+                <div class="aipkit_mcp_apps" role="radiogroup" aria-label="<?php esc_attr_e('Your app', 'gpt3-ai-content-generator'); ?>">
+                    <?php foreach ($apps as $app => $app_name) : ?>
+                        <label><input type="radio" name="<?php echo esc_attr($group); ?>" value="<?php echo esc_attr($app); ?>" <?php checked($app, 'cursor'); ?>><span><?php echo esc_html($app_name); ?></span></label>
+                    <?php endforeach; ?>
+                </div>
+                <ol class="aipkit_mcp_steps" data-mcp-app="cursor">
+                    <li><p><?php $say(/* translators: %s: Customize and MCPs menu path. */ __('In Cursor, open %s and add a custom remote server.', 'gpt3-ai-content-generator'), __('Customize → MCPs', 'gpt3-ai-content-generator')); ?></p><div class="aipkit_mcp_fields"><?php $field(__('Server URL', 'gpt3-ai-content-generator'), $url); ?></div></li>
+                    <li><p><?php $say(/* translators: 1: Authenticate button label, 2: Allow button label. */ __('Select %1$s, then %2$s in the browser.', 'gpt3-ai-content-generator'), __('Authenticate', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $try(); ?>
+                </ol>
+                <ol class="aipkit_mcp_steps" data-mcp-app="claude-code">
+                    <li><p><?php esc_html_e('Run in your terminal:', 'gpt3-ai-content-generator'); ?></p><div class="aipkit_mcp_fields"><?php $field('', 'claude mcp add --scope user --transport http ai-puffer ' . $url); $field('', 'claude mcp login ai-puffer'); ?></div></li>
+                    <li><p><?php $say(/* translators: %s: Allow button label. */ __('Choose %s in the browser.', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $try(); ?>
+                </ol>
+                <ol class="aipkit_mcp_steps" data-mcp-app="any">
+                    <li><p><?php esc_html_e('Add a remote MCP server with OAuth sign-in.', 'gpt3-ai-content-generator'); ?></p><?php $name_and_address(); ?></li>
+                    <li><p><?php $say(/* translators: %s: Allow button label. */ __('Choose %s when AI Puffer asks.', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $try(); ?>
+                </ol>
+                <div class="aipkit_mcp_setup_foot">
+                    <div data-mcp-live <?php echo $expired ? 'hidden' : ''; ?>><?php $open(__('Open assistant setup', 'gpt3-ai-content-generator'), 'aipkit_mcp_foot_link'); ?></div>
+                    <?php if (!$onboarding) { $restart('other'); } ?>
+                    <?php $trouble([
+                        [__('No OAuth option?', 'gpt3-ai-content-generator'), __('AI Puffer needs an app that supports remote MCP servers with OAuth sign-in.', 'gpt3-ai-content-generator')],
+                        $expired_help,
+                    ]); ?>
+                </div>
             </div>
-
-            <p class="<?php echo $onboarding ? 'aipkit-setup__allow-line' : 'aipkit_mcp_setup_note'; ?>"><?php esc_html_e('Choose Allow when AI Puffer asks, then return here. Your connection updates automatically; select Check if needed. Setup links last 10 minutes; start again if yours expires.', 'gpt3-ai-content-generator'); ?></p>
-            <?php if (!$onboarding) : ?><p class="aipkit_mcp_setup_note"><?php esc_html_e('After connecting, open a new chat and select AI Puffer to start using your website.', 'gpt3-ai-content-generator'); ?></p><?php endif; ?>
         </div><?php
     }
 
@@ -323,6 +417,9 @@ final class Settings
         foreach (['used', 'remaining', 'monthly_allowance', 'in_use', 'as_of'] as $field) {
             if (!isset($usage[$field]) || !is_int($usage[$field]) || $usage[$field] < 0) { return null; }
         }
+        foreach (['purchased_remaining', 'monthly_remaining'] as $field) {
+            if (isset($usage[$field]) && (!is_int($usage[$field]) || $usage[$field] < 0)) { return null; }
+        }
         if (!array_key_exists('period_ends_at', $usage)) { return null; }
         if ($usage['period_ends_at'] !== null && (!is_int($usage['period_ends_at']) || $usage['period_ends_at'] <= $usage['as_of'])) { return null; }
         // Keep one identity-bound last-known balance for instant rendering, not authorization.
@@ -341,91 +438,154 @@ final class Settings
         return empty($cloud['connected']) || ($cloud['status'] ?? '') !== 'unavailable';
     }
 
-    /** The Dashboard's website actions: what is left this month. No network requests while rendering a page. */
+    /**
+     * The Dashboard's website actions: one half of its balance panel, built like AI credits (cloud-account.php): title
+     * row (ⓘ details, a pill when something needs you, then the panel's one Top up and Manage), the number, one bar, one
+     * line. Paused, Resume sits at the bottom. Not set up, the same shape invites setup. Available actions include purchased balances. No network requests while rendering.
+     */
     public static function render_usage(?array $usage = null): void
     {
         $enabled = Connection::allowed() && Identity::active();
         $invite = !$enabled && self::offers_setup();
         $paused = $enabled && !empty(get_option('aipkit_mcp_settings', [])['paused']);
+        // Top up submits the AI credits card's checkout form, so it shows only while that card is here to own it.
+        $cloud = $enabled ? Connection::display() : [];
+        $top_up = !empty($cloud['connected']) && empty($cloud['revoked']);
         $usage = $usage ?? ($enabled ? self::usage_data() : null);
-        $checked_label = '';
+        $gear = '<svg class="aipkit_usage_card_action_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        $cart = '<svg class="aipkit_usage_card_action_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.5 2h2l1.7 8h7.3l1.5-5.5H4.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="13.2" r="1" fill="currentColor"/><circle cx="11.5" cy="13.2" r="1" fill="currentColor"/></svg>';
+        $date = static fn(int $at): string => wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), $at);
+        $line = ['text' => '', 'tone' => ''];
+        $notes = [];
+        $pill = null;
+        $sources = [];
+        $scale = 0;
+        $out = $low = false;
         if ($usage) {
+            $purchased = (int) ($usage['purchased_remaining'] ?? 0);
+            $monthly_left = (int) ($usage['monthly_remaining'] ?? max(0, $usage['remaining'] - $purchased));
+            // In the bar's order: the monthly allowance (free and plan actions), then purchased. The empty end is what this month used.
+            $sources = [
+                ['tone' => 0, 'label' => __('Monthly allowance', 'gpt3-ai-content-generator'), 'left' => $monthly_left, 'total' => $usage['monthly_allowance']],
+                ['tone' => 2, 'label' => __('Purchased', 'gpt3-ai-content-generator'), 'left' => $purchased, 'total' => null],
+            ];
+            $scale = max($monthly_left + $purchased, $usage['monthly_allowance'] + $purchased);
+            $out = $usage['remaining'] <= 0;
+            // Low: a tenth of the monthly allowance or less is left, counting purchased actions.
+            $low = !$out && $usage['monthly_allowance'] > 0 && $usage['remaining'] <= $usage['monthly_allowance'] / 10;
+            /* translators: %s: the monthly website-action allowance, for example 2,000. */
+            $allowance = sprintf(__('Monthly allowance: %s', 'gpt3-ai-content-generator'), number_format_i18n($usage['monthly_allowance']));
+            $allowance_line = $usage['period_ends_at']
+                /* translators: %s: the website-action renewal date. */
+                ? $allowance . ' · ' . sprintf(__('Renews %s', 'gpt3-ai-content-generator'), $date($usage['period_ends_at']))
+                : $allowance . ' · ' . __('Renewal starts after your first assistant connection.', 'gpt3-ai-content-generator');
+            if ($out && $usage['in_use'] > 0) {
+                $line = ['text' => __('No website actions available right now. Some are reserved for running requests; check again when those finish.', 'gpt3-ai-content-generator'), 'tone' => 'bad'];
+            } elseif ($out) {
+                $line = ['text' => __('No website actions left.', 'gpt3-ai-content-generator'), 'tone' => 'bad'];
+            } elseif ($paused) {
+                $line = ['text' => __('Website changes are paused. Assistants can still read, not change.', 'gpt3-ai-content-generator'), 'tone' => ''];
+            } elseif ($low) {
+                $line = ['text' => __('Running low.', 'gpt3-ai-content-generator') . ' ' . __('Top up to keep assistants working.', 'gpt3-ai-content-generator'), 'tone' => 'warn'];
+            } elseif ($monthly_left <= 0 && $purchased > 0 && $usage['period_ends_at']) {
+                // Monthly actions include both the free allowance and paid-plan entitlements.
+                /* translators: %s: the website-action renewal date. */
+                $line = ['text' => sprintf(__('Using purchased · monthly actions renew %s', 'gpt3-ai-content-generator'), $date($usage['period_ends_at'])), 'tone' => ''];
+            } else {
+                $line = ['text' => $allowance_line, 'tone' => ''];
+            }
+            if ($line['text'] !== $allowance_line) { $notes[] = $allowance_line; }
+            /* translators: %s: actions used from the current monthly allowance, excluding purchased actions. */
+            $notes[] = sprintf(__('%s used from your monthly allowance across all your sites.', 'gpt3-ai-content-generator'), number_format_i18n($usage['used']));
+            if ($usage['in_use'] > 0) {
+                /* translators: %s: website actions reserved by running requests. */
+                $notes[] = sprintf(__('%s in use by running requests', 'gpt3-ai-content-generator'), number_format_i18n($usage['in_use']));
+            }
             /* translators: %s: date and time the balance was checked. */
-            $checked_label = sprintf(__('Checked %s.', 'gpt3-ai-content-generator'), wp_date(get_option('date_format') . ' ' . get_option('time_format'), $usage['as_of']));
+            $notes[] = sprintf(__('Checked %s.', 'gpt3-ai-content-generator'), wp_date(get_option('date_format') . ' ' . get_option('time_format'), $usage['as_of']));
+            $pill = $out ? [__('Out', 'gpt3-ai-content-generator'), 'is-error']
+                : ($paused ? [__('Paused', 'gpt3-ai-content-generator'), 'is-warning']
+                : ($low ? [__('Running low', 'gpt3-ai-content-generator'), 'is-warning'] : null));
+        } elseif ($enabled) {
+            $line = ['text' => __('Balance unavailable. Refresh to check again.', 'gpt3-ai-content-generator'), 'tone' => ''];
+            $pill = $paused ? [__('Paused', 'gpt3-ai-content-generator'), 'is-warning'] : [__('Can’t load', 'gpt3-ai-content-generator'), ''];
         }
         ?>
-        <section data-aipkit-website-usage="usage" data-mcp-enabled="<?php echo $enabled ? '1' : '0'; ?>" class="aipkit_usage_half<?php echo $invite ? ' aipkit_usage_website_invite' : ''; ?>" <?php echo $invite ? 'data-website-invite' : ''; ?> <?php echo $enabled || $invite ? '' : 'hidden'; ?>>
+        <section data-aipkit-website-usage="usage" data-mcp-enabled="<?php echo $enabled ? '1' : '0'; ?>" class="aipkit_usage_half aipkit_usage_twin" aria-labelledby="aipkit_usage_website_title" <?php echo $invite ? 'data-website-invite' : ''; ?> <?php echo $enabled || $invite ? '' : 'hidden'; ?>>
             <input type="hidden" data-website-usage-nonce value="<?php echo esc_attr(wp_create_nonce('aipkit_mcp_settings')); ?>">
-            <?php // The Dashboard's website card, top: the title with the renewal date and Manage, what is left this month across
-            // all sites, and a bar for what is used. Not set up, it invites setup instead: each button opens the website
-            // sheet and starts that assistant's Set up there, or shows the step that comes first (Cloud, verify email). ?>
-            <?php if ($invite) : ?>
+            <?php if ($invite || $enabled) : ?>
                 <div class="aipkit_usage_card_head">
-                    <h2 class="aipkit_usage_card_title"><svg class="aipkit_usage_website_invite_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1.8 8h12.4M8 1.8c1.9 2 1.9 10.4 0 12.4M8 1.8c-1.9 2-1.9 10.4 0 12.4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><?php esc_html_e('Manage this site from ChatGPT or Claude', 'gpt3-ai-content-generator'); ?></h2>
+                    <h2 class="aipkit_usage_card_title" id="aipkit_usage_website_title"><?php esc_html_e('Website actions', 'gpt3-ai-content-generator'); ?></h2>
+                    <?php if ($usage) : ?>
+                        <?php // Where the actions come from, and the fine print, behind ⓘ: on hover, on focus, or with a click or tap. ?>
+                        <button type="button" class="aipkit_usage_hint" data-aipkit-usage-hint aria-expanded="false" aria-label="<?php esc_attr_e('Website actions details', 'gpt3-ai-content-generator'); ?>" aria-describedby="aipkit_usage_website_details"><span aria-hidden="true">i</span><span class="aipkit_usage_hint_tip" id="aipkit_usage_website_details">
+                            <?php foreach ($sources as $source) : ?>
+                                <span class="aipkit_usage_detail_row"><span class="aipkit_usage_stack_swatch" data-tone="<?php echo esc_attr((string) $source['tone']); ?>" aria-hidden="true"></span><span class="aipkit_usage_detail_label"><?php echo esc_html($source['label']); ?></span><b><?php
+                                    echo esc_html($source['total'] !== null
+                                        /* translators: 1: actions left, 2: monthly allowance. */
+                                        ? sprintf(__('%1$s of %2$s', 'gpt3-ai-content-generator'), number_format_i18n($source['left']), number_format_i18n($source['total']))
+                                        : number_format_i18n($source['left']));
+                                ?></b></span>
+                            <?php endforeach; ?>
+                            <?php foreach ($notes as $note) : ?>
+                                <span class="aipkit_usage_detail_note"><?php echo esc_html($note); ?></span>
+                            <?php endforeach; ?>
+                        </span></button>
+                    <?php endif; ?>
+                    <?php if ($pill) : ?>
+                        <span class="aipkit_usage_pill aipkit_usage_pill--inline <?php echo esc_attr($pill[1]); ?>"><?php echo esc_html($pill[0]); ?></span>
+                    <?php endif; ?>
+                    <?php if ($top_up) : ?>
+                        <?php // The panel's one Top up: one checkout adds AI credits and website actions. ?>
+                        <button type="submit" form="aipkit_usage_cloud_checkout" class="aipkit_usage_card_action is-primary" name="cloud_action" value="checkout" data-aipkit-website-topup><?php echo $cart; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static icon markup. ?><?php esc_html_e('Buy credits', 'gpt3-ai-content-generator'); ?><span class="aipkit_spinner" aria-hidden="true"></span></button>
+                    <?php endif; ?>
+                    <?php if ($enabled) : ?>
+                        <button type="button" class="aipkit_usage_card_action" data-aipkit-cloud-open="website" aria-haspopup="dialog" aria-label="<?php esc_attr_e('Manage website', 'gpt3-ai-content-generator'); ?>"><?php echo $gear; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static icon markup. ?><span class="aipkit_usage_card_action_label"><?php esc_html_e('Manage', 'gpt3-ai-content-generator'); ?></span></button>
+                    <?php endif; ?>
                 </div>
-                <p class="aipkit_usage_website_invite_text"><?php esc_html_e('Ask your assistant to write drafts, update products or design pages on this site.', 'gpt3-ai-content-generator'); ?></p>
-                <ul class="aipkit_usage_website_invite_examples">
-                    <li><?php esc_html_e('“Write a blog post”', 'gpt3-ai-content-generator'); ?></li>
-                    <li><?php esc_html_e('“Check my page speed”', 'gpt3-ai-content-generator'); ?></li>
-                    <li><?php esc_html_e('“Audit my homepage’s SEO”', 'gpt3-ai-content-generator'); ?></li>
-                </ul>
-                <div class="aipkit_usage_website_invite_actions">
+                <?php if ($top_up) : ?>
+                    <p class="aipkit_model_sync_status aipkit_cloud_feedback" data-aipkit-cloud-feedback role="status" aria-live="polite"></p>
+                <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($invite) : ?>
+                <?php // Not set up: the free allowance as the number, an empty bar, one line, and the setup buttons where Top
+                // up goes. Each button opens the website sheet and starts that assistant's Set up there, or shows the step
+                // that comes first (Cloud, verify email). ?>
+                <p class="aipkit_usage_card_value aipkit_usage_card_value--offer"><?php echo esc_html(number_format_i18n(2000)); ?><span class="aipkit_usage_card_unit"><?php esc_html_e('free a month', 'gpt3-ai-content-generator'); ?></span></p>
+                <div class="aipkit_usage_stack is-empty" aria-hidden="true"></div>
+                <p class="aipkit_usage_card_meta"><?php esc_html_e('Ask ChatGPT or Claude to write drafts, update products or design pages.', 'gpt3-ai-content-generator'); ?></p>
+                <p role="status" aria-live="polite" data-website-usage-status></p>
+                <div class="aipkit_usage_card_foot">
                     <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="chatgpt" aria-haspopup="dialog"><?php esc_html_e('Connect ChatGPT', 'gpt3-ai-content-generator'); ?></button>
                     <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="claude" aria-haspopup="dialog"><?php esc_html_e('Connect Claude', 'gpt3-ai-content-generator'); ?></button>
-                    <span class="aipkit_usage_card_meta"><?php esc_html_e('Free every month: 2,000 website actions.', 'gpt3-ai-content-generator'); ?></span>
                 </div>
-                <p role="status" aria-live="polite" data-website-usage-status></p>
             <?php elseif (!$enabled) : ?>
                 <p role="status" aria-live="polite" data-website-usage-status></p>
             <?php else : ?>
-                <div class="aipkit_usage_card_head">
-                    <h2 class="aipkit_usage_card_title"><?php esc_html_e('Website actions', 'gpt3-ai-content-generator'); ?></h2>
-                    <?php if ($paused) : ?>
-                        <span class="aipkit_usage_pill aipkit_usage_pill--inline is-warning"><?php esc_html_e('Paused', 'gpt3-ai-content-generator'); ?></span>
-                    <?php endif; ?>
-                    <?php if ($usage && $usage['period_ends_at']) : ?>
-                        <?php // The renewal date opens from the ⓘ beside the title: on hover, on focus, or with a click or tap. ?>
-                        <?php /* translators: %s: the website-action renewal date. */ $renews = sprintf(__('Renews %s', 'gpt3-ai-content-generator'), wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), $usage['period_ends_at'])); ?>
-                        <button type="button" class="aipkit_usage_hint" data-aipkit-usage-hint aria-expanded="false" aria-label="<?php echo esc_attr($renews); ?>"><span aria-hidden="true">i</span><span class="aipkit_usage_hint_tip" aria-hidden="true"><?php echo esc_html($renews); ?></span></button>
-                    <?php endif; ?>
-                    <?php if ($paused) : ?>
-                        <?php // Resume runs the website sheet's own Resume, so the sheet shows the result. ?>
-                        <button type="button" class="aipkit_usage_card_action is-primary" data-aipkit-cloud-open="website" data-aipkit-website-start="resume" aria-haspopup="dialog"><?php esc_html_e('Resume', 'gpt3-ai-content-generator'); ?></button>
-                    <?php endif; ?>
-                    <button type="button" class="aipkit_usage_card_action" data-aipkit-cloud-open="website" aria-haspopup="dialog" aria-label="<?php esc_attr_e('Manage website', 'gpt3-ai-content-generator'); ?>"><svg class="aipkit_usage_card_action_icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><?php esc_html_e('Manage', 'gpt3-ai-content-generator'); ?></button>
+                <p class="aipkit_usage_card_value<?php echo !$usage ? ' aipkit_usage_card_value--empty' : ($out ? ' aipkit_usage_card_value--out' : ($low ? ' aipkit_usage_card_value--low' : '')); ?>"><?php if (!$usage) : ?>—<?php else : ?><?php echo esc_html(number_format_i18n($usage['remaining'])); ?><span class="aipkit_usage_card_unit"><?php
+                    if (!empty($usage['purchased_remaining'])) {
+                        esc_html_e('left', 'gpt3-ai-content-generator');
+                    } else {
+                        /* translators: %s: the monthly website-action allowance, for example 2,000. */
+                        echo esc_html(sprintf(__('left of %s', 'gpt3-ai-content-generator'), number_format_i18n($usage['monthly_allowance'])));
+                    }
+                    ?></span><?php endif; ?></p>
+                <div class="aipkit_usage_stack<?php echo !$usage ? ' is-empty' : ($low ? ' is-low' : ''); ?>" aria-hidden="true">
+                    <?php foreach ($sources as $source) : ?>
+                        <?php if ($source['left'] > 0 && $scale > 0) : ?>
+                            <span class="aipkit_usage_stack_part" data-tone="<?php echo esc_attr((string) $source['tone']); ?>" style="width:<?php echo esc_attr((string) round($source['left'] / $scale * 100, 2)); ?>%"></span>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
-                <p class="aipkit_usage_card_value" <?php if ($usage) : ?>title="<?php echo esc_attr($checked_label); ?>"<?php endif; ?>><?php echo $usage ? esc_html(number_format_i18n($usage['remaining'])) : '—'; ?><span class="aipkit_usage_card_unit"><?php echo $usage
-                    /* translators: %s: the monthly website-action allowance, for example 2,000. */
-                    ? esc_html(sprintf(__('left of %s', 'gpt3-ai-content-generator'), number_format_i18n($usage['monthly_allowance'])))
-                    : esc_html__('left', 'gpt3-ai-content-generator'); ?></span></p>
-                <?php if ($usage) : ?>
-                    <?php $used_share = $usage['monthly_allowance'] > 0 ? min(100, max(0, round($usage['used'] / $usage['monthly_allowance'] * 100))) : 0; ?>
-                    <?php /* translators: 1: actions used. 2: monthly allowance. */ ?>
-                    <div class="aipkit_mcp_meter<?php echo $usage['remaining'] <= 0 ? ' is-full' : ''; ?>" role="img" aria-label="<?php echo esc_attr(sprintf(__('%1$s of %2$s used', 'gpt3-ai-content-generator'), number_format_i18n($usage['used']), number_format_i18n($usage['monthly_allowance']))); ?>"><span style="width: <?php echo esc_attr((string) $used_share); ?>%"></span></div>
-                <?php endif; ?>
-                <p class="aipkit_usage_card_meta"><?php if ($usage) {
-                    /* translators: %s: website actions used this month. */
-                    echo esc_html(sprintf(__('%s used this month · all your sites', 'gpt3-ai-content-generator'), number_format_i18n($usage['used'])));
-                } else { esc_html_e('Balance unavailable. Refresh to check again.', 'gpt3-ai-content-generator'); } ?></p>
-                <?php if ($paused) : ?>
-                    <p class="aipkit_usage_card_meta"><?php esc_html_e('Website changes are paused. Assistants can still read, not change.', 'gpt3-ai-content-generator'); ?></p>
-                <?php endif; ?>
-                <?php if ($usage && $usage['in_use'] > 0) : ?>
-                    <?php /* translators: %s: website actions reserved by running requests. */ ?>
-                    <p class="aipkit_usage_card_meta"><?php echo esc_html(sprintf(__('%s in use by running requests', 'gpt3-ai-content-generator'), number_format_i18n($usage['in_use']))); ?></p>
-                <?php endif; ?>
-                <?php if ($usage && !$usage['period_ends_at']) : ?>
-                    <p class="aipkit_usage_card_meta aipkit_usage_card_meta--quiet"><?php esc_html_e('Renewal starts after your first assistant connection.', 'gpt3-ai-content-generator'); ?></p>
-                <?php endif; ?>
-                <?php if ($usage && $usage['remaining'] <= 0 && $usage['in_use'] > 0) : ?>
-                    <div class="aipkit_cloud_notice aipkit_cloud_notice--warning"><p><?php esc_html_e('No website actions available right now. Some are reserved for running requests; check again when those finish.', 'gpt3-ai-content-generator'); ?></p></div>
-                <?php elseif ($usage && $usage['remaining'] <= 0) : ?>
-                    <div class="aipkit_cloud_notice aipkit_cloud_notice--warning"><p><strong><?php esc_html_e('No website actions left.', 'gpt3-ai-content-generator'); ?></strong> <?php echo esc_html($usage['period_ends_at']
-                        /* translators: %s: the website-action renewal date. */
-                        ? sprintf(__('Assistants can’t use this site until your actions renew on %s.', 'gpt3-ai-content-generator'), wp_date(_x('M j', 'short renewal date', 'gpt3-ai-content-generator'), $usage['period_ends_at']))
-                        : __('Assistants can’t use this site until your actions renew.', 'gpt3-ai-content-generator')); ?></p></div>
-                <?php endif; ?>
+                <p class="aipkit_usage_card_meta<?php echo $line['tone'] !== '' ? ' aipkit_usage_card_meta--' . esc_attr($line['tone']) : ''; ?>"><?php echo esc_html($line['text']); ?></p>
                 <p role="status" aria-live="polite" data-website-usage-status></p>
+                <?php // Resume, only while changes are paused, at the bottom like the setup buttons. It runs the website
+                // sheet's own Resume, so the sheet shows the result. ?>
+                <?php if ($paused) : ?>
+                    <div class="aipkit_usage_card_foot">
+                        <button type="button" class="aipkit_usage_card_action" data-aipkit-cloud-open="website" data-aipkit-website-start="resume" aria-haspopup="dialog"><?php esc_html_e('Resume', 'gpt3-ai-content-generator'); ?></button>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         </section>
         <?php
@@ -517,7 +677,7 @@ final class Settings
                 $usage = self::usage_data(true);
                 if (Identity::active() && $usage === null) { throw new \RuntimeException('usage_unavailable'); }
                 ob_start(); self::render_usage($usage); $card = ob_get_clean();
-                wp_send_json_success(['enabled' => Identity::active(), 'card' => $card, 'navStatusHtml' => \WPAICG\Cloud\StatusChip::html()] + ($surface === 'onboarding' ? ['allowanceOffer' => \WPAICG\Admin\Onboarding::allowance_offer()] : []));
+                wp_send_json_success(['enabled' => Identity::active(), 'card' => $card] + ($surface === 'onboarding' ? ['allowanceOffer' => \WPAICG\Admin\Onboarding::allowance_offer()] : []));
             }
             $message = '';
             $pair = null;
@@ -606,7 +766,7 @@ final class Settings
                 wp_send_json_success(['assistants' => self::onboarding_connections(), 'message' => $message, 'pair' => $pair, 'allowanceOffer' => \WPAICG\Admin\Onboarding::allowance_offer()]);
             }
             ob_start(); self::render(); $html = ob_get_clean();
-            wp_send_json_success(['html' => $html, 'message' => $message, 'pair' => $pair, 'navStatusHtml' => \WPAICG\Cloud\StatusChip::html()]);
+            wp_send_json_success(['html' => $html, 'message' => $message, 'pair' => $pair]);
         } catch (\Throwable $error) {
             $messages = [
                 'mcp_crypto_unavailable' => __('Your hosting needs the PHP Sodium extension to connect website management. Ask your host to enable it.', 'gpt3-ai-content-generator'),

@@ -15,154 +15,11 @@ export function createWebsiteActivity(deps) {
     const { container, elements, escapeHtml, __, _n, sprintf, formatNumber, formatTimestamp, timeHtml, openDrawer, announce, showStatus, getSearch } = deps;
     const list = container.querySelector('#aipkit_usage_website_list');
     const more = container.querySelector('#aipkit_usage_website_more');
-    const breakdown = container.querySelector('[data-website-breakdown]');
-    const breakdownContent = breakdown?.querySelector('[data-website-breakdown-content]');
-    const breakdownTotal = breakdown?.querySelector('[data-website-breakdown-total]');
-    let breakdownSequence = 0;
     const state = { filter: '', page: 1, sequence: 0, counts: null, connected: true, rows: new Map(), selected: '', loaded: false };
 
     if (!list) {
         return null;
     }
-
-    // The bar has five tones: the four largest kinds each have their own, and every kind after them shares the last.
-    const tone = (index) => Math.min(index, 4);
-    // The legend stays on one line: the four largest by name, then one Other that opens the rest with counts and
-    // shares. On a narrower card more kinds fold into Other. A single leftover keeps its name, so five kinds show five.
-    const LEGEND_NAMED = 4;
-    let legendData = null;
-    let legendWidth = 0;
-    // A shortened name (see fitLegend) keeps its count and shows the full name on hover.
-    const legendItem = (item, index, shorten = false) => shorten
-        ? `<li title="${escapeHtml(item.label)}"><span class="aipkit_usage_stack_swatch" data-tone="${tone(index)}" aria-hidden="true"></span><span class="aipkit_usage_stack_name">${escapeHtml(item.label)}</span> <b>${escapeHtml(formatNumber(item.actions))}</b></li>`
-        : `<li><span class="aipkit_usage_stack_swatch" data-tone="${tone(index)}" aria-hidden="true"></span>${escapeHtml(item.label)} <b>${escapeHtml(formatNumber(item.actions))}</b></li>`;
-    const renderLegend = (named, shorten = false) => {
-        const { categories, percentages } = legendData;
-        const rest = categories.length - named > 1 ? categories.slice(named) : [];
-        const shown = rest.length ? categories.slice(0, named) : categories;
-        const restTotal = rest.reduce((sum, item) => sum + item.actions, 0);
-        const namedItems = shown.map((item, index) => legendItem(item, index, shorten && index === 0)).join('');
-        const listClass = `aipkit_usage_stack_legend${shorten ? ' is-shortened' : ''}`;
-        if (!rest.length) {
-            return `<ul class="${listClass}">${namedItems}</ul>`;
-        }
-        const restItems = rest.map((item, index) => `<li><span class="aipkit_usage_stack_swatch" data-tone="${tone(named + index)}" aria-hidden="true"></span><span class="aipkit_usage_stack_other_name">${escapeHtml(item.label)}</span><b>${escapeHtml(formatNumber(item.actions))}</b><span class="aipkit_usage_stack_other_share">${escapeHtml(formatNumber(percentages[named + index]))}%</span></li>`).join('');
-        /* translators: %s: number of website actions grouped under Other. */
-        const restLabel = sprintf(__('Other: %s actions', 'gpt3-ai-content-generator'), formatNumber(restTotal));
-        return `<ul class="${listClass}">${namedItems}`
-            + `<li class="aipkit_usage_stack_other"><button type="button" class="aipkit_usage_stack_other_toggle" data-website-breakdown-other aria-expanded="false" aria-controls="aipkit_usage_breakdown_other"><span class="aipkit_usage_stack_swatch" data-tone="4" aria-hidden="true"></span><span class="aipkit_usage_stack_other_label">${escapeHtml(__('Other', 'gpt3-ai-content-generator'))}</span> <b>${escapeHtml(formatNumber(restTotal))}</b><svg class="aipkit_usage_stack_other_caret" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></li></ul>`
-            + `<div class="aipkit_usage_stack_other_list" id="aipkit_usage_breakdown_other" role="group" aria-label="${escapeHtml(restLabel)}" hidden><ul>${restItems}</ul></div>`;
-    };
-    // Tries four names, then fewer, until the line fits. A hidden legend can't be measured: it keeps four names and
-    // the observer below fits it once it shows. If even one name doesn't fit (a long or translated name on a narrow
-    // card), that name is shortened so Other always stays whole and clickable. Redrawing replaces the Other button, so
-    // the new one takes back the old one's focus and open list.
-    const fitLegend = () => {
-        const host = typeof breakdownContent?.querySelector === 'function' ? breakdownContent.querySelector('[data-website-breakdown-legend]') : null;
-        if (!host || !legendData) return;
-        legendWidth = breakdownContent.clientWidth;
-        const toggle = host.querySelector('[data-website-breakdown-other]');
-        const focused = Boolean(toggle) && typeof document !== 'undefined' && document.activeElement === toggle;
-        const open = toggle?.getAttribute('aria-expanded') === 'true';
-        const fits = () => {
-            const legend = host.querySelector('.aipkit_usage_stack_legend');
-            return !legend.clientWidth || legend.scrollWidth <= legend.clientWidth;
-        };
-        let named = Math.min(LEGEND_NAMED, legendData.categories.length);
-        for (; named >= 1; named--) {
-            host.innerHTML = renderLegend(named);
-            if (fits()) break;
-        }
-        if (named < 1) host.innerHTML = renderLegend(1, true);
-        if (open) setOtherOpen(true);
-        if (focused) {
-            const nextToggle = host.querySelector('[data-website-breakdown-other]');
-            // All names may now fit without Other. Keep focus at the legend without adding a Tab stop.
-            if (!nextToggle) host.tabIndex = -1;
-            (nextToggle || host).focus({ preventScroll: true });
-        }
-    };
-    // Refit when the card's width changes (window size, cards stacking); a detached Dashboard stops observing.
-    const legendObserver = typeof ResizeObserver === 'function' && breakdownContent ? new ResizeObserver(() => {
-        if (!breakdownContent.isConnected) { legendObserver.disconnect(); return; }
-        if (breakdownContent.clientWidth !== legendWidth) fitLegend();
-    }) : null;
-    legendObserver?.observe(breakdownContent);
-    const setOtherOpen = (open, focusToggle = false) => {
-        const toggle = breakdown?.querySelector?.('[data-website-breakdown-other]');
-        const panel = breakdown?.querySelector?.('#aipkit_usage_breakdown_other');
-        if (!toggle || !panel || panel.hidden === !open) return;
-        panel.hidden = !open;
-        toggle.setAttribute('aria-expanded', String(open));
-        if (focusToggle) toggle.focus({ preventScroll: true });
-    };
-    breakdown?.addEventListener('click', (event) => {
-        const toggle = event.target.closest?.('[data-website-breakdown-other]');
-        if (toggle) setOtherOpen(toggle.getAttribute('aria-expanded') !== 'true');
-    });
-    breakdown?.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape' || breakdown.querySelector('#aipkit_usage_breakdown_other')?.hidden !== false) return;
-        event.preventDefault();
-        setOtherOpen(false, true);
-    });
-    // A click anywhere outside the legend closes the list.
-    deps.listenGlobal?.(document, 'click', (event) => {
-        if (!event.target.closest?.('[data-website-breakdown-legend]')) setOtherOpen(false);
-    });
-
-    const loadBreakdown = async () => {
-        if (!breakdownContent) return;
-        const sequence = ++breakdownSequence;
-        legendData = null;
-        breakdownContent.setAttribute('aria-busy', 'true');
-        breakdownTotal.textContent = '—';
-        breakdownContent.textContent = __('Loading website actions…', 'gpt3-ai-content-generator');
-        try {
-            const data = await window.aipkit_apiRequest('aipkit_mcp_activity', { view: 'breakdown', days: deps.getDays() });
-            if (sequence !== breakdownSequence) return;
-            // Beside the setup invitation the row always shows, even empty, so the card keeps one shape in every
-            // period and its divider meets the AI credits card's. Without one, a site with no history hides it.
-            const invited = Boolean(container.querySelector('[data-website-invite]:not([hidden])'));
-            breakdown.hidden = !data.connected && !data.total && !invited;
-            breakdownTotal.textContent = sprintf(_n('%s action', '%s actions', data.total, 'gpt3-ai-content-generator'), formatNumber(data.total));
-            // Allocate rounded shares together so the displayed percentages add up to 100.
-            const shares = data.categories.map((item) => item.actions / data.total * 100);
-            const percentages = shares.map(Math.floor);
-            shares.map((share, index) => ({ index, fraction: share - percentages[index] }))
-                .sort((a, b) => b.fraction - a.fraction || a.index - b.index)
-                .slice(0, 100 - percentages.reduce((sum, value) => sum + value, 0))
-                .forEach(({ index }) => percentages[index]++);
-            // One stacked bar for what the actions were for, largest first, and a one-line legend (see renderLegend).
-            // Each part's share is in its hover text; more kinds fold into Other, never into a second row.
-            const parts = data.categories.map((item, index) => {
-                const share = `${escapeHtml(item.label)}: ${escapeHtml(formatNumber(item.actions))} · ${escapeHtml(formatNumber(percentages[index]))}%`;
-                return `<span class="aipkit_usage_stack_part" data-tone="${tone(index)}" style="width:${shares[index]}%" title="${share}"></span>`;
-            }).join('');
-            legendData = data.total > 0 ? { categories: data.categories, percentages } : null;
-            // No actions: the same empty bar track and one line where the legend goes, so the row keeps its height.
-            const emptyLine = !data.connected
-                ? __('Actions your assistant takes will show here.', 'gpt3-ai-content-generator')
-                : (deps.getDays() === 1
-                    ? __('No website actions on this site today.', 'gpt3-ai-content-generator')
-                    : __('No website actions on this site in this period.', 'gpt3-ai-content-generator'));
-            breakdownContent.innerHTML = legendData
-                ? `<div class="aipkit_usage_stack" aria-hidden="true">${parts}</div><div class="aipkit_usage_stack_key" data-website-breakdown-legend>${renderLegend(LEGEND_NAMED)}</div>`
-                : `<div class="aipkit_usage_stack" aria-hidden="true"></div><p class="aipkit_usage_stack_empty">${escapeHtml(emptyLine)}</p>`;
-        } catch (error) {
-            if (sequence !== breakdownSequence) return;
-            breakdown.hidden = false;
-            breakdownContent.textContent = __('Website action history is unavailable. Try Refresh.', 'gpt3-ai-content-generator');
-        } finally {
-            if (sequence === breakdownSequence) {
-                breakdown.removeAttribute('data-website-breakdown-pending');
-                breakdownContent.removeAttribute('aria-busy');
-                // The breakdown is one of the balance cards: the row re-counts its cards when it shows or hides.
-                deps.onBreakdown?.();
-                // Fit after the row settles, so the first frame already has one line.
-                fitLegend();
-            }
-        }
-    };
 
     const pill = (item) => `<span class="aipkit_usage_pill ${TONES[item.pill?.tone] ?? ''}">${escapeHtml(item.pill?.label || '')}</span>`;
 
@@ -408,7 +265,6 @@ export function createWebsiteActivity(deps) {
     return {
         load,
         prefetchCounts,
-        loadBreakdown,
         /** The Website sub-filters, for the Usage page's sub-chip row. */
         subchips: () => ({
             key: 'website',

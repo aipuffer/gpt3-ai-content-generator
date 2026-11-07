@@ -122,9 +122,7 @@
 
     syncTopNavBrandTarget(
       topNav,
-      Array.prototype.find.call(utilityLinks, function (link) {
-        return link.getAttribute("data-module") === "stats" && isTopNavModuleVisible(link);
-      }) || visibleModuleLink ||
+      visibleModuleLink ||
         visibleUtilityLink ||
         topNav.querySelector(
           '.aipkit_module-tab--settings.aipkit_module-link[data-module="settings"]'

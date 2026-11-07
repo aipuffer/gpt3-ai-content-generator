@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.24
+Stable tag: 2.5.25
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -213,6 +213,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.25 =
+Adds Site Kit reports and Wordfence security summaries, protects Hostinger maintenance bypass codes, and clarifies website database errors.
+
 = 2.5.24 =
 Improves website-management REST discovery, field validation and Yoast SEO lookup guidance.
 
@@ -278,6 +281,12 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.25 =
+* Added read-only Google Search Console and GA4 page reports through Site Kit.
+* Added read-only Wordfence scan, findings and firewall status for connected assistants.
+* Fixed Hostinger Tools maintenance bypass codes being exposed or rotated through website management.
+* Improved website-management database error messages with safe failure categories and clearer troubleshooting guidance.
 
 = 2.5.24 =
 * Improved field-level REST validation guidance so connected assistants can correct required values and field types.

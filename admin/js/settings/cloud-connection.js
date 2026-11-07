@@ -54,9 +54,6 @@ export async function refreshCloudCredits(root) {
     const controls = [...section.querySelectorAll('button, input')].filter((control) => !control.disabled);
     controls.forEach((control) => { control.disabled = true; });
     section.setAttribute('aria-busy', 'true');
-    const refreshButton = section.querySelector('[name="cloud_action"][value="refresh"]');
-    refreshButton?.classList.add('aipkit_loading');
-    refreshButton?.setAttribute('aria-busy', 'true');
     try {
         if (!creditRequest) {
             creditRequestGeneration = generation;
@@ -85,8 +82,6 @@ export async function refreshCloudCredits(root) {
         }
     } finally {
         section.removeAttribute('aria-busy');
-        refreshButton?.classList.remove('aipkit_loading');
-        refreshButton?.removeAttribute('aria-busy');
         controls.forEach((control) => { control.disabled = false; });
     }
 }
@@ -362,7 +357,9 @@ export function bindCloudConnection(root) {
         const finishChange = action === 'checkout' ? () => {} : beginCloudConnectionChange();
         const checkoutWindow = action === 'checkout' ? window.open('', '_blank') : null;
         if (checkoutWindow) checkoutWindow.opener = null;
-        const feedback = section.querySelector('[data-aipkit-cloud-feedback]');
+        // The Dashboard checkout button may belong to the Website half while its form lives in AI credits.
+        const feedback = (action === 'checkout' && button?.closest('.aipkit_usage_half')?.querySelector('[data-aipkit-cloud-feedback]'))
+            || section.querySelector('[data-aipkit-cloud-feedback]');
         feedback.className = 'aipkit_model_sync_status aipkit_cloud_feedback loading';
         feedback.textContent = action === 'connect' && !section.closest('[data-aipkit-provider-modal]')
             ? __('Connecting… this can take a few seconds.', 'gpt3-ai-content-generator')
@@ -399,7 +396,9 @@ export function bindCloudConnection(root) {
             reportConnectionDiagnostic(error.data);
             checkoutWindow?.close();
             feedback.className = 'aipkit_model_sync_status aipkit_cloud_feedback error';
-            feedback.textContent = error.message || __('Cloud could not be updated. Try again.', 'gpt3-ai-content-generator');
+            feedback.textContent = action === 'checkout'
+                ? __('Checkout could not open. Check your connection and try Buy credits again.', 'gpt3-ai-content-generator')
+                : error.message || __('Cloud could not be updated. Try again.', 'gpt3-ai-content-generator');
         } finally {
             section.removeAttribute('aria-busy');
             controls.forEach((control) => { control.disabled = false; });

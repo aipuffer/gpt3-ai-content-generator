@@ -119,9 +119,12 @@ $render_module_link = static function (array $module, string $option_key, string
     <?php
 };
 
+// Dashboard is the first tab (it also stays in the menu's Manage group), so it counts as a visible tab.
+$tab_modules = array('stats_viewer' => $utility_nav_modules['stats_viewer']) + $nav_modules;
+
 $visible_nav_module_count = 0;
 if ($can_access_dashboard) {
-    foreach ($nav_modules as $option_key => $module) {
+    foreach ($tab_modules as $option_key => $module) {
         if (
             $is_nav_module_enabled($option_key) &&
             AIPKit_Role_Manager::user_can_access_module($module['data_module'])
@@ -206,7 +209,7 @@ $render_brand_target = static function () use ($default_module_slug, $brand_labe
             <?php endif; ?>
         >
             <?php if ($can_access_dashboard): ?>
-                <?php foreach ($nav_modules as $option_key => $module): ?>
+                <?php foreach ($tab_modules as $option_key => $module): ?>
                     <?php $render_module_link($module, $option_key, 'aipkit_module-tab aipkit_module-link aipkit_module-tab--module'); ?>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -215,6 +218,7 @@ $render_brand_target = static function () use ($default_module_slug, $brand_labe
         <?php if ($can_access_dashboard): ?>
             <div class="aipkit_module-tabs_actions">
                 <?php foreach ($utility_nav_modules as $option_key => $module): ?>
+                    <?php // Dashboard is the first tab, so it isn't repeated here. ?>
                     <?php if ($option_key !== 'stats_viewer') { $render_module_link($module, $option_key, 'aipkit_module-tab aipkit_module-tab--utility aipkit_module-link'); } ?>
                 <?php endforeach; ?>
 
@@ -276,17 +280,18 @@ $render_brand_target = static function () use ($default_module_slug, $brand_labe
                     </nav>
                 </details>
 
-                <span class="aipkit_module-tabs_divider" aria-hidden="true"></span>
-
-                <?php \WPAICG\Cloud\StatusChip::render(); ?>
-
                 <?php
-                // Show upgrade button only for non-pro users
+                // Follow the SDK's site/network billing destination and its administrator boundary.
                 $is_pro_plan = class_exists('\\WPAICG\\aipkit_dashboard') ? \WPAICG\aipkit_dashboard::is_pro_plan() : false;
-                if (!$is_pro_plan):
+                $upgrade_sdk = function_exists('wpaicg_gacg_fs') ? wpaicg_gacg_fs() : null;
+                $upgrade_network = $upgrade_sdk && $upgrade_sdk->is_network_active()
+                    && (is_network_admin() || !$upgrade_sdk->is_delegated_connection());
+                if (!$is_pro_plan && current_user_can($upgrade_network ? 'manage_network_options' : 'manage_options')):
+                    $upgrade_url = $upgrade_sdk ? $upgrade_sdk->get_upgrade_url() : admin_url('admin.php?page=wpaicg-pricing');
                 ?>
+                <span class="aipkit_module-tabs_divider" aria-hidden="true"></span>
                 <a
-                    href="<?php echo esc_url(admin_url('admin.php?page=wpaicg-pricing')); ?>"
+                    href="<?php echo esc_url($upgrade_url); ?>"
                     class="aipkit_upgrade_btn"
                     aria-label="<?php echo esc_attr__('Upgrade', 'gpt3-ai-content-generator'); ?>"
                     title="<?php echo esc_attr__('Upgrade', 'gpt3-ai-content-generator'); ?>"

@@ -141,7 +141,6 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             $response = [
                 'message' => __('Settings saved successfully.', 'gpt3-ai-content-generator'),
                 'providerStatus' => AIPKit_Providers::get_provider_status_map(),
-                'navStatusHtml' => \WPAICG\Cloud\StatusChip::html(),
                 'newConfiguration' => AIPKit_Providers::get_new_configuration_payload(),
                 'providerConnectionStates' => AIPKit_Providers::get_provider_connection_states(),
             ];
@@ -153,7 +152,6 @@ class SettingsAjaxHandler extends BaseDashboardAjaxHandler
             wp_send_json_success([
                 'message' => __('No changes detected.', 'gpt3-ai-content-generator'),
                 'providerStatus' => AIPKit_Providers::get_provider_status_map(),
-                'navStatusHtml' => \WPAICG\Cloud\StatusChip::html(),
                 'newConfiguration' => AIPKit_Providers::get_new_configuration_payload(),
                 'providerConnectionStates' => AIPKit_Providers::get_provider_connection_states(),
             ]);

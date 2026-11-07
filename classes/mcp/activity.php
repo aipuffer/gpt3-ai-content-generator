@@ -26,13 +26,6 @@ final class Activity
         if ($method !== 'POST' || !Connection::allowed() || !check_ajax_referer('aipkit_nonce', '_ajax_nonce', false)) {
             wp_send_json_error(['message' => __('You cannot view website activity.', 'gpt3-ai-content-generator')], 403);
         }
-        $view = isset($_POST['view']) && is_string($_POST['view']) ? sanitize_key(wp_unslash($_POST['view'])) : '';
-        if ($view === 'breakdown') {
-            $days = isset($_POST['days']) && is_scalar($_POST['days']) ? absint($_POST['days']) : 30;
-            $breakdown = self::breakdown($days);
-            if (is_wp_error($breakdown)) { wp_send_json_error(['message' => $breakdown->get_error_message()], 503); }
-            wp_send_json_success($breakdown);
-        }
         $filter = isset($_POST['filter']) && is_string($_POST['filter']) ? sanitize_key(wp_unslash($_POST['filter'])) : '';
         $search = isset($_POST['search']) && is_string($_POST['search']) ? mb_substr(sanitize_text_field(wp_unslash($_POST['search'])), 0, 100) : '';
         $page = isset($_POST['page']) ? max(1, min(1000, absint($_POST['page']))) : 1;
@@ -93,62 +86,6 @@ final class Activity
         return ['items' => array_map([self::class, 'item'], array_slice($rows, 0, $per_page)),
             'counts' => ['all' => $all, 'changes' => $changes, 'reads' => $all - $changes, 'attention' => (int) $counts['attention']],
             'has_more' => count($rows) > $per_page] + array_slice($empty, 3);
-    }
-
-    /** Successful, action-using operations on this site, counted once from the journal's unique operation IDs.
-     * Completion time determines the UTC calendar period; pending, failed, free and replayed deliveries add nothing.
-     * This is local history, not a replacement for the bridge's account-wide balance or settlement ledger.
-     *
-     * @return array|\WP_Error
-     */
-    public static function breakdown(int $days = 30)
-    {
-        $days = in_array($days, [1, 7, 30, 90], true) ? $days : 30;
-        $end = time();
-        $start = (int) (floor($end / DAY_IN_SECONDS) * DAY_IN_SECONDS) - ($days - 1) * DAY_IN_SECONDS;
-        $out = ['days' => $days, 'from' => $start, 'through' => $end, 'total' => 0, 'categories' => [], 'connected' => Identity::active()];
-        if (!Schema::ready()) {
-            return $out['connected'] ? new \WP_Error('usage_unavailable', __('Website action history is unavailable. Try Refresh.', 'gpt3-ai-content-generator')) : $out;
-        }
-        global $wpdb;
-        $table = Schema::table('operations');
-        // Aggregate in the database: no request/response bodies are loaded into PHP or exposed to the browser.
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Live local history; Schema allowlists the table; period values are prepared. Uncached reporting must include newly completed actions.
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT tool, COUNT(*) AS actions FROM $table
-            WHERE state = 'succeeded' AND updated_at >= %d AND updated_at <= %d
-            AND JSON_TYPE(JSON_EXTRACT(IF(JSON_VALID(response), response, '{}'), '$.actions_used')) = 'INTEGER'
-            AND JSON_EXTRACT(IF(JSON_VALID(response), response, '{}'), '$.actions_used') = 1
-            GROUP BY tool", $start, $end), ARRAY_A);
-        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        if (!is_array($rows) || $wpdb->last_error !== '') {
-            return new \WP_Error('usage_unavailable', __('Website action history is unavailable. Try Refresh.', 'gpt3-ai-content-generator'));
-        }
-        $labels = [
-            'account_checks' => __('Account checks', 'gpt3-ai-content-generator'),
-            'guidance' => __('Guidance', 'gpt3-ai-content-generator'),
-            'site_checks' => __('Site checks', 'gpt3-ai-content-generator'),
-            'content_reads' => __('Content reads', 'gpt3-ai-content-generator'),
-            'content_creation' => __('Content creation', 'gpt3-ai-content-generator'),
-            'content_updates' => __('Content updates', 'gpt3-ai-content-generator'),
-            'publishing' => __('Publishing', 'gpt3-ai-content-generator'),
-            'media_reads' => __('Media reads', 'gpt3-ai-content-generator'),
-            'media_uploads' => __('Media uploads', 'gpt3-ai-content-generator'),
-            'media_updates' => __('Media updates', 'gpt3-ai-content-generator'),
-            'plugin_data_reads' => __('Plugin data reads', 'gpt3-ai-content-generator'),
-            'plugin_data_changes' => __('Plugin data changes', 'gpt3-ai-content-generator'),
-            'other' => __('Other operations', 'gpt3-ai-content-generator'),
-        ];
-        $totals = [];
-        foreach ($rows as $row) {
-            $category = Registry::category($row['tool']);
-            $totals[$category] = ($totals[$category] ?? 0) + (int) $row['actions'];
-        }
-        arsort($totals, SORT_NUMERIC);
-        $out['total'] = array_sum($totals);
-        foreach ($totals as $category => $actions) {
-            $out['categories'][] = ['category' => $category, 'label' => $labels[$category], 'actions' => $actions];
-        }
-        return $out;
     }
 
     /** A row as the activity list shows it: who did what to which item, the outcome, and where to go next. */

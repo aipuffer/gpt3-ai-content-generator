@@ -39,7 +39,9 @@ final class Guard
      *  /wc/v3/products/batch), abilities (they have their own tools), site health, the outbound oEmbed proxy and
      *  application passwords. */
     private const BLOCKED_ROUTES = ['#^/aipkit(/|$)#', '#(^|/)(batch|bulk)(/|$)#', '#^/wp-abilities/#', '#^/wp-site-health/#',
-        '#^/oembed/1\.0/proxy#', '#/application-passwords(/|$)#'];
+        '#^/oembed/1\.0/proxy#', '#/application-passwords(/|$)#',
+        // Hostinger registers this credential rotation as a GET.
+        '#^/hostinger-tools-plugin/v1/regenerate-bypass-code(/|$)#'];
 
     /** Words that name a composite change in an ability's name: many actions in one call, never run as one. */
     private const COMPOSITE_WORDS = ['batch', 'bulk'];
@@ -68,7 +70,7 @@ final class Guard
     /** A REST call may run unless its route is blocked, or it changes something under a blocked segment. */
     public static function allows_rest(string $method, string $route): bool
     {
-        $route = strtolower($route);
+        $route = strtolower(rawurldecode($route));
         foreach (self::BLOCKED_ROUTES as $pattern) {
             if (preg_match($pattern, $route)) { return false; }
         }
@@ -88,13 +90,14 @@ final class Guard
     {
         $key = strtolower((string) preg_replace('/[^a-zA-Z0-9]/', '', $key));
         return (bool) preg_match('/(?:password|passwd|userpass|smtppass|secretkey|secret|apikey|privatekey|accesskey|authkey|authsalt|secureauth|nonce|clientsecret|consumerkey|licensekey|licencekey|applicationpassword|refreshtoken|accesstoken|idtoken|authtoken|bearertoken|authorization|backupcodes|totp|otpcode|sessiontoken|sessioncookie|authcookie|loggedincookie|useractivationkey|loggedinsalt)$/', $key)
-            || in_array($key, ['token', 'credentials', 'credential', 'cookie', 'cookies', 'salt', 'salts', 'passkey', 'pwd', 'jwt'], true);
+            || in_array($key, ['token', 'credentials', 'credential', 'cookie', 'cookies', 'salt', 'salts', 'passkey', 'pwd', 'jwt', 'bypasscode'], true);
     }
 
     /** Values associated with credentials or this connection's internal state never become assistant input/output. */
     public static function private_key(string $key): bool
     {
-        return (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?(?:key|email)|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
+        return strtolower((string) preg_replace('/[^a-zA-Z0-9]/', '', $key)) === 'bypasscode'
+            || (bool) preg_match('/(?:password|passwd|secret|token|api.?key|private.?key|auth.?key|auth.?salt|secure_auth|logged_in|nonce.?salt|license|licence|oauth|consumer.?(?:key|email)|access.?key|activation.?key|new_email|two_factor|2fa|totp|webauthn|passkey|backup.?codes|application_password|session|capabilities|user_level|aipkit_mcp|aipkit_cloud|freemius|fs_accounts)/i', $key);
     }
 
     public static function public_data($value, int $depth = 0, bool $credentials_only = false)

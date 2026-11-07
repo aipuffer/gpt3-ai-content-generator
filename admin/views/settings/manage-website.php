@@ -158,6 +158,30 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
     };
     $aipkit_mcp_live_rows = array_values(array_filter($aipkit_mcp_rows, static function (array $aipkit_mcp_row): bool { return $aipkit_mcp_row['state'] !== 'pending'; }));
     $aipkit_mcp_pending_rows = array_values(array_filter($aipkit_mcp_rows, static function (array $aipkit_mcp_row): bool { return $aipkit_mcp_row['state'] === 'pending'; }));
+    // The newest setup this user is waiting on, with its link: the sheet shows its steps under the rows.
+    $aipkit_mcp_pending_setup = null;
+    foreach ($aipkit_mcp_pending_rows as $aipkit_mcp_setup_row) {
+        if ((int) $aipkit_mcp_setup_row['wp_user_id'] !== get_current_user_id()) { continue; }
+        $aipkit_mcp_setup_link = get_transient('aipkit_mcp_connect_' . $aipkit_mcp_setup_row['grant_id']);
+        // A completed replacement must not bring an older expired setup back into view.
+        if (!$aipkit_mcp_setup_link || (int) $aipkit_mcp_setup_row['created_at'] <= time() - 600) {
+            $aipkit_mcp_replaced = array_filter($aipkit_mcp_live_rows, static function (array $row) use ($aipkit_mcp_setup_row): bool {
+                return in_array($row['state'], ['active', 'paused'], true)
+                    && (int) $row['wp_user_id'] === (int) $aipkit_mcp_setup_row['wp_user_id']
+                    && $row['client_hint'] === $aipkit_mcp_setup_row['client_hint']
+                    && (int) $row['created_at'] >= (int) $aipkit_mcp_setup_row['created_at'];
+            });
+            if ($aipkit_mcp_replaced) { continue; }
+        }
+        $aipkit_mcp_pending_setup = [
+            'url' => $aipkit_mcp_setup_link ?: '', 'client' => $aipkit_mcp_setup_row['client_hint'],
+            'grant' => $aipkit_mcp_setup_row['grant_id'],
+            'expires' => $aipkit_mcp_setup_link ? (int) $aipkit_mcp_setup_row['created_at'] + 600 : 0,
+            'access_level' => $aipkit_mcp_setup_row['access_level'], 'wp_user_id' => (int) $aipkit_mcp_setup_row['wp_user_id'],
+            'can_restart' => \WPAICG\Mcp\Settings::connection_issue() === '' && !$aipkit_mcp_unavailable && $aipkit_mcp_cloud_ready,
+        ];
+        break;
+    }
     $aipkit_mcp_connected_count = count(array_filter($aipkit_mcp_live_rows, static function (array $aipkit_mcp_row): bool { return in_array($aipkit_mcp_row['state'], ['active', 'paused'], true); }));
     // Each app's place in Add an assistant: connected (offered again only as "another account"), waiting (Continue
     // setup), disconnected before (Reconnect), or new (Set up).
@@ -230,7 +254,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
 
     <?php if ($aipkit_mcp_rows) :
         // One row per assistant: name, what it does here, its safety level, then quiet Check and Disconnect.
-        $aipkit_mcp_render_row = static function (array $aipkit_mcp_row) use ($aipkit_mcp_row_name, $aipkit_mcp_state_labels, $aipkit_mcp_ordinals): void {
+        $aipkit_mcp_render_row = static function (array $aipkit_mcp_row) use ($aipkit_mcp_row_name, $aipkit_mcp_state_labels, $aipkit_mcp_ordinals, $aipkit_mcp_pending_setup): void {
             $aipkit_mcp_name = $aipkit_mcp_row_name($aipkit_mcp_row);
             $aipkit_mcp_ordinal = $aipkit_mcp_ordinals[$aipkit_mcp_row['grant_id']] ?? 1;
             if ($aipkit_mcp_ordinal > 1) {
@@ -270,7 +294,9 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
             if ($aipkit_mcp_previous_trusted) {
                 $aipkit_mcp_detail .= ' · ' . __('Previous approvals kept. Select Trusted to run supported changes and deletes without asking.', 'gpt3-ai-content-generator');
             }
-            $aipkit_mcp_continue = $aipkit_mcp_state === 'pending' && (int) $aipkit_mcp_row['wp_user_id'] === get_current_user_id() ? get_transient('aipkit_mcp_connect_' . $aipkit_mcp_row['grant_id']) : '';
+            // An older unfinished setup keeps its Open link; the newest one opens from step 1 of its steps below.
+            $aipkit_mcp_continue = $aipkit_mcp_state === 'pending' && (int) $aipkit_mcp_row['wp_user_id'] === get_current_user_id()
+                && ($aipkit_mcp_pending_setup['grant'] ?? '') !== $aipkit_mcp_row['grant_id'] ? get_transient('aipkit_mcp_connect_' . $aipkit_mcp_row['grant_id']) : '';
             $aipkit_mcp_hint = in_array($aipkit_mcp_row['client_hint'], ['chatgpt', 'claude'], true) ? $aipkit_mcp_row['client_hint'] : 'other';
             ?>
             <div class="aipkit_mcp_row" data-state="<?php echo esc_attr($aipkit_mcp_state); ?>"<?php if ($aipkit_mcp_state === 'pending') : ?> data-mcp-pending="<?php echo esc_attr($aipkit_mcp_row['grant_id']); ?>" data-mcp-expires="<?php echo esc_attr((string) ((int) $aipkit_mcp_row['created_at'] + 600)); ?>"<?php endif; ?>>
@@ -386,7 +412,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                 </div>
             </div>
         <?php else : ?>
-            <form class="aipkit_cloud_connect" data-mcp-connect>
+            <form class="aipkit_cloud_connect" id="aipkit_mcp_connect_form" data-mcp-connect>
                 <?php // The same Set up rows as first-run setup; the button carries which assistant to prepare. A setup that is
                 // waiting is continued, and an app disconnected before is reconnected, instead of starting a second one. ?>
                 <?php if ($aipkit_mcp_to_add) : ?>
@@ -495,20 +521,8 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
             </details>
         <?php endif; ?>
         <?php // The hook stays on a plain wrapper: the column's display rule would otherwise override [hidden]. ?>
-        <?php
-        $aipkit_mcp_pending_setup = null;
-        foreach ($aipkit_mcp_rows as $aipkit_mcp_setup_row) {
-            if ($aipkit_mcp_setup_row['state'] !== 'pending' || (int) $aipkit_mcp_setup_row['wp_user_id'] !== get_current_user_id()) { continue; }
-            $aipkit_mcp_setup_link = get_transient('aipkit_mcp_connect_' . $aipkit_mcp_setup_row['grant_id']);
-            if ($aipkit_mcp_setup_link) { $aipkit_mcp_pending_setup = ['url' => $aipkit_mcp_setup_link, 'client' => $aipkit_mcp_setup_row['client_hint']]; break; }
-        }
-        ?>
-        <div data-mcp-handoff <?php echo $aipkit_mcp_pending_setup ? '' : 'hidden'; ?>>
-            <div class="aipkit_cloud_connect">
-                <div class="aipkit_cloud_notice aipkit_cloud_notice--info"><?php esc_html_e('Finish the approval in your assistant, in this browser, within 10 minutes. Return here to see your connection; select Check if it has not updated.', 'gpt3-ai-content-generator'); ?></div>
-                <div class="aipkit_cloud_balance_actions"><a class="aipkit_btn aipkit_btn-primary" data-mcp-connect-link href="<?php echo $aipkit_mcp_pending_setup ? esc_url(add_query_arg('launch', '1', $aipkit_mcp_pending_setup['url'])) : ''; ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html(($aipkit_mcp_pending_setup['client'] ?? '') === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : (($aipkit_mcp_pending_setup['client'] ?? '') === 'claude' ? __('Open AI Puffer in Claude', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator'))); ?><span class="dashicons dashicons-external" aria-hidden="true"></span></a></div>
-                <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit_settings_provider_option_help', $aipkit_mcp_pending_setup['client'] ?? 'chatgpt'); ?>
-            </div>
+        <div data-mcp-handoff data-mcp-grant="<?php echo esc_attr($aipkit_mcp_pending_setup['grant'] ?? ''); ?>" <?php echo $aipkit_mcp_pending_setup ? '' : 'hidden'; ?> data-mcp-expires="<?php echo esc_attr((string) ($aipkit_mcp_pending_setup['expires'] ?? 0)); ?>">
+            <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit_settings_provider_option_help', $aipkit_mcp_pending_setup['client'] ?? 'chatgpt', false, $aipkit_mcp_pending_setup ?? []); ?>
         </div>
     </section>
 

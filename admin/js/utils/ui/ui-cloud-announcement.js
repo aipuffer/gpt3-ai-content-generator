@@ -82,7 +82,9 @@
       const setupVisible = Array.from(document.querySelectorAll('[data-aipkit-provider-notice]')).some(item =>
         !item.hidden && !item.classList.contains('aipkit_provider_notice--hidden')
         && (item.getClientRects().length > 0 || item.hasAttribute('data-aipkit-notice-folded')));
-      notice.hidden = dismissed || connected || setupVisible || !moduleRendered;
+      // The Dashboard's AI credits card makes the same invitation, so the banner stays off while it shows.
+      const cardInvites = Boolean(document.querySelector('[data-aipkit-usage-cloud-invite]:not([hidden])'));
+      notice.hidden = dismissed || connected || setupVisible || cardInvites || !moduleRendered;
     };
     window.addEventListener('aipkit:provider-notice-visibility', updateVisibility);
     window.addEventListener('aipkit:module-rendered', () => {

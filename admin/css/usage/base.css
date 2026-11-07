@@ -2341,7 +2341,7 @@ button.aipkit_stats_status_pill {
     content: "\2713";
 }
 
-#aipkit_stats_container :is(.aipkit_usage_period_toggle, .aipkit_usage_period_option, .aipkit_usage_chip, .aipkit_usage_subchip, .aipkit_usage_btn, .aipkit_usage_icon_btn, .aipkit_usage_feed_row, .aipkit_usage_row_link, .aipkit_usage_disclosure, .aipkit_usage_link_btn, .aipkit_usage_drawer_close):focus-visible {
+#aipkit_stats_container :is(.aipkit_usage_period_toggle, .aipkit_usage_period_option, .aipkit_usage_chip, .aipkit_usage_subchip, .aipkit_usage_btn, .aipkit_usage_feed_row, .aipkit_usage_row_link, .aipkit_usage_disclosure, .aipkit_usage_link_btn, .aipkit_usage_drawer_close):focus-visible {
     outline: 2px solid rgba(63, 95, 232, 0.45);
     outline-offset: 2px;
 }
@@ -2462,21 +2462,18 @@ button.aipkit_stats_status_pill {
     }
 }
 
-/* Balance cards */
+/* Balance panel: AI credits and Website actions as two halves of one panel, split by a thin line. */
 #aipkit_stats_container .aipkit_usage_cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
     margin-bottom: 18px;
+    border: 1px solid var(--aipkit-usage-border);
+    border-radius: 12px;
+    background: #ffffff;
 }
 
 #aipkit_stats_container .aipkit_usage_cards[data-cards="1"] {
     grid-template-columns: minmax(0, 1fr);
-}
-
-/* AI credits beside the website card: one third and two thirds. */
-#aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
 }
 
 #aipkit_stats_container .aipkit_usage_card {
@@ -2485,40 +2482,80 @@ button.aipkit_stats_status_pill {
     gap: 4px;
     min-width: 0;
     padding: 16px 18px;
-    border: 1px solid var(--aipkit-usage-border);
-    border-radius: 12px;
-    background: #ffffff;
     font-size: 13px;
+}
+
+#aipkit_stats_container .aipkit_usage_card:not([hidden]) ~ .aipkit_usage_card:not([hidden]) {
+    border-left: 1px solid var(--aipkit-usage-line-soft);
+}
+
+/* The panel has one Top up, before Manage on Website actions. AI credits keeps a copy for when that card has none. */
+#aipkit_stats_container .aipkit_usage_cards:has([data-aipkit-usage-website-card]:not([hidden]) [data-aipkit-website-topup]) [data-aipkit-ai-topup] {
+    display: none;
 }
 
 #aipkit_stats_container .aipkit_usage_card[hidden] {
     display: none;
 }
 
-/* AI credits and Website actions: one column each. The website card reads top to bottom: what is left this month,
-   then, under a full-width divider, what this site used in the period and on what. */
+/* The two halves share one build: title row (buttons at its right), number, bar, one line. Setup and Resume buttons
+   sit at the bottom, so they line up across the halves however long the line is. */
 #aipkit_stats_container .aipkit_usage_half {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+}
+
+#aipkit_stats_container .aipkit_usage_twin > .aipkit_usage_card_head {
+    min-height: 28px;
+}
+
+#aipkit_stats_container .aipkit_usage_twin .aipkit_usage_card_title {
+    white-space: nowrap;
+}
+
+/* On a phone the title row stays one line: Manage keeps only its icon (and its accessible name), and the pill steps
+   aside because the line under the number already says the same in the same colour. */
+@media (max-width: 480px) {
+    #aipkit_stats_container .aipkit_usage_twin > .aipkit_usage_card_head > .aipkit_usage_pill {
+        display: none;
+    }
+
+    #aipkit_stats_container .aipkit_usage_twin > .aipkit_usage_card_head .aipkit_usage_card_action {
+        padding: 0 8px;
+    }
+
+    #aipkit_stats_container .aipkit_usage_twin > .aipkit_usage_card_head .aipkit_usage_card_action_label {
+        display: none;
+    }
+}
+
+#aipkit_stats_container .aipkit_usage_card_foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 10px;
+}
+
+#aipkit_stats_container .aipkit_usage_card_foot .aipkit_usage_card_action {
+    height: 32px;
+    margin: 0;
+}
+
+/* Not set up: the free allowance stands where the balance goes, a little smaller. */
+#aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_value.aipkit_usage_card_value--offer {
+    font-size: 24px;
 }
 
 #aipkit_stats_container .aipkit_usage_half[hidden] {
     display: none;
 }
 
-#aipkit_stats_container [data-aipkit-usage-ai-card] > .aipkit_usage_half {
-    flex: 1 1 auto;
-}
-
-#aipkit_stats_container .aipkit_usage_card--stack .aipkit_usage_half:not([hidden]) ~ .aipkit_usage_half:not([hidden]) {
-    margin: 12px -18px 0;
-    padding: 12px 18px 0;
-    border-top: 1px solid #eef1f5;
-}
-
-/* The card's one action, a button at the right of its header: Buy credits filled, Manage and Turn on outlined. */
+/* Card buttons at the right of the title row: Top up filled, then Manage outlined. */
 #aipkit_stats_container .aipkit_usage_card_action {
     display: inline-flex;
     align-items: center;
@@ -2569,71 +2606,15 @@ button.aipkit_stats_status_pill {
     margin-left: 0;
 }
 
-/* Paused: Resume, then Manage, together at the right. */
+/* Two buttons side by side: Top up and Manage, or the two setup buttons. */
 #aipkit_stats_container .aipkit_usage_card_action + .aipkit_usage_card_action {
     margin-left: 0;
 }
 
-/* Not set up, the website card invites setup: its title is the message, and each button starts one assistant. */
-#aipkit_stats_container .aipkit_usage_website_invite .aipkit_usage_card_title {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--aipkit-usage-ink);
-    font-size: 15px;
-    font-weight: 700;
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_icon {
-    width: 18px;
-    height: 18px;
-    flex: none;
-    color: var(--aipkit-usage-blue);
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_text {
-    max-width: 62ch;
-    margin: 2px 0 0;
-    color: var(--aipkit-usage-muted);
-    font-size: 13px;
-    line-height: 1.5;
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_examples {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 6px 0 0;
-    padding: 0;
-    list-style: none;
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_examples li {
-    margin: 0;
-    padding: 2px 10px;
-    border: 1px solid var(--aipkit-usage-line);
-    border-radius: 999px;
-    background: #f8fafc;
-    color: var(--aipkit-usage-ink);
-    font-size: 12px;
-    line-height: 1.6;
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 10px;
-    margin-top: 10px;
-}
-
-#aipkit_stats_container .aipkit_usage_website_invite_actions .aipkit_usage_card_action {
-    margin: 0;
-}
-
-/* The renewal date behind an ⓘ beside the title: shown on hover and focus, and toggled by a click or tap. */
+/* Each card's details behind an ⓘ beside the title (where the balance comes from, renewal, when it was checked):
+   shown on hover and focus, and toggled by a click or tap. */
 #aipkit_stats_container .aipkit_usage_hint {
-    position: relative;
+    position: static;
     display: inline-flex;
     flex: none;
     align-items: center;
@@ -2660,77 +2641,52 @@ button.aipkit_stats_status_pill {
     position: absolute;
     z-index: 20;
     top: calc(100% + 8px);
-    left: -10px;
+    left: 0;
     display: none;
-    padding: 7px 10px;
-    border-radius: 8px;
-    background: #172033;
-    box-shadow: 0 8px 20px rgba(23, 32, 51, 0.18);
-    color: #ffffff;
-    font: 500 12px/1.4 var(--aipkit-ui-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    box-sizing: border-box;
+    width: max-content;
+    min-width: min(220px, 100%);
+    max-width: min(300px, 100%);
+    padding: 10px 12px;
+    border: 1px solid var(--aipkit-usage-border);
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 12px 28px rgba(23, 32, 51, 0.14);
+    color: var(--aipkit-usage-muted);
+    font: 400 12.5px/1.45 var(--aipkit-ui-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+    text-align: left;
+    white-space: normal;
+    cursor: default;
+}
+
+#aipkit_stats_container .aipkit_usage_detail_row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#aipkit_stats_container .aipkit_usage_detail_row b {
+    margin-left: auto;
+    padding-left: 16px;
+    color: var(--aipkit-usage-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-#aipkit_stats_container .aipkit_usage_hint_tip::before {
-    content: "";
-    position: absolute;
-    top: -4px;
-    left: 14px;
-    width: 8px;
-    height: 8px;
-    background: #172033;
-    transform: rotate(45deg);
+#aipkit_stats_container .aipkit_usage_detail_note {
+    display: block;
+    margin-top: 6px;
+}
+
+#aipkit_stats_container .aipkit_usage_detail_row + .aipkit_usage_detail_note {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #eef1f5;
 }
 
 #aipkit_stats_container .aipkit_usage_hint:not([data-dismissed="true"]):is(:hover, :focus-visible, [aria-expanded="true"]) .aipkit_usage_hint_tip {
     display: block;
-}
-
-/* This site's use: "On this site · 30 days" with the total on the right, one stacked bar, and a legend. */
-#aipkit_stats_container .aipkit_usage_site_head {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-}
-
-/* AI credits in two parts, like the website card: the balance, then (under the same full-width line) where it comes
-   from. */
-#aipkit_stats_container :is(.aipkit_usage_card_top, .aipkit_usage_card_bottom) {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-}
-
-#aipkit_stats_container .aipkit_usage_card_bottom {
-    flex: 1 1 auto;
-    margin: 12px -18px 0;
-    padding: 12px 18px 0;
-    border-top: 1px solid #eef1f5;
-}
-
-/* Side by side, both cards share two rows (CSS subgrid): the top parts take the taller one's height, so the two lines
-   always meet, however many lines either top part has. */
-@media (min-width: 1181px) {
-    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] {
-        grid-template-rows: auto 1fr;
-    }
-
-    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] > .aipkit_usage_card--stack {
-        display: grid;
-        grid-row: span 2;
-        grid-template-rows: subgrid;
-        row-gap: 0;
-    }
-
-    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] [data-aipkit-usage-ai-card] > .aipkit_usage_half {
-        display: contents;
-    }
-
-    /* The setup invitation with no website history under it fills both rows instead of leaving the second empty. */
-    #aipkit_stats_container .aipkit_usage_cards[data-layout="credits-website"] [data-aipkit-usage-website-card]:not(:has([data-website-breakdown]:not([hidden]))) > .aipkit_usage_website_invite {
-        grid-row: span 2;
-    }
 }
 
 #aipkit_stats_container .aipkit_usage_card .aipkit_usage_card_value.aipkit_usage_card_value--out {
@@ -2749,29 +2705,10 @@ button.aipkit_stats_status_pill {
     display: inline-block;
 }
 
-#aipkit_stats_container :is(.aipkit_usage_site_title, .aipkit_usage_section_title) {
-    margin: 0;
-    color: var(--aipkit-usage-muted);
-    font-size: 12.5px;
-    font-weight: 600;
-}
-
-#aipkit_stats_container .aipkit_usage_site_title [title] {
-    border-bottom: 1px dotted var(--aipkit-usage-quiet);
-    cursor: help;
-}
-
-#aipkit_stats_container .aipkit_usage_site_total {
-    margin-left: auto;
-    color: var(--aipkit-usage-ink);
-    font-size: 13px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-
 #aipkit_stats_container .aipkit_usage_card_head {
+    position: relative;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
 }
@@ -2834,32 +2771,8 @@ button.aipkit_stats_status_pill {
     font-weight: 600;
 }
 
-#aipkit_stats_container .aipkit_usage_credit_back {
-    margin-top: 6px;
-}
-
 #aipkit_stats_container .aipkit_usage_card .aipkit_cloud_notice {
     margin-top: 6px;
-}
-
-/* Website actions card: a thin bar for what the month has used. */
-#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter {
-    height: 5px;
-    margin: 4px 0;
-    overflow: hidden;
-    border-radius: 999px;
-    background: #eef1f5;
-}
-
-#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter > span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--aipkit-usage-blue);
-}
-
-#aipkit_stats_container .aipkit_usage_card .aipkit_mcp_meter.is-full > span {
-    background: #b42318;
 }
 
 #aipkit_stats_container [data-website-usage-status]:empty {
@@ -2894,8 +2807,7 @@ button.aipkit_stats_status_pill {
 }
 
 /* Buttons and pills */
-#aipkit_stats_container .aipkit_usage_btn,
-#aipkit_stats_container .aipkit_usage_icon_btn {
+#aipkit_stats_container .aipkit_usage_btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2915,17 +2827,12 @@ button.aipkit_stats_status_pill {
     cursor: pointer;
 }
 
-#aipkit_stats_container .aipkit_usage_icon_btn {
-    width: 30px;
-    padding: 0;
-}
-
-#aipkit_stats_container :is(.aipkit_usage_btn, .aipkit_usage_icon_btn):hover:not(:disabled) {
+#aipkit_stats_container .aipkit_usage_btn:hover:not(:disabled) {
     border-color: #c4cfdd;
     background: #f6f8fb;
 }
 
-#aipkit_stats_container :is(.aipkit_usage_btn, .aipkit_usage_icon_btn):disabled {
+#aipkit_stats_container .aipkit_usage_btn:disabled {
     opacity: 0.6;
     cursor: default;
 }
@@ -2958,22 +2865,18 @@ button.aipkit_stats_status_pill {
     font-size: 12px;
 }
 
-#aipkit_stats_container :is(.aipkit_usage_btn, .aipkit_usage_icon_btn) .dashicons {
+#aipkit_stats_container .aipkit_usage_btn .dashicons {
     width: 16px;
     height: 16px;
     font-size: 16px;
 }
 
-#aipkit_stats_container :is(.aipkit_usage_btn, .aipkit_usage_icon_btn) .aipkit_spinner {
+#aipkit_stats_container .aipkit_usage_btn .aipkit_spinner {
     display: none;
 }
 
-#aipkit_stats_container :is(.aipkit_usage_btn, .aipkit_usage_icon_btn).aipkit_loading .aipkit_spinner {
+#aipkit_stats_container .aipkit_usage_btn.aipkit_loading .aipkit_spinner {
     display: inline-block;
-}
-
-#aipkit_stats_container .aipkit_usage_icon_btn.aipkit_loading .dashicons {
-    display: none;
 }
 
 #aipkit_stats_container .aipkit_usage_link_btn {
@@ -3932,6 +3835,11 @@ body.aipkit_usage_drawer_open {
     #aipkit_stats_container .aipkit_usage_cards[data-cards] {
         grid-template-columns: minmax(0, 1fr);
     }
+
+    #aipkit_stats_container .aipkit_usage_card:not([hidden]) ~ .aipkit_usage_card:not([hidden]) {
+        border-top: 1px solid var(--aipkit-usage-line-soft);
+        border-left: 0;
+    }
 }
 
 @media (max-width: 782px) {
@@ -4325,18 +4233,24 @@ body.aipkit_usage_drawer_open {
 
 /* Disabled website management never exposes an action balance. */
 [data-aipkit-website-usage][hidden] { display: none !important; }
-
-/* Website history stays separate from the account balance and AI credit cards. */
-#aipkit_stats_container .aipkit_usage_breakdown[hidden] { display: none; }
-#aipkit_stats_container .aipkit_usage_breakdown [data-website-breakdown-content] { margin: 6px 0 4px; font-size: 12.5px; color: var(--aipkit-usage-muted, #5f6b7a); }
+/* Each twin card's one bar: what is left, Free in blue, Included and Purchased lighter. Its empty end is what this
+   month has used; not set up, the whole track is dashed. */
 #aipkit_stats_container .aipkit_usage_stack {
     display: flex;
     gap: 2px;
-    height: 8px;
-    margin: 8px 0 10px;
+    height: 6px;
+    margin: 6px 0 4px;
     overflow: hidden;
     border-radius: 999px;
     background: #eef1f5;
+}
+
+#aipkit_stats_container .aipkit_usage_stack.is-empty {
+    background: repeating-linear-gradient(90deg, #eef1f5 0 6px, #f8f9fb 6px 10px);
+}
+
+#aipkit_stats_container .aipkit_usage_stack.is-low .aipkit_usage_stack_part {
+    background: #f0b45b;
 }
 
 #aipkit_stats_container .aipkit_usage_stack_part {
@@ -4348,163 +4262,9 @@ body.aipkit_usage_drawer_open {
 #aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="0"] { background: #3f5fe8; }
 #aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="1"] { background: #7b8ff0; }
 #aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="2"] { background: #a9b6f5; }
-#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="3"] { background: #cdd5fa; }
-#aipkit_stats_container :is(.aipkit_usage_stack_part, .aipkit_usage_stack_swatch)[data-tone="4"] { background: #dfe3ee; }
-
-/* No actions in the period: the empty track and one line where the legend goes, at the legend's height. */
-#aipkit_stats_container .aipkit_usage_stack_empty {
-    margin: 0;
-    line-height: 1.5;
-}
-
-/* One line: the four largest kinds by name, then Other (website-activity.js folds more into it on narrow cards). The
-   padding and negative margin keep focus rings inside the clip. */
-#aipkit_stats_container .aipkit_usage_stack_key {
-    position: relative;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_legend {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 6px 16px;
-    margin: -3px;
-    padding: 3px;
-    overflow: hidden;
-    color: var(--aipkit-usage-ink);
-    font-size: 12.5px;
-    list-style: none;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_legend li {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    white-space: nowrap;
-}
-
-/* Even one name doesn't fit: it shortens with an ellipsis and keeps its count, so Other stays whole and clickable. */
-#aipkit_stats_container .aipkit_usage_stack_legend.is-shortened > li:first-child {
-    flex: 0 1 auto;
-    min-width: 0;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_legend.is-shortened > li:first-child > :not(.aipkit_usage_stack_name) {
-    flex: none;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 4px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_toggle:hover .aipkit_usage_stack_other_label {
-    text-decoration: underline;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_toggle:focus-visible {
-    outline: 2px solid rgba(63, 95, 232, 0.35);
-    outline-offset: 2px;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_caret {
-    width: 12px;
-    height: 12px;
-    color: var(--aipkit-usage-quiet);
-    transition: transform 0.15s ease;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_toggle[aria-expanded="true"] .aipkit_usage_stack_other_caret {
-    transform: rotate(180deg);
-}
-
-/* The kinds inside Other, with each one's count and share of the whole period. */
-#aipkit_stats_container .aipkit_usage_stack_other_list {
-    position: absolute;
-    z-index: 20;
-    top: calc(100% + 6px);
-    right: 0;
-    width: min(300px, 100%);
-    padding: 6px;
-    border: 1px solid var(--aipkit-usage-border);
-    border-radius: 10px;
-    background: #ffffff;
-    box-shadow: 0 12px 28px rgba(23, 32, 51, 0.14);
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_list[hidden] {
-    display: none;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_list ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_list li {
-    display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) auto 38px;
-    gap: 8px;
-    align-items: center;
-    margin: 0;
-    padding: 5px 8px;
-    border-radius: 6px;
-    color: var(--aipkit-usage-ink);
-    font-size: 12.5px;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_list li:nth-child(odd) {
-    background: #f7f9fc;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_list b {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-#aipkit_stats_container .aipkit_usage_stack_other_share {
-    color: var(--aipkit-usage-quiet);
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    #aipkit_stats_container .aipkit_usage_stack_other_caret {
-        transition: none;
-    }
-}
-
-#aipkit_stats_container .aipkit_usage_stack_legend b {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
 
 #aipkit_stats_container .aipkit_usage_stack_swatch {
+    flex: none;
     width: 8px;
     height: 8px;
     border-radius: 2px;

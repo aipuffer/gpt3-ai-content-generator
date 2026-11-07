@@ -4,8 +4,48 @@ namespace WPAICG\Mcp;
 
 if (!defined('ABSPATH')) { exit; }
 
+/** A fixed diagnostic reason is independent of the assistant-facing exception message. */
+final class CliRefusal extends \InvalidArgumentException
+{
+    public string $reason;
+
+    public function __construct(string $reason, string $message)
+    {
+        $this->reason = $reason;
+        parent::__construct($message);
+    }
+}
+
 final class Cli
 {
+    /** Fixed driver categories only: never return/log SQL, identifiers or the raw database error. */
+    private static function database_error_reason(int $code): string
+    {
+        $reasons = [1044 => 'permission_denied', 1045 => 'permission_denied', 1142 => 'permission_denied', 1143 => 'permission_denied',
+            1049 => 'missing_database', 1146 => 'missing_table', 1054 => 'missing_column', 1064 => 'syntax',
+            1205 => 'lock_timeout', 1213 => 'deadlock', 2002 => 'connection', 2003 => 'connection', 2006 => 'connection', 2013 => 'connection', 3024 => 'timeout'];
+        return $reasons[$code] ?? 'unknown';
+    }
+
+    private static function database_failure(string $stage, string $code = 'database_query_failed'): array
+    {
+        global $wpdb;
+        $errno = 0;
+        try { if (isset($wpdb->dbh) && $wpdb->dbh instanceof \mysqli) { $errno = (int) $wpdb->dbh->errno; } }
+        catch (\Throwable $error) { /* A custom or closed driver must not hide the original failure. */ }
+        $reason = self::database_error_reason($errno);
+        $out = Operations::error($code, 'WordPress database query failed (driver category: ' . $reason . '). This is the website database, not AI Puffer Cloud. Ask the site administrator to check the database error logs. Do not repeat a failed query unchanged or expose SQL and database records.');
+        $out['operation_diagnostics'] = ['database_reason' => $reason, 'database_stage' => $stage];
+        return $out;
+    }
+
+    private static function refusal(string $code, string $reason, ?string $message = null): array
+    {
+        $out = $message === null ? Operations::error($code) : Operations::error($code, $message);
+        $out['operation_diagnostics'] = ['cli_reason' => $reason];
+        return $out;
+    }
+
     private static function count_changed(string $code, int $expected, int $found): array
     {
         $unit = $code === 'replacement_count_changed' ? 'replacements' : 'matching rows';
@@ -163,7 +203,8 @@ final class Cli
                     if (!$read) { return new \WP_Error('managed_execution_required', 'Use the connected assistant run_ability tool.'); }
                     $out = self::execute((array) $input, true, false);
                     return $out['state'] === 'succeeded' ? json_decode($out['result']['data_json'], true)
-                        : new \WP_Error($out['error']['code'] ?? 'command_failed', $out['error']['message'] ?? self::HELP);
+                        : new \WP_Error($out['error']['code'] ?? 'command_failed', $out['error']['message'] ?? self::HELP,
+                            isset($out['operation_diagnostics']) ? ['operation_diagnostics' => $out['operation_diagnostics']] : null);
                 },
             ]);
         }
@@ -172,12 +213,12 @@ final class Cli
     /** Tokenization only: quoted text is literal, with no variable expansion, substitution or command execution. */
     private static function tokens(string $command): array
     {
-        if ($command === '' || strlen($command) > 12000 || preg_match('/[\x00-\x1f\x7f]/', $command)) { throw new \InvalidArgumentException('Use one command on one line.'); }
+        if ($command === '' || strlen($command) > 12000 || preg_match('/[\x00-\x1f\x7f]/', $command)) { throw new CliRefusal('invalid_command_line', 'Use one command on one line.'); }
         $tokens = []; $token = ''; $quote = ''; $started = false;
         for ($i = 0, $length = strlen($command); $i < $length; $i++) {
             $char = $command[$i];
             if ($char === '\\' && $quote !== "'") {
-                if (++$i >= $length) { throw new \InvalidArgumentException('Incomplete escape.'); }
+                if (++$i >= $length) { throw new CliRefusal('incomplete_escape', 'Incomplete escape.'); }
                 $token .= $command[$i]; $started = true; continue;
             }
             if ($quote !== '') {
@@ -185,15 +226,15 @@ final class Cli
                 continue;
             }
             if ($char === '"' || $char === "'") { $quote = $char; $started = true; continue; }
-            if (strpos(';&|<>`$()', $char) !== false) { throw new \InvalidArgumentException('Shell operators are not supported. Quote literal text.'); }
+            if (strpos(';&|<>`$()', $char) !== false) { throw new CliRefusal('shell_operator', 'Shell operators are not supported. Quote literal text.'); }
             if ($char === ' ') {
                 if ($started) { $tokens[] = $token; $token = ''; $started = false; }
             } else { $token .= $char; $started = true; }
-            if (count($tokens) > 60) { throw new \InvalidArgumentException('Too many arguments.'); }
+            if (count($tokens) > 60) { throw new CliRefusal('argument_count', 'Too many arguments.'); }
         }
-        if ($quote !== '') { throw new \InvalidArgumentException('Unclosed quote.'); }
+        if ($quote !== '') { throw new CliRefusal('unclosed_quote', 'Unclosed quote.'); }
         if ($started) { $tokens[] = $token; }
-        if (($tokens[0] ?? '') !== 'wp') { throw new \InvalidArgumentException('Start the command with wp.'); }
+        if (($tokens[0] ?? '') !== 'wp') { throw new CliRefusal('missing_wp_prefix', 'Start the command with wp.'); }
         return array_slice($tokens, 1);
     }
 
@@ -206,20 +247,20 @@ final class Cli
             if (strncmp($token, '--', 2) !== 0) { $words[] = $token; continue; }
             $parts = explode('=', substr($token, 2), 2);
             $key = $parts[0];
-            if (isset($flags[$key]) || !preg_match('/^[a-z][a-zA-Z0-9_-]*$/D', $key)) { throw new \InvalidArgumentException('Invalid or duplicate flag.'); }
+            if (isset($flags[$key]) || !preg_match('/^[a-z][a-zA-Z0-9_-]*$/D', $key)) { throw new CliRefusal('invalid_or_duplicate_flag', 'Invalid or duplicate flag.'); }
             if (in_array($key, ['porcelain', 'force', 'activate', 'deactivate', 'skip-delete', 'dry-run'], true)) {
-                if (count($parts) !== 1) { throw new \InvalidArgumentException('Use boolean flags without a value.'); }
+                if (count($parts) !== 1) { throw new CliRefusal('unexpected_flag_value', 'Use boolean flags without a value.'); }
                 $flags[$key] = true;
             }
             elseif (count($parts) === 2) { $flags[$key] = $parts[1]; }
             elseif (isset($tokens[$index + 1]) && strncmp($tokens[$index + 1], '--', 2) !== 0) { $flags[$key] = $tokens[++$index]; }
-            else { throw new \InvalidArgumentException('This flag needs a value. Use --flag=value.'); }
+            else { throw new CliRefusal('missing_flag_value', 'This flag needs a value. Use --flag=value.'); }
         }
         $porcelain = $flags['porcelain'] ?? false; unset($flags['porcelain']);
         $input_format = $flags['format'] ?? null;
         $format = $input_format ?? 'json'; unset($flags['format']);
         if ($format === 'plaintext' && in_array(implode(' ', array_slice($words, 0, 2)), ['option add', 'option update', 'option patch', 'theme mod'], true)) { $format = 'json'; }
-        if (!in_array($format, ['json', 'ids', 'count'], true)) { throw new \InvalidArgumentException('Supported formats: json, ids, count.'); }
+        if (!in_array($format, ['json', 'ids', 'count'], true)) { throw new CliRefusal('unsupported_format', 'Supported formats: json, ids, count.'); }
         $group = $words[0] ?? ''; $action = $words[1] ?? ''; $tool = ''; $args = []; $read = true;
         $consume = static function (array $mapping) use (&$flags, &$args): void {
             foreach ($mapping as $flag => $field) {
@@ -227,7 +268,7 @@ final class Cli
             }
         };
         $positive = static function ($value): int {
-            if (!is_string($value) || !preg_match('/^[1-9][0-9]{0,9}$/D', $value)) { throw new \InvalidArgumentException('Use a positive integer ID or page size.'); }
+            if (!is_string($value) || !preg_match('/^[1-9][0-9]{0,9}$/D', $value)) { throw new CliRefusal('invalid_numeric_argument', 'Use a positive integer ID or page size.'); }
             return (int) $value;
         };
         // WPVibe's media-list alias maps to the same attachment read, not a second media implementation.
@@ -240,15 +281,15 @@ final class Cli
                 $read = $words[2] === 'get'; $tool = $read ? 'get_media' : 'update_media'; $args['id'] = $positive($words[3]);
                 if (!$read) {
                     $args['alt_text'] = $words[5]; $consume(['expected-version' => 'version']);
-                    if (!isset($args['version'])) { throw new \InvalidArgumentException('Read the image with wp post get ID, then pass --expected-version=VERSION.'); }
+                    if (!isset($args['version'])) { throw new CliRefusal('missing_expected_version', 'Read the image with wp post get ID, then pass --expected-version=VERSION.'); }
                 }
             } elseif ($group === 'media' && $action !== 'import' && !isset(self::NATIVE['media ' . $action])) {
-                throw new \InvalidArgumentException('Use wp post list --post_type=attachment, wp post get ID, or wp post meta update ID _wp_attachment_image_alt VALUE.');
+                throw new CliRefusal('command_not_supported', 'Use wp post list --post_type=attachment, wp post get ID, or wp post meta update ID _wp_attachment_image_alt VALUE.');
             } elseif ($action === 'list' && count($words) === 2) {
                 $tool = 'search_content';
                 $consume(['s' => 'query', 'post_type' => 'post_type', 'post_status' => 'status', 'paged' => 'page', 'posts_per_page' => 'per_page']);
                 if (($args['post_type'] ?? '') === 'attachment') {
-                    if (isset($args['status']) && !in_array($args['status'], ['inherit', 'any'], true)) { throw new \InvalidArgumentException('Attachment lists support inherit/any status.'); }
+                    if (isset($args['status']) && !in_array($args['status'], ['inherit', 'any'], true)) { throw new CliRefusal('unsupported_post_status', 'Attachment lists support inherit/any status.'); }
                     $tool = 'search_media'; unset($args['post_type'], $args['status']);
                 }
                 foreach (['page', 'per_page'] as $field) { if (isset($args[$field])) { $args[$field] = $positive($args[$field]); } }
@@ -257,17 +298,17 @@ final class Cli
             } elseif ($action === 'create' && count($words) === 2) {
                 $tool = 'create_draft'; $read = false;
                 if (isset($flags['post_status'])) {
-                    if ($flags['post_status'] !== 'draft') { throw new \InvalidArgumentException('Create the draft first, read its version, then publish with post update.'); }
+                    if ($flags['post_status'] !== 'draft') { throw new CliRefusal('unsupported_post_status', 'Create the draft first, read its version, then publish with post update.'); }
                     unset($flags['post_status']);
                 }
                 $consume(['post_type' => 'post_type', 'post_title' => 'title', 'post_content' => 'content', 'post_excerpt' => 'excerpt', 'post_name' => 'slug']);
             } elseif ($action === 'update' && count($words) === 3) {
                 $read = false; $args['id'] = $positive($words[2]); $consume(['expected-version' => 'version']);
-                if (!isset($args['version'])) { throw new \InvalidArgumentException('Read with wp post get ID, then pass its version as --expected-version=VERSION.'); }
+                if (!isset($args['version'])) { throw new CliRefusal('missing_expected_version', 'Read with wp post get ID, then pass its version as --expected-version=VERSION.'); }
                 if (isset($flags['post_status'])) {
-                    if (!in_array($flags['post_status'], ['publish', 'future'], true)) { throw new \InvalidArgumentException('Only publication/scheduling is supported here; ordinary updates keep the current status.'); }
+                    if (!in_array($flags['post_status'], ['publish', 'future'], true)) { throw new CliRefusal('unsupported_post_status', 'Only publication/scheduling is supported here; ordinary updates keep the current status.'); }
                     $tool = 'publish_content';
-                    if ($flags['post_status'] === 'future' && !isset($flags['publish-at'])) { throw new \InvalidArgumentException('Scheduling requires --publish-at=ISO_DATE_WITH_TIMEZONE.'); }
+                    if ($flags['post_status'] === 'future' && !isset($flags['publish-at'])) { throw new CliRefusal('missing_publish_time', 'Scheduling requires --publish-at=ISO_DATE_WITH_TIMEZONE.'); }
                     unset($flags['post_status']); $consume(['publish-at' => 'publish_at']);
                 } else {
                     $tool = 'update_content';
@@ -299,7 +340,7 @@ final class Cli
             if (!$read && $action !== 'delete') {
                 foreach (['name', 'slug', 'description', 'parent'] as $field) {
                     if (!isset($flags[$field])) { continue; }
-                    if ($field === 'name' && isset($body['name'])) { throw new \InvalidArgumentException('Specify a term name once.'); }
+                    if ($field === 'name' && isset($body['name'])) { throw new CliRefusal('duplicate_argument', 'Specify a term name once.'); }
                     $body[$field] = $field === 'parent' ? ($flags[$field] === '0' ? 0 : $positive($flags[$field])) : $flags[$field]; unset($flags[$field]);
                 }
             }
@@ -311,19 +352,23 @@ final class Cli
                 $prefix = explode(' ', $key);
                 if (array_slice($words, 0, count($prefix)) !== $prefix) { continue; }
                 $positionals = array_slice($words, count($prefix));
-                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Accepted flags are static metadata, returned in a signed JSON error rather than HTML.
-                if (count($positionals) < $min || count($positionals) > $max || array_diff(array_keys($flags), $accepted)) { throw new \InvalidArgumentException('Invalid arguments. Supported flags: ' . implode(', ', $accepted)); }
+                $unsupported_flags = array_diff(array_keys($flags), $accepted);
+                if (count($positionals) < $min || count($positionals) > $max || $unsupported_flags) {
+                    $reason = $unsupported_flags ? 'unsupported_flag' : 'argument_count';
+                    // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The fixed reason and static flag names are returned as signed JSON; HTML consumers escape when rendering.
+                    throw new CliRefusal($reason, 'Invalid arguments. Supported flags: ' . implode(', ', $accepted));
+                }
                 $tool = 'cli_native'; $read = $native_read;
                 $args = ['key' => $key, 'positionals' => $positionals, 'flags' => $flags, 'cap' => $cap, 'input_format' => $input_format]; $flags = []; break;
             }
         }
         if ($tool === 'cli_native' && ($args['key'] === 'db query' || $args['key'] === 'search-replace')) { $read = $args['key'] === 'db query' ? (bool) preg_match('/^\s*SELECT\b/i', $args['positionals'][0]) : !empty($args['flags']['dry-run']); }
         // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Static help is returned in signed JSON; HTML views escape it at rendering time.
-        if ($tool === '') { throw new \InvalidArgumentException('This command or positional argument is not implemented. ' . self::HELP); }
+        if ($tool === '') { throw new CliRefusal('command_not_supported', 'This command or positional argument is not implemented. ' . self::HELP); }
         // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Flag names match the ASCII allowlist above; this is a JSON error, not HTML output.
-        if ($flags) { throw new \InvalidArgumentException('Unsupported flag(s): ' . implode(', ', array_keys($flags)) . '. Use wp help.'); }
-        if ($format !== 'json' && $action !== 'list' && !($tool === 'cli_native' && substr($args['key'], -5) === ' list')) { throw new \InvalidArgumentException('ids/count formats apply to lists only.'); }
-        if ($porcelain && !($action === 'create' || $tool === 'upload_media')) { throw new \InvalidArgumentException('porcelain is supported only for create/import commands.'); }
+        if ($flags) { throw new CliRefusal('unsupported_flag', 'Unsupported flag(s): ' . implode(', ', array_keys($flags)) . '. Use wp help.'); }
+        if ($format !== 'json' && $action !== 'list' && !($tool === 'cli_native' && substr($args['key'], -5) === ' list')) { throw new CliRefusal('unsupported_format', 'ids/count formats apply to lists only.'); }
+        if ($porcelain && !($action === 'create' || $tool === 'upload_media')) { throw new CliRefusal('unsupported_format', 'porcelain is supported only for create/import commands.'); }
         return ['tool' => $tool, 'args' => (object) $args, 'read' => $read, 'format' => $format, 'group' => $group, 'porcelain' => $porcelain];
     }
 
@@ -337,7 +382,7 @@ final class Cli
     {
         try {
             $plan = self::plan($input['command'] ?? '');
-            if ($read !== $plan['read']) { throw new \InvalidArgumentException($plan['read'] ? 'Use ai-puffer/wp-cli-read.' : 'This command changes the site. Use ai-puffer/wp-cli-write.'); }
+            if ($read !== $plan['read']) { throw new CliRefusal($plan['read'] ? 'use_read_ability' : 'use_write_ability', $plan['read'] ? 'Use ai-puffer/wp-cli-read.' : 'This command changes the site. Use ai-puffer/wp-cli-write.'); }
             if ($plan['tool'] === 'help') {
                 $out = ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['help' => self::HELP,
                     'additional_commands' => self::NATIVE, 'conditional_read_commands' => ['db query' => 'SELECT/COUNT uses wp-cli-read; INSERT/UPDATE/DELETE uses wp-cli-write.', 'search-replace' => '--dry-run uses wp-cli-read; live changes use wp-cli-write.'], 'flags' => ['post list' => 'post_type, post_status, s, paged, posts_per_page', 'post create' => 'post_title, post_content, post_excerpt, post_name, post_type, post_status=draft, post_category/tags_input (term IDs), featured_media', 'post update' => 'quoted expected-version plus post_title/post_content/post_excerpt/post_name/post_category/tags_input/featured_media OR post_status=publish|future, publish-at', 'media import' => 'title, alt', 'post meta update' => 'Attachment alt uses expected-version; ordinary post metadata uses KEY VALUE and optional explicit force for protected keys. Credential and connection metadata is never exposed.', 'term list' => 'search, page, number (1–100)', 'term create/update' => 'name, slug, description, parent'], 'format' => 'json default; ids/count on lists. No implicit shell expansion.']];
@@ -371,7 +416,7 @@ final class Cli
             }
             if ($plan['format'] !== 'json') {
                 $items = $data['items'] ?? $data['data'] ?? [];
-                if (!is_array($items) || ($items && array_keys($items) !== range(0, count($items) - 1))) { throw new \InvalidArgumentException('This list does not support ids/count.'); }
+                if (!is_array($items) || ($items && array_keys($items) !== range(0, count($items) - 1))) { throw new CliRefusal('unsupported_format', 'This list does not support ids/count.'); }
                 $data = ['value' => $plan['format'] === 'count' ? count($items) : array_map(static function ($item) { return $item['id'] ?? $item['file'] ?? $item['name'] ?? ''; }, $items), 'page_only' => true]
                     + array_intersect_key($data, array_flip(['has_more', 'page', 'total', 'total_pages']));
             }
@@ -380,7 +425,9 @@ final class Cli
             if (!is_string($json) || strlen($json) > 250000) { return Operations::$mutation_started ? self::native_unknown() : Operations::error('result_too_large', 'Narrow the list or read a specific field.'); }
             return ['state' => 'succeeded', 'actions_used' => 1, 'result' => ['data_json' => $json]];
         } catch (\InvalidArgumentException $error) {
-            return ['state' => Operations::$mutation_started ? 'unknown' : 'failed', 'actions_used' => 0, 'error' => ['code' => 'unsupported_command', 'message' => $error->getMessage()]];
+            $out = self::refusal('unsupported_command', $error instanceof CliRefusal ? $error->reason : 'invalid_command_arguments', $error->getMessage());
+            if (Operations::$mutation_started) { $out['state'] = 'unknown'; }
+            return $out;
         } catch (\Throwable $error) {
             return Operations::$mutation_started ? self::native_unknown() : Operations::error('command_unavailable', 'WordPress could not confirm this command. No successful action was recorded.');
         }
@@ -391,9 +438,8 @@ final class Cli
         $key = $args['key']; $p = $args['positionals']; $f = $args['flags'];
         if (!current_user_can($args['cap'])) { return Operations::error('permission_denied'); }
         // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Internal validation messages stay JSON text and are escaped by UI renderers.
-        $fail = static function (string $message): void { throw new \InvalidArgumentException($message); };
         $id = static function ($value): int {
-            if (!is_string($value) || !preg_match('/^[1-9][0-9]*$/D', $value) || (string) (int) $value !== $value) { throw new \InvalidArgumentException('Use one valid numeric ID.'); }
+            if (!is_string($value) || !preg_match('/^[1-9][0-9]*$/D', $value) || (string) (int) $value !== $value) { throw new CliRefusal('invalid_numeric_argument', 'Use one valid numeric ID.'); }
             return (int) $value;
         };
         $effect = static function (callable $work) { Operations::$mutation_started = true; return $work(); };
@@ -471,9 +517,9 @@ final class Cli
                     foreach ($keys as $name) { if (!Guard::private_key($name)) { $items[] = ['post_id' => $post_id, 'meta_key' => $name, 'meta_value' => get_post_meta($post_id, $name, false)]; } }
                     return $ok(['items' => $items]);
                 }
-                if ($meta === '' || strlen($meta) > 200) { $fail('Invalid metadata key.'); }
+                if ($meta === '' || strlen($meta) > 200) { throw new CliRefusal('invalid_metadata_key', 'Invalid metadata key.'); }
                 if ($verb === 'get') { return $ok(['id' => $post_id, 'key' => $meta, 'value' => get_post_meta($post_id, $meta, true)]); }
-                if ($meta[0] === '_' && empty($f['force'])) { $fail('Use the native plugin action for protected metadata, or explicitly pass --force for this metadata key.'); }
+                if ($meta[0] === '_' && empty($f['force'])) { throw new CliRefusal('protected_metadata_key', 'Use the native plugin action for protected metadata, or explicitly pass --force for this metadata key.'); }
                 // A registered plugin field may impose stricter authorization than editing its parent post.
                 // Explicit --force acknowledges an underscore key; it never overrides the owning plugin's rules.
                 $registered = array_merge(get_registered_meta_keys('post'), get_registered_meta_keys('post', $post->post_type));
@@ -492,11 +538,11 @@ final class Cli
             }
             $taxonomy = get_taxonomy($p[1]);
             if (!$taxonomy || !is_object_in_taxonomy($post->post_type, $p[1]) || !current_user_can($taxonomy->cap->assign_terms)) { return Operations::error('permission_denied'); }
-            $by = $f['by'] ?? 'slug'; if (!in_array($by, ['slug', 'id', 'name'], true)) { $fail('by must be slug, id or name.'); }
+            $by = $f['by'] ?? 'slug'; if (!in_array($by, ['slug', 'id', 'name'], true)) { throw new CliRefusal('invalid_term_lookup', 'by must be slug, id or name.'); }
             $ids = [];
             foreach (array_slice($p, 2) as $value) {
                 $term = get_term_by($by, $by === 'id' ? $id($value) : $value, $p[1]);
-                if (!$term || is_wp_error($term)) { $fail('The requested term does not exist. Create it first.'); } $ids[] = (int) $term->term_id;
+                if (!$term || is_wp_error($term)) { throw new CliRefusal('term_missing', 'The requested term does not exist. Create it first.'); } $ids[] = (int) $term->term_id;
             }
             if ($preview) { return $approval(); }
             $result = $effect(static function () use ($key, $post_id, $p, $ids) {
@@ -506,7 +552,7 @@ final class Cli
         }
         if (strpos($key, 'comment ') === 0) {
             if ($key === 'comment list' || $key === 'comment count') {
-                foreach (['number', 'offset', 'post_id'] as $field) { if (isset($f[$field]) && !preg_match('/^\d+$/D', $f[$field])) { $fail('Invalid numeric comment filter.'); } }
+                foreach (['number', 'offset', 'post_id'] as $field) { if (isset($f[$field]) && !preg_match('/^\d+$/D', $f[$field])) { throw new CliRefusal('invalid_numeric_argument', 'Invalid numeric comment filter.'); } }
                 if ($key === 'comment count') { return $ok((array) wp_count_comments((int) ($f['post_id'] ?? 0))); }
                 $f['number'] = min(100, max(1, (int) ($f['number'] ?? 20))); $items = [];
                 foreach (get_comments($f) as $comment) { $items[] = ['id' => (int) $comment->comment_ID, 'post_id' => (int) $comment->comment_post_ID, 'author' => $comment->comment_author, 'content' => $comment->comment_content, 'status' => wp_get_comment_status($comment)]; }
@@ -515,10 +561,10 @@ final class Cli
             if ($key === 'comment create') {
                 $post_id = $id($f['comment_post_ID'] ?? '');
                 if (!get_post($post_id) || !current_user_can('edit_post', $post_id) || empty($f['comment_content'])) { return Operations::error('permission_denied'); }
-                if (isset($f['comment_approved']) && !in_array($f['comment_approved'], ['0', '1'], true)) { $fail('comment_approved must be 0 or 1.'); }
+                if (isset($f['comment_approved']) && !in_array($f['comment_approved'], ['0', '1'], true)) { throw new CliRefusal('invalid_comment_status', 'comment_approved must be 0 or 1.'); }
                 $parent = isset($f['comment_parent']) ? get_comment($id($f['comment_parent'])) : null;
-                if (isset($f['comment_parent']) && (!$parent || (int) $parent->comment_post_ID !== $post_id)) { $fail('Parent comment must exist on this post.'); }
-                if (isset($f['comment_author_email']) && !is_email($f['comment_author_email'])) { $fail('Use a valid comment author email.'); }
+                if (isset($f['comment_parent']) && (!$parent || (int) $parent->comment_post_ID !== $post_id)) { throw new CliRefusal('invalid_parent_comment', 'Parent comment must exist on this post.'); }
+                if (isset($f['comment_author_email']) && !is_email($f['comment_author_email'])) { throw new CliRefusal('invalid_comment_email', 'Use a valid comment author email.'); }
                 if ($preview) { return $approval(); }
                 $f['user_id'] = get_current_user_id(); $f['comment_content'] = wp_kses_post($f['comment_content']);
                 $created = $effect(static function () use ($f) { return wp_insert_comment(wp_slash($f)); });
@@ -542,7 +588,7 @@ final class Cli
             });
             return $result && !is_wp_error($result) ? $ok(['id' => $comment_id, 'status' => wp_get_comment_status($comment_id) ?: 'deleted']) : $ok($result);
         }
-        return Operations::error('unsupported_command');
+        return self::refusal('unsupported_command', 'command_not_supported');
     }
 
     /** Classic navigation menus. Block-theme wp_navigation documents are a different WordPress interface. */
@@ -708,12 +754,12 @@ final class Cli
             if ($char === "'") {
                 $value = ''; $closed = false; $i++;
                 while ($i < $length) { if ($sql[$i] === "'") { if (($sql[$i + 1] ?? '') === "'") { $value .= "'"; $i += 2; continue; } $i++; $closed = true; break; } $value .= $sql[$i++]; }
-                if (!$closed) { throw new \InvalidArgumentException('Close the SQL string; escape a quote as two single quotes.'); }
+                if (!$closed) { throw new CliRefusal('unclosed_sql_quote', 'Close the SQL string; escape a quote as two single quotes.'); }
                 $tokens[] = ['kind' => 'value', 'value' => $value]; continue;
             }
             if ($char === '`') {
-                $end = strpos($sql, '`', $i + 1); if ($end === false) { throw new \InvalidArgumentException('Unclosed SQL identifier.'); }
-                $name = substr($sql, $i + 1, $end - $i - 1); if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $name)) { throw new \InvalidArgumentException('Use a simple table or column name.'); }
+                $end = strpos($sql, '`', $i + 1); if ($end === false) { throw new CliRefusal('unclosed_sql_quote', 'Unclosed SQL identifier.'); }
+                $name = substr($sql, $i + 1, $end - $i - 1); if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/D', $name)) { throw new CliRefusal('invalid_sql_identifier', 'Use a simple table or column name.'); }
                 $tokens[] = ['kind' => 'word', 'value' => $name]; $i = $end + 1; continue;
             }
             if (preg_match('/\G-?[0-9]+(?:\.[0-9]+)?/', $sql, $match, 0, $i)) { $tokens[] = ['kind' => 'value', 'value' => strpos($match[0], '.') === false ? (int) $match[0] : (float) $match[0]]; $i += strlen($match[0]); continue; }
@@ -721,18 +767,18 @@ final class Cli
             $two = substr($sql, $i, 2);
             if (in_array($two, ['>=', '<=', '!=', '<>'], true)) { $tokens[] = ['kind' => 'operator', 'value' => $two]; $i += 2; continue; }
             if (strpos('(),.*=<>;+-/', $char) !== false) { $tokens[] = ['kind' => 'operator', 'value' => $char]; $i++; continue; }
-            throw new \InvalidArgumentException('Unsupported SQL syntax. Use one single-table statement, without comments, variables, joins or executable SQL functions.');
+            throw new CliRefusal('unsupported_sql_syntax', 'Unsupported SQL syntax. Use one single-table statement, without comments, variables, joins or executable SQL functions.');
         }
-        if (count($tokens) > 300) { throw new \InvalidArgumentException('Narrow this database statement.'); } return $tokens;
+        if (count($tokens) > 300) { throw new CliRefusal('sql_complexity_limit', 'Narrow this database statement.'); } return $tokens;
     }
 
     private static function sql_plan(string $sql): array
     {
         $tokens = self::sql_tokens($sql); $at = 0;
         $take = static function (string $word) use (&$at, $tokens): bool { $token = $tokens[$at] ?? null; if ($token && $token['kind'] !== 'value' && strcasecmp((string) $token['value'], $word) === 0) { $at++; return true; } return false; };
-        $need = static function (string $word) use ($take): void { if (!$take($word)) { throw new \InvalidArgumentException('Unsupported SQL syntax. Use wp help for the supported single-table forms.'); } };
-        $name = static function () use (&$at, $tokens): string { $token = $tokens[$at++] ?? null; if (!$token || $token['kind'] !== 'word') { throw new \InvalidArgumentException('Expected a table or column name.'); } return $token['value']; };
-        $value = static function () use (&$at, $tokens) { $token = $tokens[$at++] ?? null; if ($token && $token['kind'] === 'value') { return $token['value']; } if ($token && strtoupper((string) $token['value']) === 'NULL') { return null; } throw new \InvalidArgumentException('Use a quoted SQL string, numeric literal or NULL.'); };
+        $need = static function (string $word) use ($take): void { if (!$take($word)) { throw new CliRefusal('unsupported_sql_syntax', 'Unsupported SQL syntax. Use wp help for the supported single-table forms.'); } };
+        $name = static function () use (&$at, $tokens): string { $token = $tokens[$at++] ?? null; if (!$token || $token['kind'] !== 'word') { throw new CliRefusal('invalid_sql_identifier', 'Expected a table or column name.'); } return $token['value']; };
+        $value = static function () use (&$at, $tokens) { $token = $tokens[$at++] ?? null; if ($token && $token['kind'] === 'value') { return $token['value']; } if ($token && strtoupper((string) $token['value']) === 'NULL') { return null; } throw new CliRefusal('invalid_sql_literal', 'Use a quoted SQL string, numeric literal or NULL.'); };
         $out = ['type' => strtoupper($name()), 'fields' => [], 'values' => [], 'where' => [], 'group' => [], 'order' => null, 'limit' => 100, 'offset' => 0];
         if ($out['type'] === 'SELECT') {
             do {
@@ -740,27 +786,27 @@ final class Cli
                 elseif ($take('*')) { $field = ['column' => '*', 'count' => false, 'alias' => '*']; }
                 else { $column = $name(); $field = ['column' => $column, 'count' => false, 'alias' => $column]; }
                 if ($take('AS')) { $field['alias'] = $name(); }
-                if (($field['column'] === '*' && !$field['count'] && $field['alias'] !== '*') || strpos(strtolower($field['alias']), '_mcp_') === 0 || strlen($field['alias']) > 64) { throw new \InvalidArgumentException('Reserved SQL result alias.'); }
+                if (($field['column'] === '*' && !$field['count'] && $field['alias'] !== '*') || strpos(strtolower($field['alias']), '_mcp_') === 0 || strlen($field['alias']) > 64) { throw new CliRefusal('invalid_sql_alias', 'Reserved SQL result alias.'); }
                 $out['fields'][] = $field;
             } while ($take(',')); $need('FROM'); $out['table'] = $name();
         } elseif ($out['type'] === 'UPDATE') {
             $out['table'] = $name(); $need('SET');
-            do { $column = $name(); $need('='); if (array_key_exists($column, $out['values'])) { throw new \InvalidArgumentException('Specify a column once.'); } $out['values'][$column] = $value(); } while ($take(','));
+            do { $column = $name(); $need('='); if (array_key_exists($column, $out['values'])) { throw new CliRefusal('invalid_sql_columns', 'Specify a column once.'); } $out['values'][$column] = $value(); } while ($take(','));
         } elseif ($out['type'] === 'DELETE') { $need('FROM'); $out['table'] = $name(); }
         elseif ($out['type'] === 'INSERT') {
             $need('INTO'); $out['table'] = $name(); $need('('); $columns = []; do { $columns[] = $name(); } while ($take(',')); $need(')'); $need('VALUES'); $need('('); $values = []; do { $values[] = $value(); } while ($take(',')); $need(')');
-            if (count($columns) !== count($values) || count(array_unique($columns)) !== count($columns)) { throw new \InvalidArgumentException('SQL columns and values must match once.'); } $out['values'] = array_combine($columns, $values);
-        } else { throw new \InvalidArgumentException('Use SELECT, or a typed single-record INSERT/UPDATE/DELETE. Use wp db tables for table names.'); }
+            if (count($columns) !== count($values) || count(array_unique($columns)) !== count($columns)) { throw new CliRefusal('invalid_sql_columns', 'SQL columns and values must match once.'); } $out['values'] = array_combine($columns, $values);
+        } else { throw new CliRefusal('unsupported_sql_statement', 'Use SELECT, or a typed single-record INSERT/UPDATE/DELETE. Use wp db tables for table names.'); }
         if ($take('WHERE')) {
-            do { $column = $name(); $token = $tokens[$at++] ?? null; $op = strtoupper((string) ($token['value'] ?? '')); if (!in_array($op, ['=', '!=', '<>', '<', '>', '<=', '>=', 'LIKE', 'IS'], true)) { throw new \InvalidArgumentException('Use supported comparisons joined by AND.'); } $literal = $value(); if (($literal === null) !== ($op === 'IS')) { throw new \InvalidArgumentException('Use IS NULL for a null comparison.'); } $out['where'][] = ['column' => $column, 'operator' => $op, 'value' => $literal]; } while ($take('AND'));
+            do { $column = $name(); $token = $tokens[$at++] ?? null; $op = strtoupper((string) ($token['value'] ?? '')); if (!in_array($op, ['=', '!=', '<>', '<', '>', '<=', '>=', 'LIKE', 'IS'], true)) { throw new CliRefusal('invalid_sql_comparison', 'Use supported comparisons joined by AND.'); } $literal = $value(); if (($literal === null) !== ($op === 'IS')) { throw new CliRefusal('invalid_sql_comparison', 'Use IS NULL for a null comparison.'); } $out['where'][] = ['column' => $column, 'operator' => $op, 'value' => $literal]; } while ($take('AND'));
         }
         if ($out['type'] === 'SELECT') {
             if ($take('GROUP')) { $need('BY'); do { $out['group'][] = $name(); } while ($take(',')); }
             if ($take('ORDER')) { $need('BY'); $out['order'] = ['column' => $name(), 'descending' => $take('DESC')]; if (!$out['order']['descending']) { $take('ASC'); } }
-            if ($take('LIMIT')) { $number = $value(); if (!is_int($number) || $number < 1 || $number > 1000) { throw new \InvalidArgumentException('SQL limit must be1–1000.'); } $out['limit'] = $number; if ($take('OFFSET')) { $out['offset'] = $value(); } elseif ($take(',')) { $out['offset'] = $number; $out['limit'] = $value(); } }
-            if (!is_int($out['offset']) || $out['offset'] < 0 || $out['offset'] > 1000000 || !is_int($out['limit']) || $out['limit'] < 1 || $out['limit'] > 1000) { throw new \InvalidArgumentException('Invalid bounded SQL page.'); }
+            if ($take('LIMIT')) { $number = $value(); if (!is_int($number) || $number < 1 || $number > 1000) { throw new CliRefusal('invalid_sql_page', 'SQL limit must be1–1000.'); } $out['limit'] = $number; if ($take('OFFSET')) { $out['offset'] = $value(); } elseif ($take(',')) { $out['offset'] = $number; $out['limit'] = $value(); } }
+            if (!is_int($out['offset']) || $out['offset'] < 0 || $out['offset'] > 1000000 || !is_int($out['limit']) || $out['limit'] < 1 || $out['limit'] > 1000) { throw new CliRefusal('invalid_sql_page', 'Invalid bounded SQL page.'); }
         }
-        $take(';'); if ($at !== count($tokens)) { throw new \InvalidArgumentException('Only one supported single-table SQL statement is allowed.'); } return $out;
+        $take(';'); if ($at !== count($tokens)) { throw new CliRefusal('unsupported_sql_statement', 'Only one supported single-table SQL statement is allowed.'); } return $out;
     }
 
     private static function database(array $args, bool $preview): array
@@ -803,7 +849,7 @@ final class Cli
             if (array_intersect(array_map('strtolower', $tested), $text)) { return self::relational_select($p[0]); }
         }
         if (in_array($name, ['users', 'usermeta'], true) && !current_user_can('list_users')) { return Operations::error('permission_denied'); }
-        $column = static function (string $input) use ($schema): string { foreach ($schema['columns'] as $valid) { if (strcasecmp($valid, $input) === 0) { return $valid; } } throw new \InvalidArgumentException('That column is not exposed; credential columns are excluded.'); };
+        $column = static function (string $input) use ($schema): string { foreach ($schema['columns'] as $valid) { if (strcasecmp($valid, $input) === 0) { return $valid; } } throw new CliRefusal('invalid_sql_columns', 'That column is not exposed; credential columns are excluded.'); };
         $values = []; foreach ($plan['values'] as $field => $literal) { $field = $column($field); if (array_key_exists($field, $values)) { return Operations::error('duplicate_column'); } $values[$field] = $literal; } $plan['values'] = $values;
         foreach ($plan['where'] as &$condition) { $condition['column'] = $column($condition['column']); } unset($condition);
         foreach ($plan['where'] as $condition) {
@@ -849,7 +895,7 @@ final class Cli
         $parameters[] = $fetch; $parameters[] = $offset;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Only fixed schema identifiers/operators reach this rebuilt query; every literal and page bound is prepared.
         $rows = $wpdb->get_results($wpdb->prepare($sql, $parameters), ARRAY_A);
-        if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_query_failed'); }
+        if ($wpdb->last_error || !is_array($rows)) { return self::database_failure('select'); }
         if ($aggregate && count($rows) > 1000) { return Operations::error('query_too_broad', 'Narrow the WHERE clause: exact aggregates are bounded to1000 input rows, never silently truncated counts.'); }
         $has_more = !$aggregate && count($rows) > $plan['limit']; if (!$aggregate) { $rows = array_slice($rows, 0, $plan['limit']); }
         $items = []; $omitted = 0;
@@ -894,7 +940,7 @@ final class Cli
         if ($wpdb->last_error || (int) $bytes > 4194304) { return Operations::error('write_snapshot_too_large', 'Narrow the matching records: an atomic custom-data snapshot is limited to4MiB.'); }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifiers are schema-inspected; all external literals prepared above. Preflight does not write.
         $rows = $plan['type'] === 'INSERT' ? [] : $wpdb->get_results($query, ARRAY_A);
-        if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_query_failed'); }
+        if ($wpdb->last_error || !is_array($rows)) { return self::database_failure('write_lookup'); }
         $count = $plan['type'] === 'INSERT' ? 1 : count($rows);
         if ($count > 100) { return Operations::error('batch_too_large', 'Narrow WHERE to at most100 matching records per atomic change.'); }
         foreach ($rows as $row) { if (!self::database_row_visible($schema['table'], $row)) { return Operations::error('protected_rows_selected'); } }
@@ -944,12 +990,12 @@ final class Cli
         $tokens = self::sql_tokens($input); $at = 0; $depth = 0;
         $peek = static function () use (&$at, $tokens) { return $tokens[$at]['value'] ?? null; };
         $take = static function (string $word) use (&$at, $tokens): bool { if (($tokens[$at]['kind'] ?? '') !== 'value' && strcasecmp((string) ($tokens[$at]['value'] ?? ''), $word) === 0) { $at++; return true; } return false; };
-        $need = static function (string $word) use ($take): void { if (!$take($word)) { throw new \InvalidArgumentException('Unexpected SQL syntax. Check the supported clause order.'); } };
-        $name = static function () use (&$at, $tokens): string { $t = $tokens[$at++] ?? []; if (($t['kind'] ?? '') !== 'word') { throw new \InvalidArgumentException('Expected SQL identifier'); } return $t['value']; };
+        $need = static function (string $word) use ($take): void { if (!$take($word)) { throw new CliRefusal('unsupported_sql_syntax', 'Unexpected SQL syntax. Check the supported clause order.'); } };
+        $name = static function () use (&$at, $tokens): string { $t = $tokens[$at++] ?? []; if (($t['kind'] ?? '') !== 'word') { throw new CliRefusal('invalid_sql_identifier', 'Expected SQL identifier'); } return $t['value']; };
         $functions = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'LOWER', 'UPPER', 'LENGTH', 'CHAR_LENGTH', 'COALESCE', 'IFNULL', 'ABS', 'ROUND', 'CONCAT', 'DATE', 'YEAR', 'MONTH'];
         $expr = null;
         $expr = static function (int $minimum = 0) use (&$expr, &$at, &$depth, $tokens, $peek, $take, $need, $name, $functions) {
-            if (++$depth > 24) { throw new \InvalidArgumentException('SQL expression too deep'); }
+            if (++$depth > 24) { throw new CliRefusal('sql_complexity_limit', 'SQL expression too deep'); }
             $t = $tokens[$at] ?? null;
             if ($take('(')) { $node = $expr(); $need(')'); }
             elseif ($t && $t['kind'] === 'value') { $at++; $node = ['literal', $t['value']]; }
@@ -959,13 +1005,13 @@ final class Cli
                 $word = $name();
                 if ($take('(')) {
                     $function = strtoupper($word);
-                    if (!in_array($function, $functions, true)) { throw new \InvalidArgumentException('SQL function is not supported'); }
+                    if (!in_array($function, $functions, true)) { throw new CliRefusal('unsupported_sql_function', 'SQL function is not supported'); }
                     $args = [];
                     if (!$take(')')) { do { $args[] = $expr(); } while ($take(',')); $need(')'); }
                     $bounds = ['ROUND' => [1, 2], 'IFNULL' => [2, 2], 'COALESCE' => [1, 20], 'CONCAT' => [1, 20]][$function] ?? [1, 1];
-                    if (count($args) < $bounds[0] || count($args) > $bounds[1]) { throw new \InvalidArgumentException(esc_html('Invalid number of arguments for SQL function ' . $function . '.')); }
+                    if (count($args) < $bounds[0] || count($args) > $bounds[1]) { throw new CliRefusal('invalid_sql_function_arguments', esc_html('Invalid number of arguments for SQL function ' . $function . '.')); }
                     foreach ($args as $arg) {
-                        if ($arg[0] === 'star' && ($function !== 'COUNT' || $arg[1] !== null)) { throw new \InvalidArgumentException('Only COUNT(*) accepts a wildcard argument.'); }
+                        if ($arg[0] === 'star' && ($function !== 'COUNT' || $arg[1] !== null)) { throw new CliRefusal('unsupported_sql_function', 'Only COUNT(*) accepts a wildcard argument.'); }
                     }
                     $node = ['function', $function, $args];
                 }
@@ -976,7 +1022,7 @@ final class Cli
             while (isset($precedence[strtoupper((string) $peek())]) && $precedence[strtoupper((string) $peek())] >= $minimum) {
                 $operator = strtoupper((string) $peek()); $at++; $rank = $precedence[$operator];
                 if ($operator === 'IS') { $not = $take('NOT'); $need('NULL'); $node = ['binary', $not ? 'IS NOT' : 'IS', $node, ['literal', null]]; }
-                elseif ($operator === 'IN') { $need('('); $values = []; do { $values[] = $expr(4); } while ($take(',')); $need(')'); if (count($values) > 100) { throw new \InvalidArgumentException('Too many IN values'); } $node = ['in', $node, $values]; }
+                elseif ($operator === 'IN') { $need('('); $values = []; do { $values[] = $expr(4); } while ($take(',')); $need(')'); if (count($values) > 100) { throw new CliRefusal('sql_complexity_limit', 'Too many IN values'); } $node = ['in', $node, $values]; }
                 elseif ($operator === 'BETWEEN') { $low = $expr(4); $need('AND'); $high = $expr(4); $node = ['between', $node, $low, $high]; }
                 else { $node = ['binary', $operator, $node, $expr($rank + 1)]; }
             }
@@ -986,20 +1032,20 @@ final class Cli
         do { $node = $expr(4); $alias = null; if ($take('AS')) { $alias = $name(); } $fields[] = [$node, $alias]; } while ($take(','));
         $source = static function () use ($name, $take, $peek): array { $table = $name(); $alias = $table; if ($take('AS')) { $alias = $name(); } elseif (is_string($peek()) && preg_match('/^[a-zA-Z_]\w*$/D', $peek()) && !in_array(strtoupper($peek()), ['WHERE', 'JOIN', 'LEFT', 'INNER', 'GROUP', 'ORDER', 'LIMIT'], true)) { $alias = $name(); } return [$table, $alias]; };
         $need('FROM'); $sources = [[$source(), null, null]];
-        while (in_array(strtoupper((string) $peek()), ['JOIN', 'INNER', 'LEFT'], true)) { $kind = $take('LEFT') ? 'LEFT' : 'INNER'; if ($kind === 'LEFT') { $take('OUTER'); } else { $take('INNER'); } $need('JOIN'); $table = $source(); $need('ON'); $sources[] = [$table, $kind, $expr()]; if (count($sources) > 4) { throw new \InvalidArgumentException('At most four tables per read'); } }
+        while (in_array(strtoupper((string) $peek()), ['JOIN', 'INNER', 'LEFT'], true)) { $kind = $take('LEFT') ? 'LEFT' : 'INNER'; if ($kind === 'LEFT') { $take('OUTER'); } else { $take('INNER'); } $need('JOIN'); $table = $source(); $need('ON'); $sources[] = [$table, $kind, $expr()]; if (count($sources) > 4) { throw new CliRefusal('sql_complexity_limit', 'At most four tables per read'); } }
         $where = $take('WHERE') ? $expr() : null; $groups = []; $orders = [];
         if ($take('GROUP')) { $need('BY'); do { $groups[] = $expr(4); } while ($take(',')); }
         if ($take('ORDER')) { $need('BY'); do { $node = $expr(4); $descending = $take('DESC'); if (!$descending) { $take('ASC'); } $orders[] = [$node, $descending]; } while ($take(',')); }
         $limit = 100; $offset = 0;
         if ($take('LIMIT')) { $n = $tokens[$at++] ?? []; $limit = $n['value'] ?? null; if ($take('OFFSET')) { $n = $tokens[$at++] ?? []; $offset = $n['value'] ?? null; } elseif ($take(',')) { $offset = $limit; $n = $tokens[$at++] ?? []; $limit = $n['value'] ?? null; } }
-        if (!is_int($limit) || $limit < 1 || $limit > 1000 || !is_int($offset) || $offset < 0 || $offset > 1000000) { throw new \InvalidArgumentException('Use bounded LIMIT1–1000 and a valid offset'); }
-        $take(';'); if ($at !== count($tokens)) { throw new \InvalidArgumentException('Only one SELECT statement is supported'); }
+        if (!is_int($limit) || $limit < 1 || $limit > 1000 || !is_int($offset) || $offset < 0 || $offset > 1000000) { throw new CliRefusal('invalid_sql_page', 'Use bounded LIMIT1–1000 and a valid offset'); }
+        $take(';'); if ($at !== count($tokens)) { throw new CliRefusal('unsupported_sql_statement', 'Only one SELECT statement is supported'); }
         // Resolve the complete schema before planning: an unqualified column must never become
         // unambiguous merely because another source has not been fetched yet.
         $schemas = []; $logical_names = [];
         foreach ($sources as [$table]) {
             [$requested, $alias] = $table;
-            if (in_array(strtolower($alias), array_map('strtolower', array_keys($schemas)), true) || strlen($alias) > 64) { throw new \InvalidArgumentException('Use unique source aliases'); }
+            if (in_array(strtolower($alias), array_map('strtolower', array_keys($schemas)), true) || strlen($alias) > 64) { throw new CliRefusal('invalid_sql_alias', 'Use unique source aliases'); }
             foreach (self::database_tables($requested) as $key => $candidate) {
                 if ($key === $requested || $candidate['table'] === $requested) { $schemas[$alias] = $candidate; $logical_names[$alias] = $key; break; }
             }
@@ -1062,7 +1108,7 @@ final class Cli
                 . ($filters ? ' WHERE ' . implode(' AND ', $filters) : '') . ($ordering ? ' ORDER BY ' . implode(',', $ordering) : '') . ' LIMIT ' . ($source_limit + 1);
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reconstructed AST filters use prepared literals and schema-inspected invariant columns; bounded snapshots are authorized/redacted before final SQL.
             $rows = $wpdb->get_results($query, ARRAY_A);
-            if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_query_failed'); }
+            if ($wpdb->last_error || !is_array($rows)) { return self::database_failure('joined_snapshot'); }
             if (count($rows) > $source_limit) {
                 if (!$paged || $alias !== $base) { return Operations::error('source_too_large', 'Narrow the read using IDs or numeric ranges: at most1000 selected source rows per table.'); }
                 $truncated = true; $rows = array_slice($rows, 0, $source_limit);
@@ -1091,10 +1137,10 @@ final class Cli
         $projection = []; $aliases = [];
         foreach ($fields as [$node, $alias]) {
             if ($node[0] === 'star') {
-                foreach ($schemas as $source_alias => $schema) { if ($node[1] !== null && $node[1] !== $source_alias) { continue; } foreach ($schema['columns'] as $column) { if (isset($aliases[strtolower($column)])) { throw new \InvalidArgumentException('Select explicit unique aliases for duplicate columns'); } $projection[] = '`' . $source_alias . '`.`' . $column . '` AS `' . $column . '`'; $aliases[strtolower($column)] = $column; } }
-            } else { $alias = $alias ?? ($node[0] === 'column' ? $node[2] : ($node[0] === 'function' ? strtolower($node[1]) : 'value')); if (!preg_match('/^[a-zA-Z_]\w{0,63}$/D', $alias) || isset($aliases[strtolower($alias)])) { throw new \InvalidArgumentException('Use unique result aliases'); } $aliases[strtolower($alias)] = $alias; $projection[] = self::sql_expression($node, $schemas) . ' AS `' . $alias . '`'; }
+                foreach ($schemas as $source_alias => $schema) { if ($node[1] !== null && $node[1] !== $source_alias) { continue; } foreach ($schema['columns'] as $column) { if (isset($aliases[strtolower($column)])) { throw new CliRefusal('invalid_sql_alias', 'Select explicit unique aliases for duplicate columns'); } $projection[] = '`' . $source_alias . '`.`' . $column . '` AS `' . $column . '`'; $aliases[strtolower($column)] = $column; } }
+            } else { $alias = $alias ?? ($node[0] === 'column' ? $node[2] : ($node[0] === 'function' ? strtolower($node[1]) : 'value')); if (!preg_match('/^[a-zA-Z_]\w{0,63}$/D', $alias) || isset($aliases[strtolower($alias)])) { throw new CliRefusal('invalid_sql_alias', 'Use unique result aliases'); } $aliases[strtolower($alias)] = $alias; $projection[] = self::sql_expression($node, $schemas) . ' AS `' . $alias . '`'; }
         }
-        if (!$projection) { throw new \InvalidArgumentException('No selected columns'); }
+        if (!$projection) { throw new CliRefusal('invalid_sql_columns', 'No selected columns'); }
         $query = 'SELECT ' . ($distinct ? 'DISTINCT ' : '') . implode(',', $projection) . ' FROM ' . $from;
         if ($where) { $query .= ' WHERE ' . self::sql_expression($where, $schemas); }
         if ($groups) { $query .= ' GROUP BY ' . implode(',', array_map(static function ($node) use ($schemas) { return self::sql_expression($node, $schemas); }, $groups)); }
@@ -1102,7 +1148,7 @@ final class Cli
         $query .= ' LIMIT ' . ($limit + 1) . ' OFFSET ' . $offset;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Fully reconstructed SELECT over authorized/redacted literal snapshots, supported AST operators/functions and inspected identifiers only. No caller SQL reaches the database.
         $items = $wpdb->get_results($query, ARRAY_A);
-        if ($wpdb->last_error || !is_array($items)) { return Operations::error('database_query_failed'); }
+        if ($wpdb->last_error || !is_array($items)) { return self::database_failure('joined_select'); }
         if ($truncated && count($items) <= $limit) {
             // Do not turn an incomplete scan into an empty page, a partial count, or false has_more.
             if ($window >= 1000) { return Operations::error('source_too_large', 'Narrow the read: its result could not be established within1000 source rows.'); }
@@ -1123,7 +1169,7 @@ final class Cli
         if ($kind === 'binary') { return '(' . self::sql_expression($node[2], $schemas) . ' ' . $node[1] . ' ' . self::sql_expression($node[3], $schemas) . ')'; }
         if ($kind === 'in') { return '(' . self::sql_expression($node[1], $schemas) . ' IN (' . implode(',', array_map(static function ($child) use ($schemas) { return self::sql_expression($child, $schemas); }, $node[2])) . '))'; }
         if ($kind === 'between') { return '(' . self::sql_expression($node[1], $schemas) . ' BETWEEN ' . self::sql_expression($node[2], $schemas) . ' AND ' . self::sql_expression($node[3], $schemas) . ')'; }
-        throw new \InvalidArgumentException('Unsupported SQL expression');
+        throw new CliRefusal('unsupported_sql_syntax', 'Unsupported SQL expression');
     }
 
     /** Resolve against all sources, including protected/ambiguous column rejection. */
@@ -1134,7 +1180,7 @@ final class Cli
             if ($node[1] !== null && strcasecmp($node[1], $alias) !== 0) { continue; }
             foreach ($schema['columns'] as $column) { if (strcasecmp($node[2], $column) === 0) { $matches[] = [$alias, $column]; } }
         }
-        if (count($matches) !== 1) { throw new \InvalidArgumentException('Unknown, protected or ambiguous SQL column'); }
+        if (count($matches) !== 1) { throw new CliRefusal('invalid_sql_columns', 'Unknown, protected or ambiguous SQL column'); }
         return $matches[0];
     }
 
@@ -1267,25 +1313,25 @@ final class Cli
     }
 
     /** Replace values recursively, preserving serialized lengths and leaving credential fields/array keys unchanged. */
-    private static function replace_value($value, string $old, string $new, int &$matches, int &$skipped, int &$growth, int $depth = 0)
+    private static function replace_value($value, string $old, string $new, int &$matches, array &$skips, int &$growth, int $depth = 0)
     {
-        if ($depth > 32 || is_object($value)) { $skipped++; return $value; }
-        if (is_array($value)) { foreach ($value as $key => $child) { if (!is_string($key) || !Guard::private_key($key)) { $value[$key] = self::replace_value($child, $old, $new, $matches, $skipped, $growth, $depth + 1); } } return $value; }
+        if ($depth > 32 || is_object($value)) { $skips['unsafe_value']++; return $value; }
+        if (is_array($value)) { foreach ($value as $key => $child) { if (!is_string($key) || !Guard::private_key($key)) { $value[$key] = self::replace_value($child, $old, $new, $matches, $skips, $growth, $depth + 1); } } return $value; }
         if (!is_string($value)) { return $value; }
         if (is_serialized($value)) {
             // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize -- Classes disabled and object/deep trees rejected before any edit; never caller-created PHP objects.
             $decoded = @unserialize($value, ['allowed_classes' => false, 'max_depth' => 32]);
-            if (($decoded === false && $value !== 'b:0;') || self::unsafe_serialized_tree($decoded)) { $skipped++; return $value; }
-            $next = self::replace_value($decoded, $old, $new, $matches, $skipped, $growth, $depth + 1);
+            if (($decoded === false && $value !== 'b:0;') || self::unsafe_serialized_tree($decoded)) { $skips['unsafe_value']++; return $value; }
+            $next = self::replace_value($decoded, $old, $new, $matches, $skips, $growth, $depth + 1);
             // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Preserves the existing WordPress serialized representation and byte lengths; object trees were rejected above.
             return $next === $decoded ? $value : serialize($next);
         }
         if (preg_match('/^\s*[\[{]/', $value)) {
             $decoded = json_decode($value, true, 32);
-            if (is_array($decoded)) { $next = self::replace_value($decoded, $old, $new, $matches, $skipped, $growth, $depth + 1); return $next === $decoded ? $value : wp_json_encode($next, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); }
+            if (is_array($decoded)) { $next = self::replace_value($decoded, $old, $new, $matches, $skips, $growth, $depth + 1); return $next === $decoded ? $value : wp_json_encode($next, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); }
         }
         $count = substr_count($value, $old); $needed = max(0, $count * (strlen($new) - strlen($old)));
-        if ($needed > $growth) { $skipped++; return $value; } $growth -= $needed;
+        if ($needed > $growth) { $skips['output_limit']++; return $value; } $growth -= $needed;
         $next = str_replace($old, $new, $value); $matches += $count; return $next;
     }
 
@@ -1293,7 +1339,9 @@ final class Cli
     {
         global $wpdb;
         [$old, $new] = $args['positionals']; $flags = $args['flags']; $dry = !empty($flags['dry-run']);
-        if ($old === '' || strlen($old) > 2000 || strlen($new) > 2000) { return Operations::error('invalid_replacement'); }
+        if ($old === '') { return self::refusal('invalid_replacement', 'empty_search_text'); }
+        if (strlen($old) > 2000) { return self::refusal('invalid_replacement', 'search_text_too_long'); }
+        if (strlen($new) > 2000) { return self::refusal('invalid_replacement', 'replacement_text_too_long'); }
         foreach (['limit', 'after-id', 'expected-count'] as $field) { if (isset($flags[$field]) && (!ctype_digit($flags[$field]) || strlen($flags[$field]) > 10)) { return Operations::error('invalid_input'); } }
         $limit = (int) ($flags['limit'] ?? 100); $after = (int) ($flags['after-id'] ?? 0);
         if ($limit < 1 || $limit > 100) { return Operations::error('invalid_input', 'Replacement batches support1–100 rows per table; follow returned cursors for more.'); }
@@ -1308,26 +1356,32 @@ final class Cli
         if (array_diff($include, $known) || array_diff($exclude, array_merge($known, ['guid']))) { return Operations::error('unsupported_replacement_column'); }
         foreach ($tables as $name => $schema) { $fields = array_values(array_diff($include ? array_intersect($schema['search'], $include) : $schema['search'], $exclude)); if (!$fields) { unset($tables[$name]); } else { $tables[$name]['replacement_fields'] = $fields; } }
         if ($after > 0 && count($tables) > 1) { return Operations::error('one_table_per_cursor', 'Resume one returned table/cursor at a time; table IDs are not interchangeable.'); }
-        $changes = []; $reports = []; $matches = 0; $skipped = 0; $large = 0; $protected = 0; $more = false; $budget = 0; $budget_stop = false;
+        $changes = []; $reports = []; $matches = 0; $skips = ['unsafe_value' => 0, 'output_limit' => 0]; $large = 0; $protected = 0; $unsupported_type = 0; $more = false; $budget = 0; $budget_stop = false;
         foreach ($tables as $name => $schema) {
             $fields = $schema['replacement_fields'];
-            $select = []; foreach ($schema['columns'] as $field) { $select[] = in_array($field, $schema['search'], true) ? 'IF(OCTET_LENGTH(`' . $field . '`) > 65536, NULL, `' . $field . '`) AS `' . $field . '`' : '`' . $field . '`'; }
+            $select = []; foreach ($schema['columns'] as $field) { $select[] = in_array($field, $schema['search'], true) ? 'IF(OCTET_LENGTH(`' . $field . '`) > 65536, NULL, COALESCE(`' . $field . '`, \'\')) AS `' . $field . '`' : '`' . $field . '`'; }
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifiers originate in fixed or inspected current-site schemas; cursor and limit are prepared. Never caller SQL.
             $rows = $wpdb->get_results($wpdb->prepare('SELECT ' . implode(', ', $select) . ' FROM `' . $schema['table'] . '` WHERE `' . $schema['id'] . '` > %d ORDER BY `' . $schema['id'] . '` LIMIT %d', $after, $limit + 1), ARRAY_A);
-            if ($wpdb->last_error || !is_array($rows)) { return Operations::error('database_unavailable'); }
+            if ($wpdb->last_error || !is_array($rows)) { return self::database_failure('replacement_scan', 'database_unavailable'); }
             $has_more = count($rows) > $limit; $more = $more || $has_more; $rows = array_slice($rows, 0, $limit); $table_matches = 0; $row_changes = 0; $last = $after; $processed = 0;
             foreach ($rows as $row) {
                 $previous_cursor = $last; $last = (int) $row[$schema['id']]; $processed++;
                 if (!self::database_row_visible($name, $row) || ($name === 'options' && !self::writable_option($row['option_name']))) { $protected++; continue; }
-                if ($name === 'posts' || $name === 'postmeta') { $post_id = (int) ($name === 'posts' ? $row['ID'] : $row['post_id']); $post = get_post($post_id); if (!$post || !in_array($post->post_type, ['post', 'page', 'attachment'], true) || !current_user_can('edit_post', $post_id)) { $protected++; continue; } }
+                if ($name === 'posts' || $name === 'postmeta') {
+                    $post_id = (int) ($name === 'posts' ? $row['ID'] : $row['post_id']);
+                    $post = get_post($post_id);
+                    if ($post && !in_array($post->post_type, ['post', 'page', 'attachment'], true)) { $unsupported_type++; continue; }
+                    if (!$post || !current_user_can('edit_post', $post_id)) { $protected++; continue; }
+                }
                 if (($name === 'comments' || $name === 'commentmeta') && !current_user_can('edit_comment', (int) ($row['comment_ID'] ?? $row['comment_id']))) { $protected++; continue; }
                 if (in_array($name, ['terms', 'term_taxonomy'], true) && !current_user_can('manage_categories')) { $protected++; continue; }
                 $set = []; $before = []; $row_matches = 0;
                 foreach ($fields as $field) {
                     if ($row[$field] === null) { $large++; continue; }
-                    $count = 0; $skip_before = $skipped; $growth = max(0, 65536 - strlen($row[$field]));
-                    $changed = self::replace_value($row[$field], $old, $new, $count, $skipped, $growth);
-                    if ($skipped > $skip_before || strlen($changed) > 65536) { if ($skipped === $skip_before) { $skipped++; } continue; }
+                    $count = 0; $skip_before = $skips; $growth = max(0, 65536 - strlen($row[$field]));
+                    $changed = self::replace_value($row[$field], $old, $new, $count, $skips, $growth);
+                    if ($skips !== $skip_before) { continue; }
+                    if (strlen($changed) > 65536) { $skips['output_limit']++; continue; }
                     if ($changed !== $row[$field]) { $set[$field] = $changed; $before[$field] = $row[$field]; $row_matches += $count; }
                 }
                 if ($set) {
@@ -1341,9 +1395,17 @@ final class Cli
             $matches += $table_matches; $reports[] = ['table' => $schema['table'], 'rows_scanned' => $processed, 'rows_with_changes' => $row_changes, 'replacements' => $table_matches, 'has_more' => $has_more, 'next_after_id' => $has_more ? $last : null];
             if ($budget_stop) { break; }
         }
-        if (isset($flags['expected-count']) && (int) $flags['expected-count'] !== $matches) { return self::count_changed('replacement_count_changed', (int) $flags['expected-count'], $matches); }
+        if (isset($flags['expected-count']) && (int) $flags['expected-count'] !== $matches) {
+            $out = self::count_changed('replacement_count_changed', (int) $flags['expected-count'], $matches);
+            $out['operation_diagnostics']['replacement_scan'] = [
+                'protected_rows' => $protected, 'unsupported_post_type_rows' => $unsupported_type, 'oversize_values' => $large,
+                'unsafe_values' => $skips['unsafe_value'], 'output_limit_values' => $skips['output_limit'], 'has_more' => $more,
+            ];
+            return $out;
+        }
+        $skipped = array_sum($skips);
         $result = ['dry_run' => $dry, 'replacements' => $matches, 'rows_with_changes' => count($changes), 'tables' => $reports, 'has_more' => $more, 'unscanned_tables' => array_slice(array_column($tables, 'table'), count($reports)),
-            'values_skipped' => $skipped, 'skip_reasons' => 'Serialized objects, excessive depth or output expansion' , 'large_values_omitted' => $large, 'protected_rows_excluded' => $protected,
+            'values_skipped' => $skipped, 'skip_reasons' => 'Serialized objects, excessive depth or output expansion' , 'large_values_omitted' => $large, 'protected_rows_excluded' => $protected + $unsupported_type,
             'complete_for_eligible_values' => !$more && !$skipped && !$large, 'scope' => 'Eligible text values only; array keys, serialized objects, credential/access/cache/connection settings and unsupported post types are unchanged. Explicit custom tables use their inspected noncredential columns. GUIDs excluded by default. No save_post hooks; rebuild third-party indexes when needed.'];
         if ($dry) { return ['state' => 'succeeded', 'actions_used' => 1, 'result' => $result]; }
         if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'title' => 'Search and replace', 'name' => self::WRITE,
@@ -1819,7 +1881,9 @@ final class Cli
         if (!$write) {
             if (!$exists) { return Operations::error('setting_not_found'); }
             foreach ($p as $segment) {
-                if (Guard::private_key($segment) || !is_array($current) || !array_key_exists($segment, $current)) { return Operations::error('setting_path_not_found'); }
+                if (Guard::private_key($segment)) { return self::refusal('setting_path_not_found', 'protected_setting_path'); }
+                if (!is_array($current)) { return self::refusal('setting_path_not_found', 'setting_path_not_container'); }
+                if (!array_key_exists($segment, $current)) { return self::refusal('setting_path_not_found', 'missing_setting_path_key'); }
                 $current = $current[$segment];
             }
             return $ok(['name' => $name, 'value' => Guard::public_data($current)]);
@@ -1829,7 +1893,7 @@ final class Cli
         $decode = static function (string $raw) use ($args) {
             if (($args['input_format'] ?? '') !== 'json') { return $raw; }
             $value = json_decode($raw, true);
-            if (json_last_error() !== JSON_ERROR_NONE) { throw new \InvalidArgumentException('Invalid JSON value. For literal text omit --format=json or use --format=plaintext; for typed JSON strings include their JSON double quotes.'); }
+            if (json_last_error() !== JSON_ERROR_NONE) { throw new CliRefusal('invalid_setting_json', 'Invalid JSON value. For literal text omit --format=json or use --format=plaintext; for typed JSON strings include their JSON double quotes.'); }
             return $value;
         };
         if (($verb === 'add' || $verb === 'insert') && !$patch && $exists) { return Operations::error('setting_already_exists'); }
@@ -1840,7 +1904,9 @@ final class Cli
             if (!is_array($current) || !$p || Guard::public_data($value) !== $value) { return Operations::error('invalid_patch_value'); }
             $next = $current; $node =& $next; $last = array_pop($p);
             foreach ($p as $segment) {
-                if (Guard::private_key($segment) || !isset($node[$segment]) || !is_array($node[$segment])) { return Operations::error('setting_path_not_found'); }
+                if (Guard::private_key($segment)) { return self::refusal('setting_path_not_found', 'protected_setting_path'); }
+                if (!array_key_exists($segment, $node)) { return self::refusal('setting_path_not_found', 'missing_setting_path_key'); }
+                if (!is_array($node[$segment])) { return self::refusal('setting_path_not_found', 'setting_path_not_container'); }
                 $node =& $node[$segment];
             }
             if (Guard::private_key($last) || ($verb === 'insert' ? array_key_exists($last, $node) : !array_key_exists($last, $node))) { return Operations::error('invalid_patch_path'); }

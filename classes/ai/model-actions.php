@@ -778,7 +778,6 @@ class ModelsAjaxHandler extends BaseDashboardAjaxHandler
                     'catalog_revision' => $catalog_revision,
                     'provider_state' => $provider_state,
                     'providerStatus' => AIPKit_Providers::get_provider_status_map(),
-                    'navStatusHtml' => \WPAICG\Cloud\StatusChip::html(),
                     'newConfiguration' => AIPKit_Providers::get_new_configuration_payload(),
                     'warnings' => $sync_warnings,
                 ],

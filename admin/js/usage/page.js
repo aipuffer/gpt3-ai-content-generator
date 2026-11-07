@@ -811,18 +811,10 @@ import { createWebsiteActivity } from './website-activity.js';
             30: __('Last 30 days', 'gpt3-ai-content-generator'),
             90: __('Last 90 days', 'gpt3-ai-content-generator'),
         };
-        // "Used on this site" names the period only in its hover hint: the period picker already shows it.
-        const SITE_HINT = [
-            __('Successful website actions today, counted in UTC.', 'gpt3-ai-content-generator'),
-            /* translators: %s: number of days in the selected period. */
-            __('Successful website actions in the last %s days, counted in UTC.', 'gpt3-ai-content-generator'),
-        ];
         const setPeriodLabels = () => {
             elements.periodLabels.forEach((label) => {
                 label.textContent = PERIOD_LABELS[state.days] || '';
             });
-            const siteHint = state.days === 1 ? SITE_HINT[0] : sprintf(SITE_HINT[1], formatNumber(state.days));
-            container.querySelectorAll('[data-aipkit-usage-site-hint]').forEach((hint) => { hint.title = siteHint; });
         };
         const EMPTY_TEXT = {
             everything: [__('No conversations, content or website actions today.', 'gpt3-ai-content-generator'), __('No conversations, content or website actions in the last %s days.', 'gpt3-ai-content-generator')],
@@ -2431,27 +2423,24 @@ import { createWebsiteActivity } from './website-activity.js';
             }
         };
 
-        // Two cards, AI credits and Website actions (left | used here), each hidden when it has nothing to show.
-        // With one card left, the period summary fills the second slot; with none, it is the only card.
+        // Twin cards, AI credits and Website actions, each hidden when it has nothing to show. Not connected, AI credits
+        // shows its invitation, unless a reconnect is waiting in the account line. With one card left, the period
+        // summary fills the second slot; with none, it is the only card.
         const syncCards = () => {
             const hasCloud = Boolean(elements.aiCard?.querySelector('#aipkit_usage_cloud_credits'));
+            const invite = elements.aiCard?.querySelector('[data-aipkit-usage-cloud-invite]');
+            const line = container.querySelector('#aipkit_usage_cloud_account');
+            if (invite) invite.hidden = hasCloud || Boolean(line && line.dataset.cloudLine !== 'signup');
+            const hasAi = hasCloud || Boolean(invite && !invite.hidden);
+            // Turned off, the server renders the website card as the setup invitation, or hides it during a Cloud outage.
             const usageHalf = elements.websiteCard?.querySelector('[data-aipkit-website-usage="usage"]');
-            const hasUsed = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown]:not([hidden])'));
-            const historyPending = Boolean(elements.websiteCard?.querySelector('[data-website-breakdown-pending]'));
-            // Turned off, the server renders the left half as the setup invitation, or hidden during a Cloud outage.
-            const hasLeft = Boolean(usageHalf && !usageHalf.hidden);
-            if (elements.refresh) elements.refresh.hidden = !(hasCloud || hasUsed);
-            if (elements.aiCard) elements.aiCard.hidden = !hasCloud;
-            if (elements.websiteCard) elements.websiteCard.hidden = !(hasLeft || hasUsed);
-            const shown = (hasCloud ? 1 : 0) + (hasLeft || hasUsed ? 1 : 0);
-            if (elements.summaryCard) {
-                elements.summaryCard.hidden = historyPending || shown >= 2;
-            }
-            if (elements.cards) {
-                elements.cards.dataset.cards = String(historyPending || shown >= 2 ? shown : shown + 1);
-                // Beside the website card, AI credits takes a third of the row.
-                elements.cards.dataset.layout = hasCloud && (hasLeft || hasUsed) ? 'credits-website' : '';
-            }
+            const hasWebsite = Boolean(usageHalf && !usageHalf.hidden);
+            if (elements.refresh) elements.refresh.hidden = !hasCloud;
+            if (elements.aiCard) elements.aiCard.hidden = !hasAi;
+            if (elements.websiteCard) elements.websiteCard.hidden = !hasWebsite;
+            const shown = (hasAi ? 1 : 0) + (hasWebsite ? 1 : 0);
+            if (elements.summaryCard) elements.summaryCard.hidden = shown >= 2;
+            if (elements.cards) elements.cards.dataset.cards = String(shown >= 2 ? shown : shown + 1);
         };
 
         listenGlobal(window, 'aipkit:website-usage-changed', syncCards);
@@ -2494,9 +2483,6 @@ import { createWebsiteActivity } from './website-activity.js';
             if (state.view === 'requests') fetchRequests(1);
             if (!account) {
                 elements.periodToggle?.focus({ preventScroll: true });
-            } else if (event.detail?.action === 'refresh' && !editingEmail) {
-                // The refresh button is re-enabled right after this response is applied; focus it then.
-                queueMicrotask(() => elements.refresh?.focus({ preventScroll: true }));
             }
         };
         if (window.aipkit_statsCloudConnectionHandler) {
@@ -3121,7 +3107,7 @@ import { createWebsiteActivity } from './website-activity.js';
             elements.tableMenuTrigger.setAttribute('aria-expanded', nextState ? 'true' : 'false');
             if (nextState) {
                 positionTableMenu();
-                const focusTarget = Array.from(elements.tableMenu.querySelectorAll('[role="menuitem"]')).find((item) => !item.disabled);
+                const focusTarget = Array.from(elements.tableMenu.querySelectorAll('[role="menuitem"]')).find((item) => !item.hidden && !item.disabled);
                 if (focusTarget && typeof focusTarget.focus === 'function') {
                     window.requestAnimationFrame(() => focusTarget.focus());
                 }
@@ -3776,7 +3762,6 @@ import { createWebsiteActivity } from './website-activity.js';
                 syncEmptyChips();
                 if (state.view === 'website') renderSubchips();
             },
-            onBreakdown: () => syncCards(),
         });
 
         const loadActiveView = () => {
@@ -3985,15 +3970,21 @@ import { createWebsiteActivity } from './website-activity.js';
             renderOverview();
         };
 
-        // The header's one refresh: its submit refreshes AI credits (and, through Cloud, website actions); this adds the
-        // actions used. Without a credits card there is no form, so website actions are read directly.
-        elements.refresh?.addEventListener('click', () => {
-            if (!elements.refresh.form) void refreshWebsiteActions(document, true);
-            websiteActivity?.loadBreakdown();
+        // Explicit retry bypasses the website balance cooldown, without synchronizing models.
+        elements.refresh?.addEventListener('click', async () => {
+            if (elements.refresh.hidden || elements.refresh.disabled) return;
+            toggleTableMenu(false, true);
+            elements.refresh.disabled = true;
+            elements.tableMenuTrigger.setAttribute('aria-busy', 'true');
+            try {
+                await Promise.all([refreshWebsiteActions(container, true), refreshCloudCredits(container)]);
+            } finally {
+                elements.refresh.disabled = false;
+                elements.tableMenuTrigger.removeAttribute('aria-busy');
+            }
         });
 
         const refreshActivity = () => {
-            websiteActivity?.loadBreakdown();
             fetchOverview();
             loadActiveView();
         };

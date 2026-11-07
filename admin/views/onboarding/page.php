@@ -306,30 +306,11 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                             <div class="aipkit-setup__assist" data-assistant-panel role="status" aria-live="polite" hidden>
                                 <p class="aipkit-setup__assist-title"><span class="aipkit-setup__assist-icon" aria-hidden="true" data-assistant-icon></span><span data-assistant-title></span><span class="aipkit-setup__assist-chip" data-assistant-chip hidden></span></p>
                                 <p class="aipkit-setup__assist-text" data-assistant-text></p>
-                                <?php
-                                // ChatGPT uses custom setup; Claude uses the shared directory instructions below.
-                                $aipkit_setup_address_step = static function () use ($aipkit_setup_mcp_address): void { ?>
-                                    <span class="aipkit-setup__address"><code data-assistant-address><?php echo esc_html($aipkit_setup_mcp_address); ?></code><button type="button" class="aipkit-setup__btn aipkit-setup__btn--ghost" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($aipkit_setup_mcp_address); ?>"><?php esc_html_e('Copy again', 'gpt3-ai-content-generator'); ?></button></span>
-                                <?php };
-                                foreach ([
-                                    'chatgpt' => [
-                                        [__('Add a new MCP server in ChatGPT', 'gpt3-ai-content-generator'), __('In Plugins, select + (Add), then Add custom MCP server. Name it AI Puffer.', 'gpt3-ai-content-generator')],
-                                        [[__('Paste the address. It is already copied.', 'gpt3-ai-content-generator'), __('Copy this address and paste it.', 'gpt3-ai-content-generator')], __('Choose Server URL and leave Authentication set to OAuth.', 'gpt3-ai-content-generator')],
-                                        [__('Approve AI Puffer when ChatGPT asks', 'gpt3-ai-content-generator'), __('Select I understand and want to continue, then Create. You can disconnect it anytime in Settings.', 'gpt3-ai-content-generator')],
-                                    ],
-                                ] as $aipkit_client => $aipkit_client_steps) : ?>
-                                    <ol class="aipkit-setup__link-steps" data-assistant-steps="<?php echo esc_attr($aipkit_client); ?>" hidden>
-                                        <?php foreach ($aipkit_client_steps as $aipkit_step_index => [$aipkit_step_title, $aipkit_step_text]) : ?>
-                                            <?php if (is_array($aipkit_step_title)) : ?>
-                                                <li><strong data-address-title data-copied="<?php echo esc_attr($aipkit_step_title[0]); ?>" data-manual="<?php echo esc_attr($aipkit_step_title[1]); ?>"><?php echo esc_html($aipkit_step_title[0]); ?></strong><span><?php echo esc_html($aipkit_step_text); ?></span><?php $aipkit_setup_address_step(); ?></li>
-                                            <?php else : ?>
-                                                <li><strong><?php echo esc_html($aipkit_step_title); ?></strong><span><?php echo esc_html($aipkit_step_text); ?></span></li>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    </ol>
-                                <?php endforeach; ?>
-                                <?php // Claude directory setup and other-app instructions are shared with Settings. ?>
-                                <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit-setup__muted', 'chatgpt', true); ?>
+                                <?php // The same steps as Settings. After a minute the ways to finish lead and the steps fold to one line. ?>
+                                <details class="aipkit-setup__steps-again" data-setup-again open>
+                                    <summary><?php esc_html_e('Show the steps again', 'gpt3-ai-content-generator'); ?></summary>
+                                    <?php \WPAICG\Mcp\Settings::render_assistant_instructions('aipkit-setup__muted', 'chatgpt', true); ?>
+                                </details>
                                 <?php // One set of controls: inline while waiting; after a minute the same controls become a list of fixes. ?>
                                 <div class="aipkit-setup__row aipkit-setup__fixes">
                                     <span class="aipkit-setup__fix" data-fix="open" hidden>

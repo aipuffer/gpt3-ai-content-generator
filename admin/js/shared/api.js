@@ -223,16 +223,13 @@
                 return json.data;
             })
             .then(data => {
-                // A superseded read must not restore old navigation or provider configuration.
+                // A superseded read must not restore old provider configuration.
                 if (options.isCurrent && !options.isCurrent()) {
                     resolve(data);
                     return;
                 }
                 if (data?.newConfiguration && window.aipkit_dashboard) {
                     Object.assign(window.aipkit_dashboard, data.newConfiguration);
-                }
-                if (typeof data?.navStatusHtml === 'string') {
-                    window.aipkit_applyNavStatus?.(data.navStatusHtml);
                 }
                 if (typeof window.aipkit_invalidateModuleCache === 'function') {
                     const modulesToInvalidate = getModulesToInvalidateForAction(action);

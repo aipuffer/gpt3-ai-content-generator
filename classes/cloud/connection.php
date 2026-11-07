@@ -1620,7 +1620,6 @@ final class Connection
             'html' => $account_html,
             'usageHtml' => $usage_html,
             'creditNoticeHtml' => $credit_notice_html,
-            'navStatusHtml' => StatusChip::html(),
             'connected' => self::display()['connected'],
             'checkedAt' => (int) (self::credit_state()['checkedAt'] ?? 0),
         ];

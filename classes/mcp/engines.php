@@ -629,6 +629,13 @@ final class Engines
             $response['operation_diagnostics'] = ['ability_name' => $name, 'ability_phase' => $phase];
         }
         if (is_wp_error($result)) {
+            // The first-party CLI read callback returns fixed failure diagnostics through WP_Error.
+            if ($name === 'ai-puffer/wp-cli-read' && $phase === 'callback'
+                && in_array($result->get_error_code(), ['unsupported_command', 'invalid_replacement', 'replacement_count_changed',
+                    'database_query_failed', 'database_unavailable', 'setting_path_not_found'], true)) {
+                $data = $result->get_error_data();
+                if (is_array($data) && is_array($data['operation_diagnostics'] ?? null)) { $response['operation_diagnostics'] = $data['operation_diagnostics']; }
+            }
             $response['local_error'] = ['code' => mb_substr((string) $result->get_error_code(), 0, 200),
                 'message' => mb_substr(wp_strip_all_tags($result->get_error_message()), 0, 2000)];
         }

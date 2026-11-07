@@ -105,6 +105,8 @@ final class Abilities
         CacheSettings::register();
         ContactForm7::register();
         UpdraftPlus::register();
+        SiteKitReports::register();
+        WordfenceStatus::register();
         IntegrationSettings::register();
         Chatbots::register();
         Elementor::register_abilities();
@@ -1313,6 +1315,242 @@ final class ContactForm7
         } catch (\Throwable $error) {
             return $started ? ['state' => 'unknown', 'actions_used' => 0, 'error' => ['code' => 'outcome_unknown', 'message' => 'Inspect the original operation before another save.']]
                 : Operations::error('invalid_input', 'The native form could not be prepared. Read it again and use the supported fields.');
+        }
+    }
+}
+
+/** Aggregate Site Kit reports with a fresh vendor context for the verified WordPress user. */
+final class SiteKitReports
+{
+    private const MAX_ROWS = 25;
+    private const MAX_DAYS = 90;
+
+    public static function register(): void
+    {
+        if (!defined('GOOGLESITEKIT_VERSION') || version_compare(GOOGLESITEKIT_VERSION, '1.191.0', '<')
+            || !defined('GOOGLESITEKIT_PLUGIN_MAIN_FILE') || !class_exists(\Google\Site_Kit\Core\Modules\Modules::class)) {
+            return;
+        }
+        $dates = ['type' => 'string', 'pattern' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'];
+        $schema = ['type' => 'object', 'properties' => [
+            'start_date' => $dates + ['description' => 'First report day, inclusive (YYYY-MM-DD).'],
+            'end_date' => $dates + ['description' => 'Last report day, inclusive (YYYY-MM-DD). Use a finished day. The range may span at most 90 days.'],
+            'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => self::MAX_ROWS, 'default' => 10],
+        ], 'required' => ['start_date', 'end_date'], 'additionalProperties' => false];
+
+        $reports = [
+            'search-console' => [
+                'label' => __('Site Kit: Search Console page report', 'gpt3-ai-content-generator'),
+                'description' => 'Read Google Search Console clicks, impressions, click-through rate and position for this site’s pages through Site Kit. Rows are ordered by clicks and bounded by limit. Use a finished date range of up to 90 days; recent Google data can be incomplete. Requires a WordPress administrator personally connected to Site Kit with Search Console access. Uses the site’s configured property. No search terms, credentials or query strings are returned.',
+            ],
+            'analytics-4' => [
+                'label' => __('Site Kit: GA4 landing-page report', 'gpt3-ai-content-generator'),
+                'description' => 'Read GA4 sessions, engaged sessions and active users by landing page through Site Kit, ordered by sessions. Requires a WordPress administrator personally connected to Site Kit with access to this site’s active GA4 property. Use a finished date range of up to 90 days. For a comparison, request equal-length periods and compare matching pages. Rows are bounded by limit; absence from the list does not mean zero traffic. Query strings and credentials are excluded.',
+            ],
+        ];
+        foreach ($reports as $module => $definition) {
+            wp_register_ability('ai-puffer/site-kit-' . ($module === 'analytics-4' ? 'ga4' : $module) . '-report', $definition + [
+                'category' => Abilities::CATEGORY, 'input_schema' => $schema,
+                'meta' => ['annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true], 'public' => true],
+                'permission_callback' => [Abilities::class, 'can_view'],
+                'execute_callback' => static function ($input) use ($module) { return self::read($module, (array) $input); },
+            ]);
+        }
+    }
+
+    private static function read(string $slug, array $input)
+    {
+        $start = self::date($input['start_date'] ?? '');
+        $end = self::date($input['end_date'] ?? '');
+        if (!$start || !$end || $start > $end || $start->diff($end)->days >= self::MAX_DAYS || $end->format('Y-m-d') >= gmdate('Y-m-d')) {
+            return new \WP_Error('invalid_input', 'Choose a valid range of up to 90 days ending before today.');
+        }
+        $limit = (int) ($input['limit'] ?? 10);
+        $params = ['startDate' => $start->format('Y-m-d'), 'endDate' => $end->format('Y-m-d'), 'limit' => $limit];
+
+        try {
+            $context = new \Google\Site_Kit\Context(GOOGLESITEKIT_PLUGIN_MAIN_FILE);
+            // Site Kit binds its default services to the user at init. The signed callback selects its user later.
+            $user = new \Google\Site_Kit\Core\Storage\User_Options($context, get_current_user_id());
+            $auth = new \Google\Site_Kit\Core\Authentication\Authentication($context, null, $user);
+            if (!$auth->is_setup_completed()) {
+                return new \WP_Error('settings_unavailable', 'Finish the initial setup in Site Kit → Dashboard before requesting reports.');
+            }
+            if (!$auth->is_authenticated() || !current_user_can(\Google\Site_Kit\Core\Permissions\Permissions::VIEW_AUTHENTICATED_DASHBOARD)) {
+                return new \WP_Error('permission_denied', 'The connected WordPress administrator must sign in to Site Kit and have access to the selected Google property.');
+            }
+            $modules = new \Google\Site_Kit\Core\Modules\Modules($context, null, $user, $auth);
+            if (!$modules->is_module_active($slug) || !$modules->is_module_connected($slug)) {
+                return new \WP_Error('settings_unavailable', 'Connect this service in Site Kit → Settings before requesting its report.');
+            }
+            $site = wp_parse_url($context->get_reference_site_url());
+            if (empty($site['host']) || !in_array($site['scheme'] ?? '', ['http', 'https'], true)) {
+                return new \WP_Error('settings_unavailable', 'Site Kit has no valid website URL for reporting.');
+            }
+            $prefix = rtrim($site['path'] ?? '', '/');
+            $module = $modules->get_module($slug);
+            if ($slug === 'search-console') {
+                $datapoint = 'searchanalytics';
+                $query = $params + ['dimensions' => ['page']];
+            } else {
+                $filters = ['hostName' => $site['host']];
+                if ($prefix !== '') {
+                    $filters['landingPage'] = ['matchType' => 'FULL_REGEXP', 'value' => '^' . preg_quote($prefix, '~') . '(/.*)?$'];
+                }
+                $datapoint = 'report';
+                $query = $params + [
+                    'dimensions' => [['name' => 'landingPage']],
+                    'metrics' => [['name' => 'sessions'], ['name' => 'engagedSessions'], ['name' => 'activeUsers']],
+                    'dimensionFilters' => $filters, 'keepEmptyRows' => false,
+                    'orderby' => [['metric' => ['metricName' => 'sessions'], 'desc' => true]],
+                ];
+            }
+            // Site Kit may otherwise use the module owner's OAuth connection for shared dashboards.
+            $acting_user = get_current_user_id();
+            $own_connection_only = static function (array $caps, string $cap, int $user_id, array $args) use ($acting_user, $slug): array {
+                if ($cap === \Google\Site_Kit\Core\Permissions\Permissions::READ_SHARED_MODULE_DATA
+                    && $user_id === $acting_user && ($args[0] ?? '') === $slug) {
+                    return ['do_not_allow'];
+                }
+                return $caps;
+            };
+            add_filter('map_meta_cap', $own_connection_only, PHP_INT_MAX, 4);
+            try {
+                $report = $module->get_data($datapoint, $query);
+            } finally {
+                remove_filter('map_meta_cap', $own_connection_only, PHP_INT_MAX);
+            }
+            if (is_wp_error($report)) {
+                if (in_array($report->get_error_code(), ['missing_required_scopes', 'insufficient_permissions', 'forbidden', 'permission_denied'], true)
+                    || (int) ($report->get_error_data()['status'] ?? 0) === 403) {
+                    return new \WP_Error('permission_denied', 'Google refused this report. Check the connected user’s access and permissions in Site Kit.');
+                }
+                return new \WP_Error('service_unavailable', 'Site Kit could not retrieve this report. Check the service in the Site Kit dashboard.');
+            }
+            $rows = $slug === 'search-console' ? self::search_rows($report, $site, $prefix, $limit) : self::analytics_rows($report, $prefix, $limit);
+            return ['source' => $slug, 'start_date' => $params['startDate'], 'end_date' => $params['endDate'],
+                'website_host' => $site['host'], 'row_limit' => $limit, 'rows' => $rows];
+        } catch (\Throwable $error) {
+            return new \WP_Error('service_unavailable', 'Site Kit could not retrieve this report. Check the service in the Site Kit dashboard.');
+        }
+    }
+
+    private static function date($value): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || !preg_match('/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $value)) { return null; }
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC'));
+        return $date && $date->format('Y-m-d') === $value && $date->getTimestamp() > 0 ? $date : null;
+    }
+
+    /** Keep only page paths on the selected host and within the selected WordPress site. */
+    private static function page_path($value, string $prefix): ?string
+    {
+        if (!is_string($value) || strlen($value) > 2048 || $value === '' || $value[0] !== '/' || strpos($value, '//') === 0) { return null; }
+        $path = wp_parse_url($value, PHP_URL_PATH);
+        if (!is_string($path)) { return null; }
+        $decoded = rawurldecode($path);
+        $scope = rawurldecode($prefix);
+        if (preg_match('~[\x00-\x1F\x7F?#]|(?:^|/)\.{1,2}(?:/|$)~', $decoded) || strpos($decoded, '//') === 0 || strpos($decoded, '\\') !== false
+            || ($scope !== '' && $decoded !== $scope && strpos($decoded, $scope . '/') !== 0)) { return null; }
+        return $path;
+    }
+
+    private static function search_rows(?array $report, array $site, string $prefix, int $limit): array
+    {
+        $rows = [];
+        foreach (array_slice($report ?? [], 0, $limit) as $row) {
+            $url = wp_parse_url((string) ($row->getKeys()[0] ?? ''));
+            if (empty($url['host']) || strcasecmp($url['host'], $site['host']) !== 0 || !in_array($url['scheme'] ?? '', ['http', 'https'], true)
+                || ($url['port'] ?? null) !== ($site['port'] ?? null)) { continue; }
+            $path = self::page_path($url['path'] ?? '/', $prefix);
+            if ($path === null) { continue; }
+            $rows[] = ['page' => $path, 'clicks' => (int) $row->getClicks(), 'impressions' => (int) $row->getImpressions(),
+                'ctr_percent' => round(100 * (float) $row->getCtr(), 2), 'average_position' => round((float) $row->getPosition(), 2)];
+        }
+        return $rows;
+    }
+
+    private static function analytics_rows($report, string $prefix, int $limit): array
+    {
+        $columns = [];
+        foreach ($report->getMetricHeaders() ?? [] as $index => $header) { $columns[$header->getName()] = $index; }
+        $rows = [];
+        foreach (array_slice($report->getRows() ?? [], 0, $limit) as $row) {
+            $path = self::page_path($row->getDimensionValues()[0]->getValue() ?? '', $prefix);
+            if ($path === null) { continue; }
+            $values = $row->getMetricValues();
+            $entry = ['landing_page' => $path];
+            foreach (['sessions' => 'sessions', 'engagedSessions' => 'engaged_sessions', 'activeUsers' => 'active_users'] as $metric => $field) {
+                $index = $columns[$metric] ?? null;
+                $entry[$field] = isset($values[$index]) && is_numeric($values[$index]->getValue()) ? (int) $values[$index]->getValue() : null;
+            }
+            $rows[] = $entry;
+        }
+        return $rows;
+    }
+}
+
+/** Read a site-level summary from Wordfence's existing local scan and firewall state. */
+final class WordfenceStatus
+{
+    private static function available(): bool
+    {
+        return !is_multisite() && defined('WORDFENCE_VERSION') && version_compare(WORDFENCE_VERSION, '9.0.2', '>=')
+            && class_exists(\wfScanner::class) && class_exists(\wfConfig::class)
+            && class_exists(\wfIssues::class) && class_exists(\wfUtils::class);
+    }
+
+    public static function register(): void
+    {
+        if (!self::available()) { return; }
+        wp_register_ability('ai-puffer/wordfence-security-status', [
+            'label' => __('Wordfence: Security status', 'gpt3-ai-content-generator'),
+            'description' => 'Read Wordfence’s recorded scan status, latest finished scan time, open findings by severity and configured firewall mode on this site. Requires a WordPress administrator. Open findings may be incomplete during or after a failed scan. Zero findings alone does not establish site safety. This does not run a scan, disclose finding details or change Wordfence.',
+            'category' => Abilities::CATEGORY,
+            'meta' => ['annotations' => ['readonly' => true, 'destructive' => false, 'idempotent' => true], 'public' => true],
+            'permission_callback' => static function (): bool {
+                return Abilities::can_view() && current_user_can('activate_plugins');
+            },
+            'execute_callback' => [self::class, 'read'],
+        ]);
+    }
+
+    public static function read()
+    {
+        if (!self::available()) {
+            return new \WP_Error('settings_unavailable', 'Wordfence security status is unavailable on this site.');
+        }
+        global $wpdb;
+        try {
+            $scanner = \wfScanner::shared();
+            $last_result = \wfConfig::get('lastScanCompleted', false);
+            $last_status = $last_result === 'ok' ? 'completed' : (empty($last_result) ? 'no_result' : 'failed');
+            $last_time = (int) $scanner->lastScanTime();
+            $installation = explode('|', \wfUtils::wafInstallationType());
+            $mode = $installation[0] ?? '';
+            $level = $installation[1] ?? '';
+
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQLPlaceholders.UnsupportedIdentifierPlaceholder -- The Abilities API requires WP 6.9+, where %i is supported. Query fresh counts without loading sensitive findings.
+            $rows = $wpdb->get_results($wpdb->prepare('SELECT severity, COUNT(*) AS total FROM %i WHERE status = %s GROUP BY severity',
+                \wfIssues::shared()->getIssuesTable(), 'new'), ARRAY_A);
+            if (!is_array($rows) || $wpdb->last_error !== '') {
+                return new \WP_Error('service_unavailable', 'Wordfence findings could not be read. Check Wordfence → Scan in WordPress.');
+            }
+            $severity = [\wfIssues::SEVERITY_CRITICAL => 'critical', \wfIssues::SEVERITY_HIGH => 'high',
+                \wfIssues::SEVERITY_MEDIUM => 'medium', \wfIssues::SEVERITY_LOW => 'low'];
+            $counts = ['critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'unclassified' => 0];
+            foreach ($rows as $row) {
+                $counts[$severity[(int) $row['severity']] ?? 'unclassified'] += (int) $row['total'];
+            }
+            return [
+                'scan' => ['running' => (bool) $scanner->isRunning(), 'last_result' => $last_status,
+                    'last_finished_at' => $last_status !== 'no_result' && $last_time > 0 ? gmdate('c', $last_time) : null],
+                'open_findings' => ['total' => array_sum($counts), 'by_severity' => $counts],
+                'firewall' => ['mode' => in_array($mode, ['enabled', 'learning-mode', 'disabled'], true) ? $mode : 'unknown',
+                    'protection' => in_array($level, ['basic', 'extended'], true) ? $level : 'unknown'],
+            ];
+        } catch (\Throwable $error) {
+            return new \WP_Error('service_unavailable', 'Wordfence status could not be read. Check Wordfence in WordPress.');
         }
     }
 }

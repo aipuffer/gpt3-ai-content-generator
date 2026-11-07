@@ -35,8 +35,29 @@
     const notices = () => [...new Set([...regions.flatMap(region => [...region.children].filter(isNotice)), ...shell.keys()])];
     const ranked = list => [...list].sort((a, b) => RANK[toneOf(a)] - RANK[toneOf(b)]);
     const observeRegions = () => regions.forEach(region => changes.observe(region, {childList: true}));
+    const forgetRemovedNotices = records => {
+      records.forEach(record => {
+        // Replacing a whole module preserves shell notices, but explicitly
+        // removing/replacing one warning must retire its saved reference.
+        const moduleReplaced = record.target === moduleContainer && [...record.removedNodes].some(node => !shell.has(node));
+        if (moduleReplaced) return;
+        [...record.removedNodes].forEach(node => {
+          if (shell.has(node) && !node.parentNode) {
+            const anchor = shell.get(node);
+            const replacement = record.removedNodes.length === 1 && record.addedNodes.length === 1
+              && isNotice(record.addedNodes[0]) && record.addedNodes[0].parentNode ? record.addedNodes[0] : null;
+            if (replacement) shell.set(replacement, anchor);
+            else anchor.remove();
+            shell.delete(node);
+          }
+        });
+      });
+    };
 
     const render = () => {
+      // Attribute observers can run before the child-list observer. Consume its
+      // pending removals before disconnecting, or a resolved warning is restored.
+      forgetRemovedNotices(changes.takeRecords());
       changes.disconnect();
       [...wrap.children].filter(isNotice).forEach(notice => {
         if (!shell.has(notice)) {
@@ -93,18 +114,7 @@
       notices().forEach((notice) => watched.observe(notice, { attributes: true, attributeFilter: ["hidden", "class", "style"] }));
     };
     const changes = new MutationObserver(records => {
-      // A single notice removed by its dismiss handler must not be restored like a
-      // module replacement, which removes the module's workspace/notices as well.
-      records.forEach(record => {
-        const moduleReplaced = record.target === moduleContainer && [...record.removedNodes].some(node => !shell.has(node));
-        if (moduleReplaced) return;
-        [...record.removedNodes].forEach(node => {
-          if (shell.has(node) && !node.parentNode) {
-            shell.get(node).remove();
-            shell.delete(node);
-          }
-        });
-      });
+      forgetRemovedNotices(records);
       expanded = false;
       watch();
       render();

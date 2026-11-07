@@ -25,12 +25,27 @@ window.aipkit_initManageWebsite = function () {
     let setupButton = null;
     let pendingWatch;
     let pageHidden = false;
+    const copyTimers = new Map();
+    const clearSetupCopies = () => {
+        copyTimers.forEach((timer, button) => { clearTimeout(timer); button.textContent = __('Copy', 'gpt3-ai-content-generator'); });
+        copyTimers.clear();
+    };
+    const showCopyFeedback = (button, label) => {
+        if (dispose.signal.aborted || pageHidden) return;
+        clearTimeout(copyTimers.get(button));
+        button.textContent = label;
+        copyTimers.set(button, setTimeout(() => {
+            button.textContent = __('Copy', 'gpt3-ai-content-generator');
+            copyTimers.delete(button);
+        }, 2000));
+    };
+    dispose.signal.addEventListener('abort', clearSetupCopies, { once: true });
     // The card sits in Connections; everything it manages is the Website tab of the AI Puffer Cloud panel.
     const card = () => settings.querySelector('#aipkit_manage_website');
     const panel = () => settings.querySelector('#aipkit_cloud_website');
     const focusIdentity = (current) => {
         const element = current.contains(document.activeElement) ? document.activeElement : null;
-        return element ? { id: element.id, name: element.getAttribute('name'), action: element.dataset.mcpAction, level: element.hasAttribute('data-mcp-level'), grant: element.dataset.mcpGrant || element.closest('.aipkit_mcp_menu')?.querySelector('[data-mcp-grant]')?.dataset.mcpGrant, menu: element.hasAttribute('data-mcp-menu-toggle') } : null;
+        return element ? { app: element.closest('.aipkit_mcp_apps') ? element.value : null, id: element.id, name: element.getAttribute('name'), action: element.dataset.mcpAction, level: element.hasAttribute('data-mcp-level'), grant: element.dataset.mcpGrant || element.closest('.aipkit_mcp_menu')?.querySelector('[data-mcp-grant]')?.dataset.mcpGrant, menu: element.hasAttribute('data-mcp-menu-toggle') } : null;
     };
     const apply = (data, preserveDraft = true, requestedFocus) => {
         const current = panel();
@@ -40,6 +55,7 @@ window.aipkit_initManageWebsite = function () {
         const next = template.content.querySelector('#aipkit_cloud_website');
         const nextCard = template.content.querySelector('#aipkit_manage_website');
         if (!next || !nextCard) throw new Error('invalid_response');
+        clearSetupCopies();
         const focusKey = preserveDraft || requestedFocus === undefined ? focusIdentity(current) : requestedFocus;
         const openMenuGrant = preserveDraft ? current.querySelector('[data-mcp-menu]:not([hidden]) [data-mcp-grant]')?.dataset.mcpGrant : null;
         const form = current.querySelector('[data-mcp-connect]');
@@ -48,6 +64,12 @@ window.aipkit_initManageWebsite = function () {
         const foldOpen = current.querySelector('.aipkit_settings_provider_fold')?.open;
         const optionsOpen = current.querySelector('.aipkit_mcp_connect_options')?.open;
         const moreOpen = current.querySelector('.aipkit_mcp_more_accounts')?.open;
+        const handoff = current.querySelector('[data-mcp-handoff]');
+        const setupDraft = preserveDraft && handoff?.dataset.mcpGrant ? {
+            grant: handoff.dataset.mcpGrant,
+            app: handoff.querySelector('.aipkit_mcp_apps input:checked')?.value,
+            folds: [...handoff.querySelectorAll('details')].map(fold => fold.open),
+        } : null;
         // Keep the existing elements: the shared panel code owns its focus trap and close state.
         const currentCard = card();
         if (currentCard) {
@@ -86,6 +108,11 @@ window.aipkit_initManageWebsite = function () {
             const menu = [...current.querySelectorAll('[data-mcp-menu]')].find(item => item.querySelector('[data-mcp-grant]')?.dataset.mcpGrant === openMenuGrant);
             if (menu) { menu.hidden = false; menu.parentElement.querySelector('[data-mcp-menu-toggle]')?.setAttribute('aria-expanded', 'true'); }
         }
+        const nextHandoff = current.querySelector('[data-mcp-handoff]');
+        if (setupDraft && setupDraft.grant === nextHandoff?.dataset.mcpGrant) {
+            nextHandoff.querySelectorAll('.aipkit_mcp_apps input').forEach(input => { input.checked = input.value === setupDraft.app; });
+            nextHandoff.querySelectorAll('details').forEach((fold, index) => { fold.open = setupDraft.folds[index] === true; });
+        }
         syncConnectSummary(current);
         window.aipkit_refreshSettingsSelectPickers?.();
         if (data.pair) {
@@ -93,14 +120,16 @@ window.aipkit_initManageWebsite = function () {
             if (url.protocol !== 'https:' || url.hostname !== 'mcp.aipuffer.org'
                 || url.port || url.username || url.password || url.pathname !== '/connect' || url.hash) throw new Error('invalid_response');
             url.searchParams.set('launch', '1');
-            current.querySelector('[data-mcp-connect-link]').href = url.href;
-            current.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== data.pair.client_hint; });
-            current.querySelector('[data-mcp-connect-link]').textContent = data.pair.client_hint === 'chatgpt' ? __('Open ChatGPT plugins', 'gpt3-ai-content-generator') : data.pair.client_hint === 'claude' ? __('Open AI Puffer in Claude', 'gpt3-ai-content-generator') : __('Open assistant setup', 'gpt3-ai-content-generator');
+            // Each assistant's steps open from step 1 (another app from its foot link); one set shows.
+            current.querySelectorAll('[data-mcp-connect-link]').forEach(link => { link.href = url.href; });
+            const hint = ['chatgpt', 'claude'].includes(data.pair.client_hint) ? data.pair.client_hint : 'other';
+            current.querySelectorAll('[data-mcp-instructions]').forEach(item => { item.hidden = item.dataset.mcpInstructions !== hint; });
             current.querySelector('[data-mcp-handoff]').hidden = false;
         }
+        syncCountdown();
         if (focusKey) {
             const matches = [...current.querySelectorAll('button, input, select, a')];
-            const restored = preserveDraft ? matches.find(el => focusKey.id ? el.id === focusKey.id : focusKey.name ? el.getAttribute('name') === focusKey.name : focusKey.action ? el.dataset.mcpAction === focusKey.action && el.dataset.mcpGrant === focusKey.grant : focusKey.menu ? el.hasAttribute('data-mcp-menu-toggle') && el.closest('.aipkit_mcp_menu')?.querySelector('[data-mcp-grant]')?.dataset.mcpGrant === focusKey.grant : focusKey.level ? el.hasAttribute('data-mcp-level') && el.dataset.mcpGrant === focusKey.grant : false) : null;
+            const restored = preserveDraft ? matches.find(el => focusKey.app ? el.closest('.aipkit_mcp_apps') && el.value === focusKey.app : focusKey.id ? el.id === focusKey.id : focusKey.name ? el.getAttribute('name') === focusKey.name : focusKey.action ? el.dataset.mcpAction === focusKey.action && el.dataset.mcpGrant === focusKey.grant : focusKey.menu ? el.hasAttribute('data-mcp-menu-toggle') && el.closest('.aipkit_mcp_menu')?.querySelector('[data-mcp-grant]')?.dataset.mcpGrant === focusKey.grant : focusKey.level ? el.hasAttribute('data-mcp-level') && el.dataset.mcpGrant === focusKey.grant : false) : null;
             const visible = el => el && el.getClientRects().length && !el.disabled && !el.closest('[aria-hidden="true"]');
             const fallback = data.message ? current.querySelector('[data-mcp-feedback]') : settings.querySelector('#aipkit_cloud_panel_title');
             const target = visible(restored) ? restored : visible(fallback) ? fallback : card()?.querySelector('[data-aipkit-provider-settings-open]');
@@ -109,6 +138,27 @@ window.aipkit_initManageWebsite = function () {
             target.focus();
         }
     };
+    // Only the visible pending setup needs a clock. This is local UI work, never a server request.
+    let countdown = null;
+    const syncCountdown = () => {
+        clearTimeout(countdown); countdown = null;
+        if (dispose.signal.aborted || !visibleWebsite()) return;
+        const handoff = panel()?.querySelector('[data-mcp-handoff]');
+        if (!handoff || handoff.hidden) return;
+        const expires = Number(handoff.dataset.mcpExpires) * 1000;
+        const remaining = Number.isFinite(expires) ? expires - Date.now() : 0;
+        const minutes = Math.max(0, Math.ceil(remaining / 60000));
+        const expired = minutes <= 0;
+        if (handoff.dataset.expired !== String(expired)) handoff.dataset.expired = String(expired);
+        const message = expired ? __('Link expired', 'gpt3-ai-content-generator') : __('Waiting · %s min left', 'gpt3-ai-content-generator').replace('%s', String(minutes));
+        handoff.querySelectorAll('[data-mcp-countdown]').forEach(status => {
+            if (status.textContent !== message) status.textContent = message;
+        });
+        handoff.querySelectorAll('[data-mcp-live]').forEach(item => { if (item.hidden !== expired) item.hidden = expired; });
+        handoff.querySelectorAll('[data-mcp-expired]').forEach(item => { if (item.hidden === expired) item.hidden = !expired; });
+        if (!expired) countdown = setTimeout(syncCountdown, Math.min(remaining, 15000));
+    };
+    dispose.signal.addEventListener('abort', () => { clearTimeout(countdown); countdown = null; }, { once: true });
     const request = async (action, fields = {}, background = false) => {
         if (busy || !panel()) return;
         pendingWatch?.invalidate();
@@ -149,6 +199,10 @@ window.aipkit_initManageWebsite = function () {
             // Each Set up button names its assistant (ChatGPT, Claude or another app).
             setupButton = event.submitter || null;
             if (setupButton?.name === 'client') fields.client = setupButton.value;
+            if (setupButton?.hasAttribute('data-mcp-restart')) {
+                fields.access_level = setupButton.dataset.mcpAccess;
+                fields.act_as = setupButton.dataset.mcpUser;
+            }
             void (async () => {
                 const check = await request('diagnostics');
                 if (check?.websiteBlocked === false) await request('connect', fields);
@@ -206,8 +260,8 @@ window.aipkit_initManageWebsite = function () {
         const copy = event.target.closest('[data-mcp-copy]');
         if (copy?.dataset.mcpCopy !== undefined) {
             event.preventDefault();
-            if (!navigator.clipboard?.writeText) { copy.textContent = __('Select the text to copy', 'gpt3-ai-content-generator'); return; }
-            navigator.clipboard.writeText(copy.dataset.mcpCopy).then(() => { copy.textContent = __('Copied', 'gpt3-ai-content-generator'); }, () => { copy.textContent = __('Select the text to copy', 'gpt3-ai-content-generator'); });
+            if (!navigator.clipboard?.writeText) { showCopyFeedback(copy, __('Select the text to copy', 'gpt3-ai-content-generator')); return; }
+            navigator.clipboard.writeText(copy.dataset.mcpCopy).then(() => showCopyFeedback(copy, __('Copied', 'gpt3-ai-content-generator')), () => showCopyFeedback(copy, __('Select the text to copy', 'gpt3-ai-content-generator')));
             return;
         }
         const button = event.target.closest('[data-mcp-action]');
@@ -255,12 +309,12 @@ window.aipkit_initManageWebsite = function () {
         check: (id, signal) => window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: panel()?.querySelector('[data-mcp-nonce]').value, mcp_action: 'assistant_status', grant_id: id }, { signal, timeout: 12000 }),
         changed: () => request('view', {}, true),
     });
-    const observer = new MutationObserver(() => { if (!settings.isConnected) dispose.abort(); else pendingWatch.sync(); });
+    const observer = new MutationObserver(() => { if (!settings.isConnected) dispose.abort(); else { pendingWatch.sync(); syncCountdown(); } });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'data-cloud-tab'] });
     dispose.signal.addEventListener('abort', () => observer.disconnect(), { once: true });
-    window.addEventListener('pagehide', () => { pageHidden = true; pendingWatch.invalidate(); }, { signal: dispose.signal });
-    window.addEventListener('pageshow', () => { pageHidden = false; pendingWatch.sync(true); }, { signal: dispose.signal });
-    document.addEventListener('visibilitychange', () => pendingWatch.sync(true), { signal: dispose.signal });
+    window.addEventListener('pagehide', () => { pageHidden = true; clearSetupCopies(); pendingWatch.invalidate(); syncCountdown(); }, { signal: dispose.signal });
+    window.addEventListener('pageshow', () => { pageHidden = false; pendingWatch.sync(true); syncCountdown(); }, { signal: dispose.signal });
+    document.addEventListener('visibilitychange', () => { pendingWatch.sync(true); syncCountdown(); }, { signal: dispose.signal });
     window.addEventListener('aipkit:cloud-connection-changed', () => { pendingWatch.invalidate(); revision++; if (settings.isConnected) void request('view'); }, { signal: dispose.signal });
     // Back from an assistant's approval page: refresh whatever shows this state, the card or the open panel.
     window.addEventListener('focus', () => {
@@ -270,4 +324,5 @@ window.aipkit_initManageWebsite = function () {
     window.aipkitMcpSettingsController = { dispose, read: () => settings.isConnected ? window.aipkit_apiRequest('aipkit_mcp_settings', { _wpnonce: panel()?.querySelector('[data-mcp-nonce]').value, mcp_action: 'view' }) : null, apply: data => { if (data && settings.isConnected && !busy) { revision++; apply(data); } } };
     watchCloudConnection('mcp-settings', () => window.aipkitMcpSettingsController?.read(), data => window.aipkitMcpSettingsController?.apply(data));
     pendingWatch.sync();
+    syncCountdown();
 };
