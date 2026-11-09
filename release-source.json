@@ -780,7 +780,7 @@
     "dist/js/shared-model-selector.bundle.js": "8001790e61fc94cbcf07460c1197d859d0603ce9184a6e131717cb9468537db6",
     "dist/vendor/js/markdown-it.min.js": "494ba53db1aac9f676317dda7062bd9545b5f0bbe3f12b0ab1ab4f813825cfb0",
     "esbuild.config.js": "20ae3bc7f69dabacc540af0073de2b6bc537ca09b486784deeb97aa551113e27",
-    "gpt3-ai-content-generator.php": "91ffb353686b53f35b860f69568cf7867d883d44a7949ec7db8c069b4a65c52c",
+    "gpt3-ai-content-generator.php": "0e58e9a5803880a6f7e89dd6869f6eaef8bda6e5308a38aae5fa89bc1fbd533c",
     "includes/assets.php": "ac620c25cecb8829c345480c5840ad978189f2fe8b7f5b69c0a3da605ea78a3d",
     "includes/database-schema.php": "f5c4403bb72d0f419afe8d1e2d6712f7a31d96b619f8150007c966dcc18b6d72",
     "includes/dependencies.php": "c66614c32011f9d64c91cc2e67a7bc74e670c9bcdc7cbcf7c4cc6df52c2c76cc",
@@ -897,7 +897,7 @@
     "public/js/shared/timestamp.js": "1aca3ad195ce41e4938e8a9cf85452fe1a325141ace3a35844596c4cc9f1687e",
     "public/js/token-usage/token-usage-public.js": "208f171eb43f04fd54ae247e25972586e358ac6b1ef9ad566105aa3df4f7ad76",
     "public/views/image-generator.php": "3e22911c30e94010ce1c1807296cc99d1b8948f3adf75204b5940dc18885c84b",
-    "readme.txt": "c105e33797d9887f89bfe3ab4cc2ef9827396252511b2557cf1a2f327de4f823",
+    "readme.txt": "e4e500889e389a2595aa497663da05b880c092391e122192491b25866064e915",
     "scripts/asset-entrypoints.json": "b4abc5d2bfd8a493159c60b82e6fddc6f6008a4c370148bd969e54730ffe3a49",
     "scripts/build-assets.js": "28ff7bcbc8bfce05b918ec30d054708b73ea3267a0633c47304ab31f1d318505",
     "scripts/paid-feature-boundaries.js": "24806715aff27a745b041fe686bb066b20ee25fc70fe4f6545030911b9dabf7a",
@@ -1152,5 +1152,13 @@
     "vendor/freemius/templates/sticky-admin-notice-js.php": "d0dabcf01eefb89c29a655cda333e493e1c2136d1fee20dc26a1d3fc69f20228",
     "vendor/freemius/templates/tabs-capture-js.php": "6ad031764f84bd4f3ea59ed69b5db3037e5c171aab2ec0a0686095b597a5e7d7",
     "vendor/freemius/templates/tabs.php": "e7890df020fbf02c9dbf25433e5f1754b9d21ceec8c6e3736e465ddff10dcdc1"
+  },
+  "metadataUpdate": {
+    "date": "2026-11-09",
+    "description": "Readme and Plugin Name/Description headers updated after the original processed archive; runtime code and version unchanged.",
+    "files": [
+      "readme.txt",
+      "gpt3-ai-content-generator.php"
+    ]
   }
 }

@@ -8,8 +8,8 @@
  * @package           Wp_Ai_Content_Generator
  *
  * @wordpress-plugin
- * Plugin Name:       AI Puffer – AI Chatbot & MCP Server for Claude and ChatGPT
- * Description:       Add an AI chatbot and manage your WordPress website through Claude or ChatGPT with AI Puffer’s MCP server.
+ * Plugin Name:       AI Puffer – MCP Server for Claude & ChatGPT, with AI Chatbot
+ * Description:       Manage WordPress from Claude or ChatGPT with a free MCP server: posts, WooCommerce, SEO and Elementor. AI chatbot and content writer included.
  * Version:           2.5.25
  * Author:            Senol Sahin
  * Author URI:        https://aipower.org

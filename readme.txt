@@ -1,4 +1,4 @@
-=== AI Puffer – AI Chatbot & MCP Server for Claude and ChatGPT ===
+=== AI Puffer – MCP Server for Claude & ChatGPT, with AI Chatbot ===
 Contributors: senols
 Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
@@ -8,21 +8,57 @@ Stable tag: 2.5.25
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Add an AI chatbot and manage your WordPress website through Claude or ChatGPT with AI Puffer’s MCP server.
+Manage WordPress from Claude or ChatGPT with a free MCP server: posts, WooCommerce, SEO and Elementor. AI chatbot and content writer included.
 
 == Description ==
 
-**AI Puffer** (formerly AI Power) lets ChatGPT and Claude work on your WordPress site through MCP, using your chosen safety level. It also brings an AI chatbot, content writer, automations, AI forms and image generation to your dashboard.
+**AI Puffer** (formerly AI Power) is an MCP server for WordPress. Connect Claude or ChatGPT to your site, then ask for what you need in plain language: write and publish posts, update WooCommerce products, fix SEO titles, edit Elementor pages or review your search traffic. The same plugin adds an AI chatbot, content writer, automations, AI forms and image generation to your dashboard.
 
-**Start with 25 free AI credits monthly.** Connect AI Puffer Cloud with no API key. Free credits are available to eligible accounts with a verified email. You can also use your own OpenAI, Anthropic Claude, Google Gemini, xAI Grok, DeepSeek, OpenRouter or Azure OpenAI key.
+**Free to start.** The free plugin includes 2,000 website actions every month for Claude and ChatGPT, with no API key, SSH or WP-CLI installation. Eligible accounts with a verified email also get 25 free AI credits monthly for the chatbot, writer and other AI tools, or you can use your own OpenAI, Anthropic Claude, Google Gemini, xAI Grok, DeepSeek, OpenRouter or Azure OpenAI key.
 
-[Documentation](https://docs.aipower.org/) · [How Cloud works](https://aipower.org/ai-puffer-cloud/) · [Pricing](https://aipower.org/pricing/) · [User reviews](https://wordpress.org/support/plugin/gpt3-ai-content-generator/reviews/)
+[Documentation](https://aipower.org/docs/) · [How Cloud works](https://aipower.org/ai-puffer-cloud/) · [Pricing](https://aipower.org/pricing/) · [User reviews](https://wordpress.org/support/plugin/gpt3-ai-content-generator/reviews/)
 
-### Manage your site from ChatGPT or Claude (MCP)
+### Connect Claude or ChatGPT to WordPress through MCP
 
-Open Settings → Connections → Manage my website to connect ChatGPT, Claude, Cursor, Claude Code or another MCP client. Assistants can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. Trusted is the default for new connections and runs supported changes directly, including publication, plugin changes and deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. The available actions depend on the site’s installed plugins and the permissions you grant. Access follows the connecting WordPress user’s permissions and can be paused or disconnected. Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate. This feature is off until you explicitly connect it.
+1. Install AI Puffer and choose **Manage my website** in the setup wizard, or open Settings → Connections → Manage my website.
+2. Pick ChatGPT or Claude and approve the connection in WordPress. You can also start from Claude’s directory. Cursor, Claude Code and other MCP clients connect the same way.
+3. Ask your assistant to do something on your site. The hosted MCP server handles sign-in and routing, so there is nothing to configure on your server.
+
+### What you can ask
+
+* "Draft a post about our spring sale and schedule it for Monday morning."
+* "Find images that are missing alt text and fill it in."
+* "Which of my recent posts have a poor SEO or readability score?"
+* "Which pages have high impressions but a low click-through rate?"
+* "Mark order 1042 completed and add the tracking number for the customer."
+* "Check my Wordfence security status. What needs attention?"
+
+Assistants can read and search content, create drafts, edit and publish posts and pages, and manage images in your media library. The available actions depend on the site’s installed plugins and the permissions you grant.
+
+### Works with the plugins you already use
+
+These MCP integrations are tested by us in both ChatGPT and Claude:
+
+* **Page builders and design:** Elementor, Blocksy, Greenshift and Advanced Custom Fields (ACF).
+* **SEO:** Yoast SEO, Rank Math, All in One SEO, SureRank SEO, Redirection, and read-only Search Console and GA4 reports through Google Site Kit.
+* **Stores:** WooCommerce products, stock, coupons and orders, and Easy Digital Downloads.
+* **Forms:** Contact Form 7, WPForms and Fluent Forms.
+* **Courses and fundraising:** LifterLMS and Charitable.
+* **Maintenance:** cache plugins such as WP Rocket, UpdraftPlus, Duplicator, WP Mail SMTP and read-only Wordfence status.
+
+Other plugins that share WordPress abilities or a REST API can be reached too. What each integration supports depends on the plugin and its version.
+
+### WP-CLI-compatible commands without SSH
 
 Supported WP-CLI-compatible commands let assistants inspect the site and manage posts, images, categories, tags, comments, classic navigation menus, settings, users, roles, cache and scheduled events without SSH or a WP-CLI installation. Official plugin/theme/core administration and bounded database inspection/search-replace commands are included. Ask your assistant for `wp help` to see the supported subset and flags. Commands use the same permissions, approval settings and website-action allowance as other website tools; shell scripts and full WP-CLI compatibility are not included.
+
+### You stay in control of the MCP connection
+
+* **Off until you connect it.** Nothing is shared with an assistant until you explicitly connect one.
+* **Your WordPress permissions are the limit.** Access follows the connecting WordPress user’s permissions.
+* **Choose a safety level for each connection.** Standard asks for WordPress approval before publishing or supported plugin changes. Trusted is the default for new connections and runs supported changes directly, including publication, plugin changes and deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings.
+* **Pause or disconnect anytime** from Settings → Connections.
+* **Separate allowances.** Website actions are counted separately from AI credits; your assistant’s own subscription or model charges are separate.
 
 ### Cloud or your own API keys
 
@@ -112,6 +148,14 @@ AI requests are sent when you use a connected provider. Visitor messages go to t
 
 Connect them in Settings → Connections → Manage my website. Through MCP they can read and search content, create drafts and publish posts. Standard asks for WordPress approval before publishing or supported plugin changes. New connections default to Trusted, which runs supported changes directly, including deletion. Existing Trusted connections keep their previous approvals until you select Trusted again in Settings. You can pause or disconnect access anytime. The chatbot, content writer, automations, forms and images work as before, with or without this connection.
 
+= Is the MCP server free? =
+
+Yes. Website management is included in the free plugin with 2,000 website actions every month, shared across your connected sites and assistants. One request to your assistant can use several actions. Paid subscriptions add higher monthly allowances. Your ChatGPT or Claude subscription is separate and billed by its provider.
+
+= Which AI assistants and MCP clients can I connect? =
+
+ChatGPT and Claude, plus Cursor, Claude Code and other MCP clients. You do not need SSH, a WP-CLI installation or an AI provider API key to connect an assistant. Your website must be reachable from the internet, so a site on your own computer cannot be connected.
+
 = Do I need an API key? =
 
 Not if you use AI Puffer Cloud. Connect it in the setup wizard or in AI Puffer → Settings → AI, accept the connection terms and confirm your email. Eligible accounts get 25 free AI credits monthly. If you already pay for an AI provider such as OpenAI, Anthropic, Google or xAI, paste that key instead. You can use both side by side.
@@ -148,7 +192,7 @@ Yes, and WooCommerce is optional. You can write product titles, descriptions, sh
 
 = Is this the same plugin as AI Power? =
 
-Yes. AI Power was renamed AI Puffer. It is the same plugin, with the same plugin folder, settings and data, so updating keeps your bots, content, keys and history. The new listing name says what it does: AI chatbot, AI writer and automation.
+Yes. AI Power was renamed AI Puffer. It is the same plugin, with the same plugin folder, settings and data, so updating keeps your bots, content, keys and history. The new listing name says what it does: an MCP server for Claude and ChatGPT, with an AI chatbot and content writer.
 
 == Screenshots ==
 
