@@ -4,7 +4,6 @@
 namespace WPAICG\WooCommerce;
 
 use WPAICG\Core\TokenManager\AIPKit_Token_Manager;
-use WPAICG\Core\TokenManager\Constants\MetaKeysConstants;
 
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
@@ -510,31 +509,14 @@ class AIPKit_WooCommerce_Integration
             $balance_service = $token_manager ? $token_manager->get_balance_service() : null;
             $idempotency_key = 'woocommerce_order_' . $order_id . '_purchase';
 
-            if ($ledger_repository && method_exists($ledger_repository, 'find_by_idempotency_key')) {
-                $existing_entry = $ledger_repository->find_by_idempotency_key($idempotency_key);
-                if (is_array($existing_entry) && !empty($existing_entry['id'])) {
-                    $order->update_meta_data(self::ORDER_TOKENS_GRANTED_META_KEY, $total_tokens_to_grant);
-                    $order->save();
-                    return;
-                }
-            }
-
-            $current_balance = $balance_service
-                ? $balance_service->get_current_balance($user_id)
-                : (int) get_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, true);
-            $new_balance = $current_balance + $total_tokens_to_grant;
-
-            if ($balance_service) {
+            if (!$ledger_repository || !$balance_service) { return; }
+            $recorded = $ledger_repository->atomic_usage($user_id, [], static function () use ($ledger_repository, $balance_service, $user_id, $total_tokens_to_grant, $idempotency_key, $order_id) {
+                $existing = $ledger_repository->find_by_idempotency_key($idempotency_key);
+                if ($existing) { return ['existing' => true]; }
+                $current_balance = $balance_service->get_current_balance($user_id);
+                $new_balance = $current_balance + $total_tokens_to_grant;
                 $balance_service->set_current_balance($user_id, $new_balance);
-            } else {
-                update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $new_balance);
-            }
-
-            $order->update_meta_data(self::ORDER_TOKENS_GRANTED_META_KEY, $total_tokens_to_grant);
-            $order->save();
-
-            if ($ledger_repository && method_exists($ledger_repository, 'insert_entry')) {
-                $ledger_repository->insert_entry([
+                $receipt = $ledger_repository->insert_entry([
                     'user_id' => $user_id,
                     'module' => 'woocommerce',
                     'context_type' => 'order',
@@ -552,7 +534,15 @@ class AIPKit_WooCommerce_Integration
                         'balance_after' => $new_balance,
                     ],
                 ]);
-            }
+                return is_wp_error($receipt) ? $receipt : ['balance' => $new_balance];
+            });
+            if (is_wp_error($recorded)) { return; }
+            // The receipt is authoritative. A retry repairs order metadata after a crash
+            // without granting again; WooCommerce writes stay outside our transaction.
+            $order->update_meta_data(self::ORDER_TOKENS_GRANTED_META_KEY, $total_tokens_to_grant);
+            $order->save();
+            if (!empty($recorded['existing'])) { return; }
+            $new_balance = $recorded['balance'];
 
             $order->add_order_note(
                 /* translators: 1: The number of tokens granted, 2: The user's new token balance. */

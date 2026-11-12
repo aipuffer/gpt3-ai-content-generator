@@ -88,19 +88,16 @@ class UserCreditsAjaxHandler extends BaseAjaxHandler
         $new_balance = max(0, intval($new_balance_raw));
         $balance_service = $this->token_manager ? $this->token_manager->get_balance_service() : null;
         $ledger_repository = $this->token_manager ? $this->token_manager->get_ledger_repository() : null;
-        $current_balance = $balance_service
-            ? $balance_service->get_current_balance($user_id)
-            : (int) get_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, true);
-
-        if ($balance_service) {
-            $balance_service->set_current_balance($user_id, $new_balance);
-        } else {
-            update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $new_balance);
+        if (!$balance_service || !$ledger_repository) {
+            wp_send_json_error(['message' => __('Local balance storage is unavailable.', 'gpt3-ai-content-generator')], 503);
+            return;
         }
-
-        $delta = $new_balance - $current_balance;
-        if ($delta !== 0 && $ledger_repository && method_exists($ledger_repository, 'insert_entry')) {
-            $ledger_repository->insert_entry([
+        $recorded = $ledger_repository->atomic_usage($user_id, [], static function () use ($balance_service, $ledger_repository, $user_id, $new_balance) {
+            $current_balance = $balance_service->get_current_balance($user_id);
+            $delta = $new_balance - $current_balance;
+            if ($delta === 0) { return true; }
+            $balance_service->set_current_balance($user_id, $new_balance);
+            return $ledger_repository->insert_entry([
                 'user_id' => $user_id,
                 'module' => 'credits',
                 'context_type' => 'manual',
@@ -115,6 +112,10 @@ class UserCreditsAjaxHandler extends BaseAjaxHandler
                     'balance_after' => $new_balance,
                 ],
             ]);
+        });
+        if (is_wp_error($recorded)) {
+            $this->send_wp_error($recorded);
+            return;
         }
 
         $this->bust_user_credits_cache();

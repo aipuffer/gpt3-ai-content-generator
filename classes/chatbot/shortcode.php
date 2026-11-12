@@ -24,29 +24,27 @@ if (!defined('ABSPATH')) {
  * @return array The array of conversation starter strings.
  */
 function get_conversation_starters_logic(array $settings, bool $starters_ui_enabled): array {
-    $starters_array = [];
-    if ($starters_ui_enabled) {
-        $starters_raw = $settings['conversation_starters'] ?? [];
-        if (!empty($starters_raw) && is_array($starters_raw)) { // Check if it's already an array
-            $starters_array = $starters_raw;
-        } elseif (!empty($starters_raw) && is_string($starters_raw)) { // Handle JSON string if somehow passed
-            $decoded_starters = json_decode($starters_raw, true);
-            if (is_array($decoded_starters)) {
-                $starters_array = $decoded_starters;
-            }
-        }
+    if (!$starters_ui_enabled) {
+        return [];
+    }
 
-        if (empty($starters_array)) {
-            // Fallback to default starters if the setting is empty or invalid
-            $starters_array = method_exists(BotSettingsManager::class, 'get_default_conversation_starters')
-                ? BotSettingsManager::get_default_conversation_starters()
-                : [
-                    __('What can you do?', 'gpt3-ai-content-generator'),
-                    __('Tell me a fun fact', 'gpt3-ai-content-generator'),
-                ];
+    $starters = $settings['conversation_starters'] ?? null;
+    if (is_array($starters)) {
+        return $starters;
+    }
+    if (is_string($starters)) {
+        $decoded = json_decode($starters, true);
+        if (is_array($decoded) && ($decoded || strpos(ltrim($starters), '[') === 0)) {
+            return $decoded;
         }
     }
-    return $starters_array;
+
+    return method_exists(BotSettingsManager::class, 'get_default_conversation_starters')
+        ? BotSettingsManager::get_default_conversation_starters()
+        : [
+            __('What can you do?', 'gpt3-ai-content-generator'),
+            __('Tell me a fun fact', 'gpt3-ai-content-generator'),
+        ];
 }
 
 /**

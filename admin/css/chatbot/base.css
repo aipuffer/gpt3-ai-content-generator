@@ -314,10 +314,11 @@ html.aipkit-chatbot-builder-page {
   min-width: 0;
 }
 
-/* The title keeps its full width; the shortcode and bot controls wrap below it when space runs out. */
+/* Keep the switcher and live status inside the settings card. */
 .aipkit_chatbot_workspace_heading {
+  position: relative;
   display: flex;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -416,22 +417,22 @@ html.aipkit-chatbot-builder-page {
 }
 
 .aipkit_widget_bot_actions {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .aipkit_widget_bot_actions_menu {
   position: absolute;
   top: calc(100% + 6px);
-  left: 0;
+  inset-inline-start: 0;
   z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 280px;
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 8px;
   border: 1px solid var(--aipkit-ui-line);
   border-radius: 14px;
@@ -475,7 +476,8 @@ html.aipkit-chatbot-builder-page {
   background: transparent;
   color: var(--aipkit-ui-ink);
   font: 600 14px/1.25 var(--aipkit-ui-font);
-  text-align: left;
+  text-align: start;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -8882,6 +8884,10 @@ html.aipkit-chatbot-builder-page {
     padding: 0;
   }
 
+  .aipkit_builder_preview_frame {
+    min-height: 540px;
+  }
+
   .aipkit_preview_deploy_bar {
     flex-wrap: wrap;
     gap: 8px 10px;
@@ -10700,12 +10706,9 @@ body.admin-bar
   top: 127px;
 }
 
-#aipkit_admin_chat_preview_container .aipkit_conversation_starters {
-  max-height: none;
+#aipkit_admin_chat_preview_container .aipkit_conversation_starters:not(.aipkit_hidden) {
   padding: 8px 10px var(--aipkit-chat-starters-divider-gap, 16px);
   gap: 6px;
-  flex-shrink: 0;
-  overflow: hidden;
 }
 
 .aipkit_chatbot_settings_panel.aipkit_chatbot_tab_panels :is(

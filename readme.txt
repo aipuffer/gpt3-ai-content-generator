@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.25
+Stable tag: 2.5.26
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -257,6 +257,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.26 =
+Improves chatbot layouts and local credit accounting, and fixes website-management SQL reads and queued writes.
+
 = 2.5.25 =
 Adds Site Kit reports and Wordfence security summaries, protects Hostinger maintenance bypass codes, and clarifies website database errors.
 
@@ -325,6 +328,14 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.26 =
+* Improved chatbot layouts for long header, footer and starter text, with better spacing on smaller screens and in the editor preview.
+* Fixed default conversation starters reappearing after all starter questions were removed.
+* Fixed the chatbot scroll-to-bottom button overlapping conversation starters or appearing when there is too little space.
+* Fixed website-management SQL reads failing on accented text, emoji and other Unicode characters.
+* Fixed duplicate local visitor-credit deductions during retries and overlapping requests, with consistent purchase and manual-adjustment records.
+* Fixed queued website changes incorrectly requiring manual review before they had started.
 
 = 2.5.25 =
 * Added read-only Google Search Console and GA4 page reports through Site Kit.

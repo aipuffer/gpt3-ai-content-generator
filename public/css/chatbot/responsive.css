@@ -108,9 +108,8 @@
     position: relative;
     z-index: 10;
     flex-shrink: 0;
-    height: calc(64px + env(safe-area-inset-top, 0px));
     min-height: calc(64px + env(safe-area-inset-top, 0px));
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
   }
 
   /* Account for WordPress admin bar on frontend when logged in. */
@@ -207,8 +206,6 @@
 /* Compact support header/footer adjustments below the popup fullscreen boundary. */
 @media (max-width: 767px) {
   .aipkit_chat_header {
-    height: 64px;
-    min-height: 64px;
     padding-right: var(--aipkit-chat-shell-padding-compact-x, 12px);
     padding-left: var(--aipkit-chat-shell-padding-compact-x, 12px);
   }

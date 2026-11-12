@@ -16,7 +16,9 @@ function getOwner(messagesEl) {
 
   function updateButton() {
     if (!button) return;
-    const visible = messagesEl.scrollHeight > messagesEl.clientHeight + 4 && getDistanceFromBottom(messagesEl) > 48;
+    const visible = messagesEl.clientHeight >= button.offsetHeight + 12
+      && messagesEl.scrollHeight > messagesEl.clientHeight + 4
+      && getDistanceFromBottom(messagesEl) > 48;
     button.classList.toggle("aipkit-scroll-visible", visible);
     button.setAttribute("aria-hidden", visible ? "false" : "true");
   }
@@ -53,7 +55,9 @@ function getOwner(messagesEl) {
       if (needsOffset && elements) {
         needsOffset = false;
         const inputHeight = elements.inputArea ? Math.round(elements.inputArea.getBoundingClientRect().height) : 0;
-        elements.mainContentEl.style.setProperty("--aipkit-chat-scroll-button-bottom-offset", `${Math.max(96, inputHeight + 12)}px`);
+        const startersHeight = elements.startersContainer?.offsetHeight ?? 0;
+        const offset = Math.max(96, inputHeight + 12) + startersHeight;
+        elements.mainContentEl.style.setProperty("--aipkit-chat-scroll-button-bottom-offset", `${offset}px`);
       }
       updateButton();
     });
@@ -102,6 +106,7 @@ function getOwner(messagesEl) {
       resizeObserver ||= new ResizeObserver(resize);
       resizeObserver.observe(messagesEl);
       if (elements?.inputArea) resizeObserver.observe(elements.inputArea);
+      if (elements?.startersContainer) resizeObserver.observe(elements.startersContainer);
     } else {
       window.addEventListener("resize", resize);
     }

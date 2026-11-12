@@ -8,7 +8,7 @@
   /* Use start + auto margin instead of space-between to avoid
      layout issues when pseudo-elements or empty groups are present */
   justify-content: flex-start;
-  padding: 0 var(--aipkit-chat-shell-padding-x, 16px);
+  padding: 8px var(--aipkit-chat-shell-padding-x, 16px);
   border-bottom: 1px solid
     var(
       --aipkit-chat-header-border-color,
@@ -19,7 +19,6 @@
     var(--aipkit_bg-secondary, #ffffff)
   );
   flex-shrink: 0;
-  height: 64px;
   min-height: 64px;
   box-sizing: border-box;
   position: relative; /* Ensure z-index works if needed */
@@ -129,6 +128,7 @@
 .aipkit_header_status_text {
   font-size: 11px;
   font-weight: 500;
+  overflow-wrap: anywhere;
   color: var(
     --aipkit-chat-header-status-text-color,
     var(--aipkit-chat-header-text-color, #6b6b6b)
@@ -272,9 +272,9 @@
   flex-shrink: 0;
   height: auto;
   box-sizing: border-box;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  max-height: 25%;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   position: relative;
   z-index: 1;
 }

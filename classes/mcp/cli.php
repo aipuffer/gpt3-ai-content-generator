@@ -980,7 +980,13 @@ final class Cli
         if ($value === null) { return 'NULL'; }
         if (is_int($value)) { return (string) $value; }
         if (is_float($value)) { return $wpdb->prepare('%f', $value); }
-        return $wpdb->prepare('%s', (string) $value);
+        $value = (string) $value;
+        // wpdb's charset probe mistakes derived-table SELECTs for a table name
+        // when they contain non-ASCII text. Hex keeps generated SQL ASCII-only;
+        // CAST restores the connection charset/collation rather than binary comparison.
+        // Only hex digits are interpolated; caller SQL and wpdb validation stay untouched.
+        if (preg_match('/[^\x00-\x7f]/', $value)) { return "CAST(X'" . bin2hex($value) . "' AS CHAR)"; }
+        return $wpdb->prepare('%s', $value);
     }
 
     /** Relational SELECT over authorized, redacted source snapshots; SQL can never reference the raw credential tables. */

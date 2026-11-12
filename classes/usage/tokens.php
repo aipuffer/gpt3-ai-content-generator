@@ -746,16 +746,33 @@ function RecordTokenUsageLogic(
     int $tokens_used,
     string $module_context = 'chat',
     array $usage_context = []
-): void {
-    global $wpdb;
-
-    if ($tokens_used <= 0 && empty($usage_context['usage_data']['duration_seconds'])) {
-        return;
+) {
+    if ($tokens_used <= 0 && empty($usage_context['usage_data']['duration_seconds'])) { return; }
+    $repository = $managerInstance->get_ledger_repository();
+    if (!$repository || !$managerInstance->get_balance_service()) {
+        return new \WP_Error('aipkit_usage_unavailable', 'Local usage storage is unavailable.');
     }
+    $guests = $user_id ? [] : GetGuestQuotaIdentifiersLogic($session_id);
+    return $repository->atomic_usage($user_id, $guests, static function () use ($managerInstance, $user_id, $session_id, $context_id_or_bot_id, $tokens_used, $module_context, $usage_context) {
+        return RecordTokenUsageWithinTransaction($managerInstance, $user_id, $session_id, $context_id_or_bot_id, $tokens_used, $module_context, $usage_context);
+    });
+}
+
+/** Internal accounting body; the actor lock and transaction must already be held. */
+function RecordTokenUsageWithinTransaction(
+    AIPKit_Token_Manager $managerInstance,
+    ?int $user_id,
+    ?string $session_id,
+    ?int $context_id_or_bot_id,
+    int $tokens_used,
+    string $module_context = 'chat',
+    array $usage_context = []
+) {
+    global $wpdb;
 
     $ledger_repository = $managerInstance->get_ledger_repository();
     $idempotency_key = sanitize_text_field((string) ($usage_context['idempotency_key'] ?? ''));
-    if ($idempotency_key !== '' && $ledger_repository && $ledger_repository->find_by_idempotency_key($idempotency_key)) {
+    if ($idempotency_key !== '' && $ledger_repository->find_by_idempotency_key($idempotency_key)) {
         return;
     }
 
@@ -784,28 +801,6 @@ function RecordTokenUsageLogic(
     $balance_before = 0;
     $balance_after = 0;
     $balance_service = $managerInstance->get_balance_service();
-
-    if ($user_id) {
-        if ($balance_service && method_exists($balance_service, 'deduct_available_balance')) {
-            $balance_result = $balance_service->deduct_available_balance($user_id, $tokens_left_to_deduct);
-            $balance_before = (int) ($balance_result['balance_before'] ?? 0);
-            $deducted_from_balance = (int) ($balance_result['deducted'] ?? 0);
-            $balance_after = (int) ($balance_result['balance_after'] ?? 0);
-            $tokens_left_to_deduct = (int) ($balance_result['remaining'] ?? $tokens_left_to_deduct);
-        } else {
-            $token_balance_raw = get_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, true);
-            if (is_numeric($token_balance_raw) && (int)$token_balance_raw > 0) {
-                $balance_before = (int) $token_balance_raw;
-                $deducted_from_balance = min($balance_before, $tokens_left_to_deduct);
-                $balance_after = $balance_before - $deducted_from_balance;
-                update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $balance_after);
-                $tokens_left_to_deduct -= $deducted_from_balance;
-            } else {
-                $balance_before = is_numeric($token_balance_raw) ? (int) $token_balance_raw : 0;
-                $balance_after = $balance_before;
-            }
-        }
-    }
 
     // Validation
     if ($module_context === 'chat' && empty($context_id_or_bot_id)) {
@@ -870,6 +865,14 @@ function RecordTokenUsageLogic(
         return;
     }
 
+    if ($user_id) {
+        $balance_result = $balance_service->deduct_available_balance($user_id, $tokens_left_to_deduct);
+        $balance_before = (int) $balance_result['balance_before'];
+        $deducted_from_balance = (int) $balance_result['deducted'];
+        $balance_after = (int) $balance_result['balance_after'];
+        $tokens_left_to_deduct = (int) $balance_result['remaining'];
+    }
+
     $reset_period = $settings['token_reset_period'] ?? 'never';
     $should_record = false;
 
@@ -897,6 +900,7 @@ function RecordTokenUsageLogic(
             foreach ($guest_identifiers as $guest_identifier) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Reason: Direct query to a custom table. Cache is invalidated after each write.
                 $guest_row = $wpdb->get_row($wpdb->prepare("SELECT tokens_used, last_reset_timestamp FROM {$guest_table_name} WHERE session_id = %s AND bot_id = %d", $guest_identifier, $guest_context_table_id), ARRAY_A);
+                if ($wpdb->last_error !== '') { throw new \RuntimeException('Guest usage could not be read.'); }
                 $current_usage = $guest_row ? (int) $guest_row['tokens_used'] : 0;
                 $last_reset = $guest_row ? (int) $guest_row['last_reset_timestamp'] : 0;
                 $new_usage = $current_usage + $tokens_left_to_deduct; // Use remaining tokens
@@ -905,93 +909,92 @@ function RecordTokenUsageLogic(
                 } // Set initial reset time if not set
 
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                $wpdb->replace($guest_table_name, ['session_id' => $guest_identifier, 'bot_id' => $guest_context_table_id, 'tokens_used' => $new_usage, 'last_reset_timestamp' => $last_reset, 'last_updated_at' => current_time('mysql', 1)], ['%s', '%d', '%d', '%d', '%s']);
+                $written = $wpdb->replace($guest_table_name, ['session_id' => $guest_identifier, 'bot_id' => $guest_context_table_id, 'tokens_used' => $new_usage, 'last_reset_timestamp' => $last_reset, 'last_updated_at' => current_time('mysql', 1)], ['%s', '%d', '%d', '%d', '%s']);
+                if ($written === false) { throw new \RuntimeException('Guest usage could not be saved.'); }
                 wp_cache_delete("aipkit_guest_usage_{$guest_identifier}_{$guest_context_table_id}", 'aipkit_token_usage');
             }
         } elseif (!$is_guest) {
             $current_usage = (int) get_user_meta($user_id, $usage_key, true);
             $new_usage = $current_usage + $tokens_left_to_deduct; // Use remaining tokens
-            update_user_meta($user_id, $usage_key, $new_usage);
+            if (update_user_meta($user_id, $usage_key, $new_usage) === false) { throw new \RuntimeException('Local quota could not be saved.'); }
             if ($reset_period !== 'never') {
                 if (!get_user_meta($user_id, $reset_key, true)) {
-                    update_user_meta($user_id, $reset_key, time());
+                    if (update_user_meta($user_id, $reset_key, time()) === false) { throw new \RuntimeException('Local quota reset could not be saved.'); }
                 } // Set initial reset time
             }
         }
     }
 
-    if ($ledger_repository && method_exists($ledger_repository, 'insert_entry')) {
-        $context_type = $module_context === 'chat' ? 'chatbot' : 'module';
-        $context_id = null;
-        $reference_type = null;
-        $reference_id = null;
+    $context_type = $module_context === 'chat' ? 'chatbot' : 'module';
+    $context_id = null;
+    $reference_type = null;
+    $reference_id = null;
 
-        if ($module_context === 'chat' && is_numeric($context_id_or_bot_id)) {
-            $context_id = absint($context_id_or_bot_id);
-        } elseif ($module_context === 'image_generator') {
-            $context_id = is_numeric($context_id_or_bot_id)
-                ? absint($context_id_or_bot_id)
-                : GuestTableConstants::IMG_GEN_GUEST_CONTEXT_ID;
-        } elseif ($module_context === 'ai_forms') {
-            $form_id = 0;
-            if (!empty($usage_context['form_id']) && is_numeric($usage_context['form_id'])) {
-                $form_id = absint($usage_context['form_id']);
-            } elseif (
-                ($usage_context['pricing_scope_type'] ?? '') === 'ai_form' &&
-                !empty($usage_context['pricing_scope_id']) &&
-                is_numeric($usage_context['pricing_scope_id'])
-            ) {
-                $form_id = absint($usage_context['pricing_scope_id']);
-            }
-
-            if ($form_id > 0) {
-                $context_type = 'ai_form';
-                $context_id = $form_id;
-                $reference_type = 'ai_form';
-                $reference_id = (string) $form_id;
-            } else {
-                $context_id = GuestTableConstants::AI_FORMS_GUEST_CONTEXT_ID;
-            }
+    if ($module_context === 'chat' && is_numeric($context_id_or_bot_id)) {
+        $context_id = absint($context_id_or_bot_id);
+    } elseif ($module_context === 'image_generator') {
+        $context_id = is_numeric($context_id_or_bot_id)
+            ? absint($context_id_or_bot_id)
+            : GuestTableConstants::IMG_GEN_GUEST_CONTEXT_ID;
+    } elseif ($module_context === 'ai_forms') {
+        $form_id = 0;
+        if (!empty($usage_context['form_id']) && is_numeric($usage_context['form_id'])) {
+            $form_id = absint($usage_context['form_id']);
+        } elseif (
+            ($usage_context['pricing_scope_type'] ?? '') === 'ai_form' &&
+            !empty($usage_context['pricing_scope_id']) &&
+            is_numeric($usage_context['pricing_scope_id'])
+        ) {
+            $form_id = absint($usage_context['pricing_scope_id']);
         }
 
-        $ledger_repository->insert_entry([
-            'user_id' => $user_id,
-            'session_id' => $user_id ? null : $session_id,
-            'module' => $module_context,
-            'context_type' => $context_type,
-            'context_id' => $context_id,
-            'provider' => $provider !== '' ? $provider : null,
-            'model' => $model !== '' ? $model : null,
-            'operation' => $operation,
-            'usage_input_units' => max(0, (int) ($normalized_usage['input_units'] ?? 0)),
-            'usage_output_units' => max(0, (int) ($normalized_usage['output_units'] ?? 0)),
-            'usage_total_units' => max(0, (int) ($normalized_usage['total_units'] ?? $tokens_used)),
-            'credits_delta' => 0 - $deducted_from_balance,
-            'entry_type' => 'usage',
-            'reference_type' => $reference_type,
-            'reference_id' => $reference_id,
-            'idempotency_key' => $idempotency_key !== '' ? $idempotency_key : null,
-            'meta' => [
-                'legacy_total_units' => $tokens_used,
-                'billed_credits' => $billed_units,
-                'pricing_module' => $pricing_module !== '' ? $pricing_module : $module_context,
-                'billing_method' => sanitize_key((string) ($charge_estimate['billing_method'] ?? 'legacy_fallback')),
-                'raw_charge' => isset($charge_estimate['raw_charge']) ? (float) $charge_estimate['raw_charge'] : (float) $billed_units,
-                'used_legacy_fallback' => !empty($charge_estimate['used_legacy_fallback']),
-                'resolved_rule_id' => is_array($resolved_rule) && isset($resolved_rule['id']) ? absint($resolved_rule['id']) : null,
-                'balance_before' => $balance_before,
-                'balance_after' => $balance_after,
-                'balance_units' => $deducted_from_balance,
-                'quota_units' => $tokens_left_to_deduct,
-                'quota_recorded' => $should_record && $tokens_left_to_deduct > 0,
-                'tool_units' => max(0, (int) ($normalized_usage['tool_units'] ?? 0)),
-                'tool_usage' => isset($normalized_usage['tool_usage']) && is_array($normalized_usage['tool_usage'])
-                    ? $normalized_usage['tool_usage']
-                    : [],
-                'raw_usage_data' => $normalized_usage['raw_usage_data'] ?? [],
-            ],
-        ]);
+        if ($form_id > 0) {
+            $context_type = 'ai_form';
+            $context_id = $form_id;
+            $reference_type = 'ai_form';
+            $reference_id = (string) $form_id;
+        } else {
+            $context_id = GuestTableConstants::AI_FORMS_GUEST_CONTEXT_ID;
+        }
     }
+
+    return $ledger_repository->insert_entry([
+        'user_id' => $user_id,
+        'session_id' => $user_id ? null : $session_id,
+        'module' => $module_context,
+        'context_type' => $context_type,
+        'context_id' => $context_id,
+        'provider' => $provider !== '' ? $provider : null,
+        'model' => $model !== '' ? $model : null,
+        'operation' => $operation,
+        'usage_input_units' => max(0, (int) ($normalized_usage['input_units'] ?? 0)),
+        'usage_output_units' => max(0, (int) ($normalized_usage['output_units'] ?? 0)),
+        'usage_total_units' => max(0, (int) ($normalized_usage['total_units'] ?? $tokens_used)),
+        'credits_delta' => 0 - $deducted_from_balance,
+        'entry_type' => 'usage',
+        'reference_type' => $reference_type,
+        'reference_id' => $reference_id,
+        'idempotency_key' => $idempotency_key !== '' ? $idempotency_key : null,
+        'meta' => [
+            'legacy_total_units' => $tokens_used,
+            'billed_credits' => $billed_units,
+            'pricing_module' => $pricing_module !== '' ? $pricing_module : $module_context,
+            'billing_method' => sanitize_key((string) ($charge_estimate['billing_method'] ?? 'legacy_fallback')),
+            'raw_charge' => isset($charge_estimate['raw_charge']) ? (float) $charge_estimate['raw_charge'] : (float) $billed_units,
+            'used_legacy_fallback' => !empty($charge_estimate['used_legacy_fallback']),
+            'resolved_rule_id' => is_array($resolved_rule) && isset($resolved_rule['id']) ? absint($resolved_rule['id']) : null,
+            'balance_before' => $balance_before,
+            'balance_after' => $balance_after,
+            'balance_units' => $deducted_from_balance,
+            'quota_units' => $tokens_left_to_deduct,
+            'quota_recorded' => $should_record && $tokens_left_to_deduct > 0,
+            'tool_units' => max(0, (int) ($normalized_usage['tool_units'] ?? 0)),
+            'tool_usage' => isset($normalized_usage['tool_usage']) && is_array($normalized_usage['tool_usage'])
+                ? $normalized_usage['tool_usage']
+                : [],
+            'raw_usage_data' => $normalized_usage['raw_usage_data'] ?? [],
+        ],
+    ]);
 }
 
 namespace WPAICG\Core\TokenManager\Helpers;
@@ -1209,7 +1212,7 @@ class AIPKit_Token_Manager {
     }
 
     public function record_token_usage(?int $user_id, ?string $session_id, ?int $context_id_or_bot_id, int $tokens_used, string $module_context = 'chat', array $usage_context = []) {
-        Record\RecordTokenUsageLogic($this, $user_id, $session_id, $context_id_or_bot_id, $tokens_used, $module_context, $usage_context);
+        return Record\RecordTokenUsageLogic($this, $user_id, $session_id, $context_id_or_bot_id, $tokens_used, $module_context, $usage_context);
     }
     // --- End token checking and recording ---
 

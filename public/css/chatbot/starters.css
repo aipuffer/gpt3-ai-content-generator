@@ -4,6 +4,8 @@
 
 .aipkit_conversation_starters {
   width: 100%;
+  max-height: 40%;
+  overflow-y: auto;
   margin: 0;
   padding: 8px 16px var(--aipkit-chat-starters-divider-gap, 16px);
   display: flex;
@@ -19,12 +21,6 @@
   position: relative;
   z-index: 2; /* Ensure starters stay above input area */
   box-sizing: border-box;
-}
-
-/* Inline mode (non-popup): clip overflow during animation to prevent scrollbar flash */
-
-.aipkit_chat_container:not(.aipkit_popup_content) .aipkit_conversation_starters {
-  overflow: hidden;
 }
 
 /* Hidden state */
@@ -73,9 +69,8 @@
   text-align: center;
   transition: background-color 0.2s ease, color 0.2s ease,
     border-color 0.2s ease, box-shadow 0.2s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
   opacity: 0;
   transform: translateY(20px);
   flex-shrink: 1;

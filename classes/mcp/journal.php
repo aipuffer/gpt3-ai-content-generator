@@ -153,9 +153,11 @@ final class Journal
         global $wpdb;
         $table = Schema::table('operations');
         $writes = Registry::write_names();
+        // Received rows have never run a handler and may simply be waiting for our lock.
+        // Only executing/unknown writes can require effect recovery.
         // Only generated placeholders are interpolated; every tool name is a prepared value.
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Uncached atomic journal/nonce state; table names are allowlisted by Schema and every external value is prepared.
-        $rows = $wpdb->get_results($wpdb->prepare("SELECT operation_id FROM $table WHERE operation_id != %s AND tool IN (" . implode(',', array_fill(0, count($writes), '%s')) . ") AND state IN ('received', 'executing', 'unknown') ORDER BY created_at, operation_id LIMIT 1", array_merge([$except], $writes)), ARRAY_A);
+        $rows = $wpdb->get_results($wpdb->prepare("SELECT operation_id FROM $table WHERE operation_id != %s AND tool IN (" . implode(',', array_fill(0, count($writes), '%s')) . ") AND state IN ('executing', 'unknown') ORDER BY created_at, operation_id LIMIT 1", array_merge([$except], $writes)), ARRAY_A);
         if ($wpdb->last_error !== '' || !is_array($rows)) {
             return Operations::error('write_check_unavailable', 'WordPress could not check its change history. Nothing ran and no action was charged. Reads still work. Ask the website owner to check database availability before trying a new change.');
         }

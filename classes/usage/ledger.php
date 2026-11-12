@@ -15,11 +15,65 @@ if (!defined('ABSPATH')) {
 class AIPKit_Ledger_Repository
 {
     private $table_name;
+    private static $transaction_active = false;
 
     public function __construct(?string $table_name = null)
     {
         global $wpdb;
         $this->table_name = $table_name ?: $wpdb->prefix . 'aipkit_token_ledger';
+    }
+
+    /**
+     * Keep a visitor's balance/quota and receipt in one local transaction.
+     * Locks are scoped to the actor, not the whole site. Never commit a caller's transaction.
+     * @return mixed|WP_Error
+     */
+    public function atomic_usage(?int $user_id, array $guest_identifiers, callable $record)
+    {
+        global $wpdb;
+        if (self::$transaction_active) { return new WP_Error('aipkit_usage_busy', 'Local usage is already being recorded.'); }
+        $guest_table = $wpdb->prefix . 'aipkit_guest_token_usage';
+        $tables = [$this->table_name, $user_id ? $wpdb->usermeta : $guest_table];
+        $actors = $user_id ? ['user:' . $user_id] : array_map(static function ($id) { return 'guest:' . $id; }, $guest_identifiers);
+        if (!$actors) { return new WP_Error('aipkit_usage_actor_missing', 'Local usage requires an actor.'); }
+        sort($actors, SORT_STRING);
+        $locks = [];
+        $started = false;
+        self::$transaction_active = true;
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded local accounting transaction; locks and engine checks cannot be cached across requests.
+        try {
+            $engines = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (%s, %s) AND ENGINE = 'InnoDB'", $tables[0], $tables[1]));
+            if ((int) $engines !== 2) { throw new \RuntimeException('transactional_storage_required'); }
+            foreach (array_unique($actors) as $actor) {
+                $name = 'aipkit_usage_' . substr(hash('sha256', DB_NAME . ':' . $wpdb->usermeta . ':' . $actor), 0, 48);
+                if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 5)', $name)) !== '1') { throw new \RuntimeException('usage_lock_unavailable'); }
+                $locks[] = $name;
+            }
+            // This statement fails inside an existing transaction, unlike START TRANSACTION
+            // which would silently commit it. READ COMMITTED also avoids stale retry snapshots.
+            if ($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED') === false
+                || $wpdb->query('START TRANSACTION') === false) { throw new \RuntimeException('usage_transaction_unavailable'); }
+            $started = true;
+            if ($user_id) {
+                wp_cache_delete($user_id, 'user_meta');
+                get_user_meta($user_id);
+                if ($wpdb->last_error !== '') { throw new \RuntimeException('usage_balance_read_failed'); }
+            }
+            $result = $record();
+            if (is_wp_error($result)) { throw new \RuntimeException('usage_record_failed'); }
+            if ($wpdb->query('COMMIT') === false) { throw new \RuntimeException('usage_commit_failed'); }
+            $started = false;
+            return $result;
+        } catch (\Throwable $error) {
+            if ($started) { $wpdb->query('ROLLBACK'); }
+            return new WP_Error('aipkit_usage_not_recorded', __('Local usage could not be saved. No balance change was confirmed.', 'gpt3-ai-content-generator'));
+        } finally {
+            // Metadata APIs may have populated an object cache with uncommitted values.
+            if ($user_id) { wp_cache_delete($user_id, 'user_meta'); }
+            foreach (array_reverse($locks) as $name) { $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name)); }
+            self::$transaction_active = false;
+        }
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 
     /** Record provider usage without touching visitor balances, quotas, or Cloud receipts. */
@@ -53,8 +107,12 @@ class AIPKit_Ledger_Repository
         if ($idempotency_key !== '') {
             $existing = $this->find_by_idempotency_key($idempotency_key);
             if (is_array($existing) && !empty($existing['id'])) {
+                // A caller inside accounting must decide duplicates before changing a
+                // balance. A late duplicate must roll back, never commit a second debit.
+                if (self::$transaction_active) { return new WP_Error('aipkit_usage_duplicate', 'Local usage was already recorded.'); }
                 return (int) $existing['id'];
             }
+            if ($wpdb->last_error !== '') { return new WP_Error('aipkit_usage_lookup_failed', 'Local usage could not be checked.'); }
         }
 
         $user_id = isset($entry['user_id']) && is_numeric($entry['user_id']) ? absint($entry['user_id']) : null;
@@ -140,6 +198,7 @@ class AIPKit_Ledger_Repository
         // phpcs:enable
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Prepared lookup against a plugin-owned ledger table.
         $row = $wpdb->get_row($prepared_lookup_query, ARRAY_A);
+        if (self::$transaction_active && $wpdb->last_error !== '') { throw new \RuntimeException('Local receipt lookup failed.'); }
 
         return is_array($row) ? $row : null;
     }
@@ -192,7 +251,10 @@ class AIPKit_Balance_Service
     public function set_current_balance(int $user_id, int $balance): int
     {
         $balance = max(0, $balance);
-        update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $balance);
+        if ($this->get_current_balance($user_id) !== $balance
+            && update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $balance) === false) {
+            throw new \RuntimeException('Local balance could not be saved.');
+        }
 
         return $balance;
     }
@@ -207,7 +269,7 @@ class AIPKit_Balance_Service
         $deducted = min($balance_before, $requested_units);
         $balance_after = $balance_before - $deducted;
 
-        update_user_meta($user_id, MetaKeysConstants::TOKEN_BALANCE_META_KEY, $balance_after);
+        $this->set_current_balance($user_id, $balance_after);
 
         return [
             'balance_before' => $balance_before,
