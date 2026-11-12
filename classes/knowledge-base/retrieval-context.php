@@ -919,7 +919,7 @@ function resolve_local_context_logic(
         }
         $searches[] = [sprintf('Knowledge base "%s"', $store['name']), ['must_not' => [['key' => 'source', 'match' => ['value' => 'chat_file_upload']]]], false];
         foreach ($searches as [$label, $filter, $private_file]) {
-            $hits = $vector_store_manager->query_vectors('Local', $store['id'], ['vector' => $query_vectors[$key], 'score_threshold' => $threshold], $vector_top_k, $filter, []);
+            $hits = $vector_store_manager->query_vectors('Local', $store['id'], ['vector' => $query_vectors[$key], 'score_threshold' => $threshold, 'text' => $user_message], $vector_top_k, $filter, []);
             if (is_wp_error($hits)) { return $hits; }
             if (!$hits) { continue; }
             $lines = '';

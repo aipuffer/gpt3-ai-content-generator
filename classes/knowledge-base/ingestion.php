@@ -136,15 +136,42 @@ class AIPKit_Vector_Text_Ingestion_Service
             $embedding_model,
             $target_id
         );
-        $batch_size = max(1, min(100, $batch_size));
+        $batch_size = max(1, min($embedding_provider_normalized === 'AIPufferCloud' ? 96 : 100, $batch_size));
 
-        foreach (array_chunk($chunks, $batch_size) as $chunk_batch) {
+        // Only local Cloud learning resumes completed embedding batches. No provider replay on
+        // ambiguous errors, and no duplicate charges for earlier batches after an admission refusal.
+        $resume_key = $provider_label === 'Local' && $embedding_provider_normalized === 'AIPufferCloud'
+            ? 'aipkit_learning_' . md5(wp_json_encode([$target_id, $chunks, $embedding_options, $metadata, $batch_size])) : '';
+        $resume = $resume_key !== '' ? get_transient($resume_key) : false;
+        if (!empty($options['learning_resume_key']) && ($options['learning_resume_key'] !== $resume_key || !is_array($resume))) {
+            return new WP_Error('learning_resume_unavailable', __('Saved learning progress expired or this source changed. Review it before learning it again; earlier embedding batches may already have used credits.', 'gpt3-ai-content-generator'));
+        }
+        $completed_batches = is_array($resume) ? (int) ($resume['batches'] ?? 0) : 0;
+        if ($completed_batches > 0) {
+            $prepared_records = $resume['records'];
+            $first_record_id = $prepared_records[0]['id'] ?? null;
+        }
+        foreach (array_chunk($chunks, $batch_size) as $batch_index => $chunk_batch) {
+            if ($batch_index < $completed_batches) { continue; }
             $chunk_texts = array_map(static function (array $chunk): string {
                 return (string) ($chunk['text'] ?? '');
             }, $chunk_batch);
 
             $embedding_result = $this->generate_embeddings($chunk_texts, $embedding_provider_normalized, $embedding_options);
             if (is_wp_error($embedding_result)) {
+                $data = \WPAICG\Core\AIPKit_HTTP_Request::public_error_data($embedding_result);
+                $safe = $resume_key !== '' && empty($data['outcome_unknown']) && empty($data['cloud_request_id'])
+                    && empty($data['cloud_request_state']) && in_array($data['provider_error_code'] ?? '', ['generation_rate_limit', 'generation_concurrency_limit', 'cloud_operation_rate_limit'], true);
+                if ($safe && $prepared_records) {
+                    $checkpoint = ['batches' => $batch_index, 'records' => $prepared_records];
+                    $safe = strlen(serialize($checkpoint)) <= 2 * 1024 * 1024
+                        && (set_transient($resume_key, $checkpoint, HOUR_IN_SECONDS) || get_transient($resume_key) === $checkpoint);
+                }
+                if (!$safe && $resume_key !== '') { delete_transient($resume_key); }
+                $original = (array) $embedding_result->get_error_data();
+                $original['learning_retry_safe'] = $safe;
+                if ($safe && $prepared_records) { $original['learning_resume_key'] = $resume_key; }
+                $embedding_result->add_data($original);
                 return $embedding_result;
             }
 
@@ -173,6 +200,8 @@ class AIPKit_Vector_Text_Ingestion_Service
             }
 
         }
+
+        if ($resume_key !== '') { delete_transient($resume_key); }
 
         // Embed the entire replacement before changing existing searchable content.
         if ($provider_label === 'Local') {

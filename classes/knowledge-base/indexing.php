@@ -43,6 +43,7 @@ abstract class AIPKit_Vector_Post_Processor_Base
         return [
             'status' => 'error',
             'message' => $message,
+            'learning_resume_key' => is_wp_error($error) ? ($error->get_error_data()['learning_resume_key'] ?? '') : '',
             'error_data' => is_wp_error($error) ? \WPAICG\Core\AIPKit_HTTP_Request::public_error_data($error, 400) : [],
         ];
     }

@@ -214,6 +214,15 @@ class AIPKit_Vector_Local_Strategy extends AIPKit_Vector_Base_Provider_Strategy
         return true;
     }
 
+    /** Exact title phrases improve similar-page retrieval; never match a partial identifier. */
+    public static function title_matches_question(string $title, string $question): bool
+    {
+        $words = static function ($text) { return trim((string) preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower($text))); };
+        $title = $words($title);
+        $question = $words(mb_substr($question, 0, 4000));
+        return mb_strlen($title) >= 8 && strpos(' ' . $question . ' ', ' ' . $title . ' ') !== false;
+    }
+
     public function query_vectors(string $index_name, array $query_vector, int $top_k, array $filter = [])
     {
         global $wpdb;
@@ -255,6 +264,10 @@ class AIPKit_Vector_Local_Strategy extends AIPKit_Vector_Base_Provider_Strategy
                 if (count($vector) !== $dimensions) { continue; }
                 $score = 0.0;
                 for ($i = 0; $i < $dimensions; $i++) { $score += $vector[$i + 1] * $query[$i]; }
+                $metadata = (array) json_decode((string) $row['metadata'], true);
+                if (!empty($query_vector['text']) && self::title_matches_question((string) ($metadata['title'] ?? ''), (string) $query_vector['text'])) {
+                    $score = 1.01; // Internal ranking boost; reported confidence stays bounded. Exact source title is stronger evidence than approximate vector similarity.
+                }
                 if ($threshold !== null && $score < $threshold) { continue; }
                 if (count($best) < $top_k) { $best[$last] = $score; $floor = min($best); }
                 elseif ($score > $floor) { unset($best[array_search($floor, $best, true)]); $best[$last] = $score; $floor = min($best); }
@@ -272,7 +285,7 @@ class AIPKit_Vector_Local_Strategy extends AIPKit_Vector_Base_Provider_Strategy
             if (!isset($details[$id])) { continue; }
             $metadata = (array) json_decode((string) $details[$id]->metadata, true);
             $metadata['original_content'] = $details[$id]->content;
-            $results[] = ['id' => $details[$id]->vector_id, 'score' => round($score, 6), 'metadata' => $metadata, 'collection' => $store['id']];
+            $results[] = ['id' => $details[$id]->vector_id, 'score' => round(min(1.0, $score), 6), 'metadata' => $metadata, 'collection' => $store['id']];
         }
         return $results;
     }

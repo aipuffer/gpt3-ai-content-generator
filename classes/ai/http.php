@@ -45,6 +45,7 @@ class AIPKit_HTTP_Request
         foreach (['cloud_operation_id', 'cloud_request_id', 'cloud_request_state'] as $key) {
             if (isset($source[$key]) && is_string($source[$key])) { $data[$key] = sanitize_text_field($source[$key]); }
         }
+        if (isset($source['learning_retry_safe'])) { $data['learning_retry_safe'] = $source['learning_retry_safe'] === true; }
         if (isset($source['outcome_unknown'])) { $data['outcome_unknown'] = (bool) $source['outcome_unknown']; }
         if (isset($source['retry_after']) && is_numeric($source['retry_after'])) { $data['retry_after'] = max(0, (int) ceil((float) $source['retry_after'])); }
         return $data;

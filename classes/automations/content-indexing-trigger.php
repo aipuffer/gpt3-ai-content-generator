@@ -26,7 +26,7 @@ function trigger_content_indexing_task_logic(int $task_id, array $task_config, ?
     }
 
     // Case 2: Handle the ongoing sync of new/updated content.
-    if (isset($task_config['only_new_updated_flag']) && $task_config['only_new_updated_flag'] === '1') {
+    if (($task_config['indexing_frequency'] ?? '') !== 'one-time' && isset($task_config['only_new_updated_flag']) && $task_config['only_new_updated_flag'] === '1') {
         $run_state = AIPKit_Automated_Task_Content_Queuer::queue_new_or_updated_indexing_content($task_id, $task_config, $last_run_time);
     }
     return is_array($run_state) ? $run_state : [];

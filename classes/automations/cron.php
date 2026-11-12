@@ -26,10 +26,9 @@ class AIPKit_Automated_Task_Cron
             return; // Critical dependency missing
         }
 
-        // 2. Check if AutoGPT module is active. If not, stop here.
-        if (!Init\check_module_status_logic(self::MAIN_CRON_HOOK)) {
-            return;
-        }
+        require_once __DIR__ . '/scheduler.php';
+        // Retire the old module-wide worker flag; eligibility now follows task type.
+        delete_option('aipkit_autogpt_module_was_active');
 
         global $wpdb;
         $tasks_table_name = $wpdb->prefix . 'aipkit_automated_tasks';
@@ -83,38 +82,6 @@ function ensure_dashboard_loaded_logic(): bool
         }
     }
     return true;
-}
-
-/**
- * Checks if the AutoGPT module is active and handles state transitions.
- *
- * @param string $main_cron_hook The name of the main cron hook to clear if necessary.
- * @return bool True if the module is active and initialization should proceed, false otherwise.
- */
-function check_module_status_logic(string $main_cron_hook): bool
-{
-    $option_key_autogpt_active = 'aipkit_autogpt_module_was_active';
-
-    $module_settings = aipkit_dashboard::get_module_settings();
-    $is_autogpt_currently_active = !empty($module_settings['autogpt']);
-    $was_autogpt_active = (bool) get_option($option_key_autogpt_active, false);
-
-    if (!$is_autogpt_currently_active) {
-        if (wp_next_scheduled($main_cron_hook)) {
-            wp_clear_scheduled_hook($main_cron_hook);
-        }
-        if (class_exists(AIPKit_Automated_Task_Scheduler::class)) {
-            AIPKit_Automated_Task_Scheduler::clear_all_task_events();
-        }
-        update_option($option_key_autogpt_active, false, 'no');
-        return false; // Stop further initialization
-    }
-
-    if (!$was_autogpt_active) {
-        update_option($option_key_autogpt_active, true, 'no');
-    }
-
-    return true; // Continue initialization
 }
 
 /**
@@ -180,12 +147,13 @@ function evaluate_status_flags_logic(\wpdb $wpdb, string $tasks_table_name): arr
         ];
     }
 
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Direct query to a custom table; table identifier is plugin-owned, validated, and backticked above.
-    $active_task_count = (int) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$tasks_table_identifier} WHERE status = %s LIMIT 1", 'active'));
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    $active_task_count = (int) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$tasks_table_identifier} WHERE status = %s AND (task_type <> %s OR next_run_time IS NOT NULL)" . AIPKit_Automated_Task_Scheduler::enabled_task_sql() . " LIMIT 1", 'active', 'content_indexing'));
 
-    // Also check for pending items in the queue - these need processing even if no tasks are active
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Direct query to a custom table; table identifier is plugin-owned, validated, and backticked above.
-    $pending_queue_count = (int) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$queue_table_identifier} WHERE status = %s LIMIT 1", 'pending'));
+    // One-time learning has no recurring schedule; its queued items alone keep the worker awake.
+    // Also check pending items even when their one-time task is already paused.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.NotPrepared -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    $pending_queue_count = (int) $wpdb->get_var($wpdb->prepare("SELECT 1 FROM {$queue_table_identifier} WHERE status = %s" . AIPKit_Automated_Task_Scheduler::enabled_task_sql() . " LIMIT 1", 'pending'));
     if (!$pending_queue_count) {
         require_once __DIR__ . '/events.php';
         $pending_queue_count = (int) \WPAICG\AutoGPT\Cron\EventProcessor\Helpers\has_waiting_indexing_queue_items_logic();
@@ -261,8 +229,8 @@ function attach_individual_task_hooks_logic(\wpdb $wpdb, string $tasks_table_nam
     if (!class_exists(AIPKit_Automated_Task_Scheduler::class) || !class_exists(AIPKit_Automated_Task_Event_Processor::class)) {
         return;
     }
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct query to a custom table. Caches will be invalidated.
-    $all_tasks = $wpdb->get_results("SELECT id FROM " . esc_sql($tasks_table_name), ARRAY_A);
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    $all_tasks = $wpdb->get_results("SELECT id FROM " . esc_sql($tasks_table_name) . " WHERE 1=1" . AIPKit_Automated_Task_Scheduler::enabled_task_sql(), ARRAY_A);
 
     if ($all_tasks) {
         foreach ($all_tasks as $task) {

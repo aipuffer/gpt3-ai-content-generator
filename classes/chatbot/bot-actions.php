@@ -3008,7 +3008,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $limit = 1001;
         $params = array_merge([$provider_label], $store_ids, [$limit]);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Dynamic IN placeholders match the sanitized store ID parameters; this is a bounded preview over indexed columns in a plugin-owned table.
-        $source_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$table_name} WHERE provider = %s AND vector_store_id IN ($placeholders) AND (post_id IS NOT NULL OR file_id IS NOT NULL OR indexed_content IS NOT NULL) LIMIT %d", ...$params));
+        $source_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$table_name} WHERE provider = %s AND vector_store_id IN ($placeholders) AND status IN ('indexed', 'success', 'ready', 'completed', 'skipped_already_indexed') AND (post_id IS NOT NULL OR file_id IS NOT NULL OR indexed_content IS NOT NULL) LIMIT %d", ...$params));
         $count_is_capped = count((array) $source_ids) >= $limit;
         $stats = [
             'count' => $count_is_capped ? $limit - 1 : count((array) $source_ids),
@@ -3151,23 +3151,7 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
         $processing_count = isset($queue_summary['processing']) ? (int) $queue_summary['processing'] : 0;
         $failed_count = isset($queue_summary['failed']) ? (int) $queue_summary['failed'] : 0;
 
-        if ($processing_count > 0) {
-            return [
-                'key' => 'training',
-                'label' => __('Adding knowledge...', 'gpt3-ai-content-generator'),
-                'type' => 'loading',
-            ];
-        }
-
-        if ($count > 0) {
-            return [
-                'key' => 'trained',
-                'label' => __('Knowledge ready', 'gpt3-ai-content-generator'),
-                'type' => 'success',
-            ];
-        }
-
-        if ($pending_count > 0) {
+        if ($processing_count > 0 || $pending_count > 0) {
             return [
                 'key' => 'training',
                 'label' => __('Adding knowledge...', 'gpt3-ai-content-generator'),
@@ -3180,6 +3164,14 @@ class ChatbotAjaxHandler extends BaseAjaxHandler
                 'key' => 'failed',
                 'label' => __('Failed', 'gpt3-ai-content-generator'),
                 'type' => 'error',
+            ];
+        }
+
+        if ($count > 0) {
+            return [
+                'key' => 'trained',
+                'label' => __('Knowledge ready', 'gpt3-ai-content-generator'),
+                'type' => 'success',
             ];
         }
 

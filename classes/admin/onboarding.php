@@ -44,7 +44,7 @@ final class Onboarding
     public static function mark_fresh_install(bool $fresh): void
     {
         if ($fresh && get_option(self::OPTION, null) === null) {
-            add_option(self::OPTION, ['status' => 'pending', 'created' => time()], '', false);
+            add_option(self::OPTION, ['status' => 'pending', 'created' => time(), 'website_basics' => true], '', false);
         }
     }
 
@@ -629,11 +629,27 @@ final class Onboarding
     {
         $bot = self::default_bot_id();
         if (!self::chosen() || !$bot) { wp_send_json_error(['message' => __('Connect AI first, then try your chatbot.', 'gpt3-ai-content-generator')], 400); }
+        $basics = [];
+        $state = self::state();
+        if (!empty($state['website_basics'])) {
+            require_once WPAICG_PLUGIN_DIR . 'classes/chatbot/content-context.php';
+            if (!metadata_exists('post', $bot, '_aipkit_site_basics_pages')
+                && (int) get_post_time('U', true, $bot) >= (int) ($state['created'] ?? PHP_INT_MAX) - 60
+                && get_post_meta($bot, '_aipkit_instructions', true) === \WPAICG\Chat\Storage\BotSettingsManager::DEFAULT_INSTRUCTIONS) {
+                $pages = [(int) get_option('page_on_front')];
+                $about = get_page_by_path('about') ?: get_page_by_path('about-us');
+                if ($about) { $pages[] = $about->ID; }
+                add_post_meta($bot, '_aipkit_site_basics_pages', array_values(array_filter($pages)), true);
+            }
+            if (metadata_exists('post', $bot, '_aipkit_site_basics_pages')) {
+                $basics = \WPAICG\Chat\Core\AIPKit_Content_Aware::website_basics((array) get_post_meta($bot, '_aipkit_site_basics_pages', true));
+            }
+        }
         $html = (new \WPAICG\Chat\Frontend\Shortcode())->render_inline($bot);
         if (!is_string($html) || strpos($html, 'aipkit_chat_container') === false) {
             wp_send_json_error(['message' => __('Your chatbot could not be shown. Open it in Chatbots instead.', 'gpt3-ai-content-generator')], 500);
         }
-        wp_send_json_success(['html' => $html]);
+        wp_send_json_success(['html' => $html, 'basics' => !empty($basics['context']), 'questions' => $basics['questions'] ?? []]);
     }
 
     private static function op_publish_bot(): void

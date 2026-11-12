@@ -948,6 +948,8 @@ if (root) {
         state.chatWidget = '';
         chatNode = null;
         $('[data-chat-widget]').innerHTML = '';
+        const basicsNotice = $('[data-chat-basics]');
+        if (basicsNotice) basicsNotice.hidden = true;
     }
     function chatStatus(message, failed = false) {
         $('[data-chat-message]').textContent = message;
@@ -972,6 +974,13 @@ if (root) {
             box.innerHTML = data.html || '';
             const chat = box.querySelector('.aipkit_chat_container');
             if (!chat || typeof window.aipkit_initializeChatInstance !== 'function') throw new Error(__('Your chatbot could not be shown. Open it in Chatbots instead.', 'gpt3-ai-content-generator'));
+            const basicsNotice = $('[data-chat-basics]');
+            if (basicsNotice) basicsNotice.hidden = !data.basics;
+            if (data.basics && Array.isArray(data.questions)) {
+                const config = JSON.parse(chat.getAttribute('data-config') || '{}');
+                config.starters = data.questions.filter(question => typeof question === 'string').slice(0, 3);
+                chat.setAttribute('data-config', JSON.stringify(config));
+            }
             chatNode = chat;
             // Keep the first-result metric tied to a completed reply, never a failed submission.
             chat.addEventListener('aipkit:messageReceived', () => { state.results.add('chatbot'); void setup('chat_result').catch(() => {}); }, { once: true });

@@ -947,8 +947,8 @@ function build_task_config_indexing_logic(array $post_data)
     }
     $task_config['target_store_id'] = isset($post_data['target_store_id']) ? sanitize_text_field($post_data['target_store_id']) : '';
     $task_config['indexing_frequency'] = isset($post_data['task_frequency']) ? sanitize_key($post_data['task_frequency']) : 'daily';
-    $task_config['index_existing_now_flag'] = isset($post_data['index_existing_now_flag']) ? '1' : '0';
-    $task_config['only_new_updated_flag'] = isset($post_data['only_new_updated_flag']) ? '1' : '0';
+    $task_config['index_existing_now_flag'] = filter_var($post_data['index_existing_now_flag'] ?? false, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
+    $task_config['only_new_updated_flag'] = filter_var($post_data['only_new_updated_flag'] ?? false, FILTER_VALIDATE_BOOLEAN) ? '1' : '0';
     $task_config['source_context'] = isset($post_data['source_context']) ? sanitize_key($post_data['source_context']) : '';
     $task_config['chatbot_id'] = isset($post_data['chatbot_id']) ? absint($post_data['chatbot_id']) : 0;
 

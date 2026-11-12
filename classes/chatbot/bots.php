@@ -1636,6 +1636,8 @@ function get_general_bot_settings_logic(int $bot_id, string $bot_name, callable 
     $settings['subgreeting'] = $get_meta_fn('_aipkit_subgreeting_message', $default_subgreeting);
 
     $settings['instructions'] = $get_meta_fn('_aipkit_instructions', BotSettingsManager::DEFAULT_INSTRUCTIONS);
+    // Bulk-prefetched post meta retains WordPress serialization; direct reads do not.
+    $settings['site_basics_pages'] = maybe_unserialize($get_meta_fn('_aipkit_site_basics_pages', null));
 
     return $settings;
 }

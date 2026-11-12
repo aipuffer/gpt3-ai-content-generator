@@ -347,6 +347,12 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
             $this->send_wp_error(new WP_Error('vsm_missing_reindex', __('Vector processing components are not available.', 'gpt3-ai-content-generator')));
             return;
         }
+        if ($provider === 'Local' && $embedding_provider === '' && $embedding_model === '') {
+            $local = new \WPAICG\Vector\Providers\AIPKit_Vector_Local_Strategy();
+            $store = $local->get_store($local::store_id($store_id));
+            $embedding_provider = (string) ($store['embedding_provider'] ?? '');
+            $embedding_model = (string) ($store['embedding_model'] ?? '');
+        }
         if (
             in_array($provider, ['Pinecone', 'Qdrant', 'Chroma', 'Local'], true)
             && (empty($embedding_provider) || empty($embedding_model))
@@ -355,7 +361,7 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
             return;
         }
 
-        // OpenAI owns safe replacement and keeps the previous file/log until ready.
+        // OpenAI and Local own safe replacement and keep previous knowledge until ready.
         $provider_config = $provider === 'Local' ? [] : AIPKit_Providers::get_provider_data($provider);
         if ($provider === 'Local') {
             // Local has no external storage credentials.
@@ -380,7 +386,7 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
                     return;
                 }
             }
-        } elseif ($provider !== 'OpenAI') {
+        } elseif (!in_array($provider, ['OpenAI', 'Local'], true)) {
             if (!$this->vector_store_manager) {
                 $this->send_wp_error(new WP_Error('vsm_missing_reindex', __('Vector processing components are not available.', 'gpt3-ai-content-generator')));
                 return;
@@ -394,7 +400,7 @@ class AIPKit_Source_Ajax_Handler extends BaseDashboardAjaxHandler
 
         global $wpdb;
         $data_source_table_name = $wpdb->prefix . 'aipkit_vector_data_source';
-        if ($provider !== 'OpenAI') {
+        if (!in_array($provider, ['OpenAI', 'Local'], true)) {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Other providers retain their existing synchronous replacement flow.
             $deleted_source_log = $wpdb->delete($data_source_table_name, ['id' => $log_id], ['%d']);
             if ($deleted_source_log !== false) {

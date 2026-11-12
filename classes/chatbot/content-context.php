@@ -95,6 +95,45 @@ class AIPKit_Content_Aware {
 
     const MAX_EXCERPT_LENGTH = 1500;
 
+    /** Small public-only starter context; no rendering, shortcode execution, crawl or AI request. */
+    public static function website_basics(array $page_ids): array {
+        $plain = static function (string $text, int $limit): string {
+            return mb_substr(trim((string) preg_replace('/\s+/u', ' ', wp_strip_all_tags(strip_shortcodes($text)))), 0, $limit);
+        };
+        $name = $plain((string) get_option('blogname', ''), 150);
+        $description = $plain((string) get_option('blogdescription', ''), 300);
+        $facts = ['name' => $name, 'description' => $description];
+        $questions = $name !== '' ? [__('What is this website called?', 'gpt3-ai-content-generator')] : [];
+        $has_content = $description !== '';
+        // Do not expose raw children of membership/custom/dynamic blocks. Only plain static
+        // core text and its layout containers belong in this small automatic starter context.
+        $static_text = static function (array $blocks) use (&$static_text): string {
+            $text = '';
+            foreach ($blocks as $block) {
+                $type = $block['blockName'] ?? null;
+                if ($type !== null && !in_array($type, ['core/paragraph', 'core/heading', 'core/list', 'core/list-item', 'core/quote', 'core/table', 'core/preformatted', 'core/verse', 'core/group', 'core/columns', 'core/column'], true)) { continue; }
+                if (!empty($block['attrs']['metadata']['bindings'])) { continue; }
+                $text .= ' ' . (!empty($block['innerBlocks']) ? $static_text($block['innerBlocks']) : (string) ($block['innerHTML'] ?? ''));
+            }
+            return $text;
+        };
+        foreach (array_slice(array_unique(array_map('absint', $page_ids)), 0, 2) as $id) {
+            $page = get_post($id);
+            if (!$page || $page->post_type !== 'page' || $page->post_status !== 'publish' || $page->post_password !== '' || !is_post_type_viewable('page')) { continue; }
+            $text = $plain($static_text(parse_blocks((string) $page->post_content)), 1100);
+            if ($text === '') { continue; }
+            $facts['pages'][] = ['title' => $plain($page->post_title, 100), 'text' => $text];
+            $has_content = true;
+            if (count($questions) < 2) {
+                /* translators: %s: public page title. */
+                $questions[] = sprintf(__('What does the “%s” page say?', 'gpt3-ai-content-generator'), $plain($page->post_title, 100));
+            }
+        }
+        if ($has_content) { array_unshift($questions, __('What is this website about?', 'gpt3-ai-content-generator')); }
+        return ['context' => $name !== '' || $has_content ? wp_json_encode($facts, JSON_UNESCAPED_UNICODE) : '', 'questions' => array_slice($questions, 0, 3)];
+    }
+
+
     public static function get_content_snippet(int $post_id): ?string {
         return ContentAware\get_content_snippet($post_id);
     }

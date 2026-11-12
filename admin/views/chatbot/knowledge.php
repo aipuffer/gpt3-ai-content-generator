@@ -32,7 +32,7 @@ if (!defined('ABSPATH')) {
         </div>
 
         <?php // One sentence on what it answers from; Knowledge scripts fill it from the training status and sources. ?>
-        <div class="aipkit_knowledge_strip" data-aipkit-knowledge-strip data-user-id="<?php echo esc_attr(get_current_user_id()); ?>" data-tone="neutral" hidden>
+        <div class="aipkit_knowledge_strip" data-aipkit-knowledge-strip data-site-basics="<?php echo is_array($active_bot_settings['site_basics_pages'] ?? null) ? '1' : '0'; ?>" data-user-id="<?php echo esc_attr(get_current_user_id()); ?>" data-tone="neutral" hidden>
             <span class="aipkit_knowledge_strip_dot" aria-hidden="true"></span>
             <span class="aipkit_knowledge_strip_text" data-aipkit-knowledge-strip-text aria-live="polite"></span>
             <button type="button" class="aipkit_knowledge_strip_action" data-aipkit-knowledge-strip-action hidden></button>
@@ -382,7 +382,7 @@ if (!defined('ABSPATH')) {
                 <span class="dashicons dashicons-database" aria-hidden="true"></span>
                 <div>
                     <strong data-aipkit-training-source-empty-title><?php esc_html_e('Start with your website', 'gpt3-ai-content-generator'); ?></strong>
-                    <span data-aipkit-training-source-empty-description><?php esc_html_e('Most sites are learned in about a minute.', 'gpt3-ai-content-generator'); ?></span>
+                    <span data-aipkit-training-source-empty-description><?php esc_html_e('You can leave this page while your website is learning.', 'gpt3-ai-content-generator'); ?></span>
                 </div>
                 <button type="button" class="aipkit_training_source_empty_action" data-aipkit-training-source-add-again="website">
                     <span class="dashicons dashicons-admin-site-alt3" aria-hidden="true"></span>

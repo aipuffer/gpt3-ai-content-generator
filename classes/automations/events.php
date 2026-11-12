@@ -8,6 +8,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once __DIR__ . '/scheduler.php';
 require_once __DIR__ . '/content-indexing-trigger.php';
 require_once __DIR__ . '/content-writing-trigger.php';
 
@@ -487,13 +488,40 @@ function reconcile_indexing_queue_items_logic(): array
     return $summary;
 }
 
+/** Retry only a proved pre-dispatch Cloud learning refusal, never a timeout or unknown charge. */
+function defer_cloud_learning_refusal_logic(array $item, array $result): bool
+{
+    $data = $result['error_data'] ?? [];
+    if (($item['task_type'] ?? '') !== 'content_indexing' || ($data['learning_retry_safe'] ?? false) !== true) { return false; }
+    $config = json_decode((string) ($item['item_config'] ?? ''), true);
+    if (!is_array($config) || ($config['target_store_provider'] ?? '') !== 'local' || strtolower((string) ($config['embedding_provider'] ?? '')) !== 'aipuffercloud') { return false; }
+    $attempts = (int) ($config['_learning_retries'] ?? 0);
+    if ($attempts >= 5) { return false; }
+    $config['_learning_retries'] = $attempts + 1;
+    if (preg_match('/^aipkit_learning_[a-f0-9]{32}$/D', (string) ($result['learning_resume_key'] ?? ''))) { $config['_learning_resume_key'] = $result['learning_resume_key']; }
+    $delay = min(1800, max(60 * (2 ** $attempts), (int) ($data['retry_after'] ?? 60)));
+    global $wpdb;
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Return the claimed item to the existing queue with a bounded cooldown.
+    $saved = $wpdb->update($wpdb->prefix . 'aipkit_automated_task_queue', [
+        'status' => 'pending', 'sort_priority' => 1, 'item_config' => wp_json_encode($config),
+        'last_attempt_time' => gmdate('Y-m-d H:i:s', time() + $delay),
+        'error_message' => __('Cloud is busy. Learning will continue automatically.', 'gpt3-ai-content-generator'),
+    ], ['id' => (int) $item['id'], 'status' => 'processing']);
+    if (!$saved) { return false; }
+    set_transient('aipkit_cloud_learning_wait', time() + $delay, $delay);
+    wp_schedule_single_event(time() + $delay, AIPKit_Automated_Task_Event_Processor::MAIN_CRON_HOOK);
+    return true;
+}
+
 /** Held tasks retain pending rows, including one-time tasks that are normally paused. */
 function unblocked_queue_condition_logic(): string
 {
     global $wpdb;
     $tasks = $wpdb->prefix . 'aipkit_automated_tasks';
     $queue = $wpdb->prefix . 'aipkit_automated_task_queue';
-    return $wpdb->prepare(" AND NOT EXISTS (SELECT 1 FROM " . esc_sql($tasks) . " held_task WHERE held_task.id = " . esc_sql($queue) . ".task_id AND held_task.task_config LIKE %s)", '%' . $wpdb->esc_like('"_aipkit_provider_hold":') . '%');
+    $cooldown = (int) get_transient('aipkit_cloud_learning_wait') > time()
+        ? $wpdb->prepare(" AND NOT (task_type = %s AND LOWER(item_config) LIKE %s)", 'content_indexing', '%' . $wpdb->esc_like('"embedding_provider":"aipuffercloud"') . '%') : '';
+    return \WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Scheduler::enabled_task_sql() . $cooldown . " AND (last_attempt_time IS NULL OR last_attempt_time <= UTC_TIMESTAMP())" . $wpdb->prepare(" AND NOT EXISTS (SELECT 1 FROM " . esc_sql($tasks) . " held_task WHERE held_task.id = " . esc_sql($queue) . ".task_id AND held_task.task_config LIKE %s)", '%' . $wpdb->esc_like('"_aipkit_provider_hold":') . '%');
 }
 
 /** Pause future triggers and retain pending work until the user explicitly resumes it. */
@@ -527,6 +555,10 @@ function maybe_reschedule_queue_logic(): void
 
     if ($remaining_items > 0 || has_waiting_indexing_queue_items_logic()) {
         wp_schedule_single_event(time() + 30, $main_cron_hook);
+    } elseif ((int) get_transient('aipkit_cloud_learning_wait') > time()) {
+        // An earlier already-scheduled wake-up can run during the cooldown. Re-arm the
+        // same queue hook instead of stranding deferred work until an hourly event.
+        wp_schedule_single_event((int) get_transient('aipkit_cloud_learning_wait'), $main_cron_hook);
     }
 }
 
@@ -671,8 +703,8 @@ function trigger_task_event_logic(int $task_id, bool $schedule_queue_event = tru
 {
     global $wpdb;
     $tasks_table_name = $wpdb->prefix . 'aipkit_automated_tasks';
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct query to a custom table. Caches will be invalidated.
-    $task = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . esc_sql($tasks_table_name) . " WHERE id = %d AND status = 'active'", $task_id), ARRAY_A);
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    $task = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . esc_sql($tasks_table_name) . " WHERE id = %d AND status = 'active'" . AIPKit_Automated_Task_Scheduler::enabled_task_sql(), $task_id), ARRAY_A);
     if (!$task) {
 
         return false;
@@ -822,6 +854,10 @@ function process_task_queue_event_logic(bool $schedule_follow_up = true, string 
         if ($provider_refusal !== null && empty($result['stop_batch'])) {
             $error = new \WP_Error($provider_refusal['code'], $provider_refusal['message'], $provider_refusal['data']);
             $result = array_merge($result, \WPAICG\AutoGPT\Helpers\provider_error_result($error));
+        }
+        if (Helpers\defer_cloud_learning_refusal_logic($item, $result)) {
+            ++$processed_items;
+            break;
         }
         if (!empty($result['pause_task'])) {
             Helpers\hold_task_for_provider_logic($task_cursor, $result);
@@ -975,10 +1011,11 @@ function recover_stale_queue_items_logic(
     int $recovery_limit
 ): int {
     $cutoff = gmdate('Y-m-d H:i:s', time() - max(1, $stale_after_seconds));
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded recovery update in a plugin-owned queue table.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
     $recovered = $wpdb->query(
         $wpdb->prepare(
-            "UPDATE " . esc_sql($queue_table_name) . " SET status = %s, sort_priority = %d WHERE status = %s AND NOT (task_type = %s AND COALESCE(item_config, '') LIKE %s) AND ((last_attempt_time IS NOT NULL AND last_attempt_time < %s) OR (last_attempt_time IS NULL AND added_at < %s)) LIMIT %d",
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().
+            "UPDATE " . esc_sql($queue_table_name) . " SET status = %s, sort_priority = %d WHERE status = %s AND NOT (task_type = %s AND COALESCE(item_config, '') LIKE %s) AND ((last_attempt_time IS NOT NULL AND last_attempt_time < %s) OR (last_attempt_time IS NULL AND added_at < %s))" . AIPKit_Automated_Task_Scheduler::enabled_task_sql() . " LIMIT %d",
             'pending',
             1,
             'processing',
@@ -1019,7 +1056,7 @@ function refill_content_indexing_queue_windows_logic(array $task_ids): void
             AIPKit_Automated_Task_Content_Queuer::maybe_queue_initial_indexing_content($task_id, $task_config, false);
         }
 
-        $incremental_requested = ($task_config['only_new_updated_flag'] ?? '0') === '1';
+        $incremental_requested = ($task_config['only_new_updated_flag'] ?? '0') === '1' && ($task_config['indexing_frequency'] ?? '') !== 'one-time';
         if ($incremental_requested && ($task['status'] ?? '') === 'active') {
             $run_state = AIPKit_Automated_Task_Content_Queuer::queue_new_or_updated_indexing_content(
                 $task_id,

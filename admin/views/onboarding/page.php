@@ -371,7 +371,8 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
             <div class="aipkit-setup__chat-copy">
                 <span class="aipkit-setup__eyebrow"><?php esc_html_e('Your first chatbot', 'gpt3-ai-content-generator'); ?></span>
                 <h1><?php esc_html_e('We made a chatbot for your site. Try it.', 'gpt3-ai-content-generator'); ?></h1>
-                <p class="aipkit-setup__lead"><?php esc_html_e('Ask it anything. It’s the same chatbot your visitors will get, and you can change its look, instructions and model anytime in Chatbots.', 'gpt3-ai-content-generator'); ?></p>
+                <p class="aipkit-setup__lead"><?php esc_html_e('Try a suggested question or write your own. You can teach it more and change its look, instructions and model in Chatbots.', 'gpt3-ai-content-generator'); ?></p>
+                <p data-chat-basics hidden><?php esc_html_e('Added basic public information about your website.', 'gpt3-ai-content-generator'); ?></p>
                 <ul class="aipkit-setup__ticks">
                     <li><?php $aipkit_setup_icon($aipkit_setup_check, 18, '#1d7a45', '2.4'); ?><span data-connection-label></span></li>
                     <li data-bot-visibility><?php $aipkit_setup_icon($aipkit_setup_check, 18, '#1d7a45', '2.4'); ?><span><?php esc_html_e('Not visible to visitors until you add it', 'gpt3-ai-content-generator'); ?></span></li>

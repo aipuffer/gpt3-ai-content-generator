@@ -7,6 +7,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/lock.php';
+require_once __DIR__ . '/scheduler.php';
 
 /**
  * Shared automation runner used by WordPress cron and the external server endpoint.
@@ -164,20 +165,22 @@ class AIPKit_Automation_Runner
         $now_gmt = current_time('mysql', true);
 
         if ($specific_task_id !== null) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Indexed lookup in a plugin-owned task table.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
             $task_ids = $wpdb->get_col(
                 $wpdb->prepare(
-                    "SELECT id FROM " . esc_sql($tasks_table_name) . " WHERE id = %d AND status = %s AND (next_run_time IS NULL OR next_run_time <= %s) LIMIT 1",
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().
+                    "SELECT id FROM " . esc_sql($tasks_table_name) . " WHERE id = %d AND status = %s AND (next_run_time IS NULL OR next_run_time <= %s)" . AIPKit_Automated_Task_Scheduler::enabled_task_sql() . " LIMIT 1",
                     $specific_task_id,
                     'active',
                     $now_gmt
                 )
             );
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded indexed scan in a plugin-owned task table.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
             $task_ids = $wpdb->get_col(
                 $wpdb->prepare(
-                    "SELECT id FROM " . esc_sql($tasks_table_name) . " WHERE status = %s AND (next_run_time IS NULL OR next_run_time <= %s) ORDER BY next_run_time ASC, id ASC LIMIT %d",
+                    // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().
+                    "SELECT id FROM " . esc_sql($tasks_table_name) . " WHERE status = %s AND (next_run_time IS NULL OR next_run_time <= %s)" . AIPKit_Automated_Task_Scheduler::enabled_task_sql() . " ORDER BY next_run_time ASC, id ASC LIMIT %d",
                     'active',
                     $now_gmt,
                     self::MAX_DUE_TASKS

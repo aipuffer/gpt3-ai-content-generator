@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.27
+Stable tag: 2.5.28
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -257,6 +257,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.28 =
+Improves website learning reliability and gives fresh chatbot previews public website basics and suggested questions.
+
 = 2.5.27 =
 Fixes MySQL 8 Unicode SQL reads and includes the chatbot layout, local credit accounting and queued-write improvements from the withdrawn 2.5.26 release.
 
@@ -331,6 +334,12 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.28 =
+* Fixed website learning getting stuck when Automations is disabled.
+* Improved website learning retries, progress reporting and long-page recovery without duplicating completed embedding batches.
+* Fixed one-time website learning unexpectedly repeating and improved matching for specific page titles.
+* Added public website basics and suggested questions to fresh chatbot onboarding, with clearer knowledge status.
 
 = 2.5.27 =
 * Fixed MySQL 8 collation conflicts in website-management SQL reads containing Unicode text.

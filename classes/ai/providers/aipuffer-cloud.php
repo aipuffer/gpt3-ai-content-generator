@@ -104,6 +104,9 @@ final class AIPufferCloudProviderStrategy extends BaseProviderStrategy
             return Connection::billing_message($code);
         }
         $messages = [
+            'generation_rate_limit' => __('Cloud is busy. Learning will wait briefly before continuing.', 'gpt3-ai-content-generator'),
+            'generation_concurrency_limit' => __('Cloud has requests in progress. Please wait briefly before continuing.', 'gpt3-ai-content-generator'),
+            'cloud_operation_rate_limit' => __('Cloud is busy. Please wait a minute before continuing.', 'gpt3-ai-content-generator'),
             'image_input_unsupported' => __('The selected Cloud model does not support image analysis. Choose a compatible model.', 'gpt3-ai-content-generator'),
             'invalid_image_input' => __('The image could not be read. Upload a valid JPG, PNG, or WebP image.', 'gpt3-ai-content-generator'),
             'too_many_images' => __('Upload no more than four images per request.', 'gpt3-ai-content-generator'),

@@ -15,6 +15,23 @@ if (!defined('ABSPATH')) {
 class AIPKit_Automated_Task_Scheduler
 {
     /**
+     * Knowledge ingestion is independent of the Automations UI/module switch.
+     * Apply the same prepared task-type predicate to scheduling and execution.
+     */
+    public static function enabled_task_sql(): string
+    {
+        if (!class_exists('\WPAICG\aipkit_dashboard')) {
+            require_once dirname(__DIR__) . '/admin/dashboard.php';
+        }
+        $modules = \WPAICG\aipkit_dashboard::get_module_settings();
+        if (!empty($modules['autogpt'])) {
+            return '';
+        }
+        global $wpdb;
+        return $wpdb->prepare(' AND task_type = %s', 'content_indexing');
+    }
+
+    /**
     * Gets the hook name for a specific task's cron event.
     */
     public static function get_task_specific_cron_hook(int $task_id): string
@@ -335,10 +352,11 @@ function prune_orphaned_task_events_logic(): void
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct query to a custom table for cron cleanup.
     $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tasks_table_name));
     if ($table_exists === $tasks_table_name) {
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct query to a custom table for cron cleanup.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
         $active_task_ids = $wpdb->get_col(
             $wpdb->prepare(
-                'SELECT id FROM ' . esc_sql($tasks_table_name) . ' WHERE status = %s',
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().
+                'SELECT id FROM ' . esc_sql($tasks_table_name) . ' WHERE status = %s' . \WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Scheduler::enabled_task_sql(),
                 'active'
             )
         );
@@ -384,8 +402,8 @@ function reschedule_all_active_tasks_logic(): void
     if ($wpdb->get_var("SHOW TABLES LIKE '" . esc_sql($tasks_table_name) . "'") != $tasks_table_name) {
         return;
     }
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct query to a custom table. Caches will be invalidated.
-    $active_tasks = $wpdb->get_results("SELECT id, task_config, task_type FROM " . esc_sql($tasks_table_name) . " WHERE status = 'active'", ARRAY_A);
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    $active_tasks = $wpdb->get_results("SELECT id, task_config, task_type FROM " . esc_sql($tasks_table_name) . " WHERE status = 'active'" . \WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Scheduler::enabled_task_sql(), ARRAY_A);
     if ($active_tasks) {
         foreach ($active_tasks as $task) {
             $config = json_decode($task['task_config'], true);

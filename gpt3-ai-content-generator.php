@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name:       AI Puffer – MCP Server for Claude & ChatGPT, with AI Chatbot
  * Description:       Manage WordPress from Claude or ChatGPT with a free MCP server: posts, WooCommerce, SEO and Elementor. AI chatbot and content writer included.
- * Version:           2.5.27
+ * Version:           2.5.28
  * Author:            Senol Sahin
  * Author URI:        https://aipower.org
  * License:           GPL-2.0+
@@ -29,7 +29,7 @@ if ( function_exists( 'wpaicg_gacg_fs' ) ) {
     wpaicg_gacg_fs()->set_basename( false, __FILE__ );
 } else {
     // Only the first edition loaded in this request owns the plugin runtime.
-    define( 'WPAICG_VERSION', '2.5.27' );
+    define( 'WPAICG_VERSION', '2.5.28' );
     define( 'WPAICG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
     define( 'WPAICG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'WPAICG_LIB_DIR', WPAICG_PLUGIN_DIR . 'lib/' );

@@ -106,7 +106,8 @@ function process_local_indexing_logic(array $item, array $item_config): array
         absint($item['target_identifier']),
         $target_store_id,
         (string) ($item_config['embedding_provider'] ?? ''),
-        (string) ($item_config['embedding_model'] ?? '')
+        (string) ($item_config['embedding_model'] ?? ''),
+        (string) ($item_config['_learning_resume_key'] ?? '')
     );
 }
 

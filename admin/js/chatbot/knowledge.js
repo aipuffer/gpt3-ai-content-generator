@@ -328,7 +328,9 @@ export function createChatbotTrainingStatus({
     if (review) review.hidden = true;
     const waiting = Number(queue.pending || 0) + Number(queue.processing || 0);
     const hasSources = Number(inventorySummary.total) > 0;
-    const noKnowledge = __("No knowledge yet. It answers from the AI model only.", "gpt3-ai-content-generator");
+    const noKnowledge = knowledgeStrip.dataset.siteBasics === "1"
+      ? __("Website basics are ready. Add sources to teach it more.", "gpt3-ai-content-generator")
+      : __("No knowledge yet. It answers from the AI model only.", "gpt3-ai-content-generator");
     let tone = "neutral";
     let text = noKnowledge;
     let action = "";
@@ -633,6 +635,12 @@ export function createChatbotTrainingStatus({
     }
   };
 
+  builder.addEventListener?.("aipkit:bot-state-applied", (event) => {
+    const strip = builder.querySelector("[data-aipkit-knowledge-strip]");
+    if (strip) strip.dataset.siteBasics = Array.isArray(event.detail?.botState?.settings?.site_basics_pages) ? "1" : "0";
+    renderKnowledgeStrip();
+  });
+
   return {
     trainingState, trainingStateMenu, trainingStopButton, trainingStateReportTrained,
     closeTrainingStateMenu, setTrainingStateMenuOpen, setTrainingStatusSnapshot,
@@ -767,7 +775,7 @@ export function bindChatbotSourceInventory({
   const setTrainingSourceEmptyCopy = (
     title = __("Start with your website", "gpt3-ai-content-generator"),
     description = __(
-      "Most sites are learned in about a minute.",
+      "You can leave this page while your website is learning.",
       "gpt3-ai-content-generator"
     ),
     showAction = true

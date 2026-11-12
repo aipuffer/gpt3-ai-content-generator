@@ -34,7 +34,7 @@ class LocalPostProcessor extends AIPKit_Vector_Post_Processor_Base
     }
 
     /** @return array{status:string,message:string} */
-    public function index_single_post_to_store(int $post_id, string $store_id, string $embedding_provider_key = '', string $embedding_model = ''): array
+    public function index_single_post_to_store(int $post_id, string $store_id, string $embedding_provider_key = '', string $embedding_model = '', string $resume_key = ''): array
     {
         $post = get_post($post_id);
         $title = $post ? $post->post_title : 'N/A';
@@ -44,7 +44,7 @@ class LocalPostProcessor extends AIPKit_Vector_Post_Processor_Base
             'provider' => 'Local', 'vector_store_id' => $store_id, 'vector_store_name' => $store['name'] ?? $store_id,
             'post_id' => $post_id, 'post_title' => $title, 'file_id' => 'wp_post_' . $post_id, 'source_type_for_log' => 'wordpress_post',
         ];
-        $fail = function ($error) use ($log): array {
+        $fail = function ($error) use (&$log): array {
             return $this->indexing_error($error, $log);
         };
         if (!$store) { return $fail(__('Knowledge base not found.', 'gpt3-ai-content-generator')); }
@@ -64,7 +64,7 @@ class LocalPostProcessor extends AIPKit_Vector_Post_Processor_Base
             'title' => $title,
             'type' => get_post_type($post_id),
             'url' => get_permalink($post_id),
-        ], []);
+        ], [], ['learning_resume_key' => $resume_key]);
         if (is_wp_error($result)) { return $fail($result); }
 
         $log['indexed_content'] = $content;
