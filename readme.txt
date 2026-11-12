@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.26
+Stable tag: 2.5.27
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -257,6 +257,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.27 =
+Fixes MySQL 8 Unicode SQL reads and includes the chatbot layout, local credit accounting and queued-write improvements from the withdrawn 2.5.26 release.
+
 = 2.5.26 =
 Improves chatbot layouts and local credit accounting, and fixes website-management SQL reads and queued writes.
 
@@ -329,7 +332,12 @@ Fixes Content Writer settings reverting, provider model refresh issues, image de
 
 == Changelog ==
 
+= 2.5.27 =
+* Fixed MySQL 8 collation conflicts in website-management SQL reads containing Unicode text.
+
 = 2.5.26 =
+This release was withdrawn. Its improvements are included in 2.5.27.
+
 * Improved chatbot layouts for long header, footer and starter text, with better spacing on smaller screens and in the editor preview.
 * Fixed default conversation starters reappearing after all starter questions were removed.
 * Fixed the chatbot scroll-to-bottom button overlapping conversation starters or appearing when there is too little space.

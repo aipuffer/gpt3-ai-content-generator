@@ -18,6 +18,9 @@ final class CliRefusal extends \InvalidArgumentException
 
 final class Cli
 {
+    /** Encoding for one relational read, including its bounded source-window retries. */
+    private static ?array $sql_text_encoding = null;
+
     /** Fixed driver categories only: never return/log SQL, identifiers or the raw database error. */
     private static function database_error_reason(int $code): string
     {
@@ -983,9 +986,20 @@ final class Cli
         $value = (string) $value;
         // wpdb's charset probe mistakes derived-table SELECTs for a table name
         // when they contain non-ASCII text. Hex keeps generated SQL ASCII-only;
-        // CAST restores the connection charset/collation rather than binary comparison.
-        // Only hex digits are interpolated; caller SQL and wpdb validation stay untouched.
-        if (preg_match('/[^\x00-\x7f]/', $value)) { return "CAST(X'" . bin2hex($value) . "' AS CHAR)"; }
+        // MySQL CAST alone can pick the charset's default collation instead of the
+        // connection collation, making mixed ASCII/Unicode snapshot rows incompatible.
+        if (preg_match('/[^\x00-\x7f]/', $value)) {
+            if (self::$sql_text_encoding === null) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection-local metadata, read once only when this operation contains Unicode; persistent caching would be stale after SET NAMES.
+                $encoding = $wpdb->get_row('SELECT @@character_set_connection AS charset, @@collation_connection AS collation', ARRAY_A);
+                if (!is_array($encoding) || !preg_match('/^[a-zA-Z0-9_]{1,64}$/D', (string) ($encoding['charset'] ?? '')) || !preg_match('/^[a-zA-Z0-9_]{1,64}$/D', (string) ($encoding['collation'] ?? ''))) {
+                    throw new \RuntimeException('Database connection encoding is unavailable.');
+                }
+                self::$sql_text_encoding = $encoding;
+            }
+            // Hex bytes and strictly validated server metadata only; no caller SQL.
+            return "(CAST(X'" . bin2hex($value) . "' AS CHAR CHARACTER SET " . self::$sql_text_encoding['charset'] . ') COLLATE ' . self::$sql_text_encoding['collation'] . ')';
+        }
         return $wpdb->prepare('%s', $value);
     }
 
@@ -993,6 +1007,7 @@ final class Cli
     private static function relational_select(string $input, int $window = 0): array
     {
         global $wpdb;
+        if ($window === 0) { self::$sql_text_encoding = null; }
         $tokens = self::sql_tokens($input); $at = 0; $depth = 0;
         $peek = static function () use (&$at, $tokens) { return $tokens[$at]['value'] ?? null; };
         $take = static function (string $word) use (&$at, $tokens): bool { if (($tokens[$at]['kind'] ?? '') !== 'value' && strcasecmp((string) ($tokens[$at]['value'] ?? ''), $word) === 0) { $at++; return true; } return false; };
