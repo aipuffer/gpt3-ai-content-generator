@@ -8,7 +8,6 @@ if (!defined('ABSPATH')) {
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/model-settings.php';
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/context-settings.php';
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/rewrite-settings.php';
-require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/comment-reply-settings.php';
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/topic-input.php';
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/content-settings.php';
 require_once WPAICG_PLUGIN_DIR . 'admin/views/automations/image-settings.php';
@@ -133,20 +132,14 @@ $aipkit_automation_view_data = [
                                                     <?php endforeach; ?>
 
                                                 </div>
-                                                <div id="aipkit_task_cc_source_wrapper" class="aipkit_task_config_section" style="display: none;">
-                                                    <?php
-                                                    aipkit_render_automation_comment_reply_panel('source', $aipkit_automation_view_data);
-                                                ?>
-                                                </div>
+
                                                 <div id="aipkit_task_ce_content_selection_wrapper" class="aipkit_task_config_section" style="display: none;">
                                                     <?php
                                                     aipkit_render_automation_rewrite_panel('source', $aipkit_automation_view_data);
                                                 ?>
                                                 </div>
                                             </div>
-                                            <div class="aipkit_wizard_content_step" data-content-id="task_config_comment_reply">
-                                                <?php aipkit_render_automation_comment_reply_panel('filters'); ?>
-                                            </div>
+
                                         </div>
                                     </div>
                                 </div>
@@ -201,19 +194,7 @@ $aipkit_automation_view_data = [
                                                 >
                                                     <?php aipkit_render_automation_rewrite_panel('model', $aipkit_automation_view_data); ?>
                                                 </div>
-                                                <div
-                                                    class="aipkit_autogpt_setup_section"
-                                                    data-aipkit-autogpt-setup-section="community_reply_comments"
-                                                    hidden
-                                                >
-                                                    <?php aipkit_render_automation_model_settings([
-                                                        'scope' => 'cc',
-                                                        'name_prefix' => 'cc_',
-                                                        'max_tokens_question' => __('Maximum reply length', 'gpt3-ai-content-generator'),
-                                                        'has_max_tokens' => true,
-                                                        'default_max_tokens' => $aipkit_automation_view_data['cw_default_max_tokens'],
-                                                    ], $aipkit_automation_view_data); ?>
-                                                </div>
+
                                             </div>
                                         </div>
                                     </section>
@@ -440,7 +421,6 @@ $aipkit_automation_view_data = [
                         </div>
                     </div>
                 </div>
-
 
             </form>
         </div>

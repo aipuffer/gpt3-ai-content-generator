@@ -203,12 +203,6 @@
         "ai",
         form.elements?.ce_ai_provider
       );
-    } else if (taskType === "community_reply_comments") {
-      result = issue(
-        form.elements?.cc_ai_provider?.value,
-        "ai",
-        form.elements?.cc_ai_provider
-      );
     }
     if (result) return result;
 
@@ -330,9 +324,6 @@
           if (message) return message;
         }
       }
-    } else if (taskType === "community_reply_comments") {
-      message = issue(data.cc_ai_provider);
-      if (message) return message;
     } else if (taskType === "content_indexing") {
       message = issue(data.target_store_provider);
       if (message) return message;
@@ -349,9 +340,7 @@
       ...(taskConfig && typeof taskConfig === "object" ? taskConfig : {}),
       task_type: taskType,
     };
-    if (taskType === "community_reply_comments") {
-      data.cc_ai_provider = data.ai_provider || data.cc_ai_provider;
-    }
+
     return getDataCredentialIssue(data);
   }
 

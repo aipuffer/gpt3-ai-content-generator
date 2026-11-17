@@ -7,7 +7,6 @@
   const TYPE_LABEL_OVERRIDES = {
     meta: "Meta Description",
     keyword: "Focus Keyword",
-    reply: "Comment Reply",
     featured_image: "Featured Image",
     image_alt_text: "Image Alt Text",
     image_caption: "Image Caption",

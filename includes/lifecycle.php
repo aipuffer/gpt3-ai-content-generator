@@ -246,7 +246,11 @@ trait AIPKit_Plugin_Updates
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Metadata check on a plugin-owned queue table.
         $sort_priority_column = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$queue_table_name} LIKE %s", 'sort_priority'));
-        if ($sort_priority_column !== 'sort_priority') {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifier uses wpdb's prefix and a fixed queue suffix; the ownership column name is prepared.
+        $attempt_column = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$queue_table_name} LIKE %s", 'attempt_token'));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifier uses wpdb's prefix and a fixed queue suffix; the receipt column name is prepared.
+        $result_column = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$queue_table_name} LIKE %s", 'result_post_id'));
+        if ($sort_priority_column !== 'sort_priority' || $attempt_column !== 'attempt_token' || $result_column !== 'result_post_id') {
             return true;
         }
 

@@ -172,6 +172,7 @@ final class Onboarding
         $chosen = self::chosen();
         $provider = $chosen[0] ?? '';
         $ai_ready = $provider === 'AIPufferCloud' ? self::cloud_view_data()['ready'] : ($provider !== '' && trim((string) (AIPKit_Providers::get_provider_data($provider)['api_key'] ?? '')) !== '');
+        $assistants = \WPAICG\Mcp\Settings::onboarding_connections();
         wp_localize_script('aipkit-onboarding', 'aipkitSetup', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce(self::NONCE),
@@ -181,7 +182,8 @@ final class Onboarding
             'resume' => self::resume(),
             'cloudConsent' => self::pending_cloud_consent(),
             'mcpNonce' => wp_create_nonce('aipkit_mcp_settings'),
-            'assistants' => \WPAICG\Mcp\Settings::onboarding_connections(),
+            'assistants' => $assistants,
+            'websiteReadGrant' => self::verified_website_read($assistants),
             'goals' => array_values(array_intersect((array) (self::state()['goals'] ?? []), array_keys(self::GOALS))),
             'websiteLater' => !empty(self::state()['website_later']),
             'power' => self::state()['power'] ?? 'cloud',
@@ -555,6 +557,31 @@ final class Onboarding
         return !empty($state['provider']) && !empty($state['model']) ? [$state['provider'], $state['model']] : null;
     }
 
+    /** The same current identity and actor binding governs polling and reload restoration. */
+    private static function website_verification_binding(array $grant): ?string
+    {
+        $registration = \WPAICG\Mcp\Identity::registration();
+        if (!in_array('website', (array) (self::state()['goals'] ?? []), true)
+            || !\WPAICG\Mcp\Identity::active() || $grant['state'] !== 'active'
+            || (int) $grant['wp_user_id'] !== get_current_user_id() || $grant['instance_id'] !== ($registration['instance_id'] ?? '')) {
+            return null;
+        }
+        $config = \WPAICG\Mcp\Store::config();
+        return hash('sha256', serialize([$registration['instance_id'] ?? '', (int) ($registration['epoch'] ?? 0), $registration['consent_version'] ?? '', $config['account_id'] ?? '', $config['site_id'] ?? '', $config['registered_token_hash'] ?? '', $grant['grant_id'], $grant['connection_id'], get_current_user_id()]));
+    }
+
+    /** Export only the grant ID whose saved confirmation still matches; never the custody binding. */
+    private static function verified_website_read(array $assistants): string
+    {
+        $attempt = self::state()['website_verification'] ?? [];
+        if (($attempt['verified'] ?? false) !== true || !is_string($attempt['binding'] ?? null)) { return ''; }
+        foreach ($assistants as $assistant) {
+            $grant = \WPAICG\Mcp\Store::grant($assistant['grant_id']);
+            if ($grant && self::website_verification_binding($grant) === $attempt['binding']) { return $grant['grant_id']; }
+        }
+        return '';
+    }
+
     /** Local journal evidence only: polling never calls Cloud, the bridge or an AI provider. */
     private static function op_website_verification(): void
     {
@@ -563,13 +590,11 @@ final class Onboarding
         $state = self::state();
         $grant = \WPAICG\Mcp\Store::grant($grant_id);
         $registration = \WPAICG\Mcp\Identity::registration();
-        if (!in_array($mode, ['start', 'check', 'retry'], true) || !in_array('website', (array) ($state['goals'] ?? []), true)
-            || !\WPAICG\Mcp\Identity::active() || !$grant || $grant['state'] !== 'active'
-            || (int) $grant['wp_user_id'] !== get_current_user_id() || $grant['instance_id'] !== ($registration['instance_id'] ?? '')) {
+        $binding = $grant ? self::website_verification_binding($grant) : null;
+        if (!in_array($mode, ['start', 'check', 'retry'], true) || $binding === null) {
             wp_send_json_error(['message' => __('This assistant connection is no longer available. Return to Connect and check it again.', 'gpt3-ai-content-generator')], 409);
         }
         $config = \WPAICG\Mcp\Store::config();
-        $binding = hash('sha256', serialize([$registration['instance_id'] ?? '', (int) ($registration['epoch'] ?? 0), $registration['consent_version'] ?? '', $config['account_id'] ?? '', $config['site_id'] ?? '', $config['registered_token_hash'] ?? '', $grant_id, $grant['connection_id'], get_current_user_id()]));
         $attempt = $state['website_verification'] ?? [];
         global $wpdb;
         // Quote the fixed schema identifier separately from prepared values; compatible with WordPress 6.0 (before %i).

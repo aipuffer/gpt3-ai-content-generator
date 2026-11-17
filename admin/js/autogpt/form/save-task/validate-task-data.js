@@ -82,10 +82,8 @@
       return credentialIssue;
     }
 
-    const textProvider = data.task_type === "community_reply_comments"
-      ? data.cc_ai_provider : data.ai_provider;
-    const textModel = data.task_type === "community_reply_comments"
-      ? data.cc_ai_model : data.ai_model;
+    const textProvider = data.ai_provider;
+    const textModel = data.ai_model;
     const catalog = window.aipkit_dashboard?.models;
     if (textProvider && textModel && catalog) {
       const key = String(textProvider).toLowerCase();
@@ -227,30 +225,6 @@
         if (validationResult !== true) {
           return validationResult;
         }
-      }
-    }
-
-    if (data.task_type === "community_reply_comments") {
-      if (
-        !Array.isArray(data.post_types_for_comments) ||
-        data.post_types_for_comments.length === 0
-      ) {
-        return (
-          texts.comment_post_type_required ||
-          "Please select at least one content type to monitor."
-        );
-      }
-      if (!data.cc_ai_provider || !data.cc_ai_model) {
-        return (
-          texts.comment_ai_config_required ||
-          "AI Provider and Model are required for Comment Replies."
-        );
-      }
-      if (!String(data.cc_custom_content_prompt || "").trim()) {
-        return (
-          texts.comment_prompt_required ||
-          "The reply prompt cannot be empty."
-        );
       }
     }
 

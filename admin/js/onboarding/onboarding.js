@@ -107,7 +107,7 @@ if (root) {
             copyTimers.delete(button);
         }, 2000));
     };
-    const verification = { generation: 0, timer: null, requestTimer: null, controller: null, attempt: '', grant: '', until: 0, status: 'idle' };
+    const verification = { generation: 0, timer: null, requestTimer: null, controller: null, attempt: '', grant: typeof config.websiteReadGrant === 'string' ? config.websiteReadGrant : '', until: 0, status: config.websiteReadGrant ? 'verified' : 'idle' };
     // A link waiting for Allow: a short automatic check while this screen is visible, and other ways to finish after a minute.
     const linkWatch = { grant: '', timer: null, slowTimer: null, since: 0, stopped: false, turn: 0, controller: null, generation: 0 };
     const backTo = { goals: 'welcome', connect: 'goals', 'try-chat': 'connect', 'try-write': 'connect', 'try-auto': 'connect', 'try-forms': 'connect', 'try-products': 'connect' };
@@ -232,6 +232,7 @@ if (root) {
         return state.assistants.find(item => item.state === 'active' && (!state.assistant || item.client_hint === state.assistant) && (!awaiting || item.grant_id === awaiting))
             || state.assistants.find(item => item.state === 'active' && state.linkGrants.includes(item.grant_id));
     };
+    const websiteReadConfirmed = (assistant = connectedAssistant()) => verification.status === 'verified' && verification.grant === assistant?.grant_id;
 
     // ChatGPT and Claude get one button that copies the prompt and opens them; other apps copy only.
     const assistantHomes = { chatgpt: ['ChatGPT', 'https://chatgpt.com/'], claude: ['Claude', 'https://claude.ai/new'] };
@@ -255,7 +256,7 @@ if (root) {
     /** Step 3: prompt, one button and one status line; once the read is confirmed it folds to one line. */
     function renderWebsiteVerification(message = '') {
         const name = readAssistantName();
-        const verified = verification.status === 'verified';
+        const verified = websiteReadConfirmed();
         const messages = {
             waiting: sprintf(__('Waiting for %s to read your site. This updates by itself.', 'gpt3-ai-content-generator'), name),
             timeout: sprintf(__('No read confirmed yet. Make sure AI Puffer is selected in %s, then send the prompt.', 'gpt3-ai-content-generator'), name),
@@ -277,8 +278,8 @@ if (root) {
     }
     async function checkWebsiteRead(mode = 'check') {
         if (pageGone || !websiteVerificationVisible() || document.visibilityState === 'hidden') return;
-        if (mode === 'check' && ['verified', 'timeout', 'error'].includes(verification.status)) return;
         const grant = connectedAssistant()?.grant_id;
+        if (mode === 'check' && verification.grant === grant && ['verified', 'timeout', 'error'].includes(verification.status)) return;
         pauseWebsiteVerification();
         if (!grant) { verification.status = 'error'; renderWebsiteVerification(); return; }
         if (verification.grant !== grant) { verification.attempt = ''; verification.until = 0; mode = 'start'; }
@@ -880,7 +881,7 @@ if (root) {
         websiteRow.hidden = !websiteGoal();
         websiteRow.querySelector('[data-done-title]').textContent = active ? $('[data-goal="website"]').dataset.moduleName : __('Connect ChatGPT or Claude', 'gpt3-ai-content-generator');
         doneRow(websiteRow, Boolean(active), !active ? sprintf(__('Lets them manage %s for you · about 1 minute', 'gpt3-ai-content-generator'), root.dataset.siteHost || __('your site', 'gpt3-ai-content-generator'))
-            : verification.status === 'verified' ? sprintf(__('Connected to %s', 'gpt3-ai-content-generator'), assistant)
+            : websiteReadConfirmed(active) ? sprintf(__('Connected to %s', 'gpt3-ai-content-generator'), assistant)
                 : sprintf(__('Connected to %s · website read not confirmed', 'gpt3-ai-content-generator'), assistant));
         // Each tool says what setup actually did with it: live, tested, created, or just ready.
         const toolStatus = {
@@ -912,7 +913,7 @@ if (root) {
         const next = $('[data-done-next]');
         next.hidden = !(websiteGoal() && active);
         $('[data-done-next-title]').textContent = sprintf(__('Try next in %s', 'gpt3-ai-content-generator'), assistant);
-        const readSkipped = verification.status !== 'verified';
+        const readSkipped = !websiteReadConfirmed(active);
         $('[data-done-first]').hidden = !readSkipped;
         const recipes = $$('[data-done-recipe]');
         recipes.forEach((recipe, index) => { recipe.hidden = readSkipped && index === recipes.length - 1 && recipes.length > 2; });

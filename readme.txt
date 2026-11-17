@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.28
+Stable tag: 2.5.29
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -82,7 +82,7 @@ Write Gutenberg-ready content, with meta descriptions and focus keywords where s
 
 ### Automations: scheduled content and auto blogging
 
-Create recurring or one-time automation tasks from topics or CSV, with draft, schedule or publish options. Reply to comments with replies held for approval by default, or add new posts to your knowledge base using category filters. Review item status in the queue. Server cron is supported when WP-Cron is disabled.
+Create recurring or one-time automation tasks from topics or CSV, with draft, schedule or publish options. Add new posts to your knowledge base using category filters. Review item status in the queue. Server cron is supported when WP-Cron is disabled.
 
 ### AI forms
 
@@ -257,6 +257,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.29 =
+Removes automatic comment replies and prevents old tasks from running. Fixes overlapping Cloud connection requests and automation recovery that could create duplicate posts.
+
 = 2.5.28 =
 Improves website learning reliability and gives fresh chatbot previews public website basics and suggested questions.
 
@@ -334,6 +337,13 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.29 =
+* Fixed onboarding forgetting a confirmed website read after reloading and continuing through AI setup.
+* Removed automatic comment replies, including their settings and prompts. Old saved tasks and queue items cannot run; posted comments are preserved.
+* Fixed overlapping Cloud connection requests allowing an older request to replace or clear a newer connection.
+* Fixed expired automation workers updating queue items or pausing tasks after another worker had taken over.
+* Prevented automatic content-writing recovery from creating another post when a previous attempt had already saved one, with a message to review the saved post before retrying.
 
 = 2.5.28 =
 * Fixed website learning getting stuck when Automations is disabled.

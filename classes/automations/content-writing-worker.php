@@ -36,6 +36,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/task-access.php';
+require_once __DIR__ . '/attempt.php';
 
 // --- generate-title-helper.php ---
 /**
@@ -567,8 +568,20 @@ if ((!class_exists(AIPKit_Content_Writer_Smart_SEO_Service::class) || !class_exi
  * @param array $queue_item The queue item record from the database.
  * @return array ['status' => 'success'|'error', 'message' => '...']
  */
-function process_content_writing_item_logic(array $item_config, array $queue_item = []): array
+function process_content_writing_item_logic(array $item_config, array $queue_item): array
 {
+    if (!\WPAICG\AutoGPT\Cron\AIPKit_Queue_Attempt::owns($queue_item)) {
+        return ['status' => 'error', 'message' => __('This queue attempt no longer owns the item.', 'gpt3-ai-content-generator')];
+    }
+    if (!empty($queue_item['result_post_id'])) {
+        // The post committed, but later metadata/reporting or queue completion may have been interrupted.
+        // Keep the saved result for review; do not infer that the whole pipeline succeeded.
+        return ['status' => 'error', 'message' => sprintf(
+            /* translators: %d: previously saved post ID. */
+            __('A post was already saved for this item (ID: %d). Review it before retrying.', 'gpt3-ai-content-generator'),
+            (int) $queue_item['result_post_id']
+        )];
+    }
     maybe_extend_content_writing_task_runtime_logic(600);
 
     // --- START: Abuse Prevention ---
@@ -620,6 +633,9 @@ function process_content_writing_item_logic(array $item_config, array $queue_ite
     $content_result = generate_post_logic($prompts, $item_config, $ai_caller);
     if (is_wp_error($content_result)) {
         return Helpers\provider_error_result($content_result);
+    }
+    if (!\WPAICG\AutoGPT\Cron\AIPKit_Queue_Attempt::owns($queue_item)) {
+        return ['status' => 'error', 'message' => __('This queue attempt no longer owns the item.', 'gpt3-ai-content-generator')];
     }
     $generated_content = $content_result['content'];
     $content_usage = $content_result['usage'] ?? null;
@@ -871,7 +887,9 @@ function process_content_writing_item_logic(array $item_config, array $queue_ite
 
     // 6. Insert Post
     $scheduled_gmt_time = $item_config['scheduled_gmt_time'] ?? null;
-    $insert_result = insert_post_logic($final_title, $generated_content, $item_config, $meta_description, $focus_keyword, $image_data, $excerpt, $scheduled_gmt_time);
+    $insert_result = \WPAICG\AutoGPT\Cron\AIPKit_Queue_Attempt::save_post($queue_item, static function () use ($final_title, $generated_content, $item_config, $meta_description, $focus_keyword, $image_data, $excerpt, $scheduled_gmt_time) {
+        return insert_post_logic($final_title, $generated_content, $item_config, $meta_description, $focus_keyword, $image_data, $excerpt, $scheduled_gmt_time);
+    });
     if (is_wp_error($insert_result)) {
         return ['status' => 'error', 'message' => $insert_result->get_error_message()];
     }

@@ -9,6 +9,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/scheduler.php';
+require_once __DIR__ . '/attempt.php';
 require_once __DIR__ . '/content-indexing-trigger.php';
 require_once __DIR__ . '/content-writing-trigger.php';
 
@@ -70,7 +71,6 @@ namespace WPAICG\AutoGPT\Cron\EventProcessor\Processor;
 // Import all required processor logic files
 use WPAICG\AutoGPT\Cron\EventProcessor\Processor\ContentIndexing;
 use WPAICG\AutoGPT\Cron\EventProcessor\Processor\ContentWriting;
-use WPAICG\AutoGPT\Cron\EventProcessor\Processor\CommentReply;
 use WPAICG\AutoGPT\Cron\EventProcessor\Processor\ContentEnhancement;
 
 if (!defined('ABSPATH')) {
@@ -79,7 +79,6 @@ if (!defined('ABSPATH')) {
 
 require_once __DIR__ . '/content-indexing-worker.php';
 require_once __DIR__ . '/content-writing-worker.php';
-require_once __DIR__ . '/comment-reply-worker.php';
 if (file_exists(__DIR__ . '/content-enhancement-worker.php')) {
     require_once __DIR__ . '/content-enhancement-worker.php';
 }
@@ -93,6 +92,9 @@ if (file_exists(__DIR__ . '/content-enhancement-worker.php')) {
 function process_queue_item_logic(array $item): array
 {
     $item_task_type = $item['task_type'];
+    if (!\WPAICG\AutoGPT\Helpers\is_supported_task_type((string) $item_task_type)) {
+        return ['status' => 'error', 'message' => __('The specified task type is not supported.', 'gpt3-ai-content-generator')];
+    }
     $item_config = json_decode($item['item_config'], true) ?: [];
 
     if (strncmp($item_task_type, 'content_writing', strlen('content_writing')) === 0) {
@@ -115,8 +117,6 @@ function process_queue_item_logic(array $item): array
             default:
                 return ['status' => 'error', 'message' => "Unsupported provider '{$provider}' for content_indexing task."];
         }
-    } elseif ($item_task_type === 'community_reply_comments') {
-        return CommentReply\process_comment_reply_item_logic($item, $item_config);
     } elseif ($item_task_type === 'enhance_existing_content') {
         return ContentEnhancement\process_enhancement_item_logic($item, $item_config);
     } else {
@@ -184,7 +184,6 @@ function build_queue_item_event_summary_logic(array $item_config): array
     $summary_map = [
         'content_title' => 'content_title',
         'post_id' => 'post_id',
-        'comment_id' => 'comment_id',
         'cw_generation_mode' => 'generation_mode',
         'target_store_provider' => 'target_store_provider',
         'target_store_id' => 'target_store_id',
@@ -356,56 +355,25 @@ function emit_queue_status_event_logic(int $item_id, string $db_status, ?string 
  * @param int $itemId The ID of the queue item.
  * @param string $status The new status ('processing', 'completed', 'failed', 'success').
  * @param string|null $errorMessage The error message, if status is 'failed'.
- * @return void
+ * @param string $attempt_token The claim being completed (empty only for legacy asynchronous rows).
+ * @return bool Whether this attempt changed the row.
  */
-function update_queue_status_logic(int $itemId, string $status, ?string $errorMessage = null): void
+function update_queue_status_logic(int $itemId, string $status, ?string $errorMessage = null, string $attempt_token = ''): bool
 {
     global $wpdb;
-    $queue_table_name = $wpdb->prefix . 'aipkit_automated_task_queue';
-    $db_status = $status;
-
-    $update_data = [];
-    $formats = [];
-
-    if ($status === 'success') {
-        $update_data['status'] = 'completed'; // Set final DB status to 'completed'
-        $update_data['error_message'] = $errorMessage; // Store the success message (which has post ID)
-        $formats = ['%s', '%s'];
-        $db_status = 'completed';
-    } else {
-        if ($status === 'error') {
-            $update_data['status'] = 'failed'; // Standardize DB status to 'failed'
-            $db_status = 'failed';
-        } else {
-            $update_data['status'] = $status;
-            $db_status = $status;
-        }
-        $formats[] = '%s';
-
-        if ($status === 'processing') {
-            $update_data['last_attempt_time'] = current_time('mysql', 1);
-            $formats[] = '%s';
-            $update_data['error_message'] = $errorMessage;
-            $formats[] = '%s';
-        } elseif ($status === 'failed' || $status === 'error') {
-            $update_data['error_message'] = $errorMessage;
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct update to a custom table. Caches will be invalidated.
-            $wpdb->query($wpdb->prepare("UPDATE " . esc_sql($queue_table_name) . " SET attempts = attempts + 1 WHERE id = %d", $itemId));
-            $formats[] = '%s';
-        }
-    }
-    $update_data['sort_priority'] = $db_status === 'processing' ? 2 : 1;
-    $formats[] = '%d';
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct update to a custom table. Caches will be invalidated.
-    $wpdb->update(
-        $queue_table_name,
-        $update_data,
-        ['id' => $itemId],
-        $formats,
-        ['%d']
-    );
-
+    $table = $wpdb->prefix . 'aipkit_automated_task_queue';
+    $db_status = $status === 'success' ? 'completed' : ($status === 'error' ? 'failed' : $status);
+    if (!in_array($db_status, ['completed', 'failed', 'processing'], true)) { return false; }
+    // Claim, completion and failure count share the same attempt predicate. A stale result changes nothing.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifier uses only wpdb's prefix and a fixed queue suffix; values and the attempt predicate are prepared.
+    $changed = $wpdb->query($wpdb->prepare(
+        // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Only the plugin-owned queue identifier is interpolated; all values use placeholders.
+        "UPDATE $table SET status = %s, error_message = CASE WHEN %d = 1 THEN NULL ELSE %s END, sort_priority = %d, attempts = attempts + %d, last_attempt_time = CASE WHEN %s = 'processing' THEN %s ELSE last_attempt_time END WHERE id = %d AND status = 'processing' AND attempt_token = %s",
+        $db_status, $errorMessage === null ? 1 : 0, $errorMessage, $db_status === 'processing' ? 2 : 1, $db_status === 'failed' ? 1 : 0, $db_status, current_time('mysql', true), $itemId, $attempt_token
+    ));
+    if ($changed !== 1) { return false; }
     emit_queue_status_event_logic($itemId, $db_status, $errorMessage);
+    return true;
 }
 
 /** Link a submitted provider job without introducing a second upload or queue state. */
@@ -422,10 +390,10 @@ function defer_indexing_queue_item_logic(array $item, array $result): bool
     return $wpdb->update(
         $wpdb->prefix . 'aipkit_automated_task_queue',
         ['item_config' => wp_json_encode($config)],
-        ['id' => absint($item['id']), 'status' => 'processing'],
+        ['id' => absint($item['id']), 'status' => 'processing', 'attempt_token' => (string) ($item['attempt_token'] ?? '')],
         ['%s'],
-        ['%d', '%s']
-    ) !== false;
+        ['%d', '%s', '%s']
+    ) === 1;
 }
 
 /** True when provider jobs, rather than PHP workers, own processing queue items. */
@@ -450,7 +418,7 @@ function reconcile_indexing_queue_items_logic(): array
     for ($pass = 0; $pass < 2; ++$pass) {
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Bounded, cursor-based check of plugin-owned asynchronous queue items.
         $items = $wpdb->get_results($wpdb->prepare(
-            'SELECT id, task_id, target_identifier, item_config FROM ' . esc_sql($table) . ' WHERE status = %s AND task_type = %s AND item_config LIKE %s AND id > %d ORDER BY id ASC LIMIT 20',
+            'SELECT id, task_id, target_identifier, item_config, attempt_token FROM ' . esc_sql($table) . ' WHERE status = %s AND task_type = %s AND item_config LIKE %s AND id > %d ORDER BY id ASC LIMIT 20',
             'processing', 'content_indexing', '%' . $wpdb->esc_like('"_aipkit_indexing_job":') . '%', $cursor
         ), ARRAY_A) ?: [];
         if ($items || !$cursor) {
@@ -476,7 +444,7 @@ function reconcile_indexing_queue_items_logic(): array
         }
         $ready = $matches && $source['status'] === 'indexed';
         $message = $matches ? (string) $source['message'] : __('The indexing result is no longer available. Check Sources before retrying.', 'gpt3-ai-content-generator');
-        update_queue_status_logic($cursor, $ready ? 'success' : 'error', $message);
+        if (!update_queue_status_logic($cursor, $ready ? 'success' : 'error', $message, (string) $item['attempt_token'])) { continue; }
         ++$summary[$ready ? 'completed' : 'failed'];
         $summary['task_ids'][] = absint($item['task_id']);
     }
@@ -506,7 +474,7 @@ function defer_cloud_learning_refusal_logic(array $item, array $result): bool
         'status' => 'pending', 'sort_priority' => 1, 'item_config' => wp_json_encode($config),
         'last_attempt_time' => gmdate('Y-m-d H:i:s', time() + $delay),
         'error_message' => __('Cloud is busy. Learning will continue automatically.', 'gpt3-ai-content-generator'),
-    ], ['id' => (int) $item['id'], 'status' => 'processing']);
+    ], ['id' => (int) $item['id'], 'status' => 'processing', 'attempt_token' => (string) ($item['attempt_token'] ?? '')]);
     if (!$saved) { return false; }
     set_transient('aipkit_cloud_learning_wait', time() + $delay, $delay);
     wp_schedule_single_event(time() + $delay, AIPKit_Automated_Task_Event_Processor::MAIN_CRON_HOOK);
@@ -525,7 +493,7 @@ function unblocked_queue_condition_logic(): string
 }
 
 /** Pause future triggers and retain pending work until the user explicitly resumes it. */
-function hold_task_for_provider_logic(int $task_id, array $result): void
+function hold_task_for_provider_logic(int $task_id, array $result, array $item): void
 {
     global $wpdb;
     $table = $wpdb->prefix . 'aipkit_automated_tasks';
@@ -535,7 +503,10 @@ function hold_task_for_provider_logic(int $task_id, array $result): void
     if (!is_array($config)) { return; }
     $config['_aipkit_provider_hold'] = sanitize_key((string) ($result['provider_error_code'] ?? $result['code'] ?? 'provider_refusal'));
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Hold both scheduled production and existing queue work.
-    $wpdb->update($table, ['task_config' => wp_json_encode($config), 'status' => 'paused', 'next_run_time' => null], ['id' => $task_id], ['%s', '%s', '%s'], ['%d']);
+    $queue = $wpdb->prefix . 'aipkit_automated_task_queue';
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifiers use wpdb's prefix and fixed suffixes; prepared ownership/configuration predicates prevent a stale refusal from pausing the successor's task.
+    $held = $wpdb->query($wpdb->prepare("UPDATE $table SET task_config = %s, status = 'paused', next_run_time = NULL WHERE id = %d AND task_config = %s AND EXISTS (SELECT 1 FROM $queue WHERE id = %d AND status = 'processing' AND attempt_token = %s)", wp_json_encode($config), $task_id, $json, $item['id'], $item['attempt_token']));
+    if ($held !== 1) { return; }
     \WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Scheduler::clear_task_event($task_id);
 }
 
@@ -649,8 +620,7 @@ function should_continue_after_expensive_item_logic(
 function is_expensive_queue_task_logic(string $task_type): bool
 {
     return strncmp($task_type, 'content_writing', strlen('content_writing')) === 0
-        || $task_type === 'enhance_existing_content'
-        || $task_type === 'community_reply_comments';
+        || $task_type === 'enhance_existing_content';
 }
 
 /**
@@ -685,9 +655,6 @@ if (!defined('ABSPATH')) {
 
 use WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Event_Processor;
 
-if (file_exists(__DIR__ . '/comment-reply-trigger.php')) {
-    require_once __DIR__ . '/comment-reply-trigger.php';
-}
 if (file_exists(__DIR__ . '/content-enhancement-trigger.php')) {
     require_once __DIR__ . '/content-enhancement-trigger.php';
 }
@@ -703,7 +670,7 @@ function trigger_task_event_logic(int $task_id, bool $schedule_queue_event = tru
 {
     global $wpdb;
     $tasks_table_name = $wpdb->prefix . 'aipkit_automated_tasks';
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns a prepared catalog/module predicate, and remaining values are prepared here.
     $task = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . esc_sql($tasks_table_name) . " WHERE id = %d AND status = 'active'" . AIPKit_Automated_Task_Scheduler::enabled_task_sql(), $task_id), ARRAY_A);
     if (!$task) {
 
@@ -722,8 +689,6 @@ function trigger_task_event_logic(int $task_id, bool $schedule_queue_event = tru
         Trigger\trigger_content_writing_task_logic($task_id, $task_config);
     } elseif ($task_type === 'content_indexing') {
         $task_run_state = Trigger\trigger_content_indexing_task_logic($task_id, $task_config, $task['last_run_time']);
-    } elseif ($task_type === 'community_reply_comments') {
-        Trigger\trigger_comment_reply_task_logic($task_id, $task_config, $task['last_run_time']);
     } elseif ($task_type === 'enhance_existing_content') {
         Trigger\trigger_content_enhancement_task_logic($task_id, $task_config, $task['last_run_time']);
     } else {
@@ -844,6 +809,11 @@ function process_task_queue_event_logic(bool $schedule_follow_up = true, string 
             remove_action('wp_error_added', $capture_refusal, 10);
         }
 
+        if (!\WPAICG\AutoGPT\Cron\AIPKit_Queue_Attempt::owns($item)) {
+            ++$processed_items;
+            continue;
+        }
+
         if (!is_array($result) || !isset($result['status'])) {
             $result = [
                 'status' => 'error',
@@ -860,7 +830,7 @@ function process_task_queue_event_logic(bool $schedule_follow_up = true, string 
             break;
         }
         if (!empty($result['pause_task'])) {
-            Helpers\hold_task_for_provider_logic($task_cursor, $result);
+            Helpers\hold_task_for_provider_logic($task_cursor, $result, $item);
             $result['message'] .= ' ' . __('Task paused. Resolve the provider issue, then resume the task or retry the failed item.', 'gpt3-ai-content-generator');
         }
 
@@ -884,7 +854,7 @@ function process_task_queue_event_logic(bool $schedule_follow_up = true, string 
             }
         }
 
-        Helpers\update_queue_status_logic($item['id'], $result_status, $result['message'] ?? null);
+        Helpers\update_queue_status_logic($item['id'], $result_status, $result['message'] ?? null, $item['attempt_token']);
         ++$processed_items;
 
         if (in_array($result_status, ['error', 'failed'], true)) {
@@ -978,18 +948,21 @@ function claim_next_queue_item_logic(\wpdb $wpdb, string $queue_table_name, int 
         }
 
         $claimed_at = current_time('mysql', true);
+        $attempt_token = wp_generate_uuid4();
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Conditional update atomically claims a plugin-owned queue row.
         $claimed = $wpdb->query(
             $wpdb->prepare(
-                "UPDATE " . esc_sql($queue_table_name) . " SET status = %s, last_attempt_time = %s, sort_priority = %d WHERE id = %d AND status = %s",
+                "UPDATE " . esc_sql($queue_table_name) . " SET status = %s, last_attempt_time = %s, sort_priority = %d, attempt_token = %s WHERE id = %d AND status = %s",
                 'processing',
                 $claimed_at,
                 2,
+                $attempt_token,
                 absint($item['id']),
                 'pending'
             )
         );
         if ($claimed === 1) {
+            $item['attempt_token'] = $attempt_token;
             $item['status'] = 'processing';
             $item['last_attempt_time'] = $claimed_at;
             $item['sort_priority'] = 2;
@@ -1011,7 +984,7 @@ function recover_stale_queue_items_logic(
     int $recovery_limit
 ): int {
     $cutoff = gmdate('Y-m-d H:i:s', time() - max(1, $stale_after_seconds));
-    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns a prepared catalog/module predicate, and remaining values are prepared here.
     $recovered = $wpdb->query(
         $wpdb->prepare(
             // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().

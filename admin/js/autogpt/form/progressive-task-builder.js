@@ -228,7 +228,7 @@
     if (usesDisclosure) {
       select
         .closest(
-          ".aipkit_ce_filter_row, .aipkit_ci_filter_row, .aipkit_cc_setting_row"
+          ".aipkit_ce_filter_row, .aipkit_ci_filter_row"
         )
         ?.classList.add("has-checklist-disclosure");
 
@@ -350,7 +350,7 @@
   function enhanceMultiSelects(form) {
     form
       .querySelectorAll(
-        ".aipkit_ci_multi_select, .aipkit_cc_multi_select, .aipkit_ce_multi_select"
+        ".aipkit_ci_multi_select, .aipkit_ce_multi_select"
       )
       .forEach(createMultiSelectChecklist);
   }
@@ -1006,52 +1006,6 @@
       STEP_ORDER.forEach((key) => setError(key));
     };
 
-    const getSelectedIntentLabel = () => {
-      const type = taskTypeSelect?.value || "";
-      if (type.startsWith("content_writing")) {
-        return translate("Create new content");
-      }
-      if (type === "enhance_existing_content") {
-        return translate("Rewrite existing content");
-      }
-      if (type === "content_indexing") {
-        return translate("Build a knowledge base");
-      }
-      if (type === "community_reply_comments") {
-        return translate("Reply to comments");
-      }
-      return asText(getTaskDetails(form)?.label) || translate("Not selected");
-    };
-
-    const summarizeTypePath = () => {
-      const type = taskTypeSelect?.value || "";
-      if (type === "content_writing_bulk") {
-        return translate("Starting from topics you type in");
-      }
-      if (type === "content_writing_csv") {
-        return translate("Starting from a CSV file");
-      }
-      if (type === "content_writing_rss") {
-        return translate("Watching RSS feeds for new topics");
-      }
-      if (type === "content_writing_url") {
-        return translate("Using web pages as sources");
-      }
-      if (type === "content_writing_gsheets") {
-        return translate("Syncing topics from Google Sheets");
-      }
-      if (type === "enhance_existing_content") {
-        return translate("Improving selected posts or drafts");
-      }
-      if (type === "content_indexing") {
-        return translate("Adding content AI can reuse");
-      }
-      if (type === "community_reply_comments") {
-        return translate("Drafting replies for new comments");
-      }
-      return translate("Choose what AI Puffer should do.");
-    };
-
     const summarizeSource = () => {
       const type = taskTypeSelect?.value || "";
       if (!type) return translate("Select an automation first.");
@@ -1117,16 +1071,6 @@
           : translate("No content selected");
       }
 
-      if (type === "community_reply_comments") {
-        const types = selectedLabels(
-          form.querySelector("#aipkit_task_comment_reply_post_types")
-        );
-        const action = displayValue(form.elements.reply_action);
-        return types.length
-          ? `${types.join(", ")} · ${action}`
-          : translate("No comment areas selected yet");
-      }
-
       return translate("Source not configured yet");
     };
 
@@ -1159,10 +1103,6 @@
 
       if (type === "enhance_existing_content") {
         return getModelSummary("ce") || translate("Default AI model");
-      }
-
-      if (type === "community_reply_comments") {
-        return getModelSummary("cc") || translate("Default AI model");
       }
 
       return translate("Recommended writing settings");
@@ -1725,13 +1665,6 @@
         if (queueNow) queueNow.checked = false;
       }
 
-      if (type === "community_reply_comments") {
-        if (form.elements.reply_action) form.elements.reply_action.value = "hold";
-        if (form.elements.no_reply_to_replies) {
-          form.elements.no_reply_to_replies.checked = true;
-        }
-      }
-
       if (type === "content_indexing") {
         if (form.elements.index_existing_now_flag) {
           form.elements.index_existing_now_flag.checked = true;
@@ -1850,11 +1783,7 @@
           return translate("Please select at least one content type to rewrite.");
         }
       }
-      if (type === "community_reply_comments") {
-        if (!selectedOptions(form.querySelector("#aipkit_task_comment_reply_post_types")).length) {
-          return texts.comment_post_type_required || translate("Please select at least one content type to monitor.");
-        }
-      }
+
       return "";
     };
 
@@ -1870,14 +1799,7 @@
           return translate("The content prompt cannot be empty.");
         }
       }
-      if (type === "community_reply_comments") {
-        if (!asText(form.elements.cc_ai_provider?.value) || !asText(form.elements.cc_ai_model?.value)) {
-          return texts.comment_ai_config_required || translate("Please select an AI model.");
-        }
-        if (!asText(form.elements.cc_custom_content_prompt?.value)) {
-          return texts.comment_prompt_required || translate("The reply prompt cannot be empty.");
-        }
-      }
+
       if (type === "enhance_existing_content") {
         if (!asText(form.elements.ce_ai_provider?.value) || !asText(form.elements.ce_ai_model?.value)) {
           return translate("Please select an AI model.");

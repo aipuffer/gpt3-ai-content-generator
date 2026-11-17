@@ -1228,9 +1228,6 @@ class AIPKit_Autogpt_Assets extends AIPKit_Admin_Asset_Base
         $default_ce_prompts = class_exists(AIPKit_AutoGPT_Prompt_Definitions::class)
             ? AIPKit_AutoGPT_Prompt_Definitions::get_content_enhancement_defaults()
             : [];
-        $default_cc_prompts = class_exists(AIPKit_AutoGPT_Prompt_Definitions::class)
-            ? AIPKit_AutoGPT_Prompt_Definitions::get_comment_reply_defaults()
-            : [];
 
         if (class_exists(AIPKit_Content_Writer_Prompts::class)) {
             $default_cw_prompts = [
@@ -1396,29 +1393,9 @@ class AIPKit_Autogpt_Assets extends AIPKit_Admin_Asset_Base
                         'risk' => 'high',
                     ],
                 ],
-                'community_reply_comments' => [
-                    'label' => __('Auto-Reply to Comments', 'gpt3-ai-content-generator'),
-                    'icon' => 'dashicons-admin-comments',
-                    'category' => 'community_engagement',
-                    'description' => __('Automatically generate and post replies to new comments.', 'gpt3-ai-content-generator'),
-                    'disabled' => false,
-                    'ui' => [
-                        'source_title' => __('Choose comments to monitor', 'gpt3-ai-content-generator'),
-                        'source_description' => __('Choose where replies may be created and how they are moderated.', 'gpt3-ai-content-generator'),
-                        'writing_title' => __('AI', 'gpt3-ai-content-generator'),
-                        'schedule_title' => __('How should comment replies be handled?', 'gpt3-ai-content-generator'),
-                        'primary_action' => __('Start comment automation', 'gpt3-ai-content-generator'),
-                        'frequency_policy' => 'recurring',
-                        'supports_writing' => true,
-                        'supports_context' => false,
-                        'supports_images' => false,
-                        'risk' => 'moderate',
-                    ],
-                ],
             ],
             'default_cw_prompts' => $default_cw_prompts,
             'default_ce_prompts' => $default_ce_prompts,
-            'default_cc_prompts' => $default_cc_prompts,
             'frequencies' => $frequencies,
             'text' => [
                 'confirm_delete_task_title' => __('Delete automation', 'gpt3-ai-content-generator'),
@@ -1439,9 +1416,6 @@ class AIPKit_Autogpt_Assets extends AIPKit_Admin_Asset_Base
                 'gsheets_id_required_cw_task' => __('Please add a Google Sheet ID.', 'gpt3-ai-content-generator'),
                 'gsheets_credentials_required_cw_task' => __('Please add Google Sheets credentials.', 'gpt3-ai-content-generator'),
                 'ai_config_required_cw_task' => __('AI Provider and Model are required for Content Writing task.', 'gpt3-ai-content-generator'),
-                'comment_post_type_required' => __('Please select at least one content type to monitor.', 'gpt3-ai-content-generator'),
-                'comment_ai_config_required' => __('AI Provider and Model are required for Comment Replies.', 'gpt3-ai-content-generator'),
-                'comment_prompt_required' => __('The reply prompt cannot be empty.', 'gpt3-ai-content-generator'),
                 'saving_task' => __('Saving Task...', 'gpt3-ai-content-generator'),
                 'deleting_task' => __('Deleting Task...', 'gpt3-ai-content-generator'),
                 'running_task' => __('Initiating Run...', 'gpt3-ai-content-generator'),

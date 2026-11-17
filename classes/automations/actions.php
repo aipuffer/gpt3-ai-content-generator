@@ -53,7 +53,6 @@ abstract class AIPKit_Automated_Task_Base_Ajax_Action extends BaseDashboardAjaxH
     abstract public function handle_request();
 }
 
-
 /**
 * Handles AJAX request for saving an automated task by orchestrating calls
 * to modular logic functions.
@@ -90,8 +89,6 @@ class AIPKit_Save_Automated_Task_Action extends AIPKit_Automated_Task_Base_Ajax_
             $task_config_or_error = SaveTask\build_task_config_indexing_logic($post_data);
         } elseif (strncmp($task_type, 'content_writing', strlen('content_writing')) === 0) {
             $task_config_or_error = SaveTask\build_task_config_writing_logic($post_data);
-        } elseif ($task_type === 'community_reply_comments') {
-            $task_config_or_error = SaveTask\build_task_config_comment_reply_logic($post_data);
         } elseif ($task_type === 'enhance_existing_content') {
             $task_config_or_error = SaveTask\build_task_config_enhancement_logic($post_data);
         } else {
@@ -161,8 +158,6 @@ class AIPKit_Get_Automated_Tasks_Action extends AIPKit_Automated_Task_Base_Ajax_
         $tasks_query = $wpdb->prepare($tasks_query, ...$tasks_query_args);
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Admin pagination query over a plugin-owned custom table.
         $tasks = $wpdb->get_results($tasks_query, ARRAY_A);
-
-
         wp_send_json_success([
             'tasks' => $tasks ?: [],
             'pagination' => [
@@ -231,9 +226,13 @@ class AIPKit_Update_Automated_Task_Status_Action extends AIPKit_Automated_Task_B
             return;
         }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Reason: Direct query to a custom table. Caches will be invalidated
-        $task = $wpdb->get_row($wpdb->prepare("SELECT task_config FROM {$this->tasks_table_name} WHERE id = %d", $task_id), ARRAY_A);
+        $task = $wpdb->get_row($wpdb->prepare("SELECT task_config, task_type FROM {$this->tasks_table_name} WHERE id = %d", $task_id), ARRAY_A);
         if (!$task) {
             $this->send_wp_error(new WP_Error('task_not_found_status', __('Task not found.', 'gpt3-ai-content-generator')), 404);
+            return;
+        }
+        if (!\WPAICG\AutoGPT\Helpers\is_supported_task_type((string) ($task['task_type'] ?? ''))) {
+            $this->send_wp_error(new WP_Error('unsupported_task_type', __('The specified task type is not supported.', 'gpt3-ai-content-generator')), 400);
             return;
         }
         $task_config = json_decode($task['task_config'], true);
@@ -242,7 +241,6 @@ class AIPKit_Update_Automated_Task_Status_Action extends AIPKit_Automated_Task_B
             $this->send_wp_error(new WP_Error('provider_hold_clear_failed', __('Could not resume the task. Please try again.', 'gpt3-ai-content-generator')), 500);
             return;
         }
-
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct update to a custom table. Caches will be invalidated.
         $result = $wpdb->update($this->tasks_table_name, ['status' => $status, 'updated_at' => current_time('mysql', 1)], ['id' => $task_id], ['%s', '%s'], ['%d']);
@@ -260,7 +258,6 @@ class AIPKit_Update_Automated_Task_Status_Action extends AIPKit_Automated_Task_B
         }
     }
 }
-
 
 /**
  * Handles AJAX request for running an automated task immediately by orchestrating
@@ -294,10 +291,6 @@ class AIPKit_Run_Automated_Task_Now_Action extends AIPKit_Automated_Task_Base_Aj
                     $this->send_wp_error($result);
                     return;
                 }
-                break;
-
-            case $task_type === 'community_reply_comments': // NEW CASE
-                Actions\RunNow\run_now_comment_reply_logic($task_id, $task_config, $task['last_run_time']);
                 break;
 
             case $task_type === 'enhance_existing_content':
@@ -484,8 +477,6 @@ class AIPKit_Get_Automated_Task_Queue_Items_Action extends AIPKit_Automated_Task
 
             if ($item['task_type'] === 'content_indexing' || $item['task_type'] === 'enhance_existing_content') {
                 $item['target_title'] = get_the_title(absint($item['target_identifier']));
-            } elseif ($item['task_type'] === 'community_reply_comments') {
-                $item['target_title'] = 'Comment #' . absint($item['target_identifier']);
             } elseif (strncmp((string) $item['task_type'], 'content_writing', strlen('content_writing')) === 0 && !empty($item_config['content_title'])) {
                 $item['target_title'] = $item_config['content_title'];
             } else {
@@ -627,12 +618,19 @@ class AIPKit_Retry_Automated_Task_Queue_Item_Action extends AIPKit_Automated_Tas
 
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Resolve the exact failed item's task before an explicit retry.
         $task_id = (int) $wpdb->get_var($wpdb->prepare('SELECT task_id FROM ' . esc_sql($this->queue_table_name) . ' WHERE id = %d AND status = %s', $item_id, 'failed'));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Check the saved job before a retry can change its state.
+        $task_type = (string) $wpdb->get_var($wpdb->prepare('SELECT task_type FROM ' . esc_sql($this->queue_table_name) . ' WHERE id = %d', $item_id));
+        if ($task_id && !\WPAICG\AutoGPT\Helpers\is_supported_task_type($task_type)) {
+            $this->send_wp_error(new WP_Error('unsupported_task_type', __('The specified task type is not supported.', 'gpt3-ai-content-generator')), 400);
+            return;
+        }
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reason: Direct update to a custom table. Cache will be invalidated.
         $result = $wpdb->update(
             $this->queue_table_name,
-            ['status' => 'pending', 'last_attempt_time' => null, 'error_message' => null, 'attempts' => 0, 'sort_priority' => 1],
+            // An explicit administrator retry starts a new run, including after a reviewed partial draft.
+            ['status' => 'pending', 'last_attempt_time' => null, 'error_message' => null, 'attempts' => 0, 'sort_priority' => 1, 'result_post_id' => null],
             ['id' => $item_id, 'status' => 'failed'],
-            ['%s', '%s', '%s', '%d', '%d'],
+            ['%s', '%s', '%s', '%d', '%d', '%d'],
             ['%d', '%s']
         );
 
@@ -721,7 +719,6 @@ use WPAICG\AutoGPT\Cron\AIPKit_Automated_Task_Content_Queuer;
 if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
-
 
 /**
  * Checks whether manual content-writing input contains at least one real topic.
@@ -868,8 +865,6 @@ function validate_task_provider_setup(string $task_type, array $post_data): ?WP_
                 $providers[] = $post_data['vector_embedding_provider'] ?? '';
             }
         }
-    } elseif ($task_type === 'community_reply_comments') {
-        $providers[] = $post_data['cc_ai_provider'] ?? '';
     } elseif ($task_type === 'content_indexing') {
         $vector_provider = (string) ($post_data['target_store_provider'] ?? 'openai');
         $providers[] = $vector_provider;
@@ -909,6 +904,9 @@ function validate_task_request_logic(AIPKit_Save_Automated_Task_Action $handler,
     }
     if (empty($task_type)) {
         return new WP_Error('missing_task_type', __('Task type is required.', 'gpt3-ai-content-generator'), ['status' => 400]);
+    }
+    if (!Helpers\is_supported_task_type($task_type)) {
+        return new WP_Error('unsupported_task_type', __('The specified task type is not supported.', 'gpt3-ai-content-generator'), ['status' => 400]);
     }
     if (Helpers\task_type_requires_pro_plan($task_type) && !Helpers\is_pro_plan_active()) {
         return new WP_Error('task_type_requires_pro_plan', __('This is a Pro feature.', 'gpt3-ai-content-generator'), ['status' => 403]);
@@ -1216,80 +1214,6 @@ function build_task_config_writing_logic(array $post_data)
 }
 
 /**
- * Builds and validates the configuration for a 'community_reply_comments' task.
- *
- * @param array $post_data The raw POST data.
- * @return array|WP_Error The validated config array or WP_Error on failure.
- */
-function build_task_config_comment_reply_logic(array $post_data)
-{
-    $task_config = [];
-    // AI & Prompt Settings
-    $provider_raw = $post_data['cc_ai_provider'] ?? 'openai';
-    switch (strtolower($provider_raw)) {
-        case 'openai':
-            $task_config['ai_provider'] = 'OpenAI';
-            break;
-        case 'openrouter':
-            $task_config['ai_provider'] = 'OpenRouter';
-            break;
-        case 'google':
-            $task_config['ai_provider'] = 'Google';
-            break;
-        case 'azure':
-            $task_config['ai_provider'] = 'Azure';
-            break;
-        case 'claude':
-            $task_config['ai_provider'] = 'Claude';
-            break;
-        case 'deepseek':
-            $task_config['ai_provider'] = 'DeepSeek';
-            break;
-        case 'xai':
-            $task_config['ai_provider'] = 'xAI';
-            break;
-        case 'ollama':
-            $task_config['ai_provider'] = 'Ollama';
-            break;
-        default:
-            $task_config['ai_provider'] = \WPAICG\AIPKit_Providers::normalize_provider_label((string) $provider_raw);
-            break;
-    }
-
-    $task_config['ai_model'] = $post_data['cc_ai_model'] ?? '';
-    $task_config['ai_temperature'] = isset($post_data['cc_ai_temperature']) ? floatval($post_data['cc_ai_temperature']) : 1.0;
-    $task_config['content_max_tokens'] = isset($post_data['cc_content_max_tokens']) ? absint($post_data['cc_content_max_tokens']) : 4000;
-    $reasoning_effort = AIPKit_OpenAI_Reasoning::sanitize_effort($post_data['cc_reasoning_effort'] ?? '');
-    $task_config['reasoning_effort'] = $reasoning_effort !== '' ? $reasoning_effort : 'none';
-    $task_config['custom_content_prompt'] = isset($post_data['cc_custom_content_prompt']) ? AIPKit_Prompt_Sanitizer::sanitize(wp_unslash($post_data['cc_custom_content_prompt'])) : '';
-
-    // Comment-specific settings
-    $task_config['post_types_for_comments'] = isset($post_data['post_types_for_comments']) && is_array($post_data['post_types_for_comments']) ? array_map('sanitize_key', $post_data['post_types_for_comments']) : [];
-    $task_config['reply_action'] = isset($post_data['reply_action']) && in_array($post_data['reply_action'], ['approve', 'hold'], true) ? $post_data['reply_action'] : 'hold';
-    $task_config['no_reply_to_replies'] = isset($post_data['no_reply_to_replies']) ? '1' : '0';
-
-    // Filters
-    $task_config['include_keywords'] = isset($post_data['include_keywords']) ? sanitize_textarea_field(wp_unslash($post_data['include_keywords'])) : '';
-    $task_config['exclude_keywords'] = isset($post_data['exclude_keywords']) ? sanitize_textarea_field(wp_unslash($post_data['exclude_keywords'])) : '';
-
-    // Task Frequency
-    $task_config['task_frequency'] = isset($post_data['task_frequency']) ? sanitize_key($post_data['task_frequency']) : 'hourly';
-
-    // Validation
-    if (empty($task_config['ai_provider']) || empty($task_config['ai_model'])) {
-        return new WP_Error('missing_ai_config_comments', __('AI Provider and Model are required.', 'gpt3-ai-content-generator'));
-    }
-    if (empty($task_config['post_types_for_comments'])) {
-        return new WP_Error('missing_post_types_comments', __('Please select at least one post type to monitor for comments.', 'gpt3-ai-content-generator'));
-    }
-    if (empty($task_config['custom_content_prompt'])) {
-        return new WP_Error('missing_prompt_comments', __('The reply prompt cannot be empty.', 'gpt3-ai-content-generator'));
-    }
-
-    return $task_config;
-}
-
-/**
 * Builds and validates the configuration for an 'enhance_existing_content' task.
 *
 * @param array $post_data The raw POST data.
@@ -1406,7 +1330,6 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-
 /**
  * Validates the request for running a task now.
  * Checks permissions, task ID, and task status.
@@ -1440,6 +1363,9 @@ function validate_task_and_permissions_logic(AIPKit_Run_Automated_Task_Now_Actio
         return new WP_Error('task_not_found_run', __('Task not found.', 'gpt3-ai-content-generator'), ['status' => 404]);
     }
 
+    if (!Helpers\is_supported_task_type((string) $task['task_type'])) {
+        return new WP_Error('unsupported_task_type_run_now', __('The specified task type is not supported.', 'gpt3-ai-content-generator'), ['status' => 400]);
+    }
     if ($task['status'] !== 'active') {
         return new WP_Error('task_not_active_run', __('Task must be active to run now.', 'gpt3-ai-content-generator'), ['status' => 400]);
     }
@@ -1542,24 +1468,6 @@ function run_now_content_writing_logic(int $task_id, array $task_config)
     }
 
     return true;
-}
-
-/**
- * Queues items for a "Run Now" action on a comment reply task.
- * This is essentially the same as a scheduled trigger.
- *
- * @param int $task_id The ID of the task.
- * @param array $task_config The configuration of the task.
- * @param string|null $last_run_time The last time the task ran.
- * @return void
- */
-function run_now_comment_reply_logic(int $task_id, array $task_config, ?string $last_run_time): void
-{
-    // The logic to queue comments is the same whether it's a scheduled run or a "Run Now" trigger.
-    // A manual run includes all matching comments by passing a null last-run time.
-    if (function_exists('\WPAICG\AutoGPT\Cron\EventProcessor\Trigger\trigger_comment_reply_task_logic')) {
-        Trigger\trigger_comment_reply_task_logic($task_id, $task_config, null);
-    }
 }
 
 /**

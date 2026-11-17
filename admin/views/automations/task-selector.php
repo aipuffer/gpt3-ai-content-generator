@@ -28,13 +28,6 @@ function aipkit_render_automation_task_selector(bool $aipkit_autogpt_is_pro): vo
             'family_icon' => 'dashicons-database',
             'direct_task_type' => 'content_indexing',
         ],
-        [
-            'category' => 'community_engagement',
-            'family_label' => __('Reply to comments', 'gpt3-ai-content-generator'),
-            'family_description' => __('Generate replies when new comments are posted.', 'gpt3-ai-content-generator'),
-            'family_icon' => 'dashicons-admin-comments',
-            'direct_task_type' => 'community_reply_comments',
-        ],
     ];
     ?>
     <div class="aipkit_cw_source_selector_wrapper aipkit_autogpt_intent_selector" data-aipkit-autogpt-category-selector data-template-ready="1" data-view="families">

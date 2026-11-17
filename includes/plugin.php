@@ -31,7 +31,7 @@ class WP_AI_Content_Generator
     public const TOKEN_MANAGER_SCHEMA_VERSION_OPTION = 'aipkit_token_manager_schema_version';
     public const TOKEN_MANAGER_SCHEMA_VERSION = '4';
     public const PERFORMANCE_SCHEMA_VERSION_OPTION = 'aipkit_performance_schema_version';
-    public const PERFORMANCE_SCHEMA_VERSION = '3';
+    public const PERFORMANCE_SCHEMA_VERSION = '4';
     public const MODEL_REGISTRY_SCHEMA_VERSION_OPTION = 'aipkit_model_registry_schema_version';
     public const MODEL_REGISTRY_SCHEMA_VERSION = '1';
     public const CONVERSATION_STATE_SCHEMA_VERSION_OPTION = 'aipkit_conversation_state_schema_version';

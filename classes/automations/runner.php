@@ -25,7 +25,7 @@ class AIPKit_Automation_Runner
     public static function run_wp_cron_task(int $task_id): array
     {
         $result = self::run('wp_cron', $task_id, false, true);
-        if (!empty($result['busy'])) {
+        if (!empty($result['busy']) && self::get_due_task_ids($task_id)) {
             $hook = AIPKit_Automated_Task_Scheduler::get_task_specific_cron_hook($task_id);
             wp_schedule_single_event(time() + self::BUSY_RETRY_DELAY, $hook, [$task_id]);
         }
@@ -165,7 +165,7 @@ class AIPKit_Automation_Runner
         $now_gmt = current_time('mysql', true);
 
         if ($specific_task_id !== null) {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns a prepared catalog/module predicate, and remaining values are prepared here.
             $task_ids = $wpdb->get_col(
                 $wpdb->prepare(
                     // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().
@@ -176,7 +176,7 @@ class AIPKit_Automation_Runner
                 )
             );
         } else {
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns only an empty string or a prepared fixed task-type predicate, and remaining values are prepared here.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Plugin-owned table; enabled_task_sql() returns a prepared catalog/module predicate, and remaining values are prepared here.
             $task_ids = $wpdb->get_col(
                 $wpdb->prepare(
                     // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The eligibility helper returns a prepared fixed task-type predicate; all other values use the enclosing prepare().

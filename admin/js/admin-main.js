@@ -124,23 +124,17 @@ import "./autogpt/tasks/content-writing/knowledge-base-ui.js";
 import "./autogpt/tasks/content-writing/manual-entry-ui.js";
 import "./autogpt/tasks/content-writing/content-writing-form-ui.js";
 import "./autogpt/tasks/content-enhancement/promo-shims.js";
-// Comment reply task UI
-import "./autogpt/tasks/community-engagement/handle-provider-model-select.js";
-import "./autogpt/tasks/community-engagement/comment-reply-form-ui.js";
 import "./autogpt/ui/inline-prompt-settings.js";
 import "./autogpt/ui/unified-model-selectors.js";
 
 // Reasoning effort toggle fields
 import "./autogpt/fields/toggleReasoningEffort-cw.js"; // Content Writing
-import "./autogpt/fields/toggleReasoningEffort-cc.js"; // Community Engagement
 
 // Form population logic
 import "./autogpt/form/populate-form-common.js";
 import "./autogpt/form/populate-form-content-indexing.js";
 import "./autogpt/form/populate-form-content-writing.js";
-import "./autogpt/form/populate-form-comment-reply.js";
 import "./autogpt/form/set-content-writing-defaults.js";
-import "./autogpt/form/set-comment-reply-defaults.js";
 
 import "./autogpt/form/show-automated-task-form.js"; // This is now the orchestrator
 import "./autogpt/form/hide-automated-task-form.js";

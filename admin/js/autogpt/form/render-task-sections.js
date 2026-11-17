@@ -29,13 +29,7 @@
         status: "task_config_status",
       },
     },
-    community_reply_comments: {
-      contentMap: {
-        setup: "task_form_setup",
-        status: "task_config_status",
-        filters: "task_config_comment_reply",
-      },
-    },
+
   };
 
   function updateAutogptProviderNotice() {
@@ -57,9 +51,7 @@
       ? "aipkit_task_cw_ai_provider"
       : taskType === "enhance_existing_content"
         ? "aipkit_task_ce_ai_provider"
-        : taskType === "community_reply_comments"
-          ? "aipkit_task_cc_ai_provider"
-          : "";
+        : "";
     const activeSelect = providerId ? document.getElementById(providerId) : null;
     if (!activeSelect) {
       noticeEl.classList.add("aipkit_provider_notice--hidden");
@@ -109,8 +101,6 @@
     let configKey = "content_writing";
     if (taskType === "content_indexing") {
       configKey = "content_indexing";
-    } else if (taskType === "community_reply_comments") {
-      configKey = "community_reply_comments";
     } else if (taskType === "enhance_existing_content") {
       configKey = "enhance_existing_content";
     }
@@ -138,10 +128,6 @@
 
     if (taskType === "enhance_existing_content") {
       return "enhance_existing_content";
-    }
-
-    if (taskType === "community_reply_comments") {
-      return "community_reply_comments";
     }
 
     if (taskType === "content_indexing") {
@@ -241,8 +227,6 @@
       } else if (taskType === "enhance_existing_content") {
         visibility.setup = true;
         visibility.advanced = true;
-      } else if (taskType === "community_reply_comments") {
-        visibility.setup = true;
       } else if (taskType === "content_indexing") {
         visibility.schedule = true;
       }
@@ -276,11 +260,6 @@
     }
 
     if (taskType === "enhance_existing_content") {
-      defaults.setup = true;
-      return defaults;
-    }
-
-    if (taskType === "community_reply_comments") {
       defaults.setup = true;
       return defaults;
     }

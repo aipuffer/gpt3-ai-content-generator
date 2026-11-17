@@ -27,7 +27,7 @@
     }
     form.reset();
     if (!taskData) {
-      ['', 'ce_', 'cc_'].forEach((prefix) => window.aipkit_applyNewFeatureDefaults?.(form, prefix));
+      ['', 'ce_'].forEach((prefix) => window.aipkit_applyNewFeatureDefaults?.(form, prefix));
     }
 
     if (form.elements["task_id"]) form.elements["task_id"].value = "";
@@ -123,16 +123,6 @@
         } else {
           console.error(
             "Show Task Form: aipkit_form_populateContentWritingFields function is missing."
-          );
-        }
-      } else if (taskData.task_type === "community_reply_comments") {
-        if (
-          typeof window.aipkit_form_populateCommentReplyFields === "function"
-        ) {
-          window.aipkit_form_populateCommentReplyFields(taskConfig);
-        } else {
-          console.error(
-            "Show Task Form: aipkit_form_populateCommentReplyFields function is missing."
           );
         }
       } else if (taskData.task_type === "enhance_existing_content") {

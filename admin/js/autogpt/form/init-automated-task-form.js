@@ -32,7 +32,6 @@
       "aipkit_task_ce_update_content",
       "aipkit_task_ce_update_meta",
     ],
-    community_reply_comments: ["aipkit_task_cc_custom_content_prompt"],
   };
   const promptDraftFieldIdSet = new Set(
     Object.values(promptDraftFieldMap).flat()
@@ -46,9 +45,7 @@
     if (normalized === "enhance_existing_content") {
       return "enhance_existing_content";
     }
-    if (normalized === "community_reply_comments") {
-      return "community_reply_comments";
-    }
+
     return "";
   };
 

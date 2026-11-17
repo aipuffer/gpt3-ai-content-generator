@@ -191,47 +191,6 @@ Focus keyword: "{original_focus_keyword}"',
         ];
     }
 
-    public static function get_comment_reply_defaults(): array
-    {
-        return [
-            'reply' => 'Write a helpful and friendly reply to this comment on my blog post titled \'{post_title}\'.
-
-Comment: {comment_content}',
-        ];
-    }
-
-    public static function get_comment_reply_prompt_items(): array
-    {
-        $defaults = self::get_comment_reply_defaults();
-        $prompt_library = class_exists(AIPKit_Content_Writer_Prompts::class)
-            ? AIPKit_Content_Writer_Prompts::get_prompt_library()
-            : [];
-
-        return [
-            [
-                'key' => 'reply',
-                'label' => __('Reply Prompt', 'gpt3-ai-content-generator'),
-                'textarea' => [
-                    'id' => 'aipkit_task_cc_custom_content_prompt',
-                    'name' => 'cc_custom_content_prompt',
-                    'value' => $defaults['reply'],
-                    'placeholder' => __('Enter your reply prompt...', 'gpt3-ai-content-generator'),
-                ],
-                'library' => [
-                    'select_id' => 'aipkit_task_cc_reply_prompt_library',
-                    'options' => $prompt_library['reply'] ?? [],
-                    'default_prompt' => $defaults['reply'],
-                ],
-                'placeholders' => [
-                    '{comment_content}',
-                    '{comment_author}',
-                    '{post_title}',
-                ],
-                'placeholders_prompt_type' => 'reply',
-            ],
-        ];
-    }
-
     public static function get_post_enhancer_defaults(): array
     {
         $defaults = self::get_content_enhancement_defaults();

@@ -1116,8 +1116,17 @@ final class Connection
             $revoked = $error->getMessage() === 'credential_unavailable';
             if ($revoked) {
                 try {
-                    self::retire($expected_token);
-                    $revoked = self::clear_credential($expected_token, $local_identity);
+                    $revoked = self::storage_transaction(static function () use ($expected_token, $local_identity): bool {
+                        global $wpdb;
+                        // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Lock custody through generation-scoped MCP retirement and deletion.
+                        $stored = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s FOR UPDATE", self::OPTION));
+                        if ($wpdb->last_error !== '') { throw new RuntimeException('cloud_storage_unavailable'); }
+                        if ($stored === null) { return false; }
+                        if ((self::fresh_state(true)['token'] ?? '') !== $expected_token) { return false; }
+                        do_action('aipkit_cloud_credential_ending', 'credential_unavailable');
+                        self::retire($expected_token);
+                        return self::clear_credential($expected_token, $local_identity);
+                    });
                 } catch (\Throwable $changed) { $revoked = false; }
             }
             return ['credits' => null, 'emailVerified' => null, 'revoked' => $revoked, 'unavailable' => !$revoked];
@@ -1156,22 +1165,51 @@ final class Connection
      * Atomic lock. add_option() is not atomic under concurrency, and a lock left by a request that
      * timed out or crashed expires instead of blocking every Cloud action (including reset) forever.
      */
-    private static function lock(string $name = self::LOCK, int $seconds = self::LOCK_SECONDS): bool
+    private static function lock(string $name = self::LOCK, int $seconds = self::LOCK_SECONDS): string
     {
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Atomic lock row; must bypass the options cache.
         $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name = %s AND CAST(option_value AS UNSIGNED) <= %d", $name, time() - $seconds));
+        $owner = time() . ':' . wp_generate_uuid4();
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- INSERT IGNORE succeeds for exactly one request.
-        $claimed = $wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, (string) time())) === 1;
+        $claimed = $wpdb->query($wpdb->prepare("INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $owner)) === 1;
         wp_cache_delete($name, 'options');
         wp_cache_delete('notoptions', 'options');
-        return $claimed;
+        return $claimed ? $owner : '';
     }
 
-    private static function unlock(): void
+    private static function unlock(string $owner): void
     {
         global $wpdb;
-        $wpdb->delete($wpdb->options, ['option_name' => self::LOCK]); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
+        $wpdb->delete($wpdb->options, ['option_name' => self::LOCK, 'option_value' => $owner]); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
+    }
+
+    /** Short local custody commits only: never hold a database transaction over HTTP. */
+    private static function storage_transaction(callable $work)
+    {
+        global $wpdb;
+        $started = false;
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custody/grant retirement must serialize with credential adoption; never commit an existing caller transaction.
+        try {
+            $engine = $wpdb->get_var($wpdb->prepare("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s", $wpdb->options));
+            if ($engine !== 'InnoDB' || $wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED') === false || $wpdb->query('START TRANSACTION') === false) {
+                throw new RuntimeException('cloud_storage_unavailable');
+            }
+            $started = true;
+            $result = $work();
+            if ($wpdb->query('COMMIT') === false) { throw new RuntimeException('cloud_storage_save_failed'); }
+            $started = false;
+            return $result;
+        } catch (\Throwable $error) {
+            if ($started) { $wpdb->query('ROLLBACK'); }
+            throw $error;
+        } finally {
+            wp_cache_delete(self::OPTION, 'options');
+            wp_cache_delete('alloptions', 'options');
+            wp_cache_delete('notoptions', 'options');
+            self::$state_cache_key = null;
+        }
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     }
 
     /** Capability check is repeated here for every caller; HTTP also requires a nonce. */
@@ -1180,16 +1218,17 @@ final class Connection
         if (!self::allowed() || !in_array($action, ['connect', 'disconnect', 'sync', 'refresh', 'balance', 'verify', 'reset'], true)) {
             return 'forbidden';
         }
-        if (!self::lock()) {
+        $owner = self::lock();
+        if ($owner === '') {
             return 'busy';
         }
         try {
             if ($action === 'connect') {
                 if (!$consent) { return 'unavailable'; }
-                return ConnectionDiagnostics::run(static function () use ($marketing, $email): string {
+                return ConnectionDiagnostics::run(static function () use ($marketing, $email, $owner): string {
                     $state = self::connected_state();
                     if (isset($state['token'])) { return 'unavailable'; }
-                    return self::connect($marketing, $email);
+                    return self::connect($marketing, $email, $owner);
                 }, $source);
             }
             if ($action === 'reset') {
@@ -1241,7 +1280,7 @@ final class Connection
         } catch (\Throwable $error) {
             return $action === 'disconnect' ? 'disconnect_failed' : ($error->getMessage() === 'identity_check_unavailable' ? 'identity_check_unavailable' : 'unavailable');
         } finally {
-            self::unlock();
+            self::unlock($owner);
         }
     }
 
@@ -1263,7 +1302,7 @@ final class Connection
      * One click: prove this installation to Cloud with the Freemius install secret. Sites that are not
      * registered with Freemius are registered first (explicit consent, usage tracking off).
      */
-    private static function connect(bool $marketing, string $email): string
+    private static function connect(bool $marketing, string $email, string $owner): string
     {
         if (function_exists('set_time_limit')) { @set_time_limit(120); } // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, Squiz.PHP.DiscouragedFunctions.Discouraged -- Bounded explicit action; disabled on some hosts. Provider requests retain their own timeouts.
         try { $fs = wpaicg_gacg_fs(); } catch (\Throwable $error) { ConnectionDiagnostics::error('sdk_unavailable'); return 'freemius_failed'; }
@@ -1376,7 +1415,16 @@ final class Connection
             'version' => $receipt['version'], 'accepted_at' => $receipt['acceptedAt'],
             'recorded_at' => gmdate('Y-m-d\TH:i:s\Z'), 'accepted_by' => get_current_user_id(),
         ]];
-        self::state($state);
+        self::storage_transaction(static function () use ($state, $owner): void {
+            global $wpdb;
+            // Lock the lease until adoption commits; takeover cannot pass a checked owner.
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- A current lease fences credential adoption in the same transaction.
+            $current_owner = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s FOR UPDATE", self::LOCK));
+            if ($current_owner !== $owner || (int) $owner <= time() - self::LOCK_SECONDS || !empty(self::fresh_state()['token'])) {
+                throw new RuntimeException('cloud_identity_changed');
+            }
+            self::state($state);
+        });
         delete_option(self::CREDITS);
         delete_option(self::REFUSAL_REFRESH);
         delete_option('aipkit_cloud_credit_packs');

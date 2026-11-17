@@ -249,6 +249,13 @@ function aipkit_upgrade_automated_task_queue_performance_schema($table_name)
         $alter_clauses[] = 'ADD COLUMN sort_priority tinyint unsigned NOT NULL DEFAULT 1';
     }
 
+    foreach (['attempt_token' => "varchar(36) NOT NULL DEFAULT ''", 'result_post_id' => 'bigint unsigned DEFAULT NULL'] as $column => $definition) {
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Queue identifier passes the alphanumeric/underscore allowlist above; the fixed column name is prepared.
+        if ($wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM `{$table_name}` LIKE %s", $column)) !== $column) {
+            $alter_clauses[] = 'ADD COLUMN ' . $column . ' ' . $definition;
+        }
+    }
+
     $required_indexes = [
         'queue_sort' => 'ADD KEY queue_sort (sort_priority, added_at, id)',
         'task_status_type' => 'ADD KEY task_status_type (task_id, status, task_type)',
@@ -287,6 +294,8 @@ function aipkit_create_automated_task_queue_table()
         item_config longtext DEFAULT NULL,
         status varchar(20) NOT NULL DEFAULT 'pending',
         attempts tinyint unsigned NOT NULL DEFAULT 0,
+        attempt_token varchar(36) NOT NULL DEFAULT '',
+        result_post_id bigint unsigned DEFAULT NULL,
         last_attempt_time datetime DEFAULT NULL,
         error_message text DEFAULT NULL,
         added_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -300,7 +309,7 @@ function aipkit_create_automated_task_queue_table()
         KEY task_status_type (task_id, status, task_type),
         KEY status_task_id (status, task_id, id),
         KEY task_target (task_id, target_identifier(100))
-    ) $charset_collate;";
+    ) ENGINE=InnoDB $charset_collate;";
 
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table existence check for a plugin-owned table.
     $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name)) === $table_name;

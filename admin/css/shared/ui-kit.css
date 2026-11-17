@@ -3705,67 +3705,6 @@ body.aipkit_builder_sheet_scroll_lock {
   }
 }
 
-/* ============================================
-   AutoGPT Comment Replies Pane
-   ============================================ */
-
-#aipkit_autogpt_container .aipkit_cc_source_header {
-  margin-bottom: 14px;
-}
-
-#aipkit_autogpt_container .aipkit_cc_source_grid {
-  display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
-  gap: 12px;
-}
-
-#aipkit_autogpt_container .aipkit_cc_multi_select,
-#aipkit_autogpt_container .aipkit_cc_select,
-#aipkit_autogpt_container .aipkit_cc_textarea {
-  background-color: #f9fbff;
-  border-color: #d7e2f0;
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-#aipkit_autogpt_container .aipkit_cc_multi_select {
-  min-height: 132px;
-  padding: 10px 12px;
-}
-
-#aipkit_autogpt_container .aipkit_cc_select {
-  min-height: 36px;
-  padding: 0 12px;
-}
-
-#aipkit_autogpt_container .aipkit_cc_textarea {
-  min-height: 88px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-
-#aipkit_autogpt_container .aipkit_cc_multi_select:focus,
-#aipkit_autogpt_container .aipkit_cc_select:focus,
-#aipkit_autogpt_container .aipkit_cc_textarea:focus {
-  background-color: #ffffff;
-  border-color: var(--aipkit_brand-primary, #4a6fa5);
-  box-shadow: 0 0 0 2px rgba(74, 111, 165, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-#aipkit_autogpt_container .aipkit_cc_field_label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--aipkit_text-heading, #1e293b);
-}
-
-@media (max-width: 900px) {
-  #aipkit_autogpt_container .aipkit_cc_source_grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* --- Feature Promo (RSS / URL / Google Sheets upgrade panels) --- */
 
 :is(#aipkit_content_writer_container, #aipkit_autogpt_container) .aipkit_feature_promo {

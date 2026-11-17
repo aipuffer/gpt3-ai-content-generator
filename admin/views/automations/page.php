@@ -47,13 +47,11 @@ $google_file_search_stores = isset($vector_store_localization['google_file_searc
     ? $vector_store_localization['google_file_search_stores']
     : [];
 
-
 $task_categories = [
     '' => __('-- Select Category --', 'gpt3-ai-content-generator'),
     'content_creation' => __('Create New Content', 'gpt3-ai-content-generator'),
     'content_enhancement' => __('Rewrite Content', 'gpt3-ai-content-generator'),
     'knowledge_base' => __('Content Indexing', 'gpt3-ai-content-generator'),
-    'community_engagement' => __('Engagement', 'gpt3-ai-content-generator'),
 ];
 $frequencies = [
     'one-time' => __('One-time', 'gpt3-ai-content-generator'),

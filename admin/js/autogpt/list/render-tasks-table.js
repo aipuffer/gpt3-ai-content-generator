@@ -107,7 +107,7 @@
               minute: '2-digit' 
             })
           : texts.not_scheduled || "Not Scheduled";
-      
+
       timingCell.innerHTML = `
         <div class="aipkit_task_timing aipkit_task_timing--tasks-inline">
           <div class="aipkit_task_timing_item aipkit_task_timing_last">

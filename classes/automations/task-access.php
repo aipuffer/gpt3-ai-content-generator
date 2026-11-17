@@ -6,6 +6,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+/** The executable task catalog; saved records cannot introduce another worker. */
+function supported_task_types(): array
+{
+    return ['content_indexing', 'content_writing', 'content_writing_single', 'content_writing_bulk', 'content_writing_csv', 'content_writing_rss', 'content_writing_url', 'content_writing_gsheets', 'enhance_existing_content'];
+}
+
+function is_supported_task_type(string $task_type): bool
+{
+    return in_array($task_type, supported_task_types(), true);
+}
+
 /**
  * Returns whether the given AutoGPT task type is Pro-only.
  */
