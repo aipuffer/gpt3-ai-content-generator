@@ -3,7 +3,7 @@
   "edition": "free",
   "version": "2.5.29",
   "status": "complete",
-  "freeZipSha256": "b3ca967ef4a29dcd4f343438354819f1d2b38abe75735427e4ad3683430b804d",
+  "freeZipSha256": "1e4f1463c2744eadde65cafd04bfac36ac069057da348590eeda5f4ec15bcd42",
   "bundles": {
     "dist/css/admin-autogpt.bundle.css": "c4bf148ea4d70f5956921e2509a63df604991424a4dcff3c04d4909e7b499d32",
     "dist/css/admin-chat.bundle.css": "394ace9c1ff7385e636e5f5bd1721a0cec2454c7e96eb25a78b9d3be2e0d3bfd",
@@ -890,7 +890,7 @@
     "public/js/shared/timestamp.js": "1aca3ad195ce41e4938e8a9cf85452fe1a325141ace3a35844596c4cc9f1687e",
     "public/js/token-usage/token-usage-public.js": "208f171eb43f04fd54ae247e25972586e358ac6b1ef9ad566105aa3df4f7ad76",
     "public/views/image-generator.php": "3e22911c30e94010ce1c1807296cc99d1b8948f3adf75204b5940dc18885c84b",
-    "readme.txt": "2ea026cc96f2d004b564b423ffb71dc51b7d4c3004f30f133493dfb8c25af5a7",
+    "readme.txt": "68089abd67b2d527a50084e786ada846c8b435f566842d20ae4dd26dd1a3dd88",
     "scripts/asset-entrypoints.json": "b4abc5d2bfd8a493159c60b82e6fddc6f6008a4c370148bd969e54730ffe3a49",
     "scripts/build-assets.js": "28ff7bcbc8bfce05b918ec30d054708b73ea3267a0633c47304ab31f1d318505",
     "scripts/paid-feature-boundaries.js": "24806715aff27a745b041fe686bb066b20ee25fc70fe4f6545030911b9dabf7a",
