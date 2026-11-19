@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.29
+Stable tag: 2.5.30
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -242,6 +242,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.30 =
+Create recipe drafts from saved unsynced Kadence patterns with editable WP Recipe Maker cards and step photos.
+
 = 2.5.29 =
 Removes automatic comment replies and prevents old tasks from running. Fixes overlapping Cloud connection requests and automation recovery that could create duplicate posts.
 
@@ -322,6 +325,12 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.30 =
+* Create an unpublished post from a saved unsynced Kadence pattern. Fill supported text and image blocks while preserving the original layout.
+* Create an editable WP Recipe Maker card with your ingredients, measurements and instructions in a new or existing draft.
+* Match supplied photos to numbered recipe steps. Assistants check that the photos are in your Media Library before requesting the draft and leave missing shots empty.
+* WordPress approval screens identify draft creation and recipe-card changes separately from publishing.
 
 = 2.5.29 =
 * Fixed onboarding forgetting a confirmed website read after reloading and continuing through AI setup.

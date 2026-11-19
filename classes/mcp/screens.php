@@ -1,5 +1,5 @@
 <?php
-/** wp-admin screens for assistant requests: publish approval, its result, and interrupted-change review. */
+/** wp-admin screens for assistant requests, their results, and interrupted-change review. */
 namespace WPAICG\Mcp;
 
 if (!defined('ABSPATH')) { exit; }
@@ -15,7 +15,16 @@ final class Screens
     {
         add_action('admin_menu', static function (): void {
             // Hidden pages (no menu entry); each screen checks its own permissions.
-            add_submenu_page('options.php', __('Publish request', 'gpt3-ai-content-generator'), '', 'read', self::REQUEST_PAGE, [self::class, 'render_request']);
+            $request_hook = add_submenu_page('options.php', __('Change request', 'gpt3-ai-content-generator'), '', 'read', self::REQUEST_PAGE, [self::class, 'render_request']);
+            if ($request_hook) {
+                add_action('load-' . $request_hook, static function (): void {
+                    $row = self::request_row();
+                    $title = $row ? self::request_title($row) : null;
+                    if ($title !== null) {
+                        $GLOBALS['title'] = $title;
+                    }
+                });
+            }
             add_submenu_page('options.php', __('Check an interrupted change', 'gpt3-ai-content-generator'), '', 'read', self::REVIEW_PAGE, [self::class, 'render_review']);
         });
     }
@@ -114,13 +123,52 @@ final class Screens
         echo '</div>';
     }
 
-    public static function render_request(): void
+    private static function request_row(): ?array
     {
         $id = isset($_GET['operation_id']) && is_string($_GET['operation_id']) ? sanitize_text_field(wp_unslash($_GET['operation_id'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only view; every decision is a nonce-checked POST.
         $row = $id !== '' && Schema::ready() ? Journal::get($id) : null;
+        return $row && Registry::can_approve($row) ? $row : null;
+    }
+
+    private static function request_title(array $row): ?string
+    {
+        $tool = $row['tool'];
+        if ($tool === 'run_ability') {
+            $args = json_decode((string) $row['args']);
+            $ability = $args->name ?? '';
+            if (in_array($ability, [
+                'ai-puffer/gutenberg-create-document',
+                'ai-puffer/beaver-create-document',
+                'ai-puffer/elementor-create-document',
+                'ai-puffer/siteorigin-copy-page',
+            ], true)) {
+                $tool = 'create_draft';
+            } elseif ($ability === 'ai-puffer/wp-cli-write' && is_string($args->input_json ?? null)) {
+                $input = json_decode($args->input_json, true);
+                if (is_string($input['command'] ?? null)) {
+                    try {
+                        $tool = Cli::plan($input['command'])['tool'];
+                    } catch (\InvalidArgumentException $error) {
+                        return null;
+                    }
+                }
+            }
+        }
+        if ($tool === 'create_draft') {
+            return __('Approve draft creation', 'gpt3-ai-content-generator');
+        }
+        if ($tool === 'publish_content') {
+            return __('Publish request', 'gpt3-ai-content-generator');
+        }
+        return null;
+    }
+
+    public static function render_request(): void
+    {
+        $row = self::request_row();
         echo '<div class="wrap aipkit_mcp_screen"><hr class="wp-header-end">';
         self::notice();
-        if (!$row || !Registry::can_approve($row)) {
+        if (!$row) {
             self::message('lock', __('You can’t approve this request', 'gpt3-ai-content-generator'), __('Only the WordPress user the assistant acts as, or an administrator, can approve it, and they need permission to make this change themselves.', 'gpt3-ai-content-generator'), [[__('Back to dashboard', 'gpt3-ai-content-generator'), admin_url(), true]]);
             echo '</div>';
             return;

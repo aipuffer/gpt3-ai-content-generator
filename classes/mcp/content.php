@@ -4,11 +4,15 @@ namespace WPAICG\Mcp;
 
 if (!defined('ABSPATH')) { exit; }
 
+require_once __DIR__ . '/recipe-card.php';
+
 final class Content
 {
     /** Native content definitions survive assistant disconnects and are registered on each normal WP request. */
     private const PREFIX = 'ai-puffer/gutenberg-';
+    private const PATTERN_PHOTO_GUIDANCE = 'For a pattern draft with supplied photos, resolve every supplied photo to a verified WordPress Media Library ID before requesting draft creation or its approval. If an attachment cannot transfer, give the owner the WordPress upload link and wait for the upload, then verify each file. Create one draft with all verified photos in their intended slots. Leave slots for explicitly missing shots empty.';
     private const BLOCKS = ['paragraph', 'heading', 'group', 'columns', 'column', 'buttons', 'button', 'list', 'list-item', 'quote', 'image', 'separator', 'spacer'];
+    private const KADENCE_PATTERN_BLOCKS = ['kadence/rowlayout', 'kadence/column', 'kadence/advancedheading', 'kadence/image'];
     private const DEFINITIONS = 'aipkit_mcp_content_definitions';
     private const PAGELAYER_WRITES = ['pagelayer-pages/create-page','pagelayer-pages/update-page','pagelayer-pages/update-element','pagelayer-pages/change-styles','pagelayer-pages/move-element'];
     private static $defined_types = [];
@@ -570,25 +574,45 @@ final class Content
         $edits = ['type' => 'string', 'maxLength' => 200000, 'description' => 'JSON array of 1–100 edits against the original version. Inline edit: {"op":"replace_inline","path":[0],"find":"exact existing text or balanced inline HTML","replace":"new text or safe inline HTML"}. path is the zero-based index path in get-document blocks_json, including unnamed freeform nodes; descend through innerBlocks. find must occur exactly once inside that paragraph, heading or leaf list-item, never inside a tag attribute. Preserve existing links/formatting when translating. Add new top-level blocks with {"op":"prepend_blocks","blocks":[layout nodes]} or {"op":"append_blocks","blocks":[layout nodes]}. Unchanged blocks, attributes, wrappers and whitespace are preserved byte-for-byte. No removal/reordering or changes to unsupported/synced blocks. Active GenerateBlocks v2 also supports replace_inline on static generateblocks/text inside static generateblocks/element containers. Update an existing anchor: {"op":"generateblocks_set_link","path":[0,2],"url":"https://example.org/book/","find":"Contact us","replace":"Book a visit"}; find/replace are optional together. Replace an existing generateblocks/media image using {"op":"generateblocks_replace_image","path":[0,3],"media_id":123,"alt":"New image description"}; use an existing accessible Media Library ID. Keeps layout/CSS and unrelated fields. No dynamic tags/bindings, icons, query loops or synced templates. Other third-party blocks stay unsupported. Do not use layout_json or replace_layout for partial edits.'];
         $copy_edits = $edits;
         $copy_edits['description'] = strstr($edits['description'], ' Active GenerateBlocks', true);
+        $copy_edits['description'] .= ' With source_pattern_id, use paths from get-pattern. replace_inline also supports static Kadence Advanced Text and supported core text inside Kadence Row Layout/Section. Fill a core Image or Kadence Image (Adv) with {"op":"replace_image","path":[0,0,1],"media_id":123,"alt":"Sliced apples"}. Use a single unlinked image or supported empty slot. Alt defaults to the attachment alt text. Pattern copies support only inline and image edits. For Feast-style process shots, pair each photo with the paragraph or leaf list-item in its own column. Use the saved list numbering. Leave missing photo slots as saved.';
         $id = ['type' => 'integer', 'minimum' => 1, 'description' => 'An editable ordinary WordPress post or page ID. Custom post types, including GeoDirectory listings/events, are not supported by this document tool. Discover native plugin abilities or registered REST routes instead; never infer a route from a post-type name.'];
+        $pattern_id = ['type' => 'integer', 'minimum' => 1, 'description' => 'An editable saved unsynced WordPress pattern ID. Find it in WordPress Patterns or search the native wp/v2/blocks collection with context=edit.'];
+        $paging = [
+            'offset' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Byte offset from next_offset. Concatenate blocks_json_chunk values before parsing JSON.'],
+            'version' => ['type' => 'string', 'description' => 'Required after the first page; use the version returned by that page.'],
+        ];
         $definitions = [
             'validate-layout' => [true, 'Validate a Gutenberg layout', ['layout_json' => $layout], ['layout_json']],
-            'get-document' => [true, 'Read a Gutenberg document', ['post_id' => $id,
-                'offset' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Byte offset from next_offset. Concatenate blocks_json_chunk values before parsing JSON.'],
-                'version' => ['type' => 'string', 'description' => 'Required after the first page; use the version returned by that page.']], ['post_id']],
+            'get-document' => [true, 'Read a Gutenberg document', ['post_id' => $id] + $paging, ['post_id']],
+            'get-pattern' => [true, 'Read a saved unsynced Gutenberg or Kadence pattern', ['pattern_id' => $pattern_id] + $paging, ['pattern_id']],
             'create-document' => [false, 'Create a Gutenberg draft or a separate edited copy', ['title' => ['type' => 'string', 'minLength' => 1, 'maxLength' => 300], 'post_type' => ['type' => 'string', 'enum' => ['post', 'page']], 'layout_json' => $layout,
-                'source_post_id' => $id, 'source_version' => ['type' => 'string', 'description' => 'Required with source_post_id. Copy the existing supported core-block document into a NEW draft without changing the source. Preserve blocks/attributes/formatting, excerpt, featured image and, for posts, categories/tags; optionally apply edits_json to the copy. Do not also supply layout_json.'], 'edits_json' => $copy_edits], ['title']],
+                'source_post_id' => $id, 'source_pattern_id' => $pattern_id, 'source_version' => ['type' => 'string', 'description' => 'Required with exactly one of source_post_id or source_pattern_id. Use the version from get-document or get-pattern. Makes a separate draft; optionally apply edits_json. A pattern defaults to a new post and copies only block content. A supported core document copy also retains its excerpt, featured image and eligible taxonomy. Omit layout_json.'], 'edits_json' => $copy_edits], ['title']],
             'update-document' => [false, 'Edit Gutenberg blocks while preserving the document', ['post_id' => $id, 'version' => ['type' => 'string'], 'layout_json' => $layout, 'edits_json' => $edits,
                 'replace_layout' => ['type' => 'boolean', 'description' => 'Set true only when the user intends to replace the entire document. This is not a partial edit; existing block attributes and unlisted blocks will be removed.']], ['post_id', 'version']],
         ];
         foreach ($definitions as $action => [$read, $label, $properties, $required]) {
+            $description = $label . '. Ordinary posts/pages only; custom types such as GeoDirectory listings/events require native plugin abilities or registered REST routes. Never infer routes from post-type names' . (in_array($action, ['get-document', 'update-document'], true) ? '. Read all blocks with get-document first. Active GenerateBlocks v2: edits_json supports static text, anchor label/link and existing Media Library image replacement; see field examples. Keeps existing containers, CSS and responsive styles. No dynamic bindings, icons, query loops or synced blocks. Older installed schemas may not offer these edits.' : '. Build new core or active GenerateBlocks v2 pages with typed layout_json container/text/button/image nodes and bounded styles; see field examples. GenerateBlocks grids stack on mobile. No raw CSS, dynamic tags or global templates. Validate first and verify native editor and public output.') . ' On 2.5.15+ use edits_json for small inline edits, translations and adding summary/FAQ blocks; safe inline links/bold are supported. Create with source_post_id + source_version to update/translate into a separate draft, leaving the source unchanged. Discover and follow this offered schema even when older guidance describes plain-text-only layouts. Read results use the WordPress block tree, NOT layout_json input nodes. Large reads return blocks_json_chunk and next_offset; collect every page using its version before parsing. Whole-layout replacement via layout_json still requires replace_layout:true and a fresh version; never use it for a small edit or rebuild unsupported blocks. Title, author and status are preserved on update. Create makes a draft. Supported blocks: ' . implode(', ', self::BLOCKS) . '.';
+            if ($action === 'get-pattern') {
+                $description = 'Read an editable saved unsynced pattern. Returns its version and native block tree for a separate draft with gutenberg-create-document. For a large result, concatenate all blocks_json_chunk pages with the same version. Identify the pattern in WordPress or search the native wp/v2/blocks collection with context=edit. Synced patterns are refused.';
+            } elseif ($action === 'create-document') {
+                $description = 'Create a new draft from a saved unsynced Gutenberg or Kadence pattern using source_pattern_id and the version from gutenberg-get-pattern. ' . self::PATTERN_PHOTO_GUIDANCE . ' Supported core and static Kadence Row Layout, Section, Advanced Text and Image (Adv) blocks retain their saved layout. Optionally fill text and image slots with edits_json. The original pattern is preserved. ' . $description;
+            }
+            if (in_array($action, ['create-document', 'update-document'], true) && RecipeCard::available()) {
+                $properties['recipe'] = RecipeCard::schema();
+                $description = 'Create a native WP Recipe Maker card in a draft using the recipe field. ' . $description;
+            }
             wp_register_ability(self::PREFIX . $action, [
-                'label' => $label, 'description' => $label . '. Ordinary posts/pages only; custom types such as GeoDirectory listings/events require native plugin abilities or registered REST routes. Never infer routes from post-type names' . (in_array($action, ['get-document', 'update-document'], true) ? '. Read all blocks with get-document first. Active GenerateBlocks v2: edits_json supports static text, anchor label/link and existing Media Library image replacement; see field examples. Keeps existing containers, CSS and responsive styles. No dynamic bindings, icons, query loops or synced blocks. Older installed schemas may not offer these edits.' : '. Build new core or active GenerateBlocks v2 pages with typed layout_json container/text/button/image nodes and bounded styles; see field examples. GenerateBlocks grids stack on mobile. No raw CSS, dynamic tags or global templates. Validate first and verify native editor and public output.') . ' On 2.5.15+ use edits_json for small inline edits, translations and adding summary/FAQ blocks; safe inline links/bold are supported. Create with source_post_id + source_version to update/translate into a separate draft, leaving the source unchanged. Discover and follow this offered schema even when older guidance describes plain-text-only layouts. Read results use the WordPress block tree, NOT layout_json input nodes. Large reads return blocks_json_chunk and next_offset; collect every page using its version before parsing. Whole-layout replacement via layout_json still requires replace_layout:true and a fresh version; never use it for a small edit or rebuild unsupported blocks. Title, author and status are preserved on update. Create makes a draft. Supported blocks: ' . implode(', ', self::BLOCKS) . '.',
+                'label' => $label, 'description' => $description,
                 'category' => Abilities::CATEGORY,
                 'input_schema' => ['type' => 'object', 'properties' => $properties, 'required' => $required, 'additionalProperties' => false],
                 'meta' => ['public' => true, 'annotations' => ['readonly' => $read, 'destructive' => false]],
                 'permission_callback' => static function ($input = []) use ($action): bool {
                     if (!current_user_can('read')) { return false; }
+                    if ($action === 'get-pattern' || ($action === 'create-document' && isset($input['source_pattern_id']))) {
+                        $source_id = (int) ($input[$action === 'get-pattern' ? 'pattern_id' : 'source_pattern_id'] ?? 0);
+                        return current_user_can('edit_post', $source_id)
+                            && ($action === 'get-pattern' || current_user_can(($input['post_type'] ?? 'post') === 'page' ? 'edit_pages' : 'edit_posts'));
+                    }
                     if ($action === 'get-document' || $action === 'update-document') { return current_user_can('edit_post', (int) ($input['post_id'] ?? 0)); }
                     if ($action === 'validate-layout') { return current_user_can('edit_posts') || current_user_can('edit_pages'); }
                     if ($action === 'create-document' && isset($input['source_post_id'])) {
@@ -1281,22 +1305,59 @@ final class Content
     }
 
     /** Validate saved content again: storage is not a license to reintroduce executable input. */
-    private static function safe_saved_content(string $content): ?array
+    private static function safe_saved_content(string $content, bool $pattern = false): ?array
     {
         if (strlen($content) > 200000) { return Operations::error('source_too_large', 'Restoration/copy supports documents of at most 200,000 bytes.'); }
         if (has_blocks($content)) {
             foreach (self::block_ranges($content) as $range) {
-                if (!in_array($range['block']['blockName'], array_map(static function ($name) { return 'core/' . $name; }, self::BLOCKS), true)) {
-                    return Operations::error('unsupported_content', 'Only static supported core blocks can be copied or restored.');
+                $block = $range['block'];
+                $name = $block['blockName'];
+                $kadence = $pattern && in_array($name, self::KADENCE_PATTERN_BLOCKS, true)
+                    && defined('KADENCE_BLOCKS_VERSION') && \WP_Block_Type_Registry::get_instance()->is_registered($name);
+                $core = strpos($name, 'core/') === 0 && in_array(substr($name, 5), self::BLOCKS, true);
+                $empty_recipe = $pattern && $name === RecipeCard::BLOCK && RecipeCard::available();
+                if ($empty_recipe) { RecipeCard::slot_attributes($block, false); }
+                if (!$kadence && !$core && !$empty_recipe) {
+                    return Operations::error('unsupported_content', $pattern
+                        ? 'The saved pattern contains a block outside the supported core and active Kadence blocks.'
+                        : 'Only static supported core blocks can be copied or restored.');
                 }
-                $unsafe = Engines::unsafe_content($range['block']['attrs']);
+                if ($pattern && !empty($block['attrs']['metadata']['bindings'])) {
+                    return Operations::error('unsupported_content', 'A pattern with dynamic block bindings cannot be copied.');
+                }
+                if ($kadence) {
+                    foreach ($block['attrs'] as $key => $value) {
+                        if (!empty($value) && preg_match('/dynamic|condition|custom.?css|tooltip/i', $key)) {
+                            return Operations::error('unsupported_content', 'Use static Kadence blocks with ordinary styles in the saved pattern.');
+                        }
+                    }
+                    $tag = $block['attrs']['htmlTag'] ?? '';
+                    if (!in_array($tag, ['', 'div', 'section', 'article', 'aside', 'header', 'footer', 'main', 'nav', 'heading', 'p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true)) {
+                        return Operations::error('unsupported_content', 'The pattern uses an unsupported Kadence HTML wrapper.');
+                    }
+                }
+                $unsafe = Engines::unsafe_content($block['attrs']);
                 if ($unsafe) { return $unsafe; }
             }
-            $content = preg_replace('/<!--.*?-->/s', '', $content);
+            $content = preg_replace($pattern ? '/<!--\s*\/?wp:.*?-->/s' : '/<!--.*?-->/s', '', $content);
         }
         $unsafe = Engines::unsafe_content($content);
         if ($unsafe) { return $unsafe; }
+        if ($pattern) { $content = self::pattern_void_spacing($content); }
         return wp_kses_post($content) === $content ? null : Operations::error('unsupported_content', 'Saved content contains unsupported HTML; formatting is never silently removed.');
+    }
+
+    /** Match core's harmless XHTML spacing for native editor image, break and separator markup. */
+    private static function pattern_void_spacing(string $content): string
+    {
+        $parts = wp_html_split($content);
+        foreach ($parts as &$part) {
+            if (preg_match('/^<(?:img|br|hr)\b/i', $part)) {
+                $part = preg_replace('~\s*/>$~D', ' />', $part);
+            }
+        }
+        unset($part);
+        return implode('', $parts);
     }
 
     /** Snapshot everything this bounded restore promises to preserve, including plugin metadata. */
@@ -1603,6 +1664,21 @@ final class Content
         return $post;
     }
 
+    /** @return \WP_Post|\WP_Error */
+    private static function pattern(int $id)
+    {
+        clean_post_cache($id);
+        $post = get_post($id);
+        if (!$post) { return new \WP_Error('not_found', 'This saved pattern is unavailable.'); }
+        if (!current_user_can('read_post', $id) || !current_user_can('edit_post', $id)) {
+            return new \WP_Error('permission_denied', 'The connected user cannot access this saved pattern.');
+        }
+        if ($post->post_type !== 'wp_block' || $post->post_status !== 'publish' || get_post_meta($id, 'wp_pattern_sync_status', true) !== 'unsynced') {
+            return new \WP_Error('unsupported_content', 'Choose a saved unsynced WordPress pattern.');
+        }
+        return $post;
+    }
+
     private static function unlocked(int $id): void
     {
         require_once ABSPATH . 'wp-admin/includes/post.php';
@@ -1677,7 +1753,7 @@ final class Content
     }
 
     /** All paths refer to the original document; overlapping edits are refused before any mutation. */
-    private static function edit_document(string $content, string $json): string
+    private static function edit_document(string $content, string $json, bool $pattern = false): string
     {
         $edits = json_decode($json, true);
         if (!is_array($edits) || !$edits || count($edits) > 100 || array_keys($edits) !== range(0, count($edits) - 1)) { throw new \InvalidArgumentException('edits_json must contain 1–100 edits.'); }
@@ -1685,6 +1761,9 @@ final class Content
         foreach ($edits as $edit) {
             if (!is_array($edit)) { throw new \InvalidArgumentException('Each edit must be an object.'); }
             $op = $edit['op'] ?? '';
+            if ($pattern && !in_array($op, ['replace_inline', 'replace_image'], true)) {
+                throw new \InvalidArgumentException('A pattern draft accepts only inline text and image edits.');
+            }
             if (in_array($op, ['prepend_blocks', 'append_blocks'], true)) {
                 if (array_diff(array_keys($edit), ['op', 'blocks']) || !is_array($edit['blocks'] ?? null) || !$edit['blocks'] || array_keys($edit['blocks']) !== range(0, count($edit['blocks']) - 1)) { throw new \InvalidArgumentException('Block insertion needs a nonempty blocks array.'); }
                 $blocks = []; foreach ($edit['blocks'] as $node) { if (!is_array($node)) { throw new \InvalidArgumentException('Invalid inserted block.'); } $blocks[] = self::node($node, 0, $count); }
@@ -1693,13 +1772,20 @@ final class Content
                 continue;
             }
             $keys = ['replace_inline' => ['op','path','find','replace'], 'generateblocks_set_link' => ['op','path','url','find','replace'], 'generateblocks_replace_image' => ['op','path','media_id','alt']];
+            if ($pattern) { $keys['replace_image'] = ['op', 'path', 'media_id', 'alt']; }
             if (!isset($keys[$op]) || array_diff(array_keys($edit), $keys[$op])) { throw new \InvalidArgumentException('Unsupported document edit.'); }
             $path = $edit['path'] ?? null;
-            if (!is_array($path) || !$path || count($path) > 9 || array_keys($path) !== range(0, count($path) - 1)) { throw new \InvalidArgumentException('Use a block index path from get-document.'); }
+            if (!is_array($path) || !$path || count($path) > 9 || array_keys($path) !== range(0, count($path) - 1)) { throw new \InvalidArgumentException('Use a block index path from the current document or pattern read.'); }
             foreach ($path as $part) { if (!is_int($part) || $part < 0) { throw new \InvalidArgumentException('Block path indexes must be nonnegative integers.'); } }
             $range = $ranges[implode('.', $path)] ?? null;
-            $gb = $range && in_array($range['block']['blockName'], ['generateblocks/text', 'generateblocks/media'], true);
-            if (!$range || (!$gb && !in_array($range['block']['blockName'], ['core/paragraph', 'core/heading', 'core/list-item'], true)) || $range['block']['innerBlocks']) { throw new \InvalidArgumentException('Choose a supported core text block or static GenerateBlocks v2 Text/Image block.'); }
+            $name = $range['block']['blockName'] ?? '';
+            $gb = in_array($name, ['generateblocks/text', 'generateblocks/media'], true);
+            $kadence_text = $pattern && $name === 'kadence/advancedheading';
+            $image_edit = $pattern && $op === 'replace_image' && in_array($name, ['core/image', 'kadence/image'], true);
+            if (!$range || $range['block']['innerBlocks'] || (!$gb && !$kadence_text && !$image_edit
+                && !in_array($name, ['core/paragraph', 'core/heading', 'core/list-item'], true))) {
+                throw new \InvalidArgumentException('Choose a leaf block that supports the requested edit.');
+            }
             if ($gb) { self::generateblocks_static($range['block']); }
             // Do not edit a synced pattern or third-party container indirectly through its descendants.
             for ($depth = 1; $depth < count($path); $depth++) {
@@ -1707,18 +1793,22 @@ final class Content
                 if ($ancestor && $ancestor['block']['blockName'] === 'generateblocks/element') {
                     $container = $ancestor['block']; $container['innerBlocks'] = []; $container['innerContent'] = []; $container['innerHTML'] = '';
                     self::generateblocks_static($container);
-                } elseif (!$ancestor || !in_array($ancestor['block']['blockName'], array_map(static function ($name) { return 'core/' . $name; }, self::BLOCKS), true)) { throw new \InvalidArgumentException('Editing inside unsupported, query or synced blocks is not supported.'); }
+                } elseif (!$ancestor || (!in_array($ancestor['block']['blockName'], array_map(static function ($name) { return 'core/' . $name; }, self::BLOCKS), true)
+                    && !($pattern && in_array($ancestor['block']['blockName'], ['kadence/rowlayout', 'kadence/column'], true)))) {
+                    throw new \InvalidArgumentException('Editing inside unsupported, query or synced blocks is not supported.');
+                }
             }
             $html = substr($content, $range['start'], $range['end'] - $range['start']);
             if ($op !== 'replace_inline') {
-                if (!$gb) { throw new \InvalidArgumentException('This edit requires a supported GenerateBlocks v2 block.'); }
-                $replacement = self::generateblocks_media_edit($range['block'], $edit, $html);
+                if (!$image_edit && !$gb) { throw new \InvalidArgumentException('Choose a supported image or link block for this edit.'); }
+                $replacement = $image_edit ? self::pattern_image_edit($range['block'], $edit, $html)
+                    : self::generateblocks_media_edit($range['block'], $edit, $html);
                 foreach ($changes as $change) { if ($range['markup_start'] < $change['end'] && $range['markup_end'] > $change['start']) { throw new \InvalidArgumentException('Overlapping edits must be combined or saved separately.'); } }
                 $changes[] = ['start' => $range['markup_start'], 'end' => $range['markup_end'], 'replace' => $replacement];
                 continue;
             }
             if ($gb && ($range['block']['blockName'] !== 'generateblocks/text' || !is_string($edit['replace'] ?? null) || preg_match('/\{\{|&#(?:0*123|x0*7b);/i', html_entity_decode($edit['replace'], ENT_QUOTES | ENT_HTML5, 'UTF-8')))) { throw new \InvalidArgumentException('Use static GenerateBlocks text, without dynamic tags.'); }
-            $tags = $gb ? 'p|h[1-6]|li|span|div|a|button|figcaption' : 'p|h[1-6]|li';
+            $tags = $gb ? 'p|h[1-6]|li|span|div|a|button|figcaption' : ($kadence_text ? 'p|h[1-6]|span|div' : 'p|h[1-6]|li');
             if (!preg_match('~^(\s*<(' . $tags . ')\b[^>]*>)([\s\S]*)(</\2>\s*)$~iD', $html, $parts)) { throw new \InvalidArgumentException('The block wrapper cannot be preserved safely.'); }
             if ($gb && strtolower($parts[2]) !== ($range['block']['attrs']['tagName'] ?? '')) { throw new \InvalidArgumentException('The GenerateBlocks tag does not match its saved settings.'); }
             $find = self::inline_html($edit['find'] ?? null); $replace = self::inline_html($edit['replace'] ?? null);
@@ -1741,6 +1831,56 @@ final class Content
         usort($changes, static function ($a, $b) { return $b['start'] <=> $a['start']; });
         foreach ($changes as $change) { $content = substr_replace($content, $change['replace'], $change['start'], $change['end'] - $change['start']); }
         return $prepend . $content . $append;
+    }
+
+    /** Update one saved image slot and retain its layout, caption and block attributes. */
+    private static function pattern_image_edit(array $block, array $edit, string $html): string
+    {
+        $attrs = $block['attrs'];
+        $id = $edit['media_id'] ?? null;
+        if (!is_int($id) || $id < 1 || !wp_attachment_is_image($id) || !current_user_can('read_post', $id)
+            || !in_array(get_post_mime_type($id), ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'], true)) {
+            throw new \InvalidArgumentException('Choose an accessible existing raster image from this site’s Media Library.');
+        }
+        $size = $attrs['sizeSlug'] ?? 'full';
+        $image = is_string($size) ? wp_get_attachment_image_src($id, $size) : false;
+        $alt = $edit['alt'] ?? sanitize_text_field((string) get_post_meta($id, '_wp_attachment_image_alt', true));
+        if (!$image || !is_string($alt) || strlen($alt) > 10000 || sanitize_text_field($alt) !== $alt) {
+            throw new \InvalidArgumentException('Use an available image and plain alt text.');
+        }
+        if ($block['blockName'] === 'core/image' && trim($html) === ''
+            && !array_diff(array_keys($attrs), ['sizeSlug', 'linkDestination']) && ($attrs['linkDestination'] ?? 'none') === 'none') {
+            if ($size === '' || sanitize_key($size) !== $size) { throw new \InvalidArgumentException('Choose a valid saved image size.'); }
+            $block['attrs'] += ['sizeSlug' => $size, 'linkDestination' => 'none'];
+            $block['attrs']['id'] = $id;
+            $block['innerHTML'] = '<figure class="wp-block-image size-' . esc_attr($size) . '"><img src="' . esc_url($image[0])
+                . '" alt="' . esc_attr($alt) . '" class="wp-image-' . $id . '"/></figure>';
+            $block['innerContent'] = [$block['innerHTML']];
+            return serialize_block($block);
+        }
+        if (!empty($attrs['link']) || !in_array($attrs['linkDestination'] ?? 'none', ['', 'none'], true)
+            || preg_match('/<(?:a|picture|source)\b/i', $html)) {
+            throw new \InvalidArgumentException('Choose an unlinked image slot with a single image.');
+        }
+        $tag = new \WP_HTML_Tag_Processor($html);
+        if (!$tag->next_tag('IMG') || preg_match('/\bdata-(?:src|srcset|lazy\w*)\s*=/i', $html)) {
+            throw new \InvalidArgumentException('The saved image markup is outside the supported static image layout.');
+        }
+        foreach (preg_split('/\s+/', (string) $tag->get_attribute('class'), -1, PREG_SPLIT_NO_EMPTY) as $class) {
+            if (preg_match('/^wp-image-\d+$/D', $class)) { $tag->remove_class($class); }
+        }
+        $tag->add_class('wp-image-' . $id);
+        $tag->set_attribute('src', $image[0]);
+        $tag->set_attribute('alt', $alt);
+        $tag->remove_attribute('srcset');
+        $tag->remove_attribute('sizes');
+        if ($tag->next_tag('IMG')) { throw new \InvalidArgumentException('Choose an image slot with exactly one image.'); }
+        if ($block['blockName'] === 'kadence/image' && !empty($attrs['globalAlt'])) { unset($attrs['globalAlt']); }
+        $attrs['id'] = $id;
+        $block['attrs'] = $attrs;
+        $block['innerHTML'] = $tag->get_updated_html();
+        $block['innerContent'] = [$block['innerHTML']];
+        return serialize_block($block);
     }
 
     /** Existing GenerateBlocks v2 blocks only; no dynamic bindings, Pro templates or arbitrary attributes. */
@@ -1944,12 +2084,14 @@ final class Content
     public static function execute(string $action, array $input, bool $preview): array
     {
         global $wpdb;
-        $saved = 0; $locked = 0;
+        $saved = 0; $locked = 0; $recipe_id = 0;
         try {
-            if (!in_array($action, ['get-document', 'validate-layout', 'create-document', 'update-document'], true)) { throw new \InvalidArgumentException('Unsupported document action.'); }
+            if (!in_array($action, ['get-document', 'get-pattern', 'validate-layout', 'create-document', 'update-document'], true)) { throw new \InvalidArgumentException('Unsupported document action.'); }
             if ($action === 'validate-layout' && !current_user_can('edit_posts') && !current_user_can('edit_pages')) { throw new \InvalidArgumentException('Content editing permission is required.'); }
-            if ($action === 'get-document') {
-                $post = self::document((int) $input['post_id']);
+            if ($action === 'get-document' || $action === 'get-pattern') {
+                $pattern_read = $action === 'get-pattern';
+                $id_key = $pattern_read ? 'pattern_id' : 'post_id';
+                $post = $pattern_read ? self::pattern((int) $input[$id_key]) : self::document((int) $input[$id_key]);
                 if (is_wp_error($post)) { return Operations::error($post->get_error_code(), $post->get_error_message()); }
                 $version = Operations::version($post);
                 $offset = $input['offset'] ?? 0;
@@ -1959,7 +2101,11 @@ final class Content
                 }
                 $json = (string) wp_json_encode(parse_blocks($post->post_content), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 if ($offset > strlen($json) || ($offset > 0 && !mb_check_encoding(substr($json, 0, $offset), 'UTF-8'))) { return Operations::error('invalid_input'); }
-                $data = ['post_id' => (int) $post->ID, 'title' => mb_substr($post->post_title, 0, 300), 'status' => $post->post_status, 'version' => $version, 'edit_url' => get_edit_post_link($post->ID, 'raw')];
+                $data = [$id_key => (int) $post->ID, 'title' => mb_substr($post->post_title, 0, 300), 'status' => $post->post_status, 'version' => $version, 'edit_url' => get_edit_post_link($post->ID, 'raw')];
+                if ($pattern_read) {
+                    $data['sync_status'] = 'unsynced';
+                    $data['photo_guidance'] = self::PATTERN_PHOTO_GUIDANCE;
+                }
                 // JSON text can double when escaped inside the result. Leave room below Engines::MAX_RESULT.
                 if (!$offset && strlen($json) <= 32000) { return self::ok($data + ['blocks_json' => $json, 'complete' => true, 'next_offset' => null]); }
                 $chunk = mb_strcut($json, $offset, 32000, 'UTF-8');
@@ -1968,12 +2114,23 @@ final class Content
                     'total_bytes' => strlen($json), 'complete' => $next === strlen($json),
                     'note' => 'Concatenate chunks in offset order, then parse JSON. Use the same version on every subsequent page. This WordPress block tree is not layout_json input.']);
             }
-            $copy = $action === 'create-document' && isset($input['source_post_id']);
+            $document_copy = $action === 'create-document' && isset($input['source_post_id']);
+            $pattern_copy = $action === 'create-document' && isset($input['source_pattern_id']);
+            $copy = $document_copy || $pattern_copy;
             $partial = isset($input['edits_json']);
-            if (($copy || $partial) && isset($input['layout_json']) || (!$copy && !$partial && !isset($input['layout_json']))
+            $recipe = $input['recipe'] ?? null;
+            if ($recipe !== null) {
+                if (!$pattern_copy && ($action !== 'update-document' || $partial || isset($input['layout_json']) || isset($input['replace_layout']))) {
+                    throw new \InvalidArgumentException('Use recipe with a saved pattern, or by itself on an existing Gutenberg draft.');
+                }
+                RecipeCard::validate($recipe);
+            }
+            if (($document_copy && $pattern_copy) || ($copy && empty($input['source_version']))
+                || (($copy || $partial) && isset($input['layout_json'])) || (!$copy && !$partial && !$recipe && !isset($input['layout_json']))
                 || ($partial && !$copy && $action !== 'update-document') || ($partial && isset($input['replace_layout']))
                 || (!$copy && isset($input['source_version']))) { throw new \InvalidArgumentException('Choose layout_json, or an existing document with edits_json; do not combine authoring modes.'); }
-            $target = $action === 'update-document' ? (int) $input['post_id'] : ($copy ? (int) $input['source_post_id'] : 0);
+            $target = (int) ($pattern_copy ? $input['source_pattern_id']
+                : ($document_copy ? $input['source_post_id'] : ($action === 'update-document' ? $input['post_id'] : 0)));
             if ($target && !$preview) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Serialize edits/copies against the source post row before checking its version.
                 if ($wpdb->query('START TRANSACTION') === false) { throw new \RuntimeException('The document could not be locked for updating.'); }
@@ -1981,7 +2138,7 @@ final class Content
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Exact prepared post-row lock, never a caller-supplied table.
                 if (!$wpdb->get_row($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE ID = %d FOR UPDATE", $locked))) { throw new \RuntimeException('The document is unavailable.'); }
             }
-            $source = $target ? self::document($target) : null;
+            $source = $target ? ($pattern_copy ? self::pattern($target) : self::document($target)) : null;
             if (is_wp_error($source)) { return Operations::error($source->get_error_code(), $source->get_error_message()); }
             $post = $action === 'update-document' ? $source : null;
             if ($source) {
@@ -1989,21 +2146,31 @@ final class Content
                 if ($post && in_array($post->post_status, ['publish', 'private', 'future'], true) && !current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { throw new \InvalidArgumentException('Publishing permission is required to edit this live document.'); }
                 self::unlocked($source->ID);
             }
-            $post_type = $input['post_type'] ?? ($copy ? $source->post_type : 'page');
+            $post_type = $input['post_type'] ?? ($pattern_copy ? 'post' : ($document_copy ? $source->post_type : 'page'));
             if ($action === 'create-document' && (!in_array($post_type, ['post', 'page'], true) || !current_user_can($post_type === 'page' ? 'edit_pages' : 'edit_posts'))) { throw new \InvalidArgumentException('The connected user cannot create this document type.'); }
             $count = 0;
-            if ($copy || $partial) {
+            if ($copy || $partial || $recipe) {
                 if (!$source || !has_blocks($source->post_content) || strlen($source->post_content) > 200000) { throw new \InvalidArgumentException('Use a supported Gutenberg document of at most 200,000 bytes.'); }
-                if ($copy) {
-                    $unsafe = self::safe_saved_content($source->post_content);
+                $base = $source->post_content;
+                if ($recipe) {
+                    if (!$pattern_copy && $source->post_status !== 'draft') { throw new \InvalidArgumentException('Recipe cards can only be created in drafts.'); }
+                    [$base, $marker, $slot_attrs] = RecipeCard::prepare_slot($base, self::block_ranges($base), $pattern_copy);
+                }
+                if ($copy || $recipe) {
+                    $unsafe = self::safe_saved_content($base, $pattern_copy || (bool) $recipe);
                     if ($unsafe) { return $unsafe; }
                 }
                 if ($partial) {
                     $unsafe = Engines::unsafe_content(json_decode($input['edits_json'], true), 'input', ['edits_json']);
                     if ($unsafe) { return $unsafe; }
                 }
-                $content = $partial ? self::edit_document($source->post_content, $input['edits_json']) : $source->post_content;
+                $content = $partial ? self::edit_document($base, $input['edits_json'], $pattern_copy) : $base;
                 $count = count(self::block_ranges($content));
+                if ($pattern_copy && $partial) {
+                    $unsafe = self::safe_saved_content($content, true);
+                    if ($unsafe) { return $unsafe; }
+                }
+                if ($pattern_copy) { $content = self::pattern_void_spacing($content); }
             } else {
                 $layout = json_decode($input['layout_json'], true);
                 if (!is_array($layout) || !$layout || array_keys($layout) !== range(0, count($layout) - 1)) { throw new \InvalidArgumentException('layout_json must be a nonempty JSON array.'); }
@@ -2025,7 +2192,7 @@ final class Content
                 return Operations::error('permission_denied', 'GenerateBlocks does not permit this user to save the proposed content. Its native restrictions remain in effect.');
             }
             $draft = ['post_type' => $post_type, 'post_status' => 'draft', 'post_title' => sanitize_text_field($input['title'] ?? ''), 'post_content' => $content, 'post_author' => get_current_user_id()];
-            if ($copy) {
+            if ($document_copy) {
                 $unsafe = Engines::unsafe_content($source->post_excerpt);
                 if ($unsafe) { return $unsafe; }
                 if (wp_kses_post($source->post_excerpt) !== $source->post_excerpt) { throw new \InvalidArgumentException('The source excerpt contains unsupported HTML.'); }
@@ -2044,15 +2211,32 @@ final class Content
                     $draft['meta_input'] = ['_thumbnail_id' => $image];
                 }
             }
-            if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'publish', 'title' => $post ? ($partial ? 'Edit Gutenberg blocks' : 'Replace Gutenberg layout') : 'Create Gutenberg draft', 'name' => self::PREFIX . $action, 'description' => $partial ? 'Edits only the supported blocks shown below; other post fields and publication status are preserved.' : 'Native core blocks; other post fields and publication status are preserved.', 'input' => wp_json_encode(['post_id' => $post ? (int) $post->ID : null, 'title' => $post ? $post->post_title : $input['title'], 'block_count' => $count, 'content' => $content], JSON_PRETTY_PRINT)]]; }
+            if ($recipe && substr_count($content, $marker) !== 1) { throw new \InvalidArgumentException('The proposed draft lost its recipe card position.'); }
+            if ($preview && $recipe) {
+                return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => 'write',
+                    'name' => self::PREFIX . $action, 'title' => $post ? 'Add recipe card to draft' : 'Create draft with recipe card',
+                    'description' => $post ? 'Add an editable recipe card to the existing draft. The post and recipe stay in draft.'
+                        : 'Create a new draft with an editable recipe card. Both the post and recipe are saved as drafts.',
+                    'input' => wp_json_encode(['title' => $post ? $post->post_title : $draft['post_title'], 'recipe' => $recipe,
+                        'content' => str_replace($marker, '<!-- wp:wp-recipe-maker/recipe /-->', $content)], JSON_PRETTY_PRINT)]];
+            }
+            if ($preview) { return ['state' => 'pending_approval', 'actions_used' => 0, 'preview' => ['kind' => 'ability', 'risk' => !$post || $post->post_status === 'draft' ? 'write' : 'publish', 'title' => $post ? ($partial ? 'Edit Gutenberg blocks' : 'Replace Gutenberg layout') : 'Create Gutenberg draft', 'name' => self::PREFIX . $action, 'description' => $partial ? 'Edits only the supported blocks shown below; other post fields and publication status are preserved.' : 'Native core blocks; other post fields and publication status are preserved.', 'input' => wp_json_encode(['post_id' => $post ? (int) $post->ID : null, 'title' => $post ? $post->post_title : $input['title'], 'block_count' => $count, 'content' => $content], JSON_PRETTY_PRINT)]]; }
             Operations::$mutation_started = true;
+            if ($recipe) {
+                $recipe_id = RecipeCard::create($recipe);
+                $content = str_replace($marker, RecipeCard::markup($recipe_id, $slot_attrs), $content);
+                $draft['post_content'] = $content;
+            }
             $saved = $post ? wp_update_post(wp_slash(['ID' => $post->ID, 'post_content' => $content]), true)
                 : wp_insert_post(wp_slash($draft), true);
             if (is_wp_error($saved) || !$saved) { throw new \RuntimeException('WordPress could not confirm saving the document.'); }
             clean_post_cache($saved); $after = get_post($saved);
-            if (!$after || $after->post_content !== $content) { throw new \RuntimeException('The saved layout differs from the requested layout; inspect it before retrying.'); }
-            if ($copy && ($after->post_excerpt !== $source->post_excerpt || (int) get_post_thumbnail_id($saved) !== $image)) { throw new \RuntimeException('The copied post fields could not be confirmed; inspect before retrying.'); }
-            if ($copy && isset($draft['post_category'])) {
+            $stored_content = $after ? $after->post_content : null;
+            if ($recipe && is_string($stored_content)) { $stored_content = \WPRM_Fallback_Recipe::replace_fallback_with_shortcode($stored_content); }
+            if ($stored_content !== $content) { throw new \RuntimeException('The saved layout differs from the requested layout; inspect it before retrying.'); }
+            if ($copy && $after->post_status !== 'draft') { throw new \RuntimeException('WordPress did not confirm draft status; inspect the saved document before retrying.'); }
+            if ($document_copy && ($after->post_excerpt !== $source->post_excerpt || (int) get_post_thumbnail_id($saved) !== $image)) { throw new \RuntimeException('The copied post fields could not be confirmed; inspect before retrying.'); }
+            if ($document_copy && isset($draft['post_category'])) {
                 foreach (['category' => 'post_category', 'post_tag' => 'tags_input'] as $taxonomy => $field) {
                     $actual = wp_get_post_terms($saved, $taxonomy, ['fields' => 'ids']); $expected = $draft[$field];
                     if (is_wp_error($actual)) { throw new \RuntimeException('Copied categories/tags could not be confirmed.'); }
@@ -2060,15 +2244,25 @@ final class Content
                     if ($actual !== $expected) { throw new \RuntimeException('Copied categories/tags differ; inspect before retrying.'); }
                 }
             }
+            if ($recipe) {
+                \WPRM_Recipe_Saver::update_recipes_in_post($saved, [$recipe_id], get_current_user_id());
+                if ($after->post_status !== 'draft' || get_post_status($recipe_id) !== 'draft'
+                    || (int) get_post_meta($recipe_id, 'wprm_parent_post_id', true) !== (int) $saved) {
+                    throw new \RuntimeException('WP Recipe Maker could not confirm the draft and its linked recipe.');
+                }
+            }
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Commit only the confirmed document replacement; journal settlement remains separate.
             if ($locked && $wpdb->query('COMMIT') === false) { throw new \RuntimeException('The document save could not be confirmed.'); }
-            return self::ok(['post_id' => (int) $saved, 'status' => $after->post_status, 'title' => $after->post_title, 'version' => Operations::version($after), 'block_count' => $count, 'edit_url' => get_edit_post_link($saved, 'raw'), 'preview_url' => get_preview_post_link($saved)]);
+            $locked = 0;
+            return self::ok(['post_id' => (int) $saved, 'status' => $after->post_status, 'title' => $after->post_title, 'version' => Operations::version($after), 'block_count' => $count, 'edit_url' => get_edit_post_link($saved, 'raw'), 'preview_url' => get_preview_post_link($saved)] + ($recipe ? ['recipe_id' => $recipe_id] : []));
         } catch (\Throwable $error) {
             return ['state' => Operations::$mutation_started ? 'unknown' : 'failed', 'actions_used' => 0, 'error' => ['code' => 'gutenberg_failed', 'message' => $error->getMessage(), 'post_id' => is_int($saved) ? $saved : 0]];
         } finally {
             if ($locked) {
                 // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Release failed transactions and discard any document cached before rollback.
                 $wpdb->query('ROLLBACK'); clean_post_cache($locked);
+                if ($recipe_id) { clean_post_cache($recipe_id); }
+                if (is_int($saved) && $saved > 0 && $saved !== $locked) { clean_post_cache($saved); }
             }
         }
     }
