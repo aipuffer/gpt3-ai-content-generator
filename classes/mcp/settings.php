@@ -115,7 +115,7 @@ final class Settings
         if (!$db) {
             try { Schema::install(); $db = Schema::ready(); } catch (\Throwable $error) { $db = false; }
         }
-        $add(__('Database', 'gpt3-ai-content-generator'), $db ? 'passed' : 'failed', $db ? __('Required tables and indexes are ready.', 'gpt3-ai-content-generator') : __('Required database tables or indexes could not be prepared. Check your database setup and try again.', 'gpt3-ai-content-generator'));
+        $add(__('Database', 'gpt3-ai-content-generator'), $db ? 'passed' : 'failed', $db ? __('Required tables and indexes are ready.', 'gpt3-ai-content-generator') : __('AI Puffer could not prepare or verify its website management tables. Ask your host to check that these tables use InnoDB and have the required columns and primary keys.', 'gpt3-ai-content-generator'));
         $can_edit = current_user_can('edit_posts');
         $add(__('WordPress account', 'gpt3-ai-content-generator'), $can_edit ? 'passed' : 'failed', $can_edit ? __('This account can edit posts; individual actions still use its permissions.', 'gpt3-ai-content-generator') : __('Use a WordPress account that can edit posts.', 'gpt3-ai-content-generator'));
         $cloud = Connection::display();
@@ -770,7 +770,7 @@ final class Settings
         } catch (\Throwable $error) {
             $messages = [
                 'mcp_crypto_unavailable' => __('Your hosting needs the PHP Sodium extension to connect website management. Ask your host to enable it.', 'gpt3-ai-content-generator'),
-                'mcp_schema_unavailable' => __('Website management needs InnoDB tables with the required indexes. Ask your host to check the database configuration.', 'gpt3-ai-content-generator'),
+                'mcp_schema_unavailable' => __('AI Puffer’s website management tables need InnoDB and the required columns and primary keys. Ask your host to check these plugin tables.', 'gpt3-ai-content-generator'),
                 'mcp_storage_unavailable' => __('Website access could not be updated. Check the connection status before continuing.', 'gpt3-ai-content-generator'),
                 'mcp_storage_busy' => __('Another change to website access is still running. Try again in a moment.', 'gpt3-ai-content-generator'),
                 'pending_limit' => __('Finish or disconnect an existing pending connection before adding another.', 'gpt3-ai-content-generator'),

@@ -18,6 +18,8 @@ if (!defined('ABSPATH')) {
 class AIPKit_WooCommerce_Integration
 {
     private const ORDER_TOKENS_GRANTED_META_KEY = '_aipkit_tokens_granted';
+    private const GRANT_RETRY_HOOK = 'aipkit_retry_woocommerce_credit_grant';
+    private const RETRY_DELAYS = [5, 60, 300];
     private const PREVIEW_TEXT_INPUT_UNITS = 1000;
     private const PREVIEW_TEXT_OUTPUT_UNITS = 1000;
 
@@ -48,6 +50,9 @@ class AIPKit_WooCommerce_Integration
 
         // Hook into order completion to grant tokens to the user
         add_action('woocommerce_order_status_completed', [$this, 'grant_tokens_on_order_completion'], 10, 1);
+        add_action(self::GRANT_RETRY_HOOK, [$this, 'grant_tokens_on_order_completion'], 10, 2);
+        add_filter('woocommerce_order_actions', [$this, 'add_credit_grant_action'], 10, 2);
+        add_action('woocommerce_order_action_aipkit_retry_credit_grant', [$this, 'retry_credit_grant_manually']);
     }
 
     /** Adds the visitor credit package controls to the product editor. */
@@ -468,27 +473,24 @@ class AIPKit_WooCommerce_Integration
         }
     }
 
-    /**
-     * Grant tokens to a user when their WooCommerce order is marked as "completed".
-     *
-     * @param int $order_id The ID of the completed order.
-     */
-    public function grant_tokens_on_order_completion(int $order_id)
+    public function add_credit_grant_action(array $actions, $order = null): array
     {
-        $order = wc_get_order($order_id);
-        if (!$order) {
-            return;
+        if ($order && $this->ungranted_package_tokens($order) > 0) {
+            $actions['aipkit_retry_credit_grant'] = __('Retry AI Puffer credit grant', 'gpt3-ai-content-generator');
         }
+        return $actions;
+    }
 
-        if ((int) $order->get_meta(self::ORDER_TOKENS_GRANTED_META_KEY, true) > 0) {
-            return;
+    public function retry_credit_grant_manually($order): void
+    {
+        $this->grant_tokens_on_order_completion($order->get_id());
+    }
+
+    private function ungranted_package_tokens($order): int
+    {
+        if (!$order->has_status('completed') || !$order->get_user_id() || (int) $order->get_meta(self::ORDER_TOKENS_GRANTED_META_KEY, true) > 0) {
+            return 0;
         }
-
-        $user_id = $order->get_user_id();
-        if (!$user_id) {
-            return;
-        }
-
         $total_tokens_to_grant = 0;
         foreach ($order->get_items() as $item) {
             $product_id = $item->get_product_id();
@@ -503,54 +505,100 @@ class AIPKit_WooCommerce_Integration
             }
         }
 
-        if ($total_tokens_to_grant > 0) {
-            $token_manager = class_exists(AIPKit_Token_Manager::class) ? new AIPKit_Token_Manager() : null;
-            $ledger_repository = $token_manager ? $token_manager->get_ledger_repository() : null;
-            $balance_service = $token_manager ? $token_manager->get_balance_service() : null;
-            $idempotency_key = 'woocommerce_order_' . $order_id . '_purchase';
+        return $total_tokens_to_grant;
+    }
 
-            if (!$ledger_repository || !$balance_service) { return; }
-            $recorded = $ledger_repository->atomic_usage($user_id, [], static function () use ($ledger_repository, $balance_service, $user_id, $total_tokens_to_grant, $idempotency_key, $order_id) {
-                $existing = $ledger_repository->find_by_idempotency_key($idempotency_key);
-                if ($existing) { return ['existing' => true]; }
-                $current_balance = $balance_service->get_current_balance($user_id);
-                $new_balance = $current_balance + $total_tokens_to_grant;
-                $balance_service->set_current_balance($user_id, $new_balance);
-                $receipt = $ledger_repository->insert_entry([
-                    'user_id' => $user_id,
-                    'module' => 'woocommerce',
-                    'context_type' => 'order',
-                    'context_id' => $order_id,
-                    'operation' => 'purchase',
-                    'usage_total_units' => $total_tokens_to_grant,
-                    'credits_delta' => $total_tokens_to_grant,
-                    'entry_type' => 'purchase',
-                    'reference_type' => 'woocommerce_order',
-                    'reference_id' => (string) $order_id,
-                    'idempotency_key' => $idempotency_key,
-                    'meta' => [
-                        'tokens_granted' => $total_tokens_to_grant,
-                        'balance_before' => $current_balance,
-                        'balance_after' => $new_balance,
-                    ],
-                ]);
-                return is_wp_error($receipt) ? $receipt : ['balance' => $new_balance];
-            });
-            if (is_wp_error($recorded)) { return; }
-            // The receipt is authoritative. A retry repairs order metadata after a crash
-            // without granting again; WooCommerce writes stay outside our transaction.
-            $order->update_meta_data(self::ORDER_TOKENS_GRANTED_META_KEY, $total_tokens_to_grant);
-            $order->save();
-            if (!empty($recorded['existing'])) { return; }
-            $new_balance = $recorded['balance'];
-
-            $order->add_order_note(
-                /* translators: 1: The number of tokens granted, 2: The user's new token balance. */
-                sprintf(__('AI Power: Granted %1$s tokens to user. New balance: %2$s', 'gpt3-ai-content-generator'),
-                    number_format_i18n($total_tokens_to_grant),
-                    number_format_i18n($new_balance)
-                )
-            );
+    private function defer_grant($order, int $attempt, bool $failed): void
+    {
+        $queued = false;
+        if (isset(self::RETRY_DELAYS[$attempt])) {
+            $args = [$order->get_id(), $attempt + 1];
+            $group = 'aipkit-credit-grants';
+            $queued = as_has_scheduled_action(self::GRANT_RETRY_HOOK, $args, $group)
+                || as_schedule_single_action(time() + self::RETRY_DELAYS[$attempt], self::GRANT_RETRY_HOOK, $args, $group);
         }
+        if ($queued && !$failed) {
+            return;
+        }
+        $message = $queued
+            ? __('AI Puffer could not confirm the credit grant. An automatic retry is scheduled.', 'gpt3-ai-content-generator')
+            : __('AI Puffer could not confirm the credit grant. Choose “Retry AI Puffer credit grant” in Order actions to try again.', 'gpt3-ai-content-generator');
+        $order->add_order_note($message);
+        wc_get_logger()->warning($message, ['source' => 'aipkit-credit-grants', 'order_id' => $order->get_id(), 'attempt' => $attempt]);
+    }
+
+    public function grant_tokens_on_order_completion(int $order_id, int $attempt = 0)
+    {
+        global $wpdb;
+        $order = wc_get_order($order_id);
+        $total_tokens_to_grant = $order ? $this->ungranted_package_tokens($order) : 0;
+        if ($total_tokens_to_grant <= 0) {
+            return;
+        }
+
+        // The scheduler insert participates in the gateway transaction. A rollback
+        // discards it; a separate worker only sees the action after commit.
+        // MariaDB exposes this flag. On servers without it the ledger's isolation
+        // guard still refuses nesting and its failure takes the same retry path.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Connection state must be checked at the point of use.
+        if (in_array($wpdb->get_var("SHOW SESSION VARIABLES WHERE Variable_name = 'in_transaction'", 1), ['ON', '1'], true)) {
+            $this->defer_grant($order, $attempt, false);
+            return;
+        }
+
+        $user_id = $order->get_user_id();
+        $token_manager = class_exists(AIPKit_Token_Manager::class) ? new AIPKit_Token_Manager() : null;
+        $ledger_repository = $token_manager ? $token_manager->get_ledger_repository() : null;
+        $balance_service = $token_manager ? $token_manager->get_balance_service() : null;
+        $idempotency_key = 'woocommerce_order_' . $order_id . '_purchase';
+
+        if (!$ledger_repository || !$balance_service) {
+            $this->defer_grant($order, $attempt, true);
+            return;
+        }
+        $recorded = $ledger_repository->atomic_usage($user_id, [], static function () use ($ledger_repository, $balance_service, $user_id, $total_tokens_to_grant, $idempotency_key, $order_id) {
+            $existing = $ledger_repository->find_by_idempotency_key($idempotency_key);
+            if ($existing) { return ['existing' => true]; }
+            $current_balance = $balance_service->get_current_balance($user_id);
+            $new_balance = $current_balance + $total_tokens_to_grant;
+            $balance_service->set_current_balance($user_id, $new_balance);
+            $receipt = $ledger_repository->insert_entry([
+                'user_id' => $user_id,
+                'module' => 'woocommerce',
+                'context_type' => 'order',
+                'context_id' => $order_id,
+                'operation' => 'purchase',
+                'usage_total_units' => $total_tokens_to_grant,
+                'credits_delta' => $total_tokens_to_grant,
+                'entry_type' => 'purchase',
+                'reference_type' => 'woocommerce_order',
+                'reference_id' => (string) $order_id,
+                'idempotency_key' => $idempotency_key,
+                'meta' => [
+                    'tokens_granted' => $total_tokens_to_grant,
+                    'balance_before' => $current_balance,
+                    'balance_after' => $new_balance,
+                ],
+            ]);
+            return is_wp_error($receipt) ? $receipt : ['balance' => $new_balance];
+        });
+        if (is_wp_error($recorded)) {
+            $this->defer_grant($order, $attempt, true);
+            return;
+        }
+        // The receipt is authoritative. A retry repairs order metadata after a crash
+        // without granting again; WooCommerce writes stay outside our transaction.
+        $order->update_meta_data(self::ORDER_TOKENS_GRANTED_META_KEY, $total_tokens_to_grant);
+        $order->save_meta_data();
+        if (!empty($recorded['existing'])) { return; }
+        $new_balance = $recorded['balance'];
+
+        $order->add_order_note(
+            /* translators: 1: The number of tokens granted, 2: The user's new token balance. */
+            sprintf(__('AI Power: Granted %1$s tokens to user. New balance: %2$s', 'gpt3-ai-content-generator'),
+                number_format_i18n($total_tokens_to_grant),
+                number_format_i18n($new_balance)
+            )
+        );
     }
 }

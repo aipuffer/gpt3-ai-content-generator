@@ -347,7 +347,7 @@ final class Operations
         global $wpdb;
         self::$mutation_started = false;
         if (!is_int($args->id ?? null)) { return self::error('invalid_input'); }
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Serialize with the WordPress editor's post-row write; all IDs are prepared.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Use a row lock on transactional storage; WordPress also supports nontransactional post tables.
         if ($wpdb->query('START TRANSACTION') === false) { return self::error('site_unavailable'); }
         try {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The locked database row, not a stale cache, governs this update.
@@ -440,8 +440,8 @@ final class Operations
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Transaction and post-row locking require actual database state; WordPress owns the table and post IDs are prepared.
             $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->posts} WHERE ID = %d FOR UPDATE", $args->id));
             if (!$row) { return self::error('permission_denied'); }
-            // Bypass stale object caches while holding the actual post row. Normal
-            // WordPress editor saves serialize with this lock, not the MCP lock.
+            // Use the database row for the version check. InnoDB also holds a
+            // row lock against concurrent editor saves until commit.
             $post = new \WP_Post($row);
             if (!in_array($post->post_type, ['post', 'page'], true) || !current_user_can('edit_post', $post->ID) || !current_user_can($post->post_type === 'page' ? 'publish_pages' : 'publish_posts')) { return self::error('permission_denied'); }
             if (!is_string($args->version ?? null) || !hash_equals(self::version($post), $args->version)) { return ['state' => 'conflict', 'actions_used' => 0, 'error' => ['code' => 'content_changed', 'message' => 'This content changed since it was read. Read it again before editing or publishing.']]; }

@@ -92,9 +92,8 @@ final class Schema
             if (count($primary) !== 1 || $primary[0]['Column_name'] !== $columns[0]
                 || (int) $primary[0]['Non_unique'] !== 0 || $primary[0]['Sub_part'] !== null) { return false; }
         }
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Live InnoDB/schema inspection; names come only from Schema allowlist or WordPress tables; cached schema checks could miss changes.
-        $posts = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS WHERE Name = %s', $wpdb->posts), ARRAY_A);
-        if (!$posts || strcasecmp((string) $posts['Engine'], 'InnoDB') !== 0) { return false; }
+        // Connection readiness covers our own storage. Operations that require
+        // transactional content tables check them individually.
         return true;
     }
 }
