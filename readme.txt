@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.31
+Stable tag: 2.5.32
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -242,6 +242,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.32 =
+Connect to AI Puffer Cloud on sites using MyISAM for WordPress options.
+
 = 2.5.31 =
 Connect website management on sites with MyISAM posts and recover missed WooCommerce credit pack grants.
 
@@ -328,6 +331,9 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.32 =
+* Fixed Cloud connection from onboarding and settings on sites with a MyISAM options table. Existing connections continue to work after updating.
 
 = 2.5.31 =
 * Fixed website management setup blocking sites whose WordPress posts table uses MyISAM. If a previous database check failed, select Check again after updating.

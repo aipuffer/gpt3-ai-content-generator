@@ -386,14 +386,18 @@ final class Connection
 
     private static function forget_state(array $state): bool
     {
-        do_action('aipkit_cloud_credential_ending', 'disconnected');
-        $notify = !empty($state['token']) && self::retire($state['token']);
+        if (empty($state['token'])) { return false; }
+        $notify = self::storage_transaction(static function () use ($state): bool {
+            if ((self::fresh_state(true)['token'] ?? '') !== $state['token']) { return false; }
+            do_action('aipkit_cloud_credential_ending', 'disconnected');
+            return self::retire($state['token']);
+        });
         try {
             if ($notify) {
                 self::post('/api/cloud', ['operation' => 'disconnect', 'site' => $state['site'] ?? self::site()], ['Authorization' => 'Bearer ' . $state['token']], 3);
             }
         } catch (\Throwable $error) { /* Cloud independently rechecks ownership on the next request. */ }
-        return !empty($state['token']) && self::clear_credential($state['token']);
+        return self::storage_transaction(static function () use ($state): bool { return self::clear_credential($state['token']); });
     }
 
     private static function forget_changed_account(string $expected_token): void
@@ -1167,6 +1171,14 @@ final class Connection
      */
     private static function lock(string $name = self::LOCK, int $seconds = self::LOCK_SECONDS): string
     {
+        if ($name !== self::LOCK) { return self::claim_lock($name, $seconds); }
+        return self::with_storage_lock(static function () use ($name, $seconds): string {
+            return self::claim_lock($name, $seconds);
+        });
+    }
+
+    private static function claim_lock(string $name, int $seconds): string
+    {
         global $wpdb;
         // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Atomic lock row; must bypass the options cache.
         $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name = %s AND CAST(option_value AS UNSIGNED) <= %d", $name, time() - $seconds));
@@ -1184,32 +1196,47 @@ final class Connection
         $wpdb->delete($wpdb->options, ['option_name' => self::LOCK, 'option_value' => $owner]); // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
     }
 
-    /** Short local custody commits only: never hold a database transaction over HTTP. */
-    private static function storage_transaction(callable $work)
+    /** Lease takeover and credential changes share a mutex even on nontransactional tables. */
+    private static function with_storage_lock(callable $work)
     {
         global $wpdb;
-        $started = false;
-        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Custody/grant retirement must serialize with credential adoption; never commit an existing caller transaction.
+        $mutex = 'aipkit_cloud_' . substr(hash('sha256', DB_NAME . ':' . $wpdb->options), 0, 48);
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery -- A database-session lock must bypass the options cache.
+        if ((string) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 5)', $mutex)) !== '1') {
+            throw new RuntimeException('cloud_storage_unavailable');
+        }
         try {
-            $engine = $wpdb->get_var($wpdb->prepare("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s", $wpdb->options));
-            if ($engine !== 'InnoDB' || $wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED') === false || $wpdb->query('START TRANSACTION') === false) {
+            return $work();
+        } finally {
+            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $mutex));
+        }
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery
+    }
+
+    /** Preserve rollback on transactional tables. Never commit a caller's open transaction. */
+    private static function storage_transaction(callable $work)
+    {
+        return self::with_storage_lock(static function () use ($work) {
+            global $wpdb;
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery -- Short local writes only, never HTTP.
+            if ($wpdb->query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED') === false || $wpdb->query('START TRANSACTION') === false) {
                 throw new RuntimeException('cloud_storage_unavailable');
             }
-            $started = true;
-            $result = $work();
-            if ($wpdb->query('COMMIT') === false) { throw new RuntimeException('cloud_storage_save_failed'); }
-            $started = false;
-            return $result;
-        } catch (\Throwable $error) {
-            if ($started) { $wpdb->query('ROLLBACK'); }
-            throw $error;
-        } finally {
-            wp_cache_delete(self::OPTION, 'options');
-            wp_cache_delete('alloptions', 'options');
-            wp_cache_delete('notoptions', 'options');
-            self::$state_cache_key = null;
-        }
-        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            try {
+                $result = $work();
+                if ($wpdb->query('COMMIT') === false) { throw new RuntimeException('cloud_storage_save_failed'); }
+                return $result;
+            } catch (\Throwable $error) {
+                $wpdb->query('ROLLBACK');
+                throw $error;
+            } finally {
+                wp_cache_delete(self::OPTION, 'options');
+                wp_cache_delete('alloptions', 'options');
+                wp_cache_delete('notoptions', 'options');
+                self::$state_cache_key = null;
+            }
+            // phpcs:enable WordPress.DB.DirectDatabaseQuery
+        });
     }
 
     /** Capability check is repeated here for every caller; HTTP also requires a nonce. */
@@ -1218,7 +1245,13 @@ final class Connection
         if (!self::allowed() || !in_array($action, ['connect', 'disconnect', 'sync', 'refresh', 'balance', 'verify', 'reset'], true)) {
             return 'forbidden';
         }
-        $owner = self::lock();
+        try { $owner = self::lock(); }
+        catch (RuntimeException $error) {
+            if ($action === 'connect' && $consent) {
+                return ConnectionDiagnostics::run(static function () use ($error) { throw $error; }, $source);
+            }
+            return 'unavailable';
+        }
         if ($owner === '') {
             return 'busy';
         }
@@ -1268,13 +1301,18 @@ final class Connection
                 return self::sync_catalog($state);
             }
             if ($action === 'disconnect' && isset($state['token'])) {
-                do_action('aipkit_cloud_credential_ending', 'disconnected');
+                self::storage_transaction(static function () use ($state): void {
+                    if ((self::fresh_state()['token'] ?? '') !== $state['token']) { throw new RuntimeException('cloud_identity_changed'); }
+                    do_action('aipkit_cloud_credential_ending', 'disconnected');
+                });
                 // A credential Cloud no longer accepts is already useless: remove it locally anyway.
                 // Any other failure keeps the connection so a valid credential is never orphaned.
                 try { self::post('/api/cloud', ['operation' => 'disconnect', 'site' => $state['site'] ?? untrailingslashit(home_url())], ['Authorization' => 'Bearer ' . $state['token']], 30); }
                 catch (\Throwable $error) { if ($error->getMessage() !== 'credential_unavailable') { throw $error; } }
-                self::retire($state['token']);
-                return self::clear_credential($state['token']) ? 'disconnected' : 'unavailable';
+                return self::storage_transaction(static function () use ($state): string {
+                    self::retire($state['token']);
+                    return self::clear_credential($state['token']) ? 'disconnected' : 'unavailable';
+                });
             }
             return 'unavailable';
         } catch (\Throwable $error) {
@@ -1383,6 +1421,11 @@ final class Connection
             // Byte-identical to Cloud's JSON.stringify: no escaped slashes or Unicode.
             $message = wp_json_encode(['aipuffer-cloud-connect-v1', self::PRODUCT, $install_id, $c['site'], $c['id'], $c['nonce'], $c['expiresAt'], $c['consentVersion']], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
             ConnectionDiagnostics::stage('connection');
+            // A challenge can arrive after this request lost its lease to a newer setup.
+            global $wpdb;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Read the current lease before submitting a signed challenge.
+            $current_owner = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::LOCK));
+            if ($current_owner !== $owner || (int) $owner <= time() - self::LOCK_SECONDS) { return 'unavailable'; }
             $result = self::post('/api/connect', ['operation' => 'connect', 'id' => $c['id'], 'signature' => hash_hmac('sha256', $message, $secret), 'consent' => true, 'acceptedConsentVersion' => $c['consentVersion'], 'reference' => $reference], [], 45);
         } catch (RuntimeException $error) {
             ConnectionDiagnostics::error($error->getMessage());
