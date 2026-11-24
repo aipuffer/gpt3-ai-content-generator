@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.32
+Stable tag: 2.5.33
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ Manage WordPress from Claude or ChatGPT with a free MCP server: posts, WooCommer
 ### Connect Claude or ChatGPT to WordPress through MCP
 
 1. Install AI Puffer and choose **Manage my website** in the setup wizard, or open Settings → Connections → Manage my website.
-2. Pick ChatGPT or Claude and approve the connection in WordPress. You can also start from Claude’s directory. Cursor, Claude Code and other MCP clients connect the same way.
+2. Pick ChatGPT or Claude and approve the connection in WordPress. You can also start from [AI Puffer in ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_6b03f625227c819184183b0de57cd34d) or [Claude’s directory](https://claude.ai/directory/ai-puffer). Cursor, Claude Code and other MCP clients connect the same way.
 3. Ask your assistant to do something on your site. The hosted MCP server handles sign-in and routing, so there is nothing to configure on your server.
 
 ### What you can ask
@@ -230,7 +230,7 @@ The AI providers and stores below are used only when you select one for a featur
 
 **Pinecone** (api.pinecone.io and your index host), **Qdrant and Chroma** (the address you enter), if chosen as your knowledge store: passages and embeddings of content you index, and search vectors for lookups. Pinecone [Terms](https://www.pinecone.io/legal/) · [Privacy](https://www.pinecone.io/privacy/); Qdrant [Terms](https://qdrant.tech/legal/terms_and_conditions/) · [Privacy](https://qdrant.tech/legal/privacy-policy/); Chroma [Terms](https://www.trychroma.com/terms) · [Privacy](https://www.trychroma.com/privacy)
 
-**Hosted website management (mcp.aipuffer.org):** starting from Claude’s directory sends the website address you enter to the bridge so you can continue in WordPress. Only after you enable Manage my website and accept its disclosure, the bridge receives your site address, WordPress/plugin versions, Cloud account/site identifiers and public signing key to register the site. Assistant connections include the WordPress user identifier and permitted actions. Assistant requests and website results, including requested post text, pass through the bridge to your chosen assistant; draft content is sent to your WordPress site. Operational records contain identifiers, action names, status and usage, without post bodies or credentials. Recent operational history is searchable for 30 days; archives and completed admin command records are retained for 24 months, and unresolved cases are held until resolved. WordPress keeps its local operation records for recovery. Standard access requires WordPress approval for post publication; Trusted access can publish posts directly. At Trusted, supported plugin changes and deletions can also run without approval, within your chosen WordPress user’s permissions. [Terms](https://aipower.org/terms-and-conditions/) · [Privacy](https://aipower.org/privacy-policy/). Your assistant provider’s own terms also apply.
+**Hosted website management (mcp.aipuffer.org):** starting from ChatGPT’s or Claude’s directory sends the website address you enter to the bridge so you can continue in WordPress. Only after you enable Manage my website and accept its disclosure, the bridge receives your site address, WordPress/plugin versions, Cloud account/site identifiers and public signing key to register the site. Assistant connections include the WordPress user identifier and permitted actions. Assistant requests and website results, including requested post text, pass through the bridge to your chosen assistant; draft content is sent to your WordPress site. Operational records contain identifiers, action names, status and usage, without post bodies or credentials. Recent operational history is searchable for 30 days; archives and completed admin command records are retained for 24 months, and unresolved cases are held until resolved. WordPress keeps its local operation records for recovery. Standard access requires WordPress approval for post publication; Trusted access can publish posts directly. At Trusted, supported plugin changes and deletions can also run without approval, within your chosen WordPress user’s permissions. [Terms](https://aipower.org/terms-and-conditions/) · [Privacy](https://aipower.org/privacy-policy/). Your assistant provider’s own terms also apply.
 
 **Webhooks:** if you add webhook URLs in Settings → Developers, signed event data is sent to those addresses.
 
@@ -241,6 +241,9 @@ The AI providers and stores below are used only when you select one for a featur
 The free edition's original JavaScript and CSS, build tools and instructions are available in the [public source repository](https://github.com/aipuffer/gpt3-ai-content-generator). Version tags identify source snapshots matching the corresponding free release.
 
 == Upgrade Notice ==
+
+= 2.5.33 =
+Connect through AI Puffer’s ChatGPT listing, with simpler setup and support for starting from either assistant directory.
 
 = 2.5.32 =
 Connect to AI Puffer Cloud on sites using MyISAM for WordPress options.
@@ -331,6 +334,11 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.33 =
+* Added ChatGPT directory connections and simplified assistant setup in onboarding and Settings.
+* Fixed repeated content-search results when posts or pages share the same modification time.
+* Fixed Premium theme drafts being blocked by build metadata included in default WordPress themes.
 
 = 2.5.32 =
 * Fixed Cloud connection from onboarding and settings on sites with a MyISAM options table. Existing connections continue to work after updating.

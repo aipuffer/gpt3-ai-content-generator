@@ -284,7 +284,7 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
-                                <?php // What one click does, so the new tab and the copied address are expected. ?>
+                                <?php // What one click does, so the new tab and approval are expected. ?>
                                 <div class="aipkit-setup__happens">
                                     <p><?php esc_html_e('What happens', 'gpt3-ai-content-generator'); ?></p>
                                     <ol>

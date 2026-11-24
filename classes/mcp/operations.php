@@ -236,7 +236,8 @@ final class Operations
         $page = $args->page ?? 1;
         $query = new \WP_Query(['post_type' => $args->post_type ?? 'post', 'post_status' => !isset($args->status) || $args->status === 'any' ? $statuses : $args->status,
             's' => $args->query ?? '', 'posts_per_page' => $args->per_page ?? 20, 'paged' => $page,
-            'perm' => 'readable', 'orderby' => 'modified', 'order' => 'DESC']);
+            // Imports and bulk edits can share a timestamp; ID keeps page boundaries deterministic.
+            'perm' => 'readable', 'orderby' => ['modified' => 'DESC', 'ID' => 'DESC']]);
         $items = [];
         foreach ($query->posts as $post) {
             if (current_user_can('read_post', $post->ID)) { $items[] = self::item($post); }

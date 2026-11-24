@@ -604,9 +604,10 @@ if (root) {
     }
 
     const assistantNames = { chatgpt: 'ChatGPT', claude: 'Claude' };
-    const assistantSetupHint = (client, name) => client === 'claude'
-        ? __('Click Connect in Claude, then approve access to this website.', 'gpt3-ai-content-generator')
-        : sprintf(__('Three short steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name);
+    const assistantSetupHint = (client, name) => client === 'chatgpt'
+        ? __('Install AI Puffer if needed, then connect and approve access to this website.', 'gpt3-ai-content-generator')
+        : client === 'claude' ? __('Click Connect in Claude, then approve access to this website.', 'gpt3-ai-content-generator')
+        : sprintf(__('Follow the steps there. This page shows when %s is connected.', 'gpt3-ai-content-generator'), name);
     const pendingFor = (client) => state.assistants.find(item => item.state === 'pending' && item.client_hint === client);
 
     /**
@@ -1204,7 +1205,7 @@ if (root) {
             try {
                 if (typeof navigator.clipboard?.writeText !== 'function') throw new Error('clipboard_unavailable');
                 await navigator.clipboard.writeText($('[data-website-prompt]').textContent.trim());
-                button.textContent = __('Copied', 'gpt3-ai-content-generator');
+                showSetupCopied(button);
             } catch (error) { showError(__('Copying failed. Select the text and copy it yourself.', 'gpt3-ai-content-generator')); }
         }),
         'after-connect': (button) => busy(button, async () => {
@@ -1310,15 +1311,11 @@ if (root) {
             const label = button.querySelector('strong') || button;
             button.dataset.connectLabel ||= label.textContent;
             // Reserve the assistant tab during the click, then open the signed handoff once it exists.
-            // ChatGPT also needs the copied address; Claude uses the directory and offers manual copy in its fold.
+            // Directory setup never changes the clipboard; manual copy remains available in its fold.
             const client = button.dataset.assistant;
             let tab = null;
             if (assistantNames[client]) {
-                const address = $('[data-assistant-address]')?.textContent.trim();
                 clearSetupCopies();
-                if (client === 'chatgpt' && address && typeof navigator.clipboard?.writeText === 'function') {
-                    navigator.clipboard.writeText(address).then(() => showSetupCopied($('[data-mcp-address]')), () => {});
-                }
                 try { tab = typeof window.open === 'function' ? window.open('', '_blank') : null; } catch (_) { tab = null; }
                 if (tab) tab.opener = null;
             }

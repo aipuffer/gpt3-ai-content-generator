@@ -423,7 +423,7 @@ $aipkit_mcp_pane_attention = $aipkit_mcp_pane_approvals || $aipkit_mcp_pane_revi
                             $aipkit_mcp_client_how = $aipkit_mcp_app['state'] === 'waiting'
                                 /* translators: %s: time since the setup started, such as "4 minutes". */
                                 ? sprintf(__('Setup started %s ago', 'gpt3-ai-content-generator'), human_time_diff($aipkit_mcp_app['since'] ?: time()))
-                                : ($aipkit_mcp_app['state'] === 'disconnected' ? __('Disconnected', 'gpt3-ai-content-generator') : ($aipkit_mcp_client === 'chatgpt' ? __('Add AI Puffer as a custom plugin', 'gpt3-ai-content-generator') : __('Add AI Puffer as a connector', 'gpt3-ai-content-generator')));
+                                : ($aipkit_mcp_app['state'] === 'disconnected' ? __('Disconnected', 'gpt3-ai-content-generator') : ($aipkit_mcp_client === 'chatgpt' ? __('Install AI Puffer from the directory', 'gpt3-ai-content-generator') : __('Add AI Puffer as a connector', 'gpt3-ai-content-generator')));
                             ?>
                             <div class="aipkit_mcp_row">
                                 <span class="aipkit_mcp_tile aipkit_mcp_tile--<?php echo esc_attr($aipkit_mcp_client); ?>" aria-hidden="true"></span>

@@ -247,8 +247,8 @@ final class Settings
 
     /**
      * Setup steps for one assistant, shared by the website sheet and first-run setup. Each value to paste sits in the
-     * step that uses it, step 1 holds the Open button, and edge cases fold into Having trouble?. Claude leads with its
-     * directory; manual details remain available without bypassing Bridge authorization. Settings passes the waiting
+     * step that uses it, step 1 holds the Open button, and edge cases fold into Having trouble?. Both assistants lead with their
+     * directories; manual details remain available without bypassing Bridge authorization. Settings passes the waiting
      * setup ($handoff: url, expires) for the Open links and the time left; setup sets its links in onboarding.js.
      */
     public static function render_assistant_instructions(string $class = 'aipkit_settings_provider_option_help', string $client = 'chatgpt', bool $onboarding = false, array $handoff = []): void
@@ -262,16 +262,16 @@ final class Settings
         $say = static function (string $format, string ...$names): void {
             echo vsprintf(esc_html($format), array_map(static function (string $name): string { return '<b>' . esc_html($name) . '</b>'; }, $names)); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Format and names are escaped above.
         };
-        // One value to paste: its label, the value, and Copy. ChatGPT's server address is the one Connect copies in setup.
-        $field = static function (string $label, string $value, bool $plain = false, bool $address = false) use ($onboarding): void { ?>
+        // One value to copy explicitly: name, server address or test prompt.
+        $field = static function (string $label, string $value, bool $plain = false): void { ?>
             <div class="aipkit_mcp_field">
                 <?php if ($label !== '') : ?><span><?php echo esc_html($label); ?></span><?php endif; ?>
-                <code<?php echo $plain ? ' class="is-plain"' : ''; ?><?php echo $address && $onboarding ? ' data-assistant-address' : ''; ?>><?php echo esc_html($value); ?></code>
-                <button type="button" class="aipkit_mcp_copy" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($value); ?>"<?php echo $address && $onboarding ? ' data-mcp-address' : ''; ?>><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
+                <code<?php echo $plain ? ' class="is-plain"' : ''; ?>><?php echo esc_html($value); ?></code>
+                <button type="button" class="aipkit_mcp_copy" data-action="copy-assistant-setup" data-mcp-copy="<?php echo esc_attr($value); ?>"><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
             </div>
         <?php };
-        $name_and_address = static function (bool $copied_by_connect = false) use ($field, $url): void { ?>
-            <div class="aipkit_mcp_fields"><?php $field(__('Name', 'gpt3-ai-content-generator'), 'AI Puffer', true); $field(__('Server URL', 'gpt3-ai-content-generator'), $url, false, $copied_by_connect); ?></div>
+        $name_and_address = static function () use ($field, $url): void { ?>
+            <div class="aipkit_mcp_fields"><?php $field(__('Name', 'gpt3-ai-content-generator'), 'AI Puffer', true); $field(__('Server URL', 'gpt3-ai-content-generator'), $url); ?></div>
         <?php };
         $open = static function (string $label, string $class = 'aipkit_mcp_open') use ($link, $onboarding): void { ?>
             <a class="<?php echo esc_attr($class . ($class === 'aipkit_mcp_open' ? ($onboarding ? ' aipkit-setup__btn' : ' aipkit_btn aipkit_btn-primary') : '')); ?>" data-mcp-connect-link data-assistant-link<?php echo $link ? ' href="' . esc_url($link) . '"' : ''; ?> target="_blank" rel="noopener noreferrer"><?php echo esc_html($label); ?> <span aria-hidden="true">↗</span></a>
@@ -321,17 +321,24 @@ final class Settings
         <?php };
         ?><div class="<?php echo esc_attr($class . ' aipkit_mcp_setup'); ?>" data-mcp-setup>
             <div class="aipkit_mcp_setup_card" data-mcp-instructions="chatgpt" <?php echo $client === 'chatgpt' ? '' : 'hidden'; ?>>
-                <?php $head('chatgpt', __('Set up ChatGPT', 'gpt3-ai-content-generator'), __('3 steps in ChatGPT', 'gpt3-ai-content-generator')); ?>
+                <?php $head('chatgpt', __('Set up ChatGPT', 'gpt3-ai-content-generator'), __('2 steps in ChatGPT', 'gpt3-ai-content-generator')); ?>
                 <ol class="aipkit_mcp_steps">
-                    <?php $first('chatgpt', __('Open ChatGPT plugins', 'gpt3-ai-content-generator'), /* translators: 1: Add button label, 2: Add custom MCP server menu label. */ __('There, select %1$s, then %2$s.', 'gpt3-ai-content-generator'), __('+ Add', 'gpt3-ai-content-generator'), __('Add custom MCP server', 'gpt3-ai-content-generator')); ?>
-                    <li><p><?php $say(/* translators: %s: OAuth authentication method. */ __('Enter these, and leave Authentication on %s.', 'gpt3-ai-content-generator'), 'OAuth'); ?></p><?php $name_and_address(true); ?></li>
-                    <li><p><?php $say(/* translators: 1: consent checkbox label, 2: Create button label, 3: Allow button label. */ __('Select %1$s, then %2$s. Choose %3$s when AI Puffer asks.', 'gpt3-ai-content-generator'), __('I understand and want to continue', 'gpt3-ai-content-generator'), __('Create', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                    <?php $first('chatgpt', __('Open AI Puffer in ChatGPT', 'gpt3-ai-content-generator'), /* translators: %s: install button label. */ __('Select %s if needed, then connect AI Puffer.', 'gpt3-ai-content-generator'), __('Install plugin', 'gpt3-ai-content-generator')); ?>
+                    <li><p><?php $say(/* translators: %s: Allow button label. */ __('Choose %s when AI Puffer asks for access to this website.', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
                     <?php $try(); ?>
                 </ol>
                 <div class="aipkit_mcp_setup_foot">
+                    <details class="aipkit_mcp_manual">
+                        <summary><?php esc_html_e('Not in the directory? Add it manually', 'gpt3-ai-content-generator'); ?></summary>
+                        <ol class="aipkit_mcp_steps is-sub">
+                            <li><p><?php $say(/* translators: 1: Plugins menu, 2: Add button, 3: custom MCP option. */ __('In ChatGPT, open %1$s, select %2$s, then %3$s.', 'gpt3-ai-content-generator'), __('Plugins', 'gpt3-ai-content-generator'), __('+ Add', 'gpt3-ai-content-generator'), __('Add custom MCP server', 'gpt3-ai-content-generator')); ?></p></li>
+                            <li><p><?php $say(/* translators: %s: OAuth authentication method. */ __('Enter these, and leave Authentication on %s.', 'gpt3-ai-content-generator'), 'OAuth'); ?></p><?php $name_and_address(); ?></li>
+                            <li><p><?php $say(/* translators: 1: notice checkbox, 2: Create button, 3: Allow button. */ __('Select %1$s, then %2$s. Choose %3$s when AI Puffer asks.', 'gpt3-ai-content-generator'), __('I understand and want to continue', 'gpt3-ai-content-generator'), __('Create', 'gpt3-ai-content-generator'), __('Allow', 'gpt3-ai-content-generator')); ?></p></li>
+                        </ol>
+                    </details>
                     <?php $trouble([
                         [__('Already added AI Puffer?', 'gpt3-ai-content-generator'), __('In ChatGPT, open Plugins → Manage, then choose Connect or Reconnect. For a second account, choose Connect another account.', 'gpt3-ai-content-generator')],
-                        [__('No “Add custom MCP server”?', 'gpt3-ai-content-generator'), __('Check your ChatGPT plan, developer mode and workspace permissions. You can also use Claude.', 'gpt3-ai-content-generator')],
+                        [__('Cannot install or connect?', 'gpt3-ai-content-generator'), __('Check your ChatGPT account and workspace permissions. Manual setup is available above if your workspace supports custom MCP servers.', 'gpt3-ai-content-generator')],
                         $expired_help,
                     ]); ?>
                 </div>

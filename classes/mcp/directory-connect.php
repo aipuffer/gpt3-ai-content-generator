@@ -17,7 +17,7 @@ final class DirectoryConnect
     }
     public static function add_page(): void
     {
-        add_submenu_page(null, __('Connect to Claude', 'gpt3-ai-content-generator'), __('Connect to Claude', 'gpt3-ai-content-generator'), 'read', self::PAGE, [self::class, 'render']);
+        add_submenu_page(null, __('Connect your assistant', 'gpt3-ai-content-generator'), __('Connect your assistant', 'gpt3-ai-content-generator'), 'read', self::PAGE, [self::class, 'render']);
     }
     public static function url(string $id): string { return add_query_arg(['page' => self::PAGE, 'request' => $id], admin_url('admin.php')); }
     private static function valid_id($id): bool { return is_string($id) && (bool) preg_match('/^[A-Za-z0-9_-]{32}$/D', $id); }
@@ -30,16 +30,16 @@ final class DirectoryConnect
     /** Fixed Bridge destination only; no caller-supplied host and no redirect following. */
     public static function request_info(string $id)
     {
-        if (!self::valid_id($id)) { return new \WP_Error('invalid_request', __('Start connecting again from Claude.', 'gpt3-ai-content-generator')); }
+        if (!self::valid_id($id)) { return new \WP_Error('invalid_request', __('Start connecting again from your assistant.', 'gpt3-ai-content-generator')); }
         $response = wp_remote_get(Store::bridge_url() . '/directory/request?request=' . rawurlencode($id), ['timeout' => 10, 'redirection' => 0, 'sslverify' => true, 'limit_response_size' => 8192, 'headers' => ['Accept' => 'application/json']]);
         if (is_wp_error($response)) { return new \WP_Error('request_unavailable', __('The connection request could not be checked. Reload this page to try again.', 'gpt3-ai-content-generator')); }
         $data = json_decode(wp_remote_retrieve_body($response), true);
-        if (wp_remote_retrieve_response_code($response) !== 200 || !is_array($data) || ($data['request'] ?? '') !== $id || ($data['client'] ?? '') !== 'claude'
+        if (wp_remote_retrieve_response_code($response) !== 200 || !is_array($data) || ($data['request'] ?? '') !== $id || !in_array($data['client'] ?? '', ['claude', 'chatgpt'], true)
             || !is_int($data['expires_at'] ?? null) || $data['expires_at'] <= time() || $data['expires_at'] > time() + 1810) {
-            return new \WP_Error('invalid_request', __('This request expired or was already used. Start connecting again from Claude.', 'gpt3-ai-content-generator'));
+            return new \WP_Error('invalid_request', __('This request expired or was already used. Start connecting again from your assistant.', 'gpt3-ai-content-generator'));
         }
         if (!is_string($data['site_url'] ?? null) || !in_array(self::base($data['site_url']), [self::base(home_url()), self::base(site_url())], true)) {
-            return new \WP_Error('site_mismatch', __('This request is for a different website. Start again from Claude with this website’s address.', 'gpt3-ai-content-generator'));
+            return new \WP_Error('site_mismatch', __('This request is for a different website. Start again from your assistant with this website’s address.', 'gpt3-ai-content-generator'));
         }
         return $data;
     }
@@ -53,21 +53,23 @@ final class DirectoryConnect
     {
         if (!Connection::allowed() || !wp_verify_nonce($nonce, 'aipkit_directory_' . $id)) { return new \WP_Error('forbidden', __('You cannot approve this connection. Reload the page and try again.', 'gpt3-ai-content-generator')); }
         $pending = get_user_meta(get_current_user_id(), self::META, true);
-        if (!is_array($pending) || ($pending['id'] ?? '') !== $id) { return new \WP_Error('invalid_request', __('Start connecting again from Claude.', 'gpt3-ai-content-generator')); }
+        if (!is_array($pending) || ($pending['id'] ?? '') !== $id) { return new \WP_Error('invalid_request', __('Start connecting again from your assistant.', 'gpt3-ai-content-generator')); }
         $info = self::request_info($id);
         if (is_wp_error($info)) { return $info; }
+        if (($pending['client'] ?? 'claude') !== $info['client']) { return new \WP_Error('invalid_request', __('This request is for a different assistant. Start connecting again.', 'gpt3-ai-content-generator')); }
         if (!self::ready()) { return new \WP_Error('verification_required', __('Connect AI Puffer Cloud and finish Freemius email verification before continuing.', 'gpt3-ai-content-generator')); }
         if (!in_array($level, Registry::LEVELS, true)) { return new \WP_Error('invalid_level', __('Choose a valid safety level.', 'gpt3-ai-content-generator')); }
         try {
             // Retries reuse a pending pairing after the same permission and account checks; no extra grants.
             $grant = isset($pending['grant_id']) ? Store::grant($pending['grant_id']) : null;
-            if ($grant && ($grant['state'] ?? '') === 'pending' && (int) $grant['wp_user_id'] === get_current_user_id() && ($grant['access_level'] ?? '') === $level && ($grant['instance_id'] ?? '') === (Identity::registration()['instance_id'] ?? '') && (int) ($grant['created_at'] ?? 0) > time() - 600 && Identity::active()) {
+            if ($grant && ($grant['client_hint'] ?? '') === $info['client'] && ($grant['state'] ?? '') === 'pending' && (int) $grant['wp_user_id'] === get_current_user_id() && ($grant['access_level'] ?? '') === $level && ($grant['instance_id'] ?? '') === (Identity::registration()['instance_id'] ?? '') && (int) ($grant['created_at'] ?? 0) > time() - 600 && Identity::active()) {
                 $connect = get_transient('aipkit_mcp_connect_' . $grant['grant_id']);
             } else { $connect = ''; }
             if (!$connect) {
-                $pair = Settings::create_pair($level, 'claude', wp_get_current_user());
+                $pair = Settings::create_pair($level, $info['client'], wp_get_current_user());
                 $connect = $pair['connect_url'];
                 $pending['grant_id'] = $pair['grant_id'];
+                $pending['client'] = $info['client'];
                 update_user_meta(get_current_user_id(), self::META, $pending);
             }
             $parts = wp_parse_url($connect); $query = []; parse_str((string) ($parts['query'] ?? ''), $query);
@@ -93,7 +95,7 @@ final class DirectoryConnect
         if (is_wp_error($info)) { self::$error = $info->get_error_message(); return; }
         self::$context = $info;
         $old = get_user_meta(get_current_user_id(), self::META, true);
-        if (!is_array($old) || ($old['id'] ?? '') !== $id) { update_user_meta(get_current_user_id(), self::META, ['id' => $id, 'expires_at' => $info['expires_at']]); }
+        if (!is_array($old) || ($old['id'] ?? '') !== $id) { update_user_meta(get_current_user_id(), self::META, ['id' => $id, 'client' => $info['client'], 'expires_at' => $info['expires_at']]); }
         $method = isset($_SERVER['REQUEST_METHOD']) && is_string($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '';
         if ($method !== 'POST') { return; }
         // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- complete verifies the user-bound nonce and rejects any value outside the exact safety enum.
@@ -114,14 +116,16 @@ final class DirectoryConnect
         $pending = get_user_meta(get_current_user_id(), self::META, true);
         if (!is_array($pending) || !self::valid_id($pending['id'] ?? null) || ($pending['expires_at'] ?? 0) <= time()) { if ($pending) { delete_user_meta(get_current_user_id(), self::META); } return; }
         if (!empty($pending['submitted'])) { return; }
-        ?><div class="notice notice-info"><p><a href="<?php echo esc_url(self::url($pending['id'])); ?>"><?php esc_html_e('Continue connecting your website to Claude', 'gpt3-ai-content-generator'); ?></a></p></div><?php
+        ?><div class="notice notice-info"><p><a href="<?php echo esc_url(self::url($pending['id'])); ?>"><?php echo esc_html(sprintf(/* translators: %s: assistant name. */ __('Continue connecting your website to %s', 'gpt3-ai-content-generator'), self::client_name($pending['client'] ?? 'claude'))); ?></a></p></div><?php
     }
+    private static function client_name(string $client): string { return $client === 'chatgpt' ? 'ChatGPT' : 'Claude'; }
     public static function render(): void
     {
         if (!Connection::allowed()) { return; }
         $ready = self::ready();
+        $name = self::client_name(self::$context['client'] ?? 'claude');
         ?><div class="wrap"><div id="aipkit_module-container"><section class="card aipkit_directory_connect" id="aipkit-directory-connect" data-account-ready="<?php echo $ready ? 'true' : 'false'; ?>">
-        <h1><?php esc_html_e('Connect this website to Claude', 'gpt3-ai-content-generator'); ?></h1>
+        <h1><?php echo esc_html(self::$context ? sprintf(/* translators: %s: assistant name. */ __('Connect this website to %s', 'gpt3-ai-content-generator'), $name) : __('Connect your assistant', 'gpt3-ai-content-generator')); ?></h1>
         <?php if (self::$error !== '') : ?><p role="alert"><?php echo esc_html(self::$error); ?></p><?php endif; ?>
         <?php if (self::$context) : ?>
             <p><?php echo esc_html(home_url()); ?></p>
@@ -135,9 +139,9 @@ final class DirectoryConnect
                     <?php wp_nonce_field('aipkit_directory_' . self::$context['request']); ?>
                     <p><?php esc_html_e('Acts as', 'gpt3-ai-content-generator'); ?>: <strong><?php echo esc_html(wp_get_current_user()->user_login); ?></strong></p>
                     <p><label for="directory-access"><?php esc_html_e('Access', 'gpt3-ai-content-generator'); ?></label> <select name="access_level" id="directory-access"><?php foreach (Registry::LEVELS as $level) : ?><option value="<?php echo esc_attr($level); ?>" <?php selected($level, Registry::DEFAULT_LEVEL); ?>><?php echo esc_html(Registry::level_label($level)); ?></option><?php endforeach; ?></select></p>
-                    <p><?php esc_html_e('Claude can use this website within your WordPress permissions and the safety level you choose.', 'gpt3-ai-content-generator'); ?></p>
+                    <p><?php echo esc_html(sprintf(/* translators: %s: assistant name. */ __('%s can use this website within your WordPress permissions and the safety level you choose.', 'gpt3-ai-content-generator'), $name)); ?></p>
                     <?php Settings::render_connection_terms(); ?>
-                    <p><button class="button button-primary"><?php esc_html_e('Continue to Claude', 'gpt3-ai-content-generator'); ?></button></p>
+                    <p><button class="button button-primary"><?php echo esc_html(sprintf(/* translators: %s: assistant name. */ __('Continue to %s', 'gpt3-ai-content-generator'), $name)); ?></button></p>
                 </form>
             <?php endif; ?>
         <?php endif; ?>
