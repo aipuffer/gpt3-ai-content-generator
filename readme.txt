@@ -4,7 +4,7 @@ Tags: mcp, chatgpt, claude, chatbot, ai
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 2.5.33
+Stable tag: 2.5.34
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -242,6 +242,9 @@ The free edition's original JavaScript and CSS, build tools and instructions are
 
 == Upgrade Notice ==
 
+= 2.5.34 =
+Confirm assistant setup with any successful website read and keep that confirmation after reloading.
+
 = 2.5.33 =
 Connect through AI Puffer’s ChatGPT listing, with simpler setup and support for starting from either assistant directory.
 
@@ -334,6 +337,10 @@ Improves AI Puffer Cloud reconnection after reinstalling and preserves clearer c
 Fixes Content Writer settings reverting, provider model refresh issues, image defaults and history dimensions, and AI Forms feedback. Updates the feature and credit descriptions.
 
 == Changelog ==
+
+= 2.5.34 =
+* Improved assistant setup confirmation to recognize any successful website read, with clearer first-request guidance.
+* Fixed completed website-read confirmation reverting to the prompt after reloading setup.
 
 = 2.5.33 =
 * Added ChatGPT directory connections and simplified assistant setup in onboarding and Settings.

@@ -258,8 +258,8 @@ if (root) {
         const name = readAssistantName();
         const verified = websiteReadConfirmed();
         const messages = {
-            waiting: sprintf(__('Waiting for %s to read your site. This updates by itself.', 'gpt3-ai-content-generator'), name),
-            timeout: sprintf(__('No read confirmed yet. Make sure AI Puffer is selected in %s, then send the prompt.', 'gpt3-ai-content-generator'), name),
+            waiting: sprintf(__('Connected to %s. Send the prompt above to confirm a website read.', 'gpt3-ai-content-generator'), name),
+            timeout: sprintf(__('No website read confirmed yet. In %s, select AI Puffer and send the prompt above.', 'gpt3-ai-content-generator'), name),
             error: __('The website read could not be checked. Try again, and make sure AI Puffer is selected in your assistant.', 'gpt3-ai-content-generator'),
         };
         const step = $('[data-website-first-request]');
@@ -268,7 +268,7 @@ if (root) {
         $('[data-read-title]').textContent = verified ? __('Website read confirmed', 'gpt3-ai-content-generator') : __('Try it now', 'gpt3-ai-content-generator');
         $('[data-website-hint]').textContent = verified
             ? sprintf(__('%s can use your site. Everything it does shows up in Website activity.', 'gpt3-ai-content-generator'), name.charAt(0).toUpperCase() + name.slice(1))
-            : sprintf(__('In %s, select AI Puffer and send this. It only reads your site.', 'gpt3-ai-content-generator'), name);
+            : sprintf(__('In %s, select AI Puffer and send this. Listing sites or balances alone won’t confirm a website read.', 'gpt3-ai-content-generator'), name);
         $$('[data-read-part]').forEach(part => { part.hidden = verified; });
         $('[data-website-verification]').textContent = verified ? '' : (message || messages[verification.status] || '');
         $('[data-website-verification]').dataset.status = verification.status;
@@ -416,8 +416,8 @@ if (root) {
             ? (assistantNames[active.client_hint] ? sprintf(__('%s connected', 'gpt3-ai-content-generator'), assistantNames[active.client_hint]) : __('Assistant connected', 'gpt3-ai-content-generator'))
             : __('Connect an assistant', 'gpt3-ai-content-generator');
         if (showFirstRequest) {
+            renderWebsitePrompt();
             if (verification.grant !== active.grant_id || verification.status === 'idle') {
-                renderWebsitePrompt();
                 void checkWebsiteRead('start');
             } else if (verification.status === 'waiting' && !verification.controller && !verification.timer) {
                 void checkWebsiteRead(verification.attempt ? 'check' : 'start');

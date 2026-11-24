@@ -599,11 +599,14 @@ final class Onboarding
         global $wpdb;
         // Quote the fixed schema identifier separately from prepared values; compatible with WordPress 6.0 (before %i).
         $table = '`' . str_replace('`', '``', \WPAICG\Mcp\Schema::table('operations')) . '`';
+        // Use the executor's read classification, so new read tools qualify without a second allowlist.
+        $reads = array_keys(array_filter(\WPAICG\Mcp\Registry::operations(), static function (array $operation): bool { return $operation['risk'] === 'read'; }));
         if ($mode === 'retry' || ($mode === 'start' && ($attempt['binding'] ?? '') !== $binding)) {
             $started = time();
+            $baseline_params = array_merge([$grant_id], $reads, [$started]);
             // Exclude even an older request from the same second, including an unfinished request.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is backtick-quoted above; values are prepared. Local indexed journal snapshot.
-            $baseline = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND tool = 'get_site_overview' AND created_at >= %d LIMIT 101", $grant_id, $started));
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is quoted above; the IN list contains only generated %s placeholders and prepared values. Local indexed journal snapshot.
+            $baseline = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND tool IN (" . implode(', ', array_fill(0, count($reads), '%s')) . ") AND created_at >= %d LIMIT 101", $baseline_params));
             if ($wpdb->last_error !== '' || count($baseline) > 100) { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
             $attempt = ['id' => wp_generate_uuid4(), 'binding' => $binding, 'started' => $started, 'expires' => $started + 600, 'baseline' => $baseline, 'verified' => false];
             self::save(['website_verification' => $attempt]);
@@ -613,9 +616,10 @@ final class Onboarding
             wp_send_json_error(['message' => __('This verification changed. Start it again.', 'gpt3-ai-content-generator')], 409);
         }
         if (empty($attempt['verified'])) {
+            $read_params = array_merge([$grant_id, $config['account_id'] ?? '', $config['site_id'] ?? '', $registration['instance_id'], $grant['connection_id'], get_current_user_id()], $reads, [$attempt['started'], $attempt['expires']]);
             // A successful read must belong to this account, site, instance, assistant and WordPress user.
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is backtick-quoted above; values are prepared. Fresh local evidence, no request/response content exposed.
-            $rows = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND account_id = %s AND site_id = %s AND instance_id = %s AND connection_id = %s AND acting_user = %d AND tool = 'get_site_overview' AND state = 'succeeded' AND created_at >= %d AND updated_at <= %d ORDER BY created_at DESC LIMIT 101", $grant_id, $config['account_id'] ?? '', $config['site_id'] ?? '', $registration['instance_id'], $grant['connection_id'], get_current_user_id(), $attempt['started'], $attempt['expires']));
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed schema identifier is quoted above; the IN list contains only generated %s placeholders and prepared values. Fresh local evidence, no request/response content exposed.
+            $rows = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM $table WHERE grant_id = %s AND account_id = %s AND site_id = %s AND instance_id = %s AND connection_id = %s AND acting_user = %d AND tool IN (" . implode(', ', array_fill(0, count($reads), '%s')) . ") AND state = 'succeeded' AND created_at >= %d AND updated_at <= %d ORDER BY created_at DESC LIMIT 101", $read_params));
             if ($wpdb->last_error !== '') { wp_send_json_error(['message' => __('The website read could not be checked. Try again.', 'gpt3-ai-content-generator')], 503); }
             if (array_diff($rows, $attempt['baseline'])) {
                 $attempt['verified'] = true;

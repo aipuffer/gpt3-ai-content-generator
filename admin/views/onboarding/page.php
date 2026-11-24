@@ -341,11 +341,11 @@ $aipkit_setup_arrow = 'M5 12h14M13 6l6 6-6 6';
                     <span class="aipkit-setup__flow-num" data-read-num aria-hidden="true">3</span>
                     <div class="aipkit-setup__flow-body">
                         <p class="aipkit-setup__flow-title" data-read-title role="status" aria-live="polite" aria-atomic="true"><?php esc_html_e('Try it now', 'gpt3-ai-content-generator'); ?></p>
-                        <p class="aipkit-setup__muted" data-website-hint><?php esc_html_e('In your assistant, select AI Puffer and send this. It only reads your site.', 'gpt3-ai-content-generator'); ?></p>
+                        <p class="aipkit-setup__muted" data-website-hint><?php esc_html_e('In your assistant, select AI Puffer and send this. Listing sites or balances alone won’t confirm a website read.', 'gpt3-ai-content-generator'); ?></p>
                         <div class="aipkit-setup__prompt aipkit-setup__prompt--copy" data-read-part>
                             <span data-website-prompt><?php echo esc_html(sprintf(
                                 /* translators: %s: the current website address. */
-                                __('Use AI Puffer to read my site at %s. Tell me its name and address. Do not change anything.', 'gpt3-ai-content-generator'), home_url('/')
+                                __('Use AI Puffer to read the homepage of %s and summarise what it’s about. Do not change anything.', 'gpt3-ai-content-generator'), home_url('/')
                             )); ?></span>
                             <button type="button" class="aipkit-setup__prompt-copy" data-action="copy-website-prompt"><?php esc_html_e('Copy', 'gpt3-ai-content-generator'); ?></button>
                         </div>
